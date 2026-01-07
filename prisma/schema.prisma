@@ -1,0 +1,474 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String?
+  phone             String?
+  cpf               String?
+  role              Role               @default(USER)
+  
+  // Funcionário/Colaborador - trabalha para qual vendedor
+  workForSellerId   String?
+  workForSeller     Seller?            @relation("SellerEmployees", fields: [workForSellerId], references: [id])
+  employeeRole      EmployeeRole?      // Permissões do funcionário (se workForSellerId não for null)
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  orders            Order[]
+  cartItems         CartItem[]
+  mercadoLivreAuth  MercadoLivreAuth?
+  aliexpressAuth    AliExpressAuth?
+  shopeeAuth        ShopeeAuth?
+  seller            Seller?            @relation("SellerOwner") // Dados de vendedor (se for dono de vendedor)
+  
+  @@index([workForSellerId])
+  @@map("user")
+}
+
+enum EmployeeRole {
+  MANAGER   // Gerente - acesso quase total (produtos, pedidos, financeiro) - SEM acesso a funcionários e integrações
+  OPERATOR  // Operador - apenas produtos e pedidos - SEM acesso a financeiro, funcionários, integrações
+  VIEWER    // Visualizador - apenas visualizar (relatórios) - SEM editar nada
+  
+  @@map("user_employeeRole")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SELLER
+  
+  @@map("user_role")
+}
+
+model Seller {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  user              User      @relation("SellerOwner", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Funcionários/Colaboradores deste vendedor
+  employees         User[]    @relation("SellerEmployees")
+  
+  // Informações da Loja
+  storeName         String    // Nome da loja
+  storeSlug         String    @unique // URL amigável (ex: minha-loja)
+  storeDescription  String?   @db.Text
+  storeLogo         String?   // URL do logo
+  storeBanner       String?   // URL do banner
+  
+  // Tipo de Vendedor
+  sellerType        SellerType // PF ou PJ
+  
+  // Dados Pessoa Física
+  cpf               String?
+  rg                String?
+  dataNascimento    DateTime?
+  
+  // Dados Pessoa Jurídica
+  cnpj              String?
+  razaoSocial       String?
+  nomeFantasia      String?
+  inscricaoEstadual String?
+  
+  // Endereço
+  cep               String?
+  endereco          String?
+  numero            String?
+  complemento       String?
+  bairro            String?
+  cidade            String?
+  estado            String?
+  
+  // Dados Bancários
+  banco             String?
+  agencia           String?
+  conta             String?
+  tipoConta         String? // Corrente ou Poupança
+  chavePix          String?
+  
+  // Configurações
+  commission        Float     @default(10) // Comissão da plataforma (%)
+  status            SellerStatus @default(PENDING)
+  
+  // Produtos
+  products          Product[]
+  
+  // Pedidos deste vendedor (loja normal OU dropshipping)
+  orders            Order[]       @relation("SellerOrders")
+  
+  // Pedidos vendidos por este vendedor (dropshipping/afiliados)
+  ordersSold        Order[]       @relation("SellerSoldOrders")
+  
+  // Credenciais de Marketplaces
+  marketplaceCredentials SellerMarketplaceCredential[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@map("seller")
+}
+
+enum SellerType {
+  PF // Pessoa Física
+  PJ // Pessoa Jurídica
+  
+  @@map("seller_sellerType")
+}
+
+enum SellerStatus {
+  PENDING   // Aguardando aprovação
+  ACTIVE    // Ativo
+  SUSPENDED // Suspenso
+  REJECTED  // Rejeitado
+  
+  @@map("seller_status")
+}
+
+// Credenciais de Marketplaces do Vendedor
+model SellerMarketplaceCredential {
+  id            String   @id @default(cuid())
+  sellerId      String
+  seller        Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  
+  marketplace   String   // 'mercadolivre', 'aliexpress', 'shopee', 'amazon'
+  
+  // Mercado Livre
+  mlClientId    String?
+  mlClientSecret String?
+  mlAccessToken  String?  @db.Text
+  mlRefreshToken String?  @db.Text
+  mlUserId      String?
+  mlExpiresAt   DateTime?
+  
+  // AliExpress
+  aliAppKey     String?
+  aliAppSecret  String?
+  aliTrackingId String?
+  aliAccessToken String? @db.Text
+  
+  // Shopee
+  shopeePartnerId  Int?
+  shopeePartnerKey String?
+  shopeeAccessToken String? @db.Text
+  shopeeRefreshToken String? @db.Text
+  shopeeShopId      Int?
+  shopeeMerchantName String?
+  shopeeRegion      String?
+  shopeeExpiresAt   DateTime?
+  
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([sellerId, marketplace])
+  @@index([sellerId])
+  @@map("sellermarketplacecredential")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+  
+  @@map("category")
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String      @unique
+  description String?     @db.Text
+  price       Float
+  comparePrice Float?
+  costPrice   Float?      // Preço de custo base do produto
+  shippingCost Float?     // Custo do frete do fornecedor
+  taxCost     Float?      // Impostos/taxas de importação
+  totalCost   Float?      // Custo total (produto + frete + impostos)
+  margin      Float?      // Margem de lucro calculada
+  
+  // Dropshipping
+  isDropshipping  Boolean   @default(false) // Produto disponível para dropshipping
+  dropshippingCommission Float? // Comissão (%) para vendedores que revenderem
+  
+  images      String      @db.Text
+  stock       Int         @default(0)
+  featured    Boolean     @default(false)
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+  sellerId    String?     // ID do vendedor (se for produto de vendedor)
+  seller      Seller?     @relation(fields: [sellerId], references: [id])
+  
+  // Fornecedor (para dropshipping)
+  supplierId      String?
+  supplier        Supplier?    @relation(fields: [supplierId], references: [id])
+  supplierSku     String?      // SKU do fornecedor
+  supplierUrl     String?      @db.Text
+  
+  // Especificações
+  specifications  String?  @db.Text // JSON com especificações
+  variants        String?  @db.Text // JSON com variantes (tamanho, cor, etc)
+  attributes      String?  @db.Text // JSON com atributos adicionais
+  
+  // Campos ML
+  gtin           String?
+  brand          String?
+  model          String?
+  color          String?
+  mpn            String?
+  technicalSpecs String?  @db.Text // JSON
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  marketplaceListings MarketplaceListing[]
+  
+  // Dropshipping
+  availableForDropship    Boolean   @default(true)
+  isChoiceProduct         Boolean   @default(false) // Se é produto em destaque para dropshipping
+  lastSyncAt              DateTime? // Última sincronização com fornecedor
+  supplierRating          Float?    // Avaliação do fornecedor
+  supplierShippingSpeed   Float?    // Velocidade de envio do fornecedor (dias)
+  supplierStock           Int?      // Estoque no fornecedor
+  supplierStoreId         String?   // ID da loja do fornecedor
+  supplierStoreName       String?   // Nome da loja do fornecedor
+  active                  Boolean   @default(true)
+  
+  @@index([categoryId])
+  @@index([sellerId])
+  @@index([supplierId])
+  @@map("product")
+}
+
+model Supplier {
+  id          String    @id @default(cuid())
+  name        String
+  apiUrl      String?
+  apiKey      String?
+  type        String    // 'aliexpress', 'shopee', 'alibaba', etc
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+  
+  @@map("supplier")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([userId, productId])
+  @@index([productId])
+  @@map("cartitem")
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  userId            String?
+  user              User?       @relation(fields: [userId], references: [id])
+  status            OrderStatus @default(PENDING)
+  total             Float
+  profit            Float?      // Lucro da plataforma
+  shippingAddress   String      @db.Text
+  paymentIntentId   String?
+  
+  // Fornecedor/Supplier (para pedidos de dropshipping)
+  supplierOrderId   String?     // ID do pedido no fornecedor
+  trackingCode      String?
+  
+  // Marketplace
+  marketplaceName   String?     // 'mercadolivre', 'shopee', etc
+  marketplaceOrderId String?    @unique
+  
+  // Envio para fornecedor
+  sentToSupplier    Boolean     @default(false)
+  sentToSupplierAt  DateTime?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  items             OrderItem[]
+  
+  // Dados do comprador (para marketplace)
+  buyerEmail        String?
+  buyerName         String?
+  buyerPhone        String?
+  buyerCpf          String?
+  paymentMethod     String?
+  shippingCost      Float?
+  buyerMessages     String?     @db.Text
+  cancelReason      String?
+  
+  // Comissões e receitas
+  commissionAmount  Float?      // Total de comissão da plataforma
+  commissionRate    Float?      // Taxa de comissão aplicada (%)
+  sellerRevenue     Float?      // Receita do vendedor
+  
+  // Vendedor que vendeu (dropshipping/afiliado)
+  soldBySellerId    String?
+  soldBySeller      Seller?     @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
+  
+  // Vendedor dono do produto
+  sellerId          String?
+  seller            Seller?     @relation("SellerOrders", fields: [sellerId], references: [id])
+  
+  @@index([userId])
+  @@index([sellerId])
+  @@index([soldBySellerId])
+  @@map("order")
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  
+  @@map("order_status")
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+  createdAt DateTime @default(now())
+  
+  // Comissão e receita por item
+  commissionAmount Float?   // Comissão da plataforma neste item
+  commissionRate   Float?   // Taxa de comissão aplicada (%)
+  sellerId         String?  // ID do vendedor dono do produto
+  sellerRevenue    Float?   // Receita do vendedor neste item
+  
+  @@index([orderId])
+  @@index([productId])
+  @@map("orderitem")
+}
+
+model MercadoLivreAuth {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
+  expiresAt    DateTime
+  mlUserId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("mercadolivreauth")
+}
+
+model AliExpressAuth {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appKey       String
+  appSecret    String    @db.Text
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  expiresAt    DateTime?
+  trackingId   String?
+  sellerId     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@map("aliexpressauth")
+}
+
+model ShopeeAuth {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnerId    Int
+  partnerKey   String
+  accessToken  String    @db.Text
+  refreshToken String    @db.Text
+  shopId       Int
+  merchantName String?
+  region       String?
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@map("shopeeauth")
+}
+
+model MarketplaceListing {
+  id           String    @id @default(cuid())
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  marketplace  String    // 'mercadolivre', 'shopee', etc
+  listingId    String    // ID do anúncio no marketplace
+  status       String    // 'active', 'paused', 'closed'
+  title        String?
+  price        Float?
+  stock        Int?
+  listingUrl   String?   @db.Text
+  lastSyncAt   DateTime?
+  syncEnabled  Boolean   @default(true)
+  errorMessage String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@unique([productId, marketplace])
+  @@index([marketplace])
+  @@index([status])
+  @@map("marketplacelisting")
+}
+
+model CompanySettings {
+  id                            String   @id @default(cuid())
+  name                          String?
+  cnpj                          String?
+  email                         String?
+  phone                         String?
+  address                       String?  @db.Text
+  defaultCommission             Float?   @default(10)
+  processingDays                Int?     @default(2)
+  showRealTimeStock             Boolean  @default(true)
+  autoApproveSellers            Boolean  @default(false)
+  notifyNewDropshippingProducts Boolean  @default(true)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+  
+  @@map("company_settings")
+}
+
+model MercadoLivreCredentials {
+  id           String   @id @default(cuid())
+  clientId     String
+  clientSecret String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("mercadolivrecredentials")
+}

@@ -1,0 +1,376 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model aliexpressauth {
+  id           String    @id
+  userId       String    @unique(map: "AliExpressAuth_userId_key")
+  appKey       String
+  appSecret    String    @db.Text
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  expiresAt    DateTime?
+  trackingId   String?
+  sellerId     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  user         user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "AliExpressAuth_userId_fkey")
+}
+
+model cartitem {
+  id        String   @id
+  userId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  product   product  @relation(fields: [productId], references: [id], onDelete: Cascade, map: "CartItem_productId_fkey")
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "CartItem_userId_fkey")
+
+  @@unique([userId, productId], map: "CartItem_userId_productId_key")
+  @@index([productId], map: "CartItem_productId_fkey")
+}
+
+model category {
+  id          String    @id
+  name        String
+  slug        String    @unique(map: "Category_slug_key")
+  description String?
+  image       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  product     product[]
+}
+
+model company_settings {
+  id                            String   @id
+  name                          String?
+  cnpj                          String?
+  email                         String?
+  phone                         String?
+  address                       String?  @db.Text
+  defaultCommission             Float?   @default(10)
+  processingDays                Int?     @default(2)
+  showRealTimeStock             Boolean  @default(true)
+  autoApproveSellers            Boolean  @default(false)
+  notifyNewDropshippingProducts Boolean  @default(true)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime
+}
+
+model marketplacelisting {
+  id           String    @id
+  productId    String
+  marketplace  String
+  listingId    String
+  status       String
+  title        String?
+  price        Float?
+  stock        Int?
+  listingUrl   String?   @db.Text
+  lastSyncAt   DateTime?
+  syncEnabled  Boolean   @default(true)
+  errorMessage String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  product      product   @relation(fields: [productId], references: [id], onDelete: Cascade, map: "MarketplaceListing_productId_fkey")
+
+  @@unique([productId, marketplace], map: "MarketplaceListing_productId_marketplace_key")
+  @@index([marketplace], map: "MarketplaceListing_marketplace_idx")
+  @@index([status], map: "MarketplaceListing_status_idx")
+}
+
+model mercadolivreauth {
+  id           String   @id
+  userId       String   @unique(map: "MercadoLivreAuth_userId_key")
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
+  expiresAt    DateTime
+  mlUserId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  user         user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "MercadoLivreAuth_userId_fkey")
+}
+
+model mercadolivrecredentials {
+  id           String   @id
+  clientId     String
+  clientSecret String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+}
+
+model order {
+  id                                  String       @id
+  userId                              String?
+  status                              order_status @default(PENDING)
+  total                               Float
+  profit                              Float?
+  shippingAddress                     String       @db.Text
+  paymentIntentId                     String?
+  supplierOrderId                     String?
+  trackingCode                        String?
+  marketplaceName                     String?
+  marketplaceOrderId                  String?      @unique(map: "Order_marketplaceOrderId_key")
+  sentToSupplier                      Boolean      @default(false)
+  sentToSupplierAt                    DateTime?
+  createdAt                           DateTime     @default(now())
+  updatedAt                           DateTime
+  buyerEmail                          String?
+  buyerName                           String?
+  buyerPhone                          String?
+  buyerCpf                            String?
+  paymentMethod                       String?
+  shippingCost                        Float?
+  buyerMessages                       String?      @db.Text
+  cancelReason                        String?
+  commissionAmount                    Float?
+  commissionRate                      Float?
+  sellerRevenue                       Float?
+  soldBySellerId                      String?
+  sellerId                            String?
+  seller_order_sellerIdToseller       seller?      @relation("order_sellerIdToseller", fields: [sellerId], references: [id], map: "Order_sellerId_fkey")
+  seller_order_soldBySellerIdToseller seller?      @relation("order_soldBySellerIdToseller", fields: [soldBySellerId], references: [id], map: "Order_soldBySellerId_fkey")
+  user                                user?        @relation(fields: [userId], references: [id], map: "Order_userId_fkey")
+  orderitem                           orderitem[]
+
+  @@index([sellerId], map: "Order_sellerId_fkey")
+  @@index([soldBySellerId], map: "Order_soldBySellerId_fkey")
+  @@index([userId], map: "Order_userId_fkey")
+}
+
+model orderitem {
+  id               String   @id
+  orderId          String
+  productId        String
+  quantity         Int
+  price            Float
+  createdAt        DateTime @default(now())
+  commissionAmount Float?
+  commissionRate   Float?
+  sellerId         String?
+  sellerRevenue    Float?
+  order            order    @relation(fields: [orderId], references: [id], onDelete: Cascade, map: "OrderItem_orderId_fkey")
+  product          product  @relation(fields: [productId], references: [id], map: "OrderItem_productId_fkey")
+
+  @@index([orderId], map: "OrderItem_orderId_fkey")
+  @@index([productId], map: "OrderItem_productId_fkey")
+}
+
+model product {
+  id                     String               @id
+  name                   String
+  slug                   String               @unique(map: "Product_slug_key")
+  description            String?              @db.Text
+  price                  Float
+  comparePrice           Float?
+  costPrice              Float?
+  margin                 Float?
+  images                 String               @db.Text
+  stock                  Int                  @default(0)
+  featured               Boolean              @default(false)
+  categoryId             String
+  supplierId             String?
+  supplierSku            String?
+  supplierUrl            String?              @db.Text
+  specifications         String?              @db.Text
+  variants               String?              @db.Text
+  attributes             String?              @db.Text
+  gtin                   String?
+  brand                  String?
+  model                  String?
+  color                  String?
+  mpn                    String?
+  technicalSpecs         String?              @db.Text
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime
+  availableForDropship   Boolean              @default(true)
+  isChoiceProduct        Boolean              @default(false)
+  lastSyncAt             DateTime?
+  supplierRating         Float?
+  supplierShippingSpeed  Float?
+  supplierStock          Int?
+  supplierStoreId        String?
+  supplierStoreName      String?
+  active                 Boolean              @default(true)
+  shippingCost           Float?
+  taxCost                Float?
+  totalCost              Float?
+  sellerId               String?
+  dropshippingCommission Float?
+  isDropshipping         Boolean              @default(false)
+  cartitem               cartitem[]
+  marketplacelisting     marketplacelisting[]
+  orderitem              orderitem[]
+  category               category             @relation(fields: [categoryId], references: [id], map: "Product_categoryId_fkey")
+  seller                 seller?              @relation(fields: [sellerId], references: [id], map: "Product_sellerId_fkey")
+  supplier               supplier?            @relation(fields: [supplierId], references: [id], map: "Product_supplierId_fkey")
+
+  @@index([categoryId], map: "Product_categoryId_fkey")
+  @@index([sellerId], map: "Product_sellerId_fkey")
+  @@index([supplierId], map: "Product_supplierId_fkey")
+}
+
+model seller {
+  id                                 String                        @id
+  userId                             String                        @unique(map: "Seller_userId_key")
+  storeName                          String
+  storeSlug                          String                        @unique(map: "Seller_storeSlug_key")
+  storeDescription                   String?                       @db.Text
+  storeLogo                          String?
+  storeBanner                        String?
+  sellerType                         seller_sellerType
+  cpf                                String?
+  rg                                 String?
+  dataNascimento                     DateTime?
+  cnpj                               String?
+  razaoSocial                        String?
+  nomeFantasia                       String?
+  inscricaoEstadual                  String?
+  cep                                String?
+  endereco                           String?
+  numero                             String?
+  complemento                        String?
+  bairro                             String?
+  cidade                             String?
+  estado                             String?
+  banco                              String?
+  agencia                            String?
+  conta                              String?
+  tipoConta                          String?
+  chavePix                           String?
+  commission                         Float                         @default(10)
+  status                             seller_status                 @default(PENDING)
+  createdAt                          DateTime                      @default(now())
+  updatedAt                          DateTime
+  order_order_sellerIdToseller       order[]                       @relation("order_sellerIdToseller")
+  order_order_soldBySellerIdToseller order[]                       @relation("order_soldBySellerIdToseller")
+  product                            product[]
+  user_seller_userIdTouser           user                          @relation("seller_userIdTouser", fields: [userId], references: [id], onDelete: Cascade, map: "Seller_userId_fkey")
+  sellermarketplacecredential        sellermarketplacecredential[]
+  user_user_workForSellerIdToseller  user[]                        @relation("user_workForSellerIdToseller")
+}
+
+model sellermarketplacecredential {
+  id                 String    @id
+  sellerId           String
+  marketplace        String
+  mlClientId         String?
+  mlClientSecret     String?
+  mlAccessToken      String?   @db.Text
+  mlRefreshToken     String?   @db.Text
+  mlUserId           String?
+  mlExpiresAt        DateTime?
+  aliAppKey          String?
+  aliAppSecret       String?
+  aliTrackingId      String?
+  aliAccessToken     String?   @db.Text
+  shopeePartnerId    Int?
+  shopeePartnerKey   String?
+  shopeeAccessToken  String?   @db.Text
+  shopeeRefreshToken String?   @db.Text
+  shopeeShopId       Int?
+  shopeeMerchantName String?
+  shopeeRegion       String?
+  shopeeExpiresAt    DateTime?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime
+  seller             seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade, map: "SellerMarketplaceCredential_sellerId_fkey")
+
+  @@unique([sellerId, marketplace], map: "SellerMarketplaceCredential_sellerId_marketplace_key")
+  @@index([sellerId], map: "SellerMarketplaceCredential_sellerId_idx")
+}
+
+model shopeeauth {
+  id           String   @id
+  userId       String   @unique(map: "ShopeeAuth_userId_key")
+  shopId       Int
+  partnerId    Int
+  partnerKey   String   @db.Text
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
+  expiresAt    DateTime
+  merchantName String?
+  region       String   @default("BR")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  user         user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "ShopeeAuth_userId_fkey")
+}
+
+model supplier {
+  id         String    @id
+  name       String
+  email      String    @unique(map: "Supplier_email_key")
+  phone      String?
+  website    String?
+  apiUrl     String?
+  apiKey     String?
+  commission Float     @default(0)
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+  product    product[]
+}
+
+model user {
+  id                                  String             @id
+  name                                String?
+  email                               String             @unique(map: "User_email_key")
+  emailVerified                       DateTime?
+  image                               String?
+  password                            String?
+  role                                user_role          @default(USER)
+  createdAt                           DateTime           @default(now())
+  updatedAt                           DateTime
+  cpf                                 String?
+  phone                               String?
+  workForSellerId                     String?
+  employeeRole                        user_employeeRole?
+  aliexpressauth                      aliexpressauth?
+  cartitem                            cartitem[]
+  mercadolivreauth                    mercadolivreauth?
+  order                               order[]
+  seller_seller_userIdTouser          seller?            @relation("seller_userIdTouser")
+  shopeeauth                          shopeeauth?
+  seller_user_workForSellerIdToseller seller?            @relation("user_workForSellerIdToseller", fields: [workForSellerId], references: [id], map: "User_workForSellerId_fkey")
+
+  @@index([workForSellerId], map: "User_workForSellerId_fkey")
+}
+
+enum order_status {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum user_role {
+  USER
+  ADMIN
+  SELLER
+}
+
+enum seller_sellerType {
+  PF
+  PJ
+}
+
+enum user_employeeRole {
+  MANAGER
+  OPERATOR
+  VIEWER
+}
+
+enum seller_status {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}

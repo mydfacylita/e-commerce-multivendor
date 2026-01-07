@@ -1,0 +1,247 @@
+'use client'
+
+import Link from 'next/link'
+import { useSession, signOut } from 'next-auth/react'
+import { useState } from 'react'
+import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiTruck, FiLock, FiAward, FiPackage, FiHeart, FiMail } from 'react-icons/fi'
+import { FaFacebook, FaTwitter, FaYoutube, FaWhatsapp } from 'react-icons/fa'
+import { useCartStore } from '@/lib/store'
+
+export default function Navbar() {
+  const { data: session } = useSession()
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const items = useCartStore((state) => state.items)
+  const cartItemsCount = items.reduce((sum, item) => sum + item.quantity, 0)
+
+  return (
+    <>
+      {/* Barra de Benefícios */}
+      <div className="bg-primary-500 text-white text-sm py-2">
+        <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <FiTruck className="text-lg" />
+            <span className="font-semibold">FRETE GRÁTIS PARA TODO BRASIL</span>
+          </div>
+          <div className="hidden md:flex items-center gap-2">
+            <FiLock className="text-lg" />
+            <span className="font-semibold">COMPRA RÁPIDA & SEGURA</span>
+          </div>
+          <div className="hidden lg:flex items-center gap-2">
+            <FiAward className="text-lg" />
+            <span className="font-semibold">SATISFAÇÃO GARANTIDA</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Header Principal */}
+      <nav className="bg-white shadow-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex justify-between items-center gap-4">
+            {/* Logo */}
+            <Link href="/" className="text-3xl font-bold text-primary-500 flex-shrink-0">
+              <span className="text-accent-500">MYD</span>SHOP
+            </Link>
+
+            {/* Barra de Busca */}
+            <div className="hidden md:flex flex-1 max-w-2xl">
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  placeholder="Procurar Produtos"
+                  className="w-full pl-4 pr-12 py-3 border-2 border-gray-300 rounded-l-lg focus:outline-none focus:border-accent-500"
+                />
+                <button className="absolute right-0 top-0 bottom-0 bg-accent-500 text-white px-6 rounded-r-lg hover:bg-accent-600">
+                  <FiSearch size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Login e Carrinho */}
+            <div className="flex items-center gap-4">
+              {session ? (
+                <div className="relative group hidden md:block">
+                  <button className="flex items-center gap-2 hover:text-primary-600">
+                    <FiUser size={24} />
+                    <div className="text-left">
+                      <div className="text-xs text-gray-600">Olá, {session.user.name}</div>
+                      <div className="text-sm font-semibold">Minha Conta</div>
+                    </div>
+                  </button>
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden group-hover:block">
+                    <Link href="/perfil" className="block px-4 py-2 text-sm hover:bg-gray-100">
+                      Meu Perfil
+                    </Link>
+                    <Link href="/pedidos" className="block px-4 py-2 text-sm hover:bg-gray-100">
+                      Meus Pedidos
+                    </Link>
+                    {session.user.role === 'ADMIN' && (
+                      <Link href="/admin" className="block px-4 py-2 text-sm hover:bg-gray-100">
+                        Painel Admin
+                      </Link>
+                    )}
+                    {session.user.role === 'SELLER' && (
+                      <Link href="/vendedor/dashboard" className="block px-4 py-2 text-sm hover:bg-gray-100">
+                        Painel Vendedor
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => signOut()}
+                      className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                    >
+                      Sair
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <Link href="/login" className="hidden md:flex items-center gap-2 hover:text-primary-600">
+                  <FiUser size={24} />
+                  <div className="text-left">
+                    <div className="text-xs text-gray-600">Entre ou</div>
+                    <div className="text-sm font-semibold">Cadastre-se</div>
+                  </div>
+                </Link>
+              )}
+
+              <Link href="/carrinho" className="relative">
+                <FiShoppingCart size={32} className="text-primary-500" />
+                {cartItemsCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-accent-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                    {cartItemsCount}
+                  </span>
+                )}
+              </Link>
+
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="md:hidden text-primary-500"
+              >
+                {isMenuOpen ? <FiX size={28} /> : <FiMenu size={28} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Search */}
+          <div className="md:hidden mt-3">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Procurar Produtos"
+                className="w-full pl-4 pr-12 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-accent-500"
+              />
+              <button className="absolute right-2 top-2 text-accent-500">
+                <FiSearch size={20} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Menu de Navegação */}
+      <div className="bg-primary-500 text-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="hidden md:flex items-center justify-between py-3">
+            <div className="flex items-center gap-8">
+              <Link href="/rastrear" className="flex items-center gap-2 hover:text-accent-500">
+                <FiPackage size={20} />
+                <span>Rastrear Pedido</span>
+              </Link>
+              <Link href="/" className="flex items-center gap-2 hover:text-accent-500 text-accent-500">
+                <span>🏠 Home</span>
+              </Link>
+              <div className="relative group">
+                <button className="flex items-center gap-2 hover:text-accent-500">
+                  <span>🏷️ Departamentos</span>
+                  <span>▼</span>
+                </button>
+                <div className="absolute left-0 mt-2 w-64 bg-white text-gray-800 rounded-md shadow-lg py-2 hidden group-hover:block">
+                  <Link href="/categorias/eletronicos" className="block px-4 py-2 hover:bg-gray-100">
+                    Eletrônicos
+                  </Link>
+                  <Link href="/categorias/moda" className="block px-4 py-2 hover:bg-gray-100">
+                    Moda
+                  </Link>
+                  <Link href="/categorias/casa-decoracao" className="block px-4 py-2 hover:bg-gray-100">
+                    Casa e Decoração
+                  </Link>
+                  <Link href="/categorias/esportes" className="block px-4 py-2 hover:bg-gray-100">
+                    Esportes
+                  </Link>
+                  <Link href="/categorias/livros" className="block px-4 py-2 hover:bg-gray-100">
+                    Livros
+                  </Link>
+                </div>
+              </div>
+              <Link href="/desejos" className="flex items-center gap-2 hover:text-accent-500">
+                <FiHeart size={20} />
+                <span>Desejos</span>
+              </Link>
+              <Link href="/contato" className="flex items-center gap-2 hover:text-accent-500">
+                <FiMail size={20} />
+                <span>Contato</span>
+              </Link>
+              <Link href="/vendedor/cadastro" className="flex items-center gap-2 hover:text-accent-500 font-semibold bg-accent-500 px-4 py-2 rounded-lg hover:bg-accent-600">
+                <span>🤝 Seja um Parceiro</span>
+              </Link>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <a href="https://facebook.com" target="_blank" className="hover:text-accent-500">
+                <FaFacebook size={24} />
+              </a>
+              <a href="https://twitter.com" target="_blank" className="hover:text-accent-500">
+                <FaTwitter size={24} />
+              </a>
+              <a href="https://youtube.com" target="_blank" className="hover:text-accent-500">
+                <FaYoutube size={24} />
+              </a>
+              <a href="https://wa.me" target="_blank" className="hover:text-accent-500">
+                <FaWhatsapp size={24} />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Menu */}
+      {isMenuOpen && (
+        <div className="md:hidden bg-white border-t">
+          <div className="px-4 py-2 space-y-1">
+            <Link href="/" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              🏠 Home
+            </Link>
+            <Link href="/rastrear" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              Rastrear Pedido
+            </Link>
+            <Link href="/categorias" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              🏷️ Departamentos
+            </Link>
+            <Link href="/desejos" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              ❤️ Desejos
+            </Link>
+            <Link href="/contato" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              ✉️ Contato
+            </Link>
+            <Link 
+              href="/vendedor/cadastro" 
+              className="block bg-accent-500 text-white px-4 py-3 rounded-md hover:bg-accent-600 text-center mt-4 font-semibold"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              🤝 Seja um Parceiro
+            </Link>
+            {!session && (
+              <Link
+                href="/login"
+                className="block bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 text-center mt-4"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Login
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
