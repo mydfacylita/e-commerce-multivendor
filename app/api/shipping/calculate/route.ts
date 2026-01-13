@@ -1,26 +1,121 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { applyRateLimit } from '@/lib/api-middleware'
+import { isValidCEP } from '@/lib/validation'
+import { validateApiKey } from '@/lib/api-security'
+import * as crypto from 'crypto'
+
+/**
+ * 🔒 Fetch com timeout
+ */
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 10000): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    return response
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 /**
  * Calcular frete do AliExpress para produtos no carrinho
  * POST /api/shipping/calculate
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { items, shippingAddress } = await req.json()
+    // 🔐 Validar API Key
+    const apiKey = req.headers.get('x-api-key')
+    const validation = await validateApiKey(apiKey)
+    
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.error || 'API Key inválida' },
+        { status: 401 }
+      )
+    }
 
-    if (!items || items.length === 0) {
+    // 🔒 Rate limiting: 30 requisições por minuto por IP
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+               req.headers.get('x-real-ip') || 
+               'unknown'
+    const rateLimitResult = applyRateLimit(`shipping:${ip}`, {
+      maxRequests: 30,
+      windowMs: 60000
+    })
+    
+    if (!rateLimitResult.allowed) {
+      return rateLimitResult.response
+    }
+
+    const body = await req.json()
+    const { items, shippingAddress, zipCode } = body
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
         { message: 'Nenhum item fornecido' },
         { status: 400 }
       )
     }
 
-    if (!shippingAddress) {
+    // 🔒 Limitar número de itens para evitar abuso
+    if (items.length > 50) {
+      return NextResponse.json(
+        { message: 'Máximo de 50 itens permitido' },
+        { status: 400 }
+      )
+    }
+
+    // 🔒 Validar IDs de produtos (devem ser strings)
+    if (items.some((i: any) => typeof i.productId !== 'string')) {
+      return NextResponse.json(
+        { message: 'IDs de produtos inválidos' },
+        { status: 400 }
+      )
+    }
+
+    if (!shippingAddress && !zipCode) {
       return NextResponse.json(
         { message: 'Endereço de entrega não fornecido' },
         { status: 400 }
       )
+    }
+
+    // 🔒 Validar e extrair CEP
+    let cep: string
+    if (zipCode) {
+      const cleanZip = zipCode.replace(/\D/g, '')
+      if (!isValidCEP(cleanZip)) {
+        return NextResponse.json(
+          { message: 'CEP inválido' },
+          { status: 400 }
+        )
+      }
+      cep = cleanZip
+    } else {
+      const cepMatch = shippingAddress.match(/(\d{5}-?\d{3})/)
+      cep = cepMatch ? cepMatch[1].replace('-', '') : '01310100'
+    }
+
+    // 🔒 Verificar se produtos existem no banco
+    const productIds = items.map((i: any) => i.productId)
+    const validProducts = await prisma.product.findMany({
+      where: { id: { in: productIds }, active: true },
+      include: { supplier: true }
+    })
+
+    if (validProducts.length === 0) {
+      return NextResponse.json({
+        shippingCost: 0,
+        shippingMethod: 'Frete Grátis',
+        estimatedDeliveryDays: '30-45',
+        note: 'Nenhum produto válido encontrado',
+      })
     }
 
     // Buscar credenciais do AliExpress
@@ -35,22 +130,14 @@ export async function POST(req: Request) {
       })
     }
 
-    const crypto = require('crypto')
     const apiUrl = 'https://api-sg.aliexpress.com/sync'
     const timestamp = Date.now().toString()
-
-    // Extrair CEP do endereço
-    const cepMatch = shippingAddress.match(/(\d{5}-?\d{3})/)
-    const cep = cepMatch ? cepMatch[1].replace('-', '') : '01310100' // Default SP
 
     // Calcular frete para cada item (AliExpress calcula por produto)
     const shippingResults = []
 
     for (const item of items) {
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId },
-        include: { supplier: true }
-      })
+      const product = validProducts.find(p => p.id === item.productId)
 
       // Pular produtos que não são do AliExpress
       if (!product || !product.supplierSku || product.supplier?.name?.toLowerCase() !== 'aliexpress') {
@@ -60,17 +147,13 @@ export async function POST(req: Request) {
       const freightQueryData: any = {
         country: 'BR',
         shipToCountry: 'BR',
-        productId: product.supplierSku, // Usar supplierSku como ID do produto
-        productNum: item.quantity,
-        quantity: item.quantity,
+        productId: product.supplierSku,
+        productNum: Math.min(item.quantity || 1, 100), // 🔒 Limitar quantidade
+        quantity: Math.min(item.quantity || 1, 100),
         locale: 'en_US',
         currency: 'BRL',
         language: 'en_US',
       }
-
-      // Se houver variantes, adicionar SKU
-      // Note: por enquanto não temos um campo específico para o SKU da variante
-      // Isso pode ser adicionado ao modelo Product se necessário
 
       const freightParams: Record<string, any> = {
         app_key: auth.appKey,
@@ -94,10 +177,12 @@ export async function POST(req: Request) {
 
       try {
         const freightUrl = `${apiUrl}?${new URLSearchParams(freightParams).toString()}`
-        const freightResponse = await fetch(freightUrl, {
+        
+        // 🔒 Fetch com timeout de 10 segundos
+        const freightResponse = await fetchWithTimeout(freightUrl, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-        })
+        }, 10000)
 
         const freightData = await freightResponse.json()
 

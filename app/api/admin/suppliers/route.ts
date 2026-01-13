@@ -19,10 +19,14 @@ export async function POST(req: Request) {
     const supplier = await prisma.supplier.create({
       data: {
         name: data.name,
+        email: data.email || `${data.name.toLowerCase().replace(/\s+/g, '')}@example.com`,
+        phone: data.phone || '',
+        website: data.website || '',
         apiUrl: data.apiUrl,
         apiKey: data.apiKey,
         type: data.type || 'aliexpress',
         isActive: data.isActive ?? true,
+        commission: data.commission || 0,
       },
     })
 

@@ -1,0 +1,14 @@
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- MYD em laranja -->
+  <text x="10" y="42" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#F97316">MYD</text>
+  
+  <!-- SHOP em azul -->
+  <text x="85" y="42" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#3B82F6">SHOP</text>
+  
+  <!-- Ícone de carrinho estilizado -->
+  <g transform="translate(165, 15)">
+    <circle cx="10" cy="10" r="2" fill="#F97316"/>
+    <circle cx="18" cy="10" r="2" fill="#F97316"/>
+    <path d="M2 2 L6 2 L8 8 L20 8 L18 4 L8 4" stroke="#3B82F6" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

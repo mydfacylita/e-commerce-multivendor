@@ -9,8 +9,8 @@ export default async function CategoryPage({ params }: { params: { slug: string 
   const category = await prisma.category.findUnique({
     where: { slug: params.slug },
     include: {
-      products: {
-        orderBy: { createdAt: 'desc' },
+      children: {
+        select: { id: true },
       },
     },
   })
@@ -19,7 +19,22 @@ export default async function CategoryPage({ params }: { params: { slug: string 
     notFound()
   }
 
-  const products = serializeProducts(category.products)
+  // IDs da categoria atual + todas as subcategorias
+  const categoryIds = [category.id, ...category.children.map(child => child.id)]
+
+  // Buscar produtos da categoria e de todas as subcategorias
+  const productsRaw = await prisma.product.findMany({
+    where: { 
+      categoryId: { in: categoryIds },
+      active: true,
+    },
+    include: {
+      category: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  const products = serializeProducts(productsRaw)
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

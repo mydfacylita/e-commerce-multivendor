@@ -1,0 +1,10 @@
+<svg width="220" height="60" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Versão branca do logo modern-1 -->
+  <g>
+    <rect x="5" y="12" width="36" height="36" rx="8" fill="white" opacity="0.95"/>
+    <path d="M15 22 L23 30 L31 20" stroke="#3B82F6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <text x="50" y="40" font-family="Arial, sans-serif" font-size="28" font-weight="800" fill="white">MYDSHOP</text>
+  <text x="50" y="52" font-family="Arial, sans-serif" font-size="8" font-weight="400" fill="white" opacity="0.8" letter-spacing="1">MARKETPLACE ONLINE</text>
+</svg>

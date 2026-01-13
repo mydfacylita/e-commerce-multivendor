@@ -1,13 +1,57 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
-import { FiEye, FiPackage, FiAlertCircle } from 'react-icons/fi'
+import { FiEye, FiPackage, FiAlertCircle, FiLayers } from 'react-icons/fi'
 import UpdateOrderStatusButton from '@/components/admin/UpdateOrderStatusButton'
 import SendToSupplierButton from '@/components/admin/SendToSupplierButton'
 import PrintShippingLabelButton from '@/components/admin/PrintShippingLabelButton'
 import AutoFetchOrders from '@/components/admin/AutoFetchOrders'
+import { formatOrderNumber } from '@/lib/order'
+
+// Tipo para pedidos agrupados
+interface GroupedOrder {
+  id: string
+  displayId: string
+  parentOrderId: string | null
+  isHybrid: boolean
+  subOrderIds: string[]
+  combinedTotal: number
+  combinedItems: any[]
+  status: string
+  sentToSupplier: boolean
+  createdAt: Date
+  buyerName: string | null
+  buyerEmail: string | null
+  user: { name: string | null; email: string | null } | null
+  marketplaceOrderId: string | null
+  items: any[]
+  hasDropshipping: boolean
+  hasStock: boolean
+  hasADM: boolean
+  hasSupplier: boolean
+  sellers: string[]
+}
+
+// Função para filtrar itens ADM (plataforma) e DROP
+// Exclui itens STOCK de vendedores (sellerId != null)
+function filterAdmItems(items: any[]) {
+  return items.filter(item => {
+    // DROP: sempre inclui
+    if (item.itemType === 'DROPSHIPPING') return true
+    // ADM: STOCK sem sellerId
+    if ((item.itemType === 'STOCK' || !item.itemType) && !item.sellerId) return true
+    return false
+  })
+}
 
 export default async function AdminPedidosPage() {
-  const orders = await prisma.order.findMany({
+  // ADMIN vê pedidos que tenham itens da plataforma (ADM) ou DROP
+  // Itens STOCK com sellerId são do vendedor e não aparecem aqui
+  const allOrders = await prisma.order.findMany({
+    where: {
+      status: {
+        not: 'PENDING'
+      }
+    },
     include: {
       user: {
         select: {
@@ -17,14 +61,141 @@ export default async function AdminPedidosPage() {
       },
       items: {
         include: {
-          product: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+              supplierId: true,
+              seller: {
+                select: {
+                  storeName: true
+                }
+              }
+            }
+          },
         },
       },
     },
     orderBy: { createdAt: 'desc' },
   })
 
-  console.log('[Admin Pedidos] Total de pedidos encontrados:', orders.length)
+  // Filtrar pedidos que tenham pelo menos 1 item ADM ou DROP
+  // e aplicar filtro de itens via JavaScript
+  const rawOrders = allOrders
+    .map(order => ({
+      ...order,
+      items: filterAdmItems(order.items)
+    }))
+    .filter(order => order.items.length > 0)
+
+  // Agrupar pedidos híbridos pelo parentOrderId
+  const groupedOrdersMap = new Map<string, GroupedOrder>()
+
+  for (const order of rawOrders) {
+    // Categorizar itens (apenas ADM e DROP, vendedor foi filtrado)
+    // - ADM/Plataforma: STOCK sem sellerId
+    // - Dropshipping: itemType = DROPSHIPPING
+    const hasADM = order.items.some(item => 
+      (item.itemType === 'STOCK' || !item.itemType) && !item.sellerId
+    )
+    const hasDropshipping = order.items.some(item => item.itemType === 'DROPSHIPPING')
+    const hasStock = hasADM
+    const hasSupplier = order.items.some(item => item.product?.supplierId)
+    
+    // Para sellers de DROP, buscar pelo produto.seller (nome da loja)
+    const sellers = [...new Set(
+      order.items
+        .filter(item => item.product?.seller && item.itemType === 'DROPSHIPPING')
+        .map(item => item.product!.seller!.storeName)
+    )]
+
+    // Se tem parentOrderId (é parte de um pedido híbrido)
+    if (order.parentOrderId) {
+      const key = order.parentOrderId
+      
+      if (groupedOrdersMap.has(key)) {
+        // Adicionar ao grupo existente
+        const existing = groupedOrdersMap.get(key)!
+        existing.subOrderIds.push(order.id)
+        existing.combinedTotal += order.total
+        existing.combinedItems.push(...order.items)
+        existing.hasDropshipping = existing.hasDropshipping || hasDropshipping
+        existing.hasStock = existing.hasStock || hasStock
+        existing.hasADM = existing.hasADM || hasADM
+        existing.hasSupplier = existing.hasSupplier || hasSupplier
+        existing.sellers = [...new Set([...existing.sellers, ...sellers])]
+        // Atualizar sentToSupplier (false se qualquer um não foi enviado)
+        existing.sentToSupplier = existing.sentToSupplier && order.sentToSupplier
+        // Usar status mais prioritário (PROCESSING > SHIPPED > DELIVERED > CANCELLED)
+        if (order.status === 'PROCESSING' || existing.status === 'CANCELLED') {
+          existing.status = order.status
+        }
+      } else {
+        // Criar novo grupo
+        groupedOrdersMap.set(key, {
+          id: order.parentOrderId,
+          displayId: order.parentOrderId,
+          parentOrderId: order.parentOrderId,
+          isHybrid: true,
+          subOrderIds: [order.id],
+          combinedTotal: order.total,
+          combinedItems: [...order.items],
+          status: order.status,
+          sentToSupplier: order.sentToSupplier,
+          createdAt: order.createdAt,
+          buyerName: order.buyerName,
+          buyerEmail: order.buyerEmail,
+          user: order.user,
+          marketplaceOrderId: order.marketplaceOrderId,
+          items: order.items,
+          hasDropshipping,
+          hasStock,
+          hasADM,
+          hasSupplier,
+          sellers
+        })
+      }
+    } else {
+      // Pedido simples (sem parentOrderId)
+      groupedOrdersMap.set(order.id, {
+        id: order.id,
+        displayId: order.id,
+        parentOrderId: null,
+        isHybrid: false,
+        subOrderIds: [order.id],
+        combinedTotal: order.total,
+        combinedItems: order.items,
+        status: order.status,
+        sentToSupplier: order.sentToSupplier,
+        createdAt: order.createdAt,
+        buyerName: order.buyerName,
+        buyerEmail: order.buyerEmail,
+        user: order.user,
+        marketplaceOrderId: order.marketplaceOrderId,
+        items: order.items,
+        hasDropshipping,
+        hasStock,
+        hasADM,
+        hasSupplier,
+        sellers
+      })
+    }
+  }
+
+  // Converter para array e verificar se realmente é híbrido
+  const orders = Array.from(groupedOrdersMap.values()).map(order => {
+    // É realmente híbrido se: tem múltiplos tipos de origem (ADM + DROP)
+    const typeCount = [order.hasADM, order.hasDropshipping].filter(Boolean).length
+    const reallyHybrid = order.subOrderIds.length > 1 || typeCount > 1
+    return {
+      ...order,
+      isHybrid: reallyHybrid,
+      items: order.isHybrid ? order.combinedItems : order.items,
+      total: order.combinedTotal
+    }
+  }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  console.log('[Admin Pedidos] Total de pedidos da ADM:', orders.length, '(agrupados de', rawOrders.length, 'registros)')
 
   const getStatusColor = (status: string) => {
     const colorMap: { [key: string]: string } = {
@@ -58,9 +229,9 @@ export default async function AdminPedidosPage() {
             <p className="text-2xl font-bold">{orders.length}</p>
           </div>
           <div className="bg-white px-4 py-2 rounded-lg shadow">
-            <p className="text-sm text-gray-600">Pendentes</p>
+            <p className="text-sm text-gray-600">Processando</p>
             <p className="text-2xl font-bold text-yellow-600">
-              {orders.filter(o => o.status === 'PENDING').length}
+              {orders.filter(o => o.status === 'PROCESSING').length}
             </p>
           </div>
           <div className="bg-white px-4 py-2 rounded-lg shadow">
@@ -79,6 +250,8 @@ export default async function AdminPedidosPage() {
               <tr>
                 <th className="text-left py-4 px-6 font-semibold">ID</th>
                 <th className="text-left py-4 px-6 font-semibold">Origem</th>
+                <th className="text-left py-4 px-6 font-semibold">Tipo</th>
+                <th className="text-left py-4 px-6 font-semibold">Vendedor</th>
                 <th className="text-left py-4 px-6 font-semibold">Cliente</th>
                 <th className="text-left py-4 px-6 font-semibold">Total</th>
                 <th className="text-left py-4 px-6 font-semibold">Itens</th>
@@ -89,10 +262,21 @@ export default async function AdminPedidosPage() {
               </tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
+              {orders.map((order) => {
+                return (
                 <tr key={order.id} className="border-b hover:bg-gray-50">
                   <td className="py-4 px-6">
-                    <p className="font-mono text-sm">{order.id.slice(0, 8)}...</p>
+                    <div className="flex flex-col gap-1">
+                      <p className="font-mono text-sm font-semibold text-primary-600">
+                        {order.isHybrid ? order.displayId.slice(0, 14) + '...' : formatOrderNumber(order.id)}
+                      </p>
+                      {order.isHybrid && (
+                        <div className="flex items-center gap-1">
+                          <FiLayers className="text-purple-600" size={12} />
+                          <span className="text-xs text-purple-600">{order.subOrderIds.length} sub-pedidos</span>
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="py-4 px-6">
                     {order.marketplaceOrderId ? (
@@ -104,6 +288,51 @@ export default async function AdminPedidosPage() {
                         Site
                       </span>
                     )}
+                  </td>
+                  <td className="py-4 px-6">
+                    {order.isHybrid ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
+                          🔄 Híbrido
+                        </span>
+                        <span className="text-xs text-gray-500 font-mono">
+                          {[
+                            order.hasADM ? 'AD' : null,
+                            order.hasDropshipping ? 'DR' : null
+                          ].filter(Boolean).join('/')}
+                        </span>
+                      </div>
+                    ) : order.hasDropshipping ? (
+                      <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
+                        📦 DROP
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
+                        🏪 ADM
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-4 px-6">
+                    <div className="flex flex-col gap-1">
+                      {/* Mostrar Plataforma se tem itens ADM */}
+                      {order.hasADM && (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
+                          🏢 Plataforma
+                        </span>
+                      )}
+                      {/* Mostrar vendedores DROP se existirem */}
+                      {order.sellers.length > 0 && order.sellers.map((seller, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
+                          👤 {seller}
+                        </span>
+                      ))}
+                      {/* Se não tem ADM nem vendedores, é só DROP */}
+                      {!order.hasADM && order.sellers.length === 0 && order.hasDropshipping && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-600 rounded text-xs">
+                          📦 Fornecedor DROP
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-4 px-6">
                     <p className="font-semibold">{order.buyerName || order.user?.name || 'N/A'}</p>
@@ -119,7 +348,13 @@ export default async function AdminPedidosPage() {
                   </td>
                   <td className="py-4 px-6">
                     {order.status !== 'CANCELLED' ? (
-                      <UpdateOrderStatusButton orderId={order.id} currentStatus={order.status} />
+                      order.isHybrid ? (
+                        <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${getStatusColor(order.status)}`}>
+                          {getStatusText(order.status)}
+                        </span>
+                      ) : (
+                        <UpdateOrderStatusButton orderId={order.id} currentStatus={order.status} />
+                      )
                     ) : (
                       <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold bg-red-100 text-red-800">
                         ❌ Cancelado
@@ -149,29 +384,45 @@ export default async function AdminPedidosPage() {
                   </td>
                   <td className="py-4 px-6">
                     <div className="flex justify-end gap-2">
-                      {order.marketplaceOrderId && order.status !== 'CANCELLED' && (
+                      {order.marketplaceOrderId && order.status !== 'CANCELLED' && !order.isHybrid && (
                         <PrintShippingLabelButton 
-                          orderId={order.id}
+                          orderId={order.subOrderIds[0]}
                           marketplace="mercadolivre"
                         />
                       )}
-                      {!order.sentToSupplier && order.status !== 'CANCELLED' && (
+                      {/* Só mostra botão se: pedido tem fornecedor E não foi enviado E status válido */}
+                      {order.hasSupplier && 
+                       !order.sentToSupplier && 
+                       order.status !== 'CANCELLED' && 
+                       order.status !== 'PENDING' &&
+                       !order.isHybrid && (
                         <SendToSupplierButton 
-                          orderId={order.id} 
+                          orderId={order.subOrderIds[0]} 
                           sentToSupplier={order.sentToSupplier}
                         />
                       )}
-                      <Link
-                        href={`/admin/pedidos/${order.id}`}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
-                        title="Ver detalhes"
-                      >
-                        <FiEye size={18} />
-                      </Link>
+                      {order.isHybrid ? (
+                        <Link
+                          href={`/admin/pedidos/${order.subOrderIds[0]}`}
+                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-md flex items-center gap-1"
+                          title="Ver detalhes do pedido híbrido"
+                        >
+                          <FiLayers size={16} />
+                          <FiEye size={18} />
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/admin/pedidos/${order.id}`}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
+                          title="Ver detalhes"
+                        >
+                          <FiEye size={18} />
+                        </Link>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

@@ -41,8 +41,8 @@ export default function DropshippingPage() {
   const loadProducts = async () => {
     try {
       const [productsRes, myProductsRes] = await Promise.all([
-        fetch('/api/seller/dropshipping/available'),
-        fetch('/api/seller/dropshipping/my-products')
+        fetch('/api/admin/products?dropshipping=available'),
+        fetch('/api/admin/products') // Busca produtos do vendedor (com filtro automático de sellerId)
       ])
 
       if (productsRes.ok) {
@@ -52,8 +52,10 @@ export default function DropshippingPage() {
 
       if (myProductsRes.ok) {
         const data = await myProductsRes.json()
-        // O campo supplierSku contém o ID do produto original do catálogo
-        const productIds = data.map((p: any) => p.supplierSku).filter((id: string) => id)
+        // Produtos do vendedor que vieram de dropshipping têm supplierSku preenchido
+        const productIds = data
+          .filter((p: any) => p.supplierSku) // Apenas produtos que são drops
+          .map((p: any) => p.supplierSku) // O supplierSku é o ID do produto original
         setMyProducts(productIds)
       }
     } catch (error) {
@@ -77,11 +79,11 @@ export default function DropshippingPage() {
 
     setAddingProduct(productId)
     try {
-      const res = await fetch('/api/seller/dropshipping/add-product', {
+      const res = await fetch('/api/admin/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId,
+          sourceProductId: productId,
           customPrice: customPrice ? parseFloat(customPrice) : null,
           customName: customName || null
         })
@@ -99,7 +101,7 @@ export default function DropshippingPage() {
         loadProducts() // Recarregar produtos
       } else {
         console.error('Erro da API:', data)
-        alert(`❌ ${data.error || 'Erro ao adicionar produto'}\n${data.details || ''}`)
+        alert(`❌ ${data.message || data.error || 'Erro ao adicionar produto'}\n${data.details || ''}`)
       }
     } catch (error) {
       console.error('Erro de rede:', error)

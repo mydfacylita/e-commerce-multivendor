@@ -17,6 +17,22 @@ export default function SellerFinancialPage() {
   const [permissions, setPermissions] = useState<any>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('30days');
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
+
+  // Form state para saque
+  const [amount, setAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('PIX');
+  const [pixKey, setPixKey] = useState('');
+  const [pixKeyType, setPixKeyType] = useState('CPF');
+  const [bankName, setBankName] = useState('');
+  const [bankCode, setBankCode] = useState('');
+  const [agencia, setAgencia] = useState('');
+  const [conta, setConta] = useState('');
+  const [contaTipo, setContaTipo] = useState('CORRENTE');
+  const [sellerNote, setSellerNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [withdrawalError, setWithdrawalError] = useState('');
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -66,9 +82,25 @@ export default function SellerFinancialPage() {
     }
   };
 
+  const loadWithdrawals = async () => {
+    try {
+      const response = await fetch('/api/vendedor/saques');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Saques carregados:', data);
+        setWithdrawals(data);
+      } else {
+        console.error('Erro ao carregar saques:', response.status);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar saques:', error);
+    }
+  };
+
   useEffect(() => {
     if (hasAccess) {
       fetchFinancialData();
+      loadWithdrawals();
     }
   }, [hasAccess, selectedPeriod]);
 
@@ -193,6 +225,12 @@ export default function SellerFinancialPage() {
             {seller.commission}%
           </div>
           <p className="text-sm text-gray-600">Taxa da plataforma</p>
+          {financialData.plan && (
+            <div className="mt-2 pt-2 border-t">
+              <p className="text-xs text-blue-600 font-medium">📋 {financialData.plan.name}</p>
+              <p className="text-xs text-gray-500">{financialData.plan.status === 'ACTIVE' ? 'Ativo' : financialData.plan.status}</p>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
@@ -282,7 +320,10 @@ export default function SellerFinancialPage() {
               </span>
             </div>
           </div>
-          <button className="w-full mt-4 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+          <button 
+            onClick={() => setShowWithdrawalModal(true)}
+            className="w-full mt-4 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+          >
             Solicitar Saque
           </button>
         </div>
@@ -406,6 +447,81 @@ export default function SellerFinancialPage() {
         </div>
       )}
 
+      {/* Histórico de Saques */}
+      {withdrawals && withdrawals.length > 0 && (
+        <div className="bg-white rounded-lg shadow-lg mb-8">
+          <div className="p-6 border-b">
+            <h2 className="text-xl font-bold">Histórico de Saques</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Data</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Valor</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Método</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Status</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-900">Detalhes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {withdrawals.map((withdrawal) => (
+                  <tr key={withdrawal.id} className="hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      <div className="text-sm">
+                        {new Date(withdrawal.createdAt).toLocaleDateString('pt-BR')}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(withdrawal.createdAt).toLocaleTimeString('pt-BR')}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 font-semibold">
+                      R$ {withdrawal.amount.toFixed(2)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="text-sm">{withdrawal.paymentMethod}</div>
+                      {withdrawal.paymentMethod === 'PIX' && withdrawal.pixKey && (
+                        <div className="text-xs text-gray-500">
+                          {withdrawal.pixKeyType}: {withdrawal.pixKey.substring(0, 10)}...
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                        withdrawal.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                        withdrawal.status === 'APPROVED' ? 'bg-blue-100 text-blue-800' :
+                        withdrawal.status === 'PROCESSING' ? 'bg-purple-100 text-purple-800' :
+                        withdrawal.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                        withdrawal.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {withdrawal.status === 'PENDING' ? 'Pendente' :
+                         withdrawal.status === 'APPROVED' ? 'Aprovado' :
+                         withdrawal.status === 'PROCESSING' ? 'Processando' :
+                         withdrawal.status === 'COMPLETED' ? 'Concluído' :
+                         withdrawal.status === 'REJECTED' ? 'Rejeitado' :
+                         'Cancelado'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">
+                      {withdrawal.processedAt && (
+                        <div>Processado: {new Date(withdrawal.processedAt).toLocaleDateString('pt-BR')}</div>
+                      )}
+                      {withdrawal.rejectionReason && (
+                        <div className="text-red-600">Motivo: {withdrawal.rejectionReason}</div>
+                      )}
+                      {withdrawal.transactionId && (
+                        <div className="text-xs">ID: {withdrawal.transactionId}</div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Vendas Recentes */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b">
@@ -510,6 +626,224 @@ export default function SellerFinancialPage() {
           )}
         </div>
       </div>
+
+      {/* Modal de Saque */}
+      {showWithdrawalModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-4">Solicitar Saque</h2>
+
+              {withdrawalError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                  {withdrawalError}
+                </div>
+              )}
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="text-sm text-gray-600">Saldo Disponível</div>
+                <div className="text-2xl font-bold text-green-600">
+                  R$ {summary.availableForWithdrawal.toFixed(2)}
+                </div>
+              </div>
+
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setWithdrawalError('');
+                setSubmitting(true);
+
+                try {
+                  const data: any = {
+                    amount: parseFloat(amount),
+                    paymentMethod,
+                    sellerNote
+                  };
+
+                  if (paymentMethod === 'PIX') {
+                    data.pixKey = pixKey;
+                    data.pixKeyType = pixKeyType;
+                  } else {
+                    data.bankName = bankName;
+                    data.bankCode = bankCode;
+                    data.agencia = agencia;
+                    data.conta = conta;
+                    data.contaTipo = contaTipo;
+                  }
+
+                  const res = await fetch('/api/vendedor/saques', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                  });
+
+                  const result = await res.json();
+
+                  if (res.ok) {
+                    alert('Saque solicitado com sucesso!');
+                    setShowWithdrawalModal(false);
+                    // Reset form
+                    setAmount('');
+                    setPaymentMethod('PIX');
+                    setPixKey('');
+                    setPixKeyType('CPF');
+                    setBankName('');
+                    setBankCode('');
+                    setAgencia('');
+                    setConta('');
+                    setContaTipo('CORRENTE');
+                    setSellerNote('');
+                    // Reload data
+                    fetchFinancialData();
+                    loadWithdrawals();
+                  } else {
+                    setWithdrawalError(result.error || 'Erro ao solicitar saque');
+                  }
+                } catch (error) {
+                  console.error('Erro:', error);
+                  setWithdrawalError('Erro ao processar solicitação');
+                } finally {
+                  setSubmitting(false);
+                }
+              }} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Valor do Saque *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={summary?.availableForWithdrawal || 0}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Método de Pagamento *</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    required
+                  >
+                    <option value="PIX">PIX</option>
+                    <option value="TED">TED</option>
+                    <option value="BANK_TRANSFER">Transferência Bancária</option>
+                  </select>
+                </div>
+
+                {paymentMethod === 'PIX' ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Tipo de Chave PIX *</label>
+                      <select
+                        value={pixKeyType}
+                        onChange={(e) => setPixKeyType(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        required
+                      >
+                        <option value="CPF">CPF</option>
+                        <option value="CNPJ">CNPJ</option>
+                        <option value="EMAIL">E-mail</option>
+                        <option value="PHONE">Telefone</option>
+                        <option value="RANDOM">Chave Aleatória</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Chave PIX *</label>
+                      <input
+                        type="text"
+                        value={pixKey}
+                        onChange={(e) => setPixKey(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        required
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Banco *</label>
+                      <input
+                        type="text"
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Agência *</label>
+                        <input
+                          type="text"
+                          value={agencia}
+                          onChange={(e) => setAgencia(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Conta *</label>
+                        <input
+                          type="text"
+                          value={conta}
+                          onChange={(e) => setConta(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Tipo de Conta *</label>
+                      <select
+                        value={contaTipo}
+                        onChange={(e) => setContaTipo(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        required
+                      >
+                        <option value="CORRENTE">Corrente</option>
+                        <option value="POUPANCA">Poupança</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Observações (opcional)</label>
+                  <textarea
+                    value={sellerNote}
+                    onChange={(e) => setSellerNote(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  >
+                    {submitting ? 'Processando...' : 'Solicitar Saque'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowWithdrawalModal(false);
+                      setWithdrawalError('');
+                    }}
+                    className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

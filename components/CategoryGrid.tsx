@@ -17,16 +17,16 @@ export default function CategoryGrid({ categories }: { categories: Category[] })
           href={`/categorias/${category.slug}`}
           className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition text-center group"
         >
-          <div className="relative h-24 mb-4">
+          <div className="relative w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden">
             {category.image ? (
               <Image
                 src={category.image}
                 alt={category.name}
                 fill
-                className="object-contain group-hover:scale-110 transition"
+                className="object-cover group-hover:scale-110 transition"
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-4xl">
+              <div className="flex items-center justify-center h-full text-4xl bg-gray-100">
                 📦
               </div>
             )}

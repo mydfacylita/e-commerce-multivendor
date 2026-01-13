@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextIndex", "fullTextSearch"]
 }
 
 datasource db {
@@ -8,389 +9,381 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  name              String?
-  email             String             @unique
-  emailVerified     DateTime?
-  image             String?
-  password          String?
-  phone             String?
-  cpf               String?
-  role              Role               @default(USER)
-  
-  // Funcionário/Colaborador - trabalha para qual vendedor
-  workForSellerId   String?
-  workForSeller     Seller?            @relation("SellerEmployees", fields: [workForSellerId], references: [id])
-  employeeRole      EmployeeRole?      // Permissões do funcionário (se workForSellerId não for null)
-  
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  orders            Order[]
-  cartItems         CartItem[]
-  mercadoLivreAuth  MercadoLivreAuth?
-  aliexpressAuth    AliExpressAuth?
-  shopeeAuth        ShopeeAuth?
-  seller            Seller?            @relation("SellerOwner") // Dados de vendedor (se for dono de vendedor)
-  
+  id               String            @id @default(cuid())
+  name             String?
+  email            String            @unique
+  emailVerified    DateTime?
+  image            String?
+  password         String?
+  phone            String?
+  cpf              String?
+  role             Role              @default(USER)
+  workForSellerId  String?
+  employeeRole     EmployeeRole?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  addresses        Address[]
+  aliexpressAuth   AliExpressAuth?
+  cartItems        CartItem[]
+  mercadoLivreAuth MercadoLivreAuth?
+  orders           Order[]
+  seller           Seller?           @relation("SellerOwner")
+  shopeeAuth       ShopeeAuth?
+  tiktokShopAuth   TikTokShopAuth?
+  workForSeller    Seller?           @relation("SellerEmployees", fields: [workForSellerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@index([workForSellerId])
+  @@index([role])
+  @@index([email, role])
+  @@index([createdAt])
   @@map("user")
 }
 
-enum EmployeeRole {
-  MANAGER   // Gerente - acesso quase total (produtos, pedidos, financeiro) - SEM acesso a funcionários e integrações
-  OPERATOR  // Operador - apenas produtos e pedidos - SEM acesso a financeiro, funcionários, integrações
-  VIEWER    // Visualizador - apenas visualizar (relatórios) - SEM editar nada
-  
-  @@map("user_employeeRole")
-}
+// Endereços de entrega do cliente
+model Address {
+  id           String   @id @default(cuid())
+  userId       String
+  label        String?  // Ex: "Casa", "Trabalho", "Mãe"
+  recipientName String? // Nome do destinatário (pode ser diferente do usuário)
+  street       String   // Rua, número
+  complement   String?  // Apartamento, bloco, etc
+  neighborhood String?  // Bairro
+  city         String
+  state        String
+  zipCode      String   // CEP
+  phone        String?
+  cpf          String?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-enum Role {
-  USER
-  ADMIN
-  SELLER
-  
-  @@map("user_role")
+  @@index([userId])
+  @@index([userId, isDefault])
+  @@map("address")
 }
 
 model Seller {
-  id                String    @id @default(cuid())
-  userId            String    @unique
-  user              User      @relation("SellerOwner", fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Funcionários/Colaboradores deste vendedor
-  employees         User[]    @relation("SellerEmployees")
-  
-  // Informações da Loja
-  storeName         String    // Nome da loja
-  storeSlug         String    @unique // URL amigável (ex: minha-loja)
-  storeDescription  String?   @db.Text
-  storeLogo         String?   // URL do logo
-  storeBanner       String?   // URL do banner
-  
-  // Tipo de Vendedor
-  sellerType        SellerType // PF ou PJ
-  
-  // Dados Pessoa Física
-  cpf               String?
-  rg                String?
-  dataNascimento    DateTime?
-  
-  // Dados Pessoa Jurídica
-  cnpj              String?
-  razaoSocial       String?
-  nomeFantasia      String?
-  inscricaoEstadual String?
-  
-  // Endereço
-  cep               String?
-  endereco          String?
-  numero            String?
-  complemento       String?
-  bairro            String?
-  cidade            String?
-  estado            String?
-  
-  // Dados Bancários
-  banco             String?
-  agencia           String?
-  conta             String?
-  tipoConta         String? // Corrente ou Poupança
-  chavePix          String?
-  
-  // Configurações
-  commission        Float     @default(10) // Comissão da plataforma (%)
-  status            SellerStatus @default(PENDING)
-  
-  // Produtos
-  products          Product[]
-  
-  // Pedidos deste vendedor (loja normal OU dropshipping)
-  orders            Order[]       @relation("SellerOrders")
-  
-  // Pedidos vendidos por este vendedor (dropshipping/afiliados)
-  ordersSold        Order[]       @relation("SellerSoldOrders")
-  
-  // Credenciais de Marketplaces
+  id                     String                        @id @default(cuid())
+  userId                 String                        @unique
+  storeName              String
+  storeSlug              String                        @unique
+  storeDescription       String?                       @db.Text
+  storeLogo              String?
+  storeBanner            String?
+  sellerType             SellerType
+  cpf                    String?
+  rg                     String?
+  dataNascimento         DateTime?
+  cnpj                   String?
+  razaoSocial            String?
+  nomeFantasia           String?
+  inscricaoEstadual      String?
+  cep                    String?
+  endereco               String?
+  numero                 String?
+  complemento            String?
+  bairro                 String?
+  cidade                 String?
+  estado                 String?
+  banco                  String?
+  agencia                String?
+  conta                  String?
+  tipoConta              String?
+  chavePix               String?
+  commission             Float                         @default(10)
+  status                 SellerStatus                  @default(PENDING)
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  balance                Float                         @default(0)
+  totalEarned            Float                         @default(0)
+  totalWithdrawn         Float                         @default(0)
+  orders                 Order[]                       @relation("SellerOrders")
+  ordersSold             Order[]                       @relation("SellerSoldOrders")
+  products               Product[]
+  user                   User                          @relation("SellerOwner", fields: [userId], references: [id], onDelete: Cascade)
   marketplaceCredentials SellerMarketplaceCredential[]
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
+  subscription           Subscription?
+  employees              User[]                        @relation("SellerEmployees")
+  withdrawals            Withdrawal[]
+
+  @@index([status])
+  @@index([storeSlug])
+  @@index([userId])
   @@map("seller")
 }
 
-enum SellerType {
-  PF // Pessoa Física
-  PJ // Pessoa Jurídica
-  
-  @@map("seller_sellerType")
-}
-
-enum SellerStatus {
-  PENDING   // Aguardando aprovação
-  ACTIVE    // Ativo
-  SUSPENDED // Suspenso
-  REJECTED  // Rejeitado
-  
-  @@map("seller_status")
-}
-
-// Credenciais de Marketplaces do Vendedor
 model SellerMarketplaceCredential {
-  id            String   @id @default(cuid())
-  sellerId      String
-  seller        Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  
-  marketplace   String   // 'mercadolivre', 'aliexpress', 'shopee', 'amazon'
-  
-  // Mercado Livre
-  mlClientId    String?
-  mlClientSecret String?
-  mlAccessToken  String?  @db.Text
-  mlRefreshToken String?  @db.Text
-  mlUserId      String?
-  mlExpiresAt   DateTime?
-  
-  // AliExpress
-  aliAppKey     String?
-  aliAppSecret  String?
-  aliTrackingId String?
-  aliAccessToken String? @db.Text
-  
-  // Shopee
-  shopeePartnerId  Int?
-  shopeePartnerKey String?
-  shopeeAccessToken String? @db.Text
-  shopeeRefreshToken String? @db.Text
-  shopeeShopId      Int?
+  id                 String    @id @default(cuid())
+  sellerId           String
+  marketplace        String
+  mlClientId         String?
+  mlClientSecret     String?
+  mlAccessToken      String?   @db.Text
+  mlRefreshToken     String?   @db.Text
+  mlUserId           String?
+  mlExpiresAt        DateTime?
+  aliAppKey          String?
+  aliAppSecret       String?
+  aliTrackingId      String?
+  aliAccessToken     String?   @db.Text
+  shopeePartnerId    Int?
+  shopeePartnerKey   String?
+  shopeeAccessToken  String?   @db.Text
+  shopeeRefreshToken String?   @db.Text
+  shopeeShopId       Int?
   shopeeMerchantName String?
-  shopeeRegion      String?
-  shopeeExpiresAt   DateTime?
-  
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  shopeeRegion       String?
+  shopeeExpiresAt    DateTime?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  seller             Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
   @@unique([sellerId, marketplace])
   @@index([sellerId])
   @@map("sellermarketplacecredential")
 }
 
 model Category {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
-  slug        String    @unique
+  slug        String     @unique
   description String?
   image       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  parentId    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   products    Product[]
-  
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    Category[] @relation("CategoryHierarchy")
+
+  @@index([parentId])
   @@map("category")
 }
 
 model Product {
-  id          String      @id @default(cuid())
-  name        String
-  slug        String      @unique
-  description String?     @db.Text
-  price       Float
-  comparePrice Float?
-  costPrice   Float?      // Preço de custo base do produto
-  shippingCost Float?     // Custo do frete do fornecedor
-  taxCost     Float?      // Impostos/taxas de importação
-  totalCost   Float?      // Custo total (produto + frete + impostos)
-  margin      Float?      // Margem de lucro calculada
-  
-  // Dropshipping
-  isDropshipping  Boolean   @default(false) // Produto disponível para dropshipping
-  dropshippingCommission Float? // Comissão (%) para vendedores que revenderem
-  
-  images      String      @db.Text
-  stock       Int         @default(0)
-  featured    Boolean     @default(false)
-  categoryId  String
-  category    Category    @relation(fields: [categoryId], references: [id])
-  sellerId    String?     // ID do vendedor (se for produto de vendedor)
-  seller      Seller?     @relation(fields: [sellerId], references: [id])
-  
-  // Fornecedor (para dropshipping)
-  supplierId      String?
-  supplier        Supplier?    @relation(fields: [supplierId], references: [id])
-  supplierSku     String?      // SKU do fornecedor
-  supplierUrl     String?      @db.Text
-  
-  // Especificações
-  specifications  String?  @db.Text // JSON com especificações
-  variants        String?  @db.Text // JSON com variantes (tamanho, cor, etc)
-  attributes      String?  @db.Text // JSON com atributos adicionais
-  
-  // Campos ML
-  gtin           String?
-  brand          String?
-  model          String?
-  color          String?
-  mpn            String?
-  technicalSpecs String?  @db.Text // JSON
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  cartItems   CartItem[]
-  orderItems  OrderItem[]
-  marketplaceListings MarketplaceListing[]
-  
-  // Dropshipping
-  availableForDropship    Boolean   @default(true)
-  isChoiceProduct         Boolean   @default(false) // Se é produto em destaque para dropshipping
-  lastSyncAt              DateTime? // Última sincronização com fornecedor
-  supplierRating          Float?    // Avaliação do fornecedor
-  supplierShippingSpeed   Float?    // Velocidade de envio do fornecedor (dias)
-  supplierStock           Int?      // Estoque no fornecedor
-  supplierStoreId         String?   // ID da loja do fornecedor
-  supplierStoreName       String?   // Nome da loja do fornecedor
-  active                  Boolean   @default(true)
-  
+  id                     String               @id @default(cuid())
+  name                   String
+  slug                   String               @unique
+  description            String?              @db.Text
+  price                  Float
+  comparePrice           Float?
+  costPrice              Float?
+  shippingCost           Float?
+  taxCost                Float?
+  totalCost              Float?
+  margin                 Float?
+  isDropshipping         Boolean              @default(false)
+  dropshippingCommission Float?
+  images                 String               @db.Text
+  stock                  Int                  @default(0)
+  featured               Boolean              @default(false)
+  categoryId             String
+  sellerId               String?
+  supplierId             String?
+  supplierSku            String?
+  supplierUrl            String?              @db.Text
+  specifications         String?              @db.Text
+  variants               String?              @db.Text
+  attributes             String?              @db.Text
+  sizes                  String?              @db.Text // JSON array com tamanhos disponíveis
+  sizeType               String?              // Tipo: 'adult', 'children', 'baby', 'unisex', etc
+  sizeCategory           String?              // Categoria: 'shoes', 'clothing', 'accessories', etc
+  gtin                   String?
+  brand                  String?
+  model                  String?
+  color                  String?
+  mpn                    String?
+  technicalSpecs         String?              @db.Text
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  availableForDropship   Boolean              @default(true)
+  isChoiceProduct        Boolean              @default(false)
+  lastSyncAt             DateTime?
+  supplierRating         Float?
+  supplierShippingSpeed  Float?
+  supplierStock          Int?
+  supplierStoreId        String?
+  supplierStoreName      String?
+  active                 Boolean              @default(true)
+  bookAuthor             String?
+  bookGenre              String?
+  bookIsbn               String?
+  bookPublisher          String?
+  bookTitle              String?
+  // Dimensões e peso do produto
+  weight                 Float?               // Peso em kg (sem embalagem)
+  weightWithPackage      Float?               // Peso em kg (com embalagem)
+  length                 Float?               // Comprimento em cm (sem embalagem)
+  width                  Float?               // Largura em cm (sem embalagem)
+  height                 Float?               // Altura em cm (sem embalagem)
+  lengthWithPackage      Float?               // Comprimento em cm (com embalagem)
+  widthWithPackage       Float?               // Largura em cm (com embalagem)
+  heightWithPackage      Float?               // Altura em cm (com embalagem)
+  // Configurações de pagamento do produto
+  acceptsCreditCard      Boolean?             // null = usa padrão do sistema, true/false = regra específica
+  maxInstallments        Int?                 // null = usa padrão do sistema, número = máx parcelas
+  installmentsFreeInterest Int?               // Parcelas sem juros (vendedor absorve)
+  cartItems              CartItem[]
+  marketplaceListings    MarketplaceListing[]
+  orderItems             OrderItem[]
+  category               Category             @relation(fields: [categoryId], references: [id])
+  seller                 Seller?              @relation(fields: [sellerId], references: [id])
+  supplier               Supplier?            @relation(fields: [supplierId], references: [id])
+
   @@index([categoryId])
   @@index([sellerId])
   @@index([supplierId])
+  @@index([featured])
+  @@index([isDropshipping])
+  @@index([active])
+  @@index([categoryId, featured])
+  @@index([categoryId, active])
+  @@index([sellerId, active])
+  @@index([isDropshipping, availableForDropship])
+  @@index([createdAt])
   @@map("product")
 }
 
 model Supplier {
-  id          String    @id @default(cuid())
-  name        String
-  apiUrl      String?
-  apiKey      String?
-  type        String    // 'aliexpress', 'shopee', 'alibaba', etc
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  products    Product[]
-  
+  id         String    @id @default(cuid())
+  name       String
+  email      String    @unique
+  phone      String?
+  website    String?
+  apiUrl     String?
+  apiKey     String?
+  type       String    @default("aliexpress") @db.VarChar(255)
+  isActive   Boolean   @default(true)
+  commission Float     @default(0)
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  products   Product[]
+
   @@map("supplier")
 }
 
 model CartItem {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   quantity  Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, productId])
   @@index([productId])
   @@map("cartitem")
 }
 
 model Order {
-  id                String      @id @default(cuid())
-  userId            String?
-  user              User?       @relation(fields: [userId], references: [id])
-  status            OrderStatus @default(PENDING)
-  total             Float
-  profit            Float?      // Lucro da plataforma
-  shippingAddress   String      @db.Text
-  paymentIntentId   String?
-  
-  // Fornecedor/Supplier (para pedidos de dropshipping)
-  supplierOrderId   String?     // ID do pedido no fornecedor
-  trackingCode      String?
-  
-  // Marketplace
-  marketplaceName   String?     // 'mercadolivre', 'shopee', etc
-  marketplaceOrderId String?    @unique
-  
-  // Envio para fornecedor
-  sentToSupplier    Boolean     @default(false)
-  sentToSupplierAt  DateTime?
-  
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  
-  items             OrderItem[]
-  
-  // Dados do comprador (para marketplace)
-  buyerEmail        String?
-  buyerName         String?
-  buyerPhone        String?
-  buyerCpf          String?
-  paymentMethod     String?
-  shippingCost      Float?
-  buyerMessages     String?     @db.Text
-  cancelReason      String?
-  
-  // Comissões e receitas
-  commissionAmount  Float?      // Total de comissão da plataforma
-  commissionRate    Float?      // Taxa de comissão aplicada (%)
-  sellerRevenue     Float?      // Receita do vendedor
-  
-  // Vendedor que vendeu (dropshipping/afiliado)
-  soldBySellerId    String?
-  soldBySeller      Seller?     @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
-  
-  // Vendedor dono do produto
-  sellerId          String?
-  seller            Seller?     @relation("SellerOrders", fields: [sellerId], references: [id])
-  
+  id                 String      @id @default(cuid())
+  userId             String?
+  parentOrderId      String?
+  status             OrderStatus @default(PENDING)
+  total              Float
+  profit             Float?
+  shippingAddress    String      @db.Text
+  paymentIntentId    String?
+  supplierOrderId    String?
+  trackingCode       String?
+  marketplaceName    String?
+  marketplaceOrderId String?     @unique
+  sentToSupplier     Boolean     @default(false)
+  sentToSupplierAt   DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  buyerEmail         String?
+  buyerName          String?
+  buyerPhone         String?
+  buyerCpf           String?
+  paymentMethod      String?
+  shippingCost       Float?
+  deliveryDays       Int?        // Prazo de entrega em dias úteis
+  couponCode         String?
+  discountAmount     Float?
+  subtotal           Float?
+  buyerMessages      String?     @db.Text
+  cancelReason       String?
+  commissionAmount   Float?
+  commissionRate     Float?
+  sellerRevenue      Float?
+  soldBySellerId     String?
+  sellerId           String?
+  paymentApprovedAt  DateTime?
+  paymentDetails     String?     @db.LongText
+  paymentId          String?
+  paymentStatus      String?
+  paymentType        String?
+  seller             Seller?     @relation("SellerOrders", fields: [sellerId], references: [id])
+  soldBySeller       Seller?     @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
+  user               User?       @relation(fields: [userId], references: [id])
+  items              OrderItem[]
+  refunds            Refund[]
+
   @@index([userId])
   @@index([sellerId])
   @@index([soldBySellerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([sellerId, status])
+  @@index([userId, status])
+  @@index([marketplaceOrderId])
+  @@index([parentOrderId])
   @@map("order")
 }
 
-enum OrderStatus {
-  PENDING
-  PROCESSING
-  SHIPPED
-  DELIVERED
-  CANCELLED
-  
-  @@map("order_status")
-}
-
 model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  quantity  Int
-  price     Float
-  createdAt DateTime @default(now())
-  
-  // Comissão e receita por item
-  commissionAmount Float?   // Comissão da plataforma neste item
-  commissionRate   Float?   // Taxa de comissão aplicada (%)
-  sellerId         String?  // ID do vendedor dono do produto
-  sellerRevenue    Float?   // Receita do vendedor neste item
-  
+  id               String       @id @default(cuid())
+  orderId          String
+  productId        String
+  quantity         Int
+  price            Float
+  selectedSize     String?
+  selectedColor    String?
+  createdAt        DateTime     @default(now())
+  itemType         ItemType     @default(STOCK)
+  commissionAmount Float?
+  commissionRate   Float?
+  sellerId         String?
+  sellerRevenue    Float?
+  supplierOrderId  String?
+  supplierStatus   String?
+  supplierCost     Float?
+  trackingCode     String?
+  refundedAt       DateTime?
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product          Product      @relation(fields: [productId], references: [id])
+  refundItems      RefundItem[]
+
   @@index([orderId])
   @@index([productId])
+  @@index([itemType])
+  @@index([sellerId])
   @@map("orderitem")
 }
 
 model MercadoLivreAuth {
   id           String   @id @default(cuid())
   userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken  String   @db.Text
   refreshToken String   @db.Text
   expiresAt    DateTime
   mlUserId     String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("mercadolivreauth")
 }
 
 model AliExpressAuth {
   id           String    @id @default(cuid())
   userId       String    @unique
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   appKey       String
   appSecret    String    @db.Text
   accessToken  String?   @db.Text
@@ -400,35 +393,58 @@ model AliExpressAuth {
   sellerId     String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("aliexpressauth")
 }
 
 model ShopeeAuth {
-  id           String    @id @default(cuid())
-  userId       String    @unique
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  userId       String   @unique
   partnerId    Int
   partnerKey   String
-  accessToken  String    @db.Text
-  refreshToken String    @db.Text
+  accessToken  String   @db.Text
+  refreshToken String   @db.Text
   shopId       Int
   merchantName String?
   region       String?
   expiresAt    DateTime
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@map("shopeeauth")
+}
+
+model TikTokShopAuth {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  appKey         String
+  appSecret      String    @db.Text
+  accessToken    String?   @db.Text
+  refreshToken   String?   @db.Text
+  accessTokenExpireIn  Int?
+  refreshTokenExpireIn Int?
+  shopId         String?
+  shopName       String?
+  shopCipher     String?   @db.Text
+  openId         String?
+  sellerName     String?
+  region         String?   @default("BR")
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("tiktokshopauth")
 }
 
 model MarketplaceListing {
   id           String    @id @default(cuid())
   productId    String
-  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  marketplace  String    // 'mercadolivre', 'shopee', etc
-  listingId    String    // ID do anúncio no marketplace
-  status       String    // 'active', 'paused', 'closed'
+  marketplace  String
+  listingId    String
+  status       String
   title        String?
   price        Float?
   stock        Int?
@@ -438,7 +454,8 @@ model MarketplaceListing {
   errorMessage String?   @db.Text
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
   @@unique([productId, marketplace])
   @@index([marketplace])
   @@index([status])
@@ -459,7 +476,7 @@ model CompanySettings {
   notifyNewDropshippingProducts Boolean  @default(true)
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
-  
+
   @@map("company_settings")
 }
 
@@ -469,6 +486,294 @@ model MercadoLivreCredentials {
   clientSecret String   @db.Text
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
+
   @@map("mercadolivrecredentials")
+}
+
+model Plan {
+  id                        String         @id @default(cuid())
+  name                      String
+  description               String?        @db.Text
+  price                     Float
+  billingCycle              BillingCycle
+  maxProducts               Int?
+  maxOrders                 Int?
+  maxRevenue                Float?
+  hasMarketplaceIntegration Boolean        @default(false)
+  hasDropshipping           Boolean        @default(false)
+  hasAdvancedAnalytics      Boolean        @default(false)
+  hasCustomBranding         Boolean        @default(false)
+  hasPrioritySupport        Boolean        @default(false)
+  platformCommission        Float          @default(10)
+  isActive                  Boolean        @default(true)
+  isPopular                 Boolean        @default(false)
+  hasFreeTrial              Boolean        @default(false)
+  trialDays                 Int?
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  subscriptions             Subscription[]
+
+  @@map("plan")
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  sellerId        String             @unique
+  planId          String
+  status          SubscriptionStatus @default(TRIAL)
+  startDate       DateTime           @default(now())
+  endDate         DateTime
+  trialEndDate    DateTime?
+  cancelledAt     DateTime?
+  price           Float
+  billingCycle    BillingCycle
+  nextBillingDate DateTime?
+  autoRenew       Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  plan            Plan               @relation(fields: [planId], references: [id])
+  seller          Seller             @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([endDate])
+  @@index([nextBillingDate])
+  @@index([planId], map: "subscription_planId_fkey")
+  @@map("subscription")
+}
+
+model ProductType {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?  @db.Text
+  icon        String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("product_type")
+}
+
+model PaymentGateway {
+  id        String   @id @default(cuid())
+  gateway   String   @unique
+  isActive  Boolean  @default(false)
+  config    String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_gateway")
+}
+
+model Refund {
+  id          String       @id @default(cuid())
+  orderId     String
+  paymentId   String
+  refundId    String?
+  amount      Float
+  reason      String?      @db.Text
+  gateway     String
+  status      String
+  processedBy String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  order       Order        @relation(fields: [orderId], references: [id])
+  items       RefundItem[]
+
+  @@index([orderId])
+  @@index([paymentId])
+  @@map("refund")
+}
+
+model RefundItem {
+  id          String    @id @default(cuid())
+  refundId    String
+  orderItemId String
+  amount      Float
+  createdAt   DateTime  @default(now())
+  refund      Refund    @relation(fields: [refundId], references: [id])
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@index([refundId])
+  @@index([orderItemId])
+  @@map("refund_item")
+}
+
+model Withdrawal {
+  id              String           @id @default(cuid())
+  sellerId        String
+  amount          Float
+  status          WithdrawalStatus @default(PENDING)
+  paymentMethod   String
+  pixKey          String?
+  pixKeyType      String?
+  bankName        String?
+  bankCode        String?
+  agencia         String?
+  conta           String?
+  contaTipo       String?
+  transactionId   String?
+  processedAt     DateTime?
+  processedBy     String?
+  rejectionReason String?          @db.Text
+  sellerNote      String?          @db.Text
+  adminNote       String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  seller          Seller           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("withdrawal")
+}
+
+model ApiLog {
+  id           String   @id @default(cuid())
+  method       String
+  endpoint     String
+  statusCode   Int
+  userId       String?
+  userRole     String?
+  sellerId     String?
+  sellerName   String?
+  requestBody  String?  @db.Text
+  responseBody String?  @db.Text
+  errorMessage String?  @db.Text
+  ipAddress    String?
+  userAgent    String?  @db.Text
+  duration     Int?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([sellerId])
+  @@index([method])
+  @@index([endpoint])
+  @@index([statusCode])
+  @@index([createdAt])
+  @@map("api_log")
+}
+
+model prisma_migrations_itemtype {
+  value String @id
+
+  @@map("_prisma_migrations_itemtype")
+}
+
+enum EmployeeRole {
+  MANAGER
+  OPERATOR
+  VIEWER
+
+  @@map("user_employeeRole")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SELLER
+
+  @@map("user_role")
+}
+
+enum SellerType {
+  PF
+  PJ
+
+  @@map("seller_sellerType")
+}
+
+enum SellerStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+
+  @@map("seller_status")
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+enum ItemType {
+  DROPSHIPPING
+  STOCK
+
+  @@map("orderitem_itemType")
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  PENDING_PAYMENT
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+  CANCELLED
+
+  @@map("withdrawal_status")
+}
+
+model ShippingRule {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  regionType      String   // 'STATE', 'CITY', 'NATIONWIDE', 'ZIPCODE_RANGE'
+  regions         String   @db.Text // JSON array com estados/cidades/faixas de CEP
+  minWeight       Float?   // kg
+  maxWeight       Float?   // kg
+  minCartValue    Float?   // R$
+  maxCartValue    Float?   // R$
+  shippingCost    Float    // Custo fixo
+  costPerKg       Float?   // Custo adicional por kg
+  freeShippingMin Float?   // Frete grátis acima deste valor
+  deliveryDays    Int      // Prazo de entrega em dias
+  isActive        Boolean  @default(true)
+  priority        Int      @default(0) // Maior prioridade = aplicada primeiro
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([regionType])
+  @@index([priority])
+  @@map("shippingrule")
+}
+
+// Configurações gerais do sistema
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique // Ex: "site.name", "appearance.primaryColor"
+  value       String   @db.Text // Valor em JSON para flexibilidade
+  category    String   // Ex: "geral", "aparencia", "ecommerce", "seo"
+  label       String   // Nome amigável
+  description String?  @db.Text
+  type        String   @default("text") // text, textarea, color, image, boolean, number, json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([key])
+  @@map("systemconfig")
 }

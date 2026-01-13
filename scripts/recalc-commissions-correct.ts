@@ -50,7 +50,7 @@ async function main() {
     if (isDropshipping) {
       // DROPSHIPPING: Buscar comissão do produto ORIGINAL (não da cópia)
       const originalProduct = await prisma.product.findUnique({
-        where: { id: item.product.supplierSku },
+        where: { id: item.product.supplierSku || undefined },
         select: { 
           dropshippingCommission: true,
           name: true

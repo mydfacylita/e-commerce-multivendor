@@ -1,0 +1,105 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Carrinho</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Carrinho vazio -->
+  <div *ngIf="cart.items.length === 0" class="empty-cart">
+    <ion-icon name="cart-outline"></ion-icon>
+    <h2>Seu carrinho está vazio</h2>
+    <p>Adicione produtos para continuar</p>
+    <ion-button routerLink="/tabs/home">
+      <ion-icon slot="start" name="storefront-outline"></ion-icon>
+      Explorar Produtos
+    </ion-button>
+  </div>
+
+  <!-- Itens do carrinho -->
+  <div *ngIf="cart.items.length > 0">
+    <ion-list>
+      <ion-item-sliding *ngFor="let item of cart.items">
+        <ion-item>
+          <ion-thumbnail slot="start">
+            <img [src]="item.image || 'assets/placeholder.png'" [alt]="item.name">
+          </ion-thumbnail>
+          
+          <ion-label>
+            <h3>{{ item.name }}</h3>
+            <p *ngIf="item.selectedSize">Tamanho: {{ item.selectedSize }}</p>
+            <p *ngIf="item.selectedColor">Cor: {{ item.selectedColor }}</p>
+            <p class="price">{{ formatPrice(item.price) }}</p>
+          </ion-label>
+          
+          <div class="quantity-controls" slot="end">
+            <ion-button fill="clear" size="small" (click)="updateQuantity(item, -1)" [disabled]="item.quantity <= 1">
+              <ion-icon slot="icon-only" name="remove-circle-outline"></ion-icon>
+            </ion-button>
+            <span class="quantity">{{ item.quantity }}</span>
+            <ion-button fill="clear" size="small" (click)="updateQuantity(item, 1)" [disabled]="item.quantity >= (item.stock || 999)">
+              <ion-icon slot="icon-only" name="add-circle-outline"></ion-icon>
+            </ion-button>
+          </div>
+        </ion-item>
+        
+        <ion-item-options side="end">
+          <ion-item-option color="danger" (click)="removeItem(item)">
+            <ion-icon slot="icon-only" name="trash"></ion-icon>
+          </ion-item-option>
+        </ion-item-options>
+      </ion-item-sliding>
+    </ion-list>
+
+    <!-- Cupom -->
+    <div class="coupon-section">
+      <ion-item>
+        <ion-input 
+          [(ngModel)]="couponCode" 
+          placeholder="Cupom de desconto"
+          [disabled]="isApplyingCoupon">
+        </ion-input>
+        <ion-button slot="end" fill="clear" (click)="applyCoupon()" [disabled]="isApplyingCoupon || !couponCode">
+          <ion-spinner *ngIf="isApplyingCoupon" name="crescent"></ion-spinner>
+          <span *ngIf="!isApplyingCoupon">Aplicar</span>
+        </ion-button>
+      </ion-item>
+    </div>
+
+    <!-- Resumo -->
+    <div class="summary-section">
+      <div class="summary-row">
+        <span>Subtotal</span>
+        <span>{{ formatPrice(cart.subtotal) }}</span>
+      </div>
+      <div class="summary-row" *ngIf="cart.discount > 0">
+        <span>Desconto</span>
+        <span class="discount">-{{ formatPrice(cart.discount) }}</span>
+      </div>
+      <div class="summary-row" *ngIf="cart.shipping > 0">
+        <span>Frete</span>
+        <span>{{ formatPrice(cart.shipping) }}</span>
+      </div>
+      <div class="summary-row total">
+        <span>Total</span>
+        <span>{{ formatPrice(cart.total) }}</span>
+      </div>
+    </div>
+  </div>
+</ion-content>
+
+<!-- Footer com botão de checkout -->
+<ion-footer *ngIf="cart.items.length > 0">
+  <ion-toolbar>
+    <div class="checkout-footer">
+      <div class="total-display">
+        <span class="label">Total</span>
+        <span class="value">{{ formatPrice(cart.total) }}</span>
+      </div>
+      <ion-button expand="block" (click)="goToCheckout()">
+        Finalizar Compra
+        <ion-icon slot="end" name="arrow-forward"></ion-icon>
+      </ion-button>
+    </div>
+  </ion-toolbar>
+</ion-footer>

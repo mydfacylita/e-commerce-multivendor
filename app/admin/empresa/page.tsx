@@ -165,14 +165,14 @@ export default function EmpresaPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome da Empresa
+                  Empresa
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Minha Empresa Ltda"
+                  placeholder="MYD Facilyta Tecnology"
                 />
               </div>
 
@@ -191,14 +191,14 @@ export default function EmpresaPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Corporativo
+                  E-mail
                 </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="contato@empresa.com"
+                  placeholder="mydfacilyta@gmail.com"
                 />
               </div>
 
@@ -211,7 +211,7 @@ export default function EmpresaPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="(00) 0000-0000"
+                  placeholder="98991269315"
                 />
               </div>
             </div>
@@ -225,7 +225,7 @@ export default function EmpresaPage() {
                 value={formData.address}
                 onChange={(e) => setFormData({...formData, address: e.target.value})}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Rua, Número, Bairro, Cidade - Estado"
+                placeholder="AV DOS HOLANDESES Nº 15"
               />
             </div>
 

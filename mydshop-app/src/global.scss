@@ -1,0 +1,124 @@
+/*
+ * App Global CSS
+ * ----------------------------------------------------------------------------
+ * Put style rules here that you want to apply globally. These styles are for
+ * the entire app and not just one component. Additionally, this file can be
+ * used as an entry point to import other CSS/Sass files to be included in the
+ * output CSS.
+ * For more information on global stylesheets, visit the documentation:
+ * https://ionicframework.com/docs/layout/global-stylesheets
+ */
+
+/* Core CSS required for Ionic components to work properly */
+@import "@ionic/angular/css/core.css";
+
+/* Basic CSS for apps built with Ionic */
+@import "@ionic/angular/css/normalize.css";
+@import "@ionic/angular/css/structure.css";
+@import "@ionic/angular/css/typography.css";
+@import "@ionic/angular/css/display.css";
+
+/* Optional CSS utils that can be commented out */
+@import "@ionic/angular/css/padding.css";
+@import "@ionic/angular/css/float-elements.css";
+@import "@ionic/angular/css/text-alignment.css";
+@import "@ionic/angular/css/text-transformation.css";
+@import "@ionic/angular/css/flex-utils.css";
+
+/**
+ * Ionic Dark Mode
+ * -----------------------------------------------------
+ * For more info, please see:
+ * https://ionicframework.com/docs/theming/dark-mode
+ */
+
+/* @import "@ionic/angular/css/palettes/dark.always.css"; */
+/* @import "@ionic/angular/css/palettes/dark.class.css"; */
+@import "@ionic/angular/css/palettes/dark.system.css";
+
+/**
+ * Variáveis CSS Dinâmicas do App
+ * Estas variáveis são atualizadas pelo AppConfigService
+ * quando as configurações são carregadas do servidor
+ */
+:root {
+  // Cores padrão (serão sobrescritas dinamicamente)
+  --app-primary: #f97316;
+  --app-primary-light: #fb923c;
+  --app-primary-dark: #ea580c;
+  --app-secondary: #2563eb;
+  --app-secondary-light: #3b82f6;
+  --app-secondary-dark: #1d4ed8;
+  --app-accent: #8b5cf6;
+  --app-background: #ffffff;
+  --app-text: #1f2937;
+  --app-success: #16a34a;
+  --app-warning: #eab308;
+  --app-danger: #ef4444;
+  
+  // Mapeamento para variáveis do Ionic
+  --ion-color-primary: var(--app-primary);
+  --ion-color-primary-rgb: 249, 115, 22;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-shade: var(--app-primary-dark);
+  --ion-color-primary-tint: var(--app-primary-light);
+  
+  --ion-color-secondary: var(--app-secondary);
+  --ion-color-secondary-rgb: 37, 99, 235;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-shade: var(--app-secondary-dark);
+  --ion-color-secondary-tint: var(--app-secondary-light);
+  
+  --ion-color-success: var(--app-success);
+  --ion-color-warning: var(--app-warning);
+  --ion-color-danger: var(--app-danger);
+}
+
+// Utilitários globais
+.text-primary {
+  color: var(--app-primary) !important;
+}
+
+.text-secondary {
+  color: var(--app-secondary) !important;
+}
+
+.bg-primary {
+  background-color: var(--app-primary) !important;
+}
+
+.bg-secondary {
+  background-color: var(--app-secondary) !important;
+}
+
+/* Safe Areas para dispositivos móveis */
+ion-app {
+  /* Evita que o conteúdo invada a status bar */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Ajustes específicos para Android */
+.platform-android {
+  ion-header {
+    /* Garante que o header não invada a status bar */
+    margin-top: 0;
+    padding-top: 0;
+  }
+  
+  ion-toolbar {
+    /* Remove sobreposição da toolbar */
+    --padding-top: 0;
+    --padding-bottom: 0;
+  }
+}
+
+/* Corrige problemas de layout em tablets */
+.platform-tablet {
+  ion-content {
+    --padding-start: env(safe-area-inset-left);
+    --padding-end: env(safe-area-inset-right);
+  }
+}

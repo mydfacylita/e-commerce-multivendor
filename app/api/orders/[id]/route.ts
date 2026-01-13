@@ -49,6 +49,24 @@ export async function GET(
       )
     }
 
+    console.log('📦 [ORDER DETAILS] Dados do pedido:', {
+      id: order.id,
+      total: order.total,
+      subtotal: order.subtotal,
+      shippingCost: order.shippingCost,
+      couponCode: order.couponCode,
+      discountAmount: order.discountAmount,
+      itemsCount: order.items?.length,
+      items: order.items?.map(item => ({
+        id: item.id,
+        productName: item.product?.name,
+        selectedSize: item.selectedSize,
+        selectedColor: item.selectedColor,
+        quantity: item.quantity,
+        price: item.price
+      }))
+    })
+
     return NextResponse.json(order)
   } catch (error) {
     console.error('Erro ao buscar pedido:', error)

@@ -1,0 +1,28 @@
+<ion-tabs>
+  <ion-tab-bar slot="bottom">
+    <!-- Home -->
+    <ion-tab-button tab="home">
+      <ion-icon name="home-outline"></ion-icon>
+      <ion-label>Início</ion-label>
+    </ion-tab-button>
+
+    <!-- Categorias -->
+    <ion-tab-button tab="categories">
+      <ion-icon name="grid-outline"></ion-icon>
+      <ion-label>Categorias</ion-label>
+    </ion-tab-button>
+
+    <!-- Carrinho -->
+    <ion-tab-button tab="cart">
+      <ion-icon name="cart-outline"></ion-icon>
+      <ion-label>Carrinho</ion-label>
+      <ion-badge *ngIf="cartItemCount > 0" color="danger">{{ cartItemCount }}</ion-badge>
+    </ion-tab-button>
+
+    <!-- Perfil -->
+    <ion-tab-button tab="profile">
+      <ion-icon name="person-outline"></ion-icon>
+      <ion-label>Perfil</ion-label>
+    </ion-tab-button>
+  </ion-tab-bar>
+</ion-tabs>

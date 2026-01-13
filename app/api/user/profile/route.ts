@@ -1,21 +1,21 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { authenticateRequest } from '@/lib/auth-helper'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    // 🔐 Autenticar (API Key + JWT/Session)
+    const auth = await authenticateRequest(request, {
+      requireApiKey: true,
+      requireAuth: true
+    });
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { message: 'Não autorizado' },
-        { status: 401 }
-      )
+    if (!auth.authenticated || !auth.userId) {
+      return auth.response;
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: auth.userId },
       select: {
         id: true,
         name: true,
@@ -35,21 +35,22 @@ export async function GET() {
   }
 }
 
-export async function PUT(req: Request) {
+export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    // 🔐 Autenticar (API Key + JWT/Session)
+    const auth = await authenticateRequest(request, {
+      requireApiKey: true,
+      requireAuth: true
+    });
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { message: 'Não autorizado' },
-        { status: 401 }
-      )
+    if (!auth.authenticated || !auth.userId) {
+      return auth.response;
     }
 
-    const { name } = await req.json()
+    const { name } = await request.json()
 
     const user = await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: auth.userId },
       data: { name },
       select: {
         id: true,

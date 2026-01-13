@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 
 /**
  * Calcula e registra as comissões de um pedido
+ * Suporta pedidos híbridos (dropshipping + estoque próprio)
  */
 export async function calculateOrderCommissions(orderId: string) {
   try {
@@ -31,18 +32,39 @@ export async function calculateOrderCommissions(orderId: string) {
     for (const item of order.items) {
       if (item.product.seller) {
         const itemTotal = item.price * item.quantity;
-        const commissionRate = item.product.seller.commission;
-        const commissionAmount = itemTotal * (commissionRate / 100);
-        const sellerRevenue = itemTotal - commissionAmount;
+        
+        // Determinar tipo de item baseado no produto
+        const itemType = item.product.isDropshipping ? 'DROPSHIPPING' : 'STOCK';
+        
+        // Para dropshipping: comissão configurada no produto
+        // Para estoque próprio: comissão padrão do vendedor
+        let commissionRate: number;
+        let commissionAmount: number;
+        let sellerRevenue: number;
+        
+        if (itemType === 'DROPSHIPPING') {
+          // Dropshipping: vendedor ganha comissão sobre o preço de venda
+          commissionRate = item.product.dropshippingCommission || 0;
+          commissionAmount = itemTotal * (commissionRate / 100);
+          sellerRevenue = commissionAmount; // Vendedor recebe apenas a comissão
+        } else {
+          // Estoque próprio: vendedor recebe valor total menos comissão da plataforma
+          commissionRate = item.product.seller.commission;
+          commissionAmount = itemTotal * (commissionRate / 100);
+          sellerRevenue = itemTotal - commissionAmount; // Vendedor recebe o restante
+        }
 
-        // Atualizar o item com as informações de comissão
+        // Atualizar o item com as informações de comissão e tipo
         await prisma.orderItem.update({
           where: { id: item.id },
           data: {
+            itemType,
             sellerId: item.product.seller.id,
             commissionRate,
             commissionAmount,
             sellerRevenue,
+            // Para dropshipping, guardar custo do fornecedor
+            supplierCost: itemType === 'DROPSHIPPING' ? item.product.totalCost : null,
           },
         });
 

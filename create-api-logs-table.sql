@@ -1,0 +1,25 @@
+-- Criação da tabela api_log
+CREATE TABLE IF NOT EXISTS `api_log` (
+  `id` VARCHAR(191) NOT NULL,
+  `method` VARCHAR(191) NOT NULL,
+  `endpoint` VARCHAR(191) NOT NULL,
+  `statusCode` INT NOT NULL,
+  `userId` VARCHAR(191) NULL,
+  `userRole` VARCHAR(191) NULL,
+  `sellerId` VARCHAR(191) NULL,
+  `sellerName` VARCHAR(191) NULL,
+  `requestBody` TEXT NULL,
+  `responseBody` TEXT NULL,
+  `errorMessage` TEXT NULL,
+  `ipAddress` VARCHAR(191) NULL,
+  `userAgent` TEXT NULL,
+  `duration` INT NULL,
+  `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  INDEX `api_log_userId_idx` (`userId`),
+  INDEX `api_log_sellerId_idx` (`sellerId`),
+  INDEX `api_log_method_idx` (`method`),
+  INDEX `api_log_endpoint_idx` (`endpoint`),
+  INDEX `api_log_statusCode_idx` (`statusCode`),
+  INDEX `api_log_createdAt_idx` (`createdAt`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

@@ -1,0 +1,12 @@
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo branco para fundos escuros -->
+  <text x="10" y="42" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#FFFFFF">MYD</text>
+  <text x="85" y="42" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#FFFFFF" opacity="0.9">SHOP</text>
+  
+  <!-- Ícone de carrinho branco -->
+  <g transform="translate(165, 15)">
+    <circle cx="10" cy="10" r="2" fill="#FFFFFF"/>
+    <circle cx="18" cy="10" r="2" fill="#FFFFFF"/>
+    <path d="M2 2 L6 2 L8 8 L20 8 L18 4 L8 4" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

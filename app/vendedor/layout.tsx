@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { FiPackage, FiDollarSign, FiHome, FiExternalLink, FiTruck, FiSettings, FiShoppingBag, FiUsers } from 'react-icons/fi';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import { FiPackage, FiDollarSign, FiHome, FiExternalLink, FiTruck, FiSettings, FiShoppingBag, FiUsers, FiCreditCard } from 'react-icons/fi';
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -14,19 +15,26 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   const [isLoading, setIsLoading] = useState(true);
   const [permissions, setPermissions] = useState<any>(null);
 
-  // Rotas que não requerem autenticação de vendedor (página de cadastro)
-  const publicRoutes = ['/vendedor/cadastro'];
-  const isPublicRoute = publicRoutes.some(route => pathname?.startsWith(route));
+  // Rotas que NÃO usam o layout com sidebar (renderizam sem validação)
+  const noLayoutRoutes = [
+    '/vendedor/cadastro',
+    '/vendedor/planos',
+    '/vendedor/planos/pagamento'
+  ];
+  const isNoLayoutRoute = noLayoutRoutes.some(route => pathname?.startsWith(route));
+
+  // Estado para controlar se o vendedor pode acessar
+  const [canAccess, setCanAccess] = useState(false);
 
   useEffect(() => {
     if (status === 'loading') return;
 
-    if (status === 'unauthenticated' && !isPublicRoute) {
+    if (status === 'unauthenticated' && !isNoLayoutRoute) {
       router.push('/login');
       return;
     }
 
-    if (status === 'authenticated' && !isPublicRoute) {
+    if (status === 'authenticated' && !isNoLayoutRoute) {
       // Verifica se é vendedor
       if (session?.user?.role !== 'SELLER') {
         router.push('/');
@@ -36,7 +44,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
     } else {
       setIsLoading(false);
     }
-  }, [status, isPublicRoute, session]);
+  }, [status, isNoLayoutRoute, session]);
 
   const fetchSellerData = async () => {
     try {
@@ -52,35 +60,70 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
           console.log('Permissões carregadas:', userPermissions);
           setPermissions(userPermissions);
         }
+        
+        // ===== VERIFICAÇÃO DE REGRAS DE NEGÓCIO =====
+        console.log('🔍 Verificando regras de negócio:', {
+          status: data.seller.status,
+          hasSubscription: !!data.seller.subscription,
+          subscriptionStatus: data.seller.subscription?.status
+        });
+        
+        // 1. Verifica se o vendedor foi aprovado (status = ACTIVE)
+        if (data.seller.status !== 'ACTIVE') {
+          console.log('❌ Status não é ACTIVE:', data.seller.status, '- redirecionando');
+          // Status PENDING, REJECTED, SUSPENDED -> vai para cadastro
+          const queryParam = 
+            data.seller.status === 'PENDING' ? 'pendente=true' :
+            data.seller.status === 'REJECTED' ? 'rejeitado=true' :
+            data.seller.status === 'SUSPENDED' ? 'suspenso=true' : '';
+          
+          router.push(`/vendedor/cadastro?${queryParam}`);
+          // MANTÉM loading infinito - não libera acesso
+          return;
+        }
+        
+        // 2. Status é ACTIVE - Verifica se tem plano ativo
+        console.log('✅ Status ACTIVE - verificando subscription...');
+        if (!data.seller.subscription || 
+            !['ACTIVE', 'TRIAL'].includes(data.seller.subscription.status)) {
+          console.log('❌ SEM PLANO ATIVO - redirecionando para planos');
+          router.push('/vendedor/planos?sem-plano=true');
+          // MANTÉM loading infinito - não libera acesso
+          return;
+        }
+        
+        console.log('✅ Plano ativo encontrado:', data.seller.subscription.status);
+        console.log('✅ LIBERANDO ACESSO TOTAL');
+        
+        // APENAS AQUI libera o acesso
+        setCanAccess(true);
+        setIsLoading(false);
+        
       } else if (response.status === 404) {
         router.push('/vendedor/cadastro');
       }
     } catch (error) {
       console.error('Erro:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // Se for rota pública, renderiza direto
-  if (isPublicRoute) {
+  // Rotas sem layout (cadastro e planos) renderizam direto sem sidebar
+  if (isNoLayoutRoute) {
     return <>{children}</>;
   }
 
   // Loading state
   if (status === 'loading' || isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Carregando painel..." />;
   }
 
   // Sem seller, não renderiza
   if (!seller) {
+    return null;
+  }
+
+  // **CRÍTICO**: Se não tem permissão de acesso (canAccess=false), não renderiza NADA
+  if (!canAccess) {
     return null;
   }
 
@@ -101,7 +144,9 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
     { label: 'Pedidos', href: '/vendedor/pedidos', icon: FiShoppingBag, requiresPermission: 'canManageOrders' },
     { label: 'Dropshipping', href: '/vendedor/dropshipping', icon: FiTruck, requiresPermission: 'canManageDropshipping' },
     { label: 'Integração', href: '/vendedor/integracao', icon: FiSettings, requiresPermission: 'canManageIntegrations' },
+    { label: 'Planos', href: '/vendedor/planos', icon: FiCreditCard, requiresPermission: null },
     { label: 'Financeiro', href: '/vendedor/financeiro', icon: FiDollarSign, requiresPermission: 'canViewFinancial' },
+    { label: 'Extrato', href: '/vendedor/saques', icon: FiDollarSign, requiresPermission: 'canViewFinancial' },
     { label: 'Funcionários', href: '/vendedor/funcionarios', icon: FiUsers, requiresPermission: 'canManageEmployees' },
     { 
       label: 'Ver Minha Loja', 

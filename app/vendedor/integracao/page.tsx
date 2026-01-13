@@ -97,12 +97,15 @@ export default async function VendedorIntegracaoPage() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold">Mercado Livre</h3>
-            <FiShoppingBag size={32} />
-          </div>
+      {/* Marketplaces */}
+      <div className="mb-12">
+        <h2 className="text-2xl font-bold mb-6">🛒 Marketplaces</h2>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">Mercado Livre</h3>
+              <FiShoppingBag size={32} />
+            </div>
           <p className="text-sm mb-4 opacity-90">
             Liste seus produtos automaticamente no Mercado Livre
           </p>
@@ -161,6 +164,7 @@ export default async function VendedorIntegracaoPage() {
             Configurar
           </Link>
         </div>
+      </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">

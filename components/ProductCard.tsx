@@ -49,7 +49,7 @@ export default function ProductCard({ product }: { product: Product }) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link href={`/produtos/${product.slug}`}>
+      <Link href={`/produtos/${product.slug}`} className="block">
         <div className="relative h-48 bg-gray-100 overflow-hidden">
           {product.images[0] ? (
             <Image
@@ -67,7 +67,7 @@ export default function ProductCard({ product }: { product: Product }) {
           )}
           
           {/* Badges */}
-          <div className="absolute top-2 left-2 right-2 flex justify-between items-start">
+          <div className="absolute top-2 left-2 right-2 flex justify-between items-start pointer-events-none">
             {discount > 0 && (
               <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg animate-pulse">
                 🔥 -{discount}%
@@ -80,25 +80,6 @@ export default function ProductCard({ product }: { product: Product }) {
             )}
           </div>
 
-          {/* Quick Actions - Aparecem no hover */}
-          <div className={`absolute top-2 right-2 flex flex-col gap-2 transition-all duration-300 ${
-            isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
-          }`}>
-            <button 
-              className="bg-white p-2 rounded-full shadow-lg hover:bg-accent-500 hover:text-white transition"
-              title="Adicionar aos favoritos"
-            >
-              <FiHeart size={20} />
-            </button>
-            <Link 
-              href={`/produtos/${product.slug}`}
-              className="bg-white p-2 rounded-full shadow-lg hover:bg-primary-500 hover:text-white transition"
-              title="Visualizar"
-            >
-              <FiEye size={20} />
-            </Link>
-          </div>
-
           {/* Overlay com botão - Aparece no hover */}
           <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-all duration-300 ${
             isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -106,10 +87,11 @@ export default function ProductCard({ product }: { product: Product }) {
             <button
               onClick={(e) => {
                 e.preventDefault()
+                e.stopPropagation()
                 handleAddToCart()
               }}
               disabled={product.stock === 0}
-              className="bg-white text-primary-600 px-6 py-3 rounded-lg font-bold hover:bg-accent-500 hover:text-white transform hover:scale-105 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-white text-primary-600 px-6 py-3 rounded-lg font-bold hover:bg-accent-500 hover:text-white transform hover:scale-105 transition disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto"
             >
               <FiShoppingCart className="inline mr-2" />
               {product.stock === 0 ? 'Indisponível' : 'COMPRAR AGORA'}
@@ -119,7 +101,7 @@ export default function ProductCard({ product }: { product: Product }) {
       </Link>
       
       <div className="p-4 space-y-3 flex flex-col flex-1">
-        <Link href={`/produtos/${product.slug}`}>
+        <Link href={`/produtos/${product.slug}`} className="block">
           <h3 className="font-semibold text-base hover:text-primary-600 transition line-clamp-2 h-12 leading-tight">
             {product.name}
           </h3>

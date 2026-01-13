@@ -1,0 +1,135 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-searchbar
+      #searchbar
+      [(ngModel)]="searchQuery"
+      (ionInput)="onSearchInput($event)"
+      (keyup.enter)="search()"
+      placeholder="Buscar produtos..."
+      debounce="0"
+      animated>
+    </ion-searchbar>
+    <ion-buttons slot="end">
+      <ion-button (click)="toggleFilters()">
+        <ion-icon slot="icon-only" name="options-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Filters Modal -->
+  <div class="filters-panel" *ngIf="showFilters">
+    <div class="filters-header">
+      <h3>Filtros</h3>
+      <ion-button fill="clear" (click)="showFilters = false">
+        <ion-icon slot="icon-only" name="close"></ion-icon>
+      </ion-button>
+    </div>
+    
+    <div class="filter-section">
+      <h4>Ordenar por</h4>
+      <ion-radio-group [(ngModel)]="selectedSort">
+        <ion-item *ngFor="let option of sortOptions" lines="none">
+          <ion-label>{{ option.label }}</ion-label>
+          <ion-radio slot="start" [value]="option.value"></ion-radio>
+        </ion-item>
+      </ion-radio-group>
+    </div>
+    
+    <div class="filter-section">
+      <h4>Faixa de Preço</h4>
+      <div class="price-inputs">
+        <ion-item>
+          <ion-label position="floating">Mínimo</ion-label>
+          <ion-input type="number" [(ngModel)]="minPrice" placeholder="R$ 0"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="floating">Máximo</ion-label>
+          <ion-input type="number" [(ngModel)]="maxPrice" placeholder="R$ 9999"></ion-input>
+        </ion-item>
+      </div>
+    </div>
+    
+    <div class="filter-actions">
+      <ion-button fill="outline" (click)="clearFilters()">Limpar</ion-button>
+      <ion-button (click)="applyFilters()">Aplicar</ion-button>
+    </div>
+  </div>
+
+  <!-- Search History -->
+  <div class="search-history" *ngIf="!hasSearched && searchHistory.length > 0">
+    <div class="history-header">
+      <h3>Buscas recentes</h3>
+      <ion-button fill="clear" size="small" (click)="clearHistory()">Limpar</ion-button>
+    </div>
+    <ion-list>
+      <ion-item *ngFor="let query of searchHistory" (click)="searchFromHistory(query)" button>
+        <ion-icon name="time-outline" slot="start"></ion-icon>
+        <ion-label>{{ query }}</ion-label>
+        <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+      </ion-item>
+    </ion-list>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="isLoading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Buscando produtos...</p>
+  </div>
+
+  <!-- Search Results -->
+  <div class="search-results" *ngIf="hasSearched && !isLoading">
+    <div class="results-header" *ngIf="products.length > 0">
+      <span>{{ products.length }} produto(s) encontrado(s)</span>
+    </div>
+
+    <!-- Products Grid -->
+    <div class="products-grid" *ngIf="products.length > 0">
+      <div class="product-card" *ngFor="let product of products" (click)="openProduct(product)">
+        <div class="product-image">
+          <img [src]="product.images[0]" [alt]="product.name" />
+          <div class="discount-badge" *ngIf="product.salePrice">
+            -{{ getDiscountPercentage(product) }}%
+          </div>
+        </div>
+        <div class="product-info">
+          <h4 class="product-name">{{ product.name }}</h4>
+          <div class="product-price">
+            <span class="sale-price" *ngIf="product.salePrice">
+              {{ formatCurrency(product.salePrice) }}
+            </span>
+            <span class="original-price" [class.strikethrough]="product.salePrice">
+              {{ formatCurrency(product.price) }}
+            </span>
+          </div>
+          <ion-button fill="outline" size="small" (click)="addToCart(product); $event.stopPropagation()">
+            <ion-icon slot="start" name="cart-outline"></ion-icon>
+            Adicionar
+          </ion-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" *ngIf="products.length === 0">
+      <ion-icon name="search-outline"></ion-icon>
+      <h2>Nenhum produto encontrado</h2>
+      <p>Tente buscar por outros termos ou navegue por categorias</p>
+      <ion-button fill="outline" routerLink="/tabs/categories">
+        Ver Categorias
+      </ion-button>
+    </div>
+  </div>
+
+  <!-- Infinite Scroll -->
+  <ion-infinite-scroll (ionInfinite)="loadMore($event)" *ngIf="hasSearched && products.length > 0">
+    <ion-infinite-scroll-content loadingSpinner="crescent" loadingText="Carregando mais...">
+    </ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+</ion-content>

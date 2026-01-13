@@ -48,10 +48,18 @@ export default async function VendedorPedidosPage() {
     redirect('/vendedor/cadastro');
   }
 
-  // Buscar pedidos deste vendedor
+  // Buscar pedidos com ESTOQUE LOCAL deste vendedor
+  // VENDEDOR NÃO vê pedidos DROP (ADM gerencia)
   const orders = await prisma.order.findMany({
     where: {
-      sellerId: seller.id
+      items: {
+        some: {
+          AND: [
+            { sellerId: seller.id },
+            { itemType: 'STOCK' } // Apenas ESTOQUE LOCAL
+          ]
+        }
+      }
     },
     include: {
       items: {
@@ -176,22 +184,27 @@ export default async function VendedorPedidosPage() {
                   // Verificar origem do pedido
                   const origem = order.marketplaceName || 'MYD';
                   
-                  // Verificar tipo: próprio ou dropshipping (baseado nos itens do vendedor)
+                  // Verificar tipo usando o campo itemType
                   const vendorItems = order.items.filter(item => item.sellerId === seller.id);
-                  const hasDropshipping = vendorItems.some(item => item.product.supplierSku);
-                  const hasOwnProducts = vendorItems.some(item => !item.product.supplierSku);
+                  const hasDropshipping = vendorItems.some(item => item.itemType === 'DROPSHIPPING');
+                  const hasStock = vendorItems.some(item => item.itemType === 'STOCK');
                   
                   let tipo = '';
                   let tipoBadgeColor = '';
-                  if (hasDropshipping && hasOwnProducts) {
-                    tipo = 'Misto';
-                    tipoBadgeColor = 'bg-purple-100 text-purple-800';
+                  let tipoIcon = '';
+                  
+                  if (hasDropshipping && hasStock) {
+                    tipo = 'Híbrido';
+                    tipoBadgeColor = 'bg-purple-100 text-purple-800 border border-purple-300';
+                    tipoIcon = '🔄';
                   } else if (hasDropshipping) {
                     tipo = 'Dropshipping';
-                    tipoBadgeColor = 'bg-blue-100 text-blue-800';
+                    tipoBadgeColor = 'bg-blue-100 text-blue-800 border border-blue-300';
+                    tipoIcon = '📦';
                   } else {
-                    tipo = 'Próprio';
-                    tipoBadgeColor = 'bg-green-100 text-green-800';
+                    tipo = 'Estoque';
+                    tipoBadgeColor = 'bg-green-100 text-green-800 border border-green-300';
+                    tipoIcon = '🏪';
                   }
                   
                   return (
@@ -200,8 +213,8 @@ export default async function VendedorPedidosPage() {
                         <span className="font-mono text-sm font-semibold text-blue-600">{formatOrderNumber(order.id)}</span>
                       </td>
                       <td className="py-3 px-4">
-                        <p className="font-medium text-gray-900">{order.user.name || 'N/A'}</p>
-                        <p className="text-sm text-gray-600">{order.user.email}</p>
+                        <p className="font-medium text-gray-900">{order.user?.name || 'N/A'}</p>
+                        <p className="text-sm text-gray-600">{order.user?.email || 'N/A'}</p>
                       </td>
                       <td className="py-3 px-4">
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -209,18 +222,27 @@ export default async function VendedorPedidosPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${tipoBadgeColor}`}>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${tipoBadgeColor}`}>
+                          <span>{tipoIcon}</span>
                           {tipo}
                         </span>
                       </td>
                       <td className="py-3 px-4">
                         <div className="space-y-1">
-                          {order.items.map((item) => (
-                            <div key={item.id} className="text-sm">
-                              <span className="text-gray-900">{item.quantity}x</span>{' '}
-                              <span className="text-gray-600">{item.product.name}</span>
-                            </div>
-                          ))}
+                          {order.items.map((item) => {
+                            const isItemDrop = item.itemType === 'DROPSHIPPING';
+                            return (
+                              <div key={item.id} className="text-sm flex items-center gap-2">
+                                <span className="text-gray-900">{item.quantity}x</span>{' '}
+                                <span className="text-gray-600">{item.product.name}</span>
+                                {isItemDrop && (
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded" title="Item Dropshipping">
+                                    📦
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </td>
                       <td className="py-3 px-4">

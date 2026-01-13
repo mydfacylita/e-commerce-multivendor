@@ -1,0 +1,99 @@
+.benefits-bar {
+  background: linear-gradient(135deg, #007acc, #0056b3);
+  color: white;
+  padding: 6px 0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 32px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    animation: shimmer 3s infinite;
+  }
+
+  &.animated {
+    .benefit-item {
+      opacity: 0;
+      animation: slideInFade 0.8s ease-out forwards;
+    }
+  }
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  
+  .benefit-icon {
+    font-size: 14px;
+    color: #ffeb3b;
+    margin-right: 2px;
+  }
+  
+  .benefit-text {
+    font-size: 8px;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    letter-spacing: 0.3px;
+  }
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+@keyframes slideInFade {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 480px) {
+  .benefits-bar {
+    gap: 5px;
+    
+    .benefit-item {
+      .benefit-text {
+        font-size: 7px;
+      }
+      
+      .benefit-icon {
+        font-size: 12px;
+      }
+    }
+  }
+}
+
+@media (max-width: 360px) {
+  .benefits-bar {
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    padding: 4px 8px;
+    
+    .benefit-item {
+      .benefit-text {
+        font-size: 6px;
+      }
+    }
+  }
+}

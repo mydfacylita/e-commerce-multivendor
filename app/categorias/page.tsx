@@ -2,12 +2,16 @@ import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 
 export default async function CategoriasPage() {
+  // Buscar apenas categorias principais (sem pai)
   const categories = await prisma.category.findMany({
+    where: { parentId: null },
     include: {
+      children: true,
       _count: {
         select: { products: true },
       },
     },
+    orderBy: { name: 'asc' },
   })
 
   return (

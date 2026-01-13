@@ -55,9 +55,19 @@ export default async function AdminProdutosPage() {
             </thead>
             <tbody>
               {products.map((product) => {
-                const imagens = typeof product.images === 'string' 
-                  ? JSON.parse(product.images)
-                  : product.images
+                let imagens: string[] = [];
+                try {
+                  if (typeof product.images === 'string' && product.images.trim()) {
+                    imagens = JSON.parse(product.images);
+                  } else if (Array.isArray(product.images)) {
+                    imagens = product.images;
+                  }
+                } catch (e) {
+                  // Se falhar o parse, tenta usar como URL direta
+                  if (typeof product.images === 'string' && product.images.startsWith('http')) {
+                    imagens = [product.images];
+                  }
+                }
                 const primeiraImagem = Array.isArray(imagens) && imagens.length > 0 ? imagens[0] : null
                 
                 return (

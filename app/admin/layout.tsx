@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
+import LoadingSpinner from '@/components/LoadingSpinner'
 import { 
   FiHome, 
   FiPackage, 
@@ -14,7 +15,16 @@ import {
   FiShoppingCart, 
   FiUsers, 
   FiShoppingBag,
-  FiZap
+  FiZap,
+  FiCreditCard,
+  FiTag,
+  FiFileText,
+  FiDollarSign,
+  FiActivity,
+  FiSend,
+  FiSettings,
+  FiMail,
+  FiSmartphone
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -32,7 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [session, status, router])
 
   if (status === 'loading') {
-    return <div className="flex items-center justify-center min-h-screen">Carregando...</div>
+    return <LoadingSpinner message="Carregando painel..." />
   }
 
   if (!session || session.user.role !== 'ADMIN') {
@@ -66,6 +76,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <FiGrid className="text-lg" />
             <span>Categorias</span>
+          </Link>
+          <Link
+            href="/admin/fretes"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
+          >
+            <FiSend className="text-lg" />
+            <span>Fretes</span>
+          </Link>
+          <Link
+            href="/admin/tipos-produtos"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
+          >
+            <FiTag className="text-lg" />
+            <span>Tipos de Produtos</span>
           </Link>
           <Link
             href="/admin/fornecedores"
@@ -103,6 +127,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span>Pedidos</span>
           </Link>
           <Link
+            href="/admin/pedidos/dropshipping"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900 ml-4"
+          >
+            <FiTruck className="text-lg" />
+            <span>Dropshipping</span>
+          </Link>
+          <Link
+            href="/admin/financeiro"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
+          >
+            <FiDollarSign className="text-lg" />
+            <span>Financeiro</span>
+          </Link>
+          <Link
             href="/admin/usuarios"
             className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
           >
@@ -115,6 +153,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <FiShoppingBag className="text-lg" />
             <span>Vendedores</span>
+          </Link>
+          <Link
+            href="/admin/planos"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
+          >
+            <FiCreditCard className="text-lg" />
+            <span>Planos</span>
+          </Link>
+          <Link
+            href="/admin/assinaturas"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
+          >
+            <FiFileText className="text-lg" />
+            <span>Assinaturas</span>
+          </Link>
+          <Link
+            href="/admin/logs"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
+          >
+            <FiActivity className="text-lg" />
+            <span>Logs de API</span>
+          </Link>
+          <Link
+            href="/admin/email"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
+          >
+            <FiMail className="text-lg" />
+            <span>E-mail</span>
+          </Link>
+          
+          {/* Separador */}
+          <div className="border-t border-gray-200 my-4"></div>
+          
+          <Link
+            href="/admin/configuracoes"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900"
+          >
+            <FiSettings className="text-lg" />
+            <span>Configurações</span>
+          </Link>
+          <Link
+            href="/admin/configuracoes/aparencia-app"
+            className="flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-gray-900 ml-4"
+          >
+            <FiSmartphone className="text-lg" />
+            <span>Aparência App</span>
           </Link>
         </nav>
       </aside>

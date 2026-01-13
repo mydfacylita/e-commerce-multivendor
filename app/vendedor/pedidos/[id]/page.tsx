@@ -28,7 +28,7 @@ export default function OrderDetailPage() {
 
   const fetchOrder = async () => {
     try {
-      const response = await fetch(`/api/seller/orders/${params.id}`);
+      const response = await fetch(`/api/admin/orders/${params.id}`);
       if (response.ok) {
         const data = await response.json();
         setOrder(data);
@@ -47,7 +47,7 @@ export default function OrderDetailPage() {
   };
 
   const handlePrintLabel = () => {
-    window.open(`/api/seller/orders/${params.id}/label`, '_blank');
+    window.open(`/api/admin/orders/${params.id}/label`, '_blank');
   };
 
   const handleUpdateStatus = async (newStatus: string) => {
@@ -55,7 +55,7 @@ export default function OrderDetailPage() {
     
     try {
       setUpdatingStatus(true);
-      const response = await fetch(`/api/seller/orders/${params.id}/status`, {
+      const response = await fetch(`/api/admin/orders/${params.id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -83,7 +83,7 @@ export default function OrderDetailPage() {
     }
 
     try {
-      const response = await fetch(`/api/seller/orders/${params.id}/tracking`, {
+      const response = await fetch(`/api/admin/orders/${params.id}/tracking`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trackingCode }),
@@ -129,6 +129,32 @@ export default function OrderDetailPage() {
     DELIVERED: 'Entregue',
     CANCELLED: 'Cancelado',
   };
+
+  // Função para formatar endereço (parse JSON se necessário)
+  const formatShippingAddress = (address: string | null): string => {
+    if (!address) return 'Endereço não informado'
+    
+    try {
+      const parsed = JSON.parse(address)
+      
+      if (parsed.formatted) {
+        return parsed.formatted
+      }
+      
+      const parts = []
+      if (parsed.street) parts.push(parsed.street)
+      if (parsed.number && parsed.number !== 'SN') parts.push(parsed.number)
+      if (parsed.complement) parts.push(parsed.complement)
+      if (parsed.neighborhood) parts.push(parsed.neighborhood)
+      if (parsed.city) parts.push(parsed.city)
+      if (parsed.state) parts.push(parsed.state)
+      if (parsed.zipCode) parts.push(`CEP: ${parsed.zipCode.replace(/(\d{5})(\d{3})/, '$1-$2')}`)
+      
+      return parts.join(', ') || address
+    } catch {
+      return address
+    }
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -243,12 +269,36 @@ export default function OrderDetailPage() {
                       <p className="font-semibold text-gray-900">
                         Subtotal: R$ {(item.price * item.quantity).toFixed(2)}
                       </p>
-                      {isDropshipping && item.product.costPrice && (
-                        <div className="mt-2 text-xs text-gray-500 space-y-1">
-                          <p>Custo base: R$ {item.product.costPrice.toFixed(2)}</p>
-                          <p className="text-green-600 font-medium">
-                            Lucro: R$ {((item.price - item.product.costPrice) * item.quantity).toFixed(2)}
-                          </p>
+                      {item.itemType === 'DROPSHIPPING' && item.supplierCost && (
+                        <div className="mt-2 text-xs space-y-1 bg-green-50 p-2 rounded">
+                          <div className="flex justify-between items-center text-gray-700">
+                            <span>💰 Preço de venda:</span>
+                            <span className="font-bold">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-red-600">
+                            <span>📦 Seu custo ({item.commissionRate}% desconto):</span>
+                            <span className="font-medium">- R$ {(item.supplierCost * item.quantity).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t border-green-300 text-green-700 font-bold text-base">
+                            <span>✅ Seu lucro:</span>
+                            <span>R$ {item.sellerRevenue ? item.sellerRevenue.toFixed(2) : '0.00'}</span>
+                          </div>
+                        </div>
+                      )}
+                      {item.itemType === 'STOCK' && item.sellerRevenue && (
+                        <div className="mt-2 text-xs space-y-1">
+                          <div className="flex justify-between items-center text-gray-600">
+                            <span>Valor de venda:</span>
+                            <span className="font-medium">R$ {(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-orange-600">
+                            <span>Taxa plataforma ({item.commissionRate}%):</span>
+                            <span className="font-medium">- R$ {(item.commissionAmount).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t text-green-600 font-semibold">
+                            <span>Você recebe:</span>
+                            <span>R$ {(item.sellerRevenue).toFixed(2)}</span>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -265,8 +315,8 @@ export default function OrderDetailPage() {
               <h2 className="text-xl font-bold">Endereço de Entrega</h2>
             </div>
             <div className="text-gray-700 space-y-1">
-              <p className="font-semibold">{order.shippingAddress}</p>
-              {order.shippingCity && (
+              <p className="font-semibold">{formatShippingAddress(order.shippingAddress)}</p>
+              {order.shippingCity && order.shippingState && (
                 <p>{order.shippingCity}, {order.shippingState}</p>
               )}
               {order.shippingZip && (

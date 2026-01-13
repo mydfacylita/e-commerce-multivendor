@@ -1,0 +1,536 @@
+// Cores do tema - Usando variáveis CSS dinâmicas
+$primary: var(--app-primary, #f97316);
+$secondary: var(--app-secondary, #2563eb);
+$dark: #111827;
+$medium: #6b7280;
+$light: #f3f4f6;
+
+// Header
+ion-header {
+  ion-toolbar {
+    --background: #ffffff;
+  }
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  
+  .logo-highlight {
+    color: var(--app-primary, #f97316);
+  }
+  
+  .logo-normal {
+    color: var(--app-secondary, #2563eb);
+  }
+}
+
+.header-logo {
+  max-height: 32px;
+  width: auto;
+}
+
+// Loading
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 50vh;
+  
+  p {
+    margin-top: 16px;
+    color: $medium;
+  }
+}
+
+// Banner Carrossel
+.banner-carousel {
+  position: relative;
+  height: 160px;
+  margin: 16px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  
+  .banner-swiper {
+    height: 100%;
+    width: 100%;
+    border-radius: 16px;
+    
+    // Ocultar paginação padrão do swiper
+    ::ng-deep .swiper-pagination {
+      display: none;
+    }
+  }
+  
+  .banner-slide {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    color: white;
+    cursor: pointer;
+    overflow: hidden;
+    
+    // Efeito de sobreposição sutil
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.1);
+      z-index: 1;
+    }
+    
+    * {
+      position: relative;
+      z-index: 2;
+    }
+  }
+  
+  .banner-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    
+    .banner-icon {
+      font-size: 32px;
+      line-height: 1;
+    }
+    
+    .banner-text {
+      h2 {
+        margin: 0 0 4px 0;
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      
+      p {
+        margin: 0;
+        font-size: 14px;
+        opacity: 0.9;
+        line-height: 1.3;
+      }
+    }
+  }
+  
+  .banner-button {
+    --border-radius: 20px;
+    --padding-start: 16px;
+    --padding-end: 16px;
+    height: 32px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: none;
+    
+    ion-icon {
+      font-size: 14px;
+    }
+  }
+  
+  // Indicadores customizados
+  .banner-indicators {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+    
+    .indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      
+      &.active {
+        background: white;
+        width: 16px;
+        border-radius: 4px;
+      }
+    }
+  }
+}
+
+// Banner antigo (remover depois)
+.banner-container {
+  display: none; // Ocultar o banner antigo
+  
+  .banner {
+    background: linear-gradient(135deg, var(--app-primary, #f97316), var(--app-primary-dark, #ea580c));
+    border-radius: 16px;
+    padding: 24px;
+    color: white;
+    text-align: center;
+    
+    h2 {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    
+    p {
+      margin: 0;
+      font-size: 16px;
+      opacity: 0.9;
+    }
+  }
+}
+
+// Sections
+.section {
+  padding: 16px;
+  
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    
+    h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: $dark;
+    }
+    
+    ion-button {
+      --color: $primary;
+      font-size: 14px;
+    }
+  }
+}
+
+// Categories
+.categories-section {
+  background: $light;
+}
+
+.categories-scroll {
+  display: flex;
+  overflow-x: auto;
+  gap: 16px;
+  padding-bottom: 8px;
+  
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .category-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 72px;
+    cursor: pointer;
+    
+    .category-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 8px;
+      
+      ion-icon {
+        font-size: 24px;
+        color: $primary;
+      }
+    }
+    
+    .category-name {
+      font-size: 12px;
+      color: $dark;
+      text-align: center;
+      max-width: 72px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+// Products Scroll
+.products-scroll {
+  display: flex;
+  overflow-x: auto;
+  gap: 12px;
+  padding-bottom: 8px;
+  
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .product-card {
+    position: relative;
+    min-width: 160px;
+    max-width: 160px;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    
+    .discount-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: #ef4444;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 1;
+    }
+    
+    .product-image {
+      width: 100%;
+      height: 140px;
+      overflow: hidden;
+      
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+    
+    .product-info {
+      padding: 12px;
+      
+      .product-name {
+        margin: 0 0 8px 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: $dark;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        height: 34px;
+      }
+      
+      .product-price {
+        margin-bottom: 8px;
+        
+        .compare-price {
+          display: block;
+          font-size: 11px;
+          color: $medium;
+          text-decoration: line-through;
+        }
+        
+        .current-price {
+          font-size: 16px;
+          font-weight: 700;
+          color: $primary;
+        }
+      }
+      
+      ion-button {
+        --padding-start: 8px;
+        --padding-end: 8px;
+        font-size: 12px;
+        height: 32px;
+      }
+    }
+  }
+}
+
+// Products Grid
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  
+  .product-card-grid {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    
+    .discount-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: #ef4444;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 1;
+    }
+    
+    .product-image {
+      width: 100%;
+      height: 140px;
+      overflow: hidden;
+      
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+    
+    .product-info {
+      padding: 12px;
+      
+      .product-name {
+        margin: 0 0 8px 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: $dark;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        height: 34px;
+      }
+      
+      .product-price {
+        .compare-price {
+          display: block;
+          font-size: 11px;
+          color: $medium;
+          text-decoration: line-through;
+        }
+        
+        .current-price {
+          font-size: 16px;
+          font-weight: 700;
+          color: $primary;
+        }
+      }
+    }
+  }
+}
+
+// Seção de todos os produtos
+.all-products-section {
+  .section-header {
+    h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: $dark;
+    }
+  }
+}
+
+// Loading more indicator
+.loading-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  gap: 8px;
+  
+  ion-spinner {
+    --color: var(--app-primary, #f97316);
+  }
+  
+  span {
+    font-size: 13px;
+    color: $medium;
+  }
+}
+
+// Infinite scroll styles
+ion-infinite-scroll {
+  ion-infinite-scroll-content {
+    --color: var(--app-primary, #f97316);
+  }
+}
+
+// === BARRA DE BENEFÍCIOS ===
+.benefits-bar {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  padding: 6px 8px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.15);
+  position: relative;
+  overflow: hidden;
+  height: 32px;
+
+  // Efeito de brilho sutil
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: shine 3s ease-in-out infinite;
+  }
+
+  .benefit-item {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: white;
+    font-size: 8px;
+    font-weight: 500;
+    max-width: 80px;
+    gap: 3px;
+
+    ion-icon {
+      font-size: 14px;
+      color: #93c5fd;
+      margin-right: 2px;
+    }
+
+    span {
+      line-height: 1;
+      font-size: 8px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      white-space: nowrap;
+    }
+
+    // Responsivo para telas maiores
+    @media (min-width: 768px) {
+      font-size: 10px;
+      max-width: 120px;
+
+      ion-icon {
+        font-size: 16px;
+      }
+
+      span {
+        font-size: 9px;
+      }
+    }
+  }
+}
+
+// Animação de brilho
+@keyframes shine {
+  0% {
+    left: -100%;
+  }
+  50% {
+    left: 100%;
+  }
+  100% {
+    left: 100%;
+  }
+}

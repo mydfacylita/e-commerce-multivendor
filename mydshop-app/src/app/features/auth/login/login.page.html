@@ -1,0 +1,77 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tabs/home"></ion-back-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <div class="login-container">
+    <!-- Logo -->
+    <div class="logo-section">
+      <!-- Logo da imagem (se configurado) -->
+      <img *ngIf="brand && brand.logo" [src]="brand.logo" [alt]="brand.name" class="brand-logo" />
+      
+      <!-- Logo em texto (fallback) -->
+      <h1 *ngIf="!brand || !brand.logo">
+        <ng-container *ngFor="let part of brandParts">
+          <span [class.logo-highlight]="part.highlight" [class.logo-normal]="!part.highlight">{{ part.text }}</span>
+        </ng-container>
+      </h1>
+      <p>{{ texts?.loginTitle || 'Bem-vindo de volta!' }}</p>
+    </div>
+
+    <!-- Form -->
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+      <ion-item>
+        <ion-label position="floating">E-mail</ion-label>
+        <ion-input 
+          type="email" 
+          formControlName="email"
+          autocomplete="email">
+        </ion-input>
+      </ion-item>
+      <div class="error-message" *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.errors?.['email']">
+        E-mail inválido
+      </div>
+
+      <ion-item>
+        <ion-label position="floating">Senha</ion-label>
+        <ion-input 
+          [type]="showPassword ? 'text' : 'password'" 
+          formControlName="password"
+          autocomplete="current-password">
+        </ion-input>
+        <ion-button fill="clear" slot="end" (click)="togglePassword()">
+          <ion-icon slot="icon-only" [name]="showPassword ? 'eye-off-outline' : 'eye-outline'"></ion-icon>
+        </ion-button>
+      </ion-item>
+      <div class="error-message" *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.errors?.['minlength']">
+        Senha deve ter pelo menos 6 caracteres
+      </div>
+
+      <div class="forgot-password">
+        <ion-button fill="clear" size="small" (click)="goToForgotPassword()">
+          Esqueceu a senha?
+        </ion-button>
+      </div>
+
+      <ion-button 
+        expand="block" 
+        type="submit" 
+        [disabled]="loginForm.invalid"
+        class="login-button">
+        Entrar
+      </ion-button>
+    </form>
+
+    <!-- Register link -->
+    <div class="register-section">
+      <p>Não tem uma conta?</p>
+      <ion-button fill="clear" (click)="goToRegister()">
+        Criar Conta
+      </ion-button>
+    </div>
+  </div>
+</ion-content>

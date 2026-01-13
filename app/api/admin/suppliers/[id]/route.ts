@@ -64,7 +64,7 @@ export async function PUT(
         apiUrl: data.apiUrl,
         apiKey: data.apiKey,
         commission: data.commission,
-        active: data.active,
+        isActive: data.active, // Mapear 'active' para 'isActive'
       },
     })
 

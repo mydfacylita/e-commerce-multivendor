@@ -1,0 +1,317 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Checkout</ion-title>
+  </ion-toolbar>
+  
+  <!-- Progress Steps -->
+  <div class="progress-steps">
+    <div class="step" [class.active]="currentStep >= 1" [class.completed]="currentStep > 1">
+      <div class="step-number">1</div>
+      <span>Endereço</span>
+    </div>
+    <div class="step-line" [class.active]="currentStep > 1"></div>
+    <div class="step" [class.active]="currentStep >= 2" [class.completed]="currentStep > 2">
+      <div class="step-number">2</div>
+      <span>Entrega</span>
+    </div>
+    <div class="step-line" [class.active]="currentStep > 2"></div>
+    <div class="step" [class.active]="currentStep >= 3">
+      <div class="step-number">3</div>
+      <span>Pagamento</span>
+    </div>
+  </div>
+</ion-header>
+
+<ion-content>
+  <!-- Step 1: Address -->
+  <div class="checkout-step" *ngIf="currentStep === 1">
+    <h2>Endereço de Entrega</h2>
+    
+    <!-- Loading -->
+    <div class="loading-addresses" *ngIf="isLoadingAddresses">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Carregando endereços...</p>
+    </div>
+
+    <!-- Lista de Endereços Salvos -->
+    <div class="saved-addresses" *ngIf="!isLoadingAddresses && userAddresses.length > 0 && !showAddressForm">
+      <div 
+        class="address-card" 
+        *ngFor="let address of userAddresses"
+        [class.selected]="selectedAddressId === address.id"
+        (click)="selectAddress(address.id)">
+        <div class="address-radio">
+          <ion-icon [name]="selectedAddressId === address.id ? 'radio-button-on' : 'radio-button-off'"></ion-icon>
+        </div>
+        <div class="address-content">
+          <div class="address-label">
+            <strong>{{ address.label || 'Endereço' }}</strong>
+            <ion-badge color="primary" *ngIf="address.isDefault">Padrão</ion-badge>
+          </div>
+          <p>{{ address.street }}{{ address.number ? ', ' + address.number : '' }}</p>
+          <p *ngIf="address.complement">{{ address.complement }}</p>
+          <p>{{ address.neighborhood }} - {{ address.city }}/{{ address.state }}</p>
+          <p class="zipcode">CEP: {{ address.zipCode }}</p>
+        </div>
+      </div>
+      
+      <ion-button expand="block" fill="outline" (click)="showNewAddressForm()" class="new-address-btn">
+        <ion-icon name="add-outline" slot="start"></ion-icon>
+        Adicionar novo endereço
+      </ion-button>
+    </div>
+
+    <!-- Formulário de Novo Endereço -->
+    <div class="address-form-container" *ngIf="!isLoadingAddresses && (showAddressForm || userAddresses.length === 0)">
+      <div class="form-header" *ngIf="userAddresses.length > 0">
+        <h3>Novo Endereço</h3>
+        <ion-button fill="clear" size="small" (click)="cancelNewAddress()">
+          Cancelar
+        </ion-button>
+      </div>
+      
+      <form [formGroup]="addressForm">
+        <ion-item>
+          <ion-label position="floating">CEP</ion-label>
+          <ion-input 
+            formControlName="zipCode" 
+            type="text"
+            maxlength="9"
+            placeholder="00000-000"
+            (ionInput)="onZipCodeInput($event)"
+            (ionBlur)="searchZipCode()">
+          </ion-input>
+          <ion-button fill="clear" slot="end" (click)="searchZipCode()">
+            <ion-icon slot="icon-only" name="search"></ion-icon>
+          </ion-button>
+        </ion-item>
+        <div class="error-message" *ngIf="addressForm.get('zipCode')?.touched && addressForm.get('zipCode')?.errors">
+          CEP inválido
+        </div>
+        
+        <ion-item>
+          <ion-label position="floating">Rua</ion-label>
+          <ion-input formControlName="street" type="text"></ion-input>
+        </ion-item>
+        
+        <div class="row">
+          <ion-item class="small">
+            <ion-label position="floating">Número</ion-label>
+            <ion-input formControlName="number" type="text"></ion-input>
+          </ion-item>
+          
+          <ion-item class="large">
+            <ion-label position="floating">Complemento</ion-label>
+            <ion-input formControlName="complement" type="text"></ion-input>
+          </ion-item>
+        </div>
+        
+        <ion-item>
+          <ion-label position="floating">Bairro</ion-label>
+          <ion-input formControlName="neighborhood" type="text"></ion-input>
+        </ion-item>
+        
+        <div class="row">
+          <ion-item class="large">
+            <ion-label position="floating">Cidade</ion-label>
+            <ion-input formControlName="city" type="text"></ion-input>
+          </ion-item>
+          
+          <ion-item class="small">
+            <ion-label position="floating">UF</ion-label>
+            <ion-input formControlName="state" type="text" maxlength="2"></ion-input>
+          </ion-item>
+        </div>
+      </form>
+      
+      <ion-button expand="block" (click)="saveNewAddress()" [disabled]="addressForm.invalid" class="save-address-btn">
+        <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+        Salvar Endereço
+      </ion-button>
+    </div>
+  </div>
+
+  <!-- Step 2: Shipping -->
+  <div class="checkout-step" *ngIf="currentStep === 2">
+    <h2>Opções de Entrega</h2>
+    
+    <div class="loading-shipping" *ngIf="isLoadingShipping">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Calculando frete...</p>
+    </div>
+    
+    <div class="shipping-options" *ngIf="!isLoadingShipping">
+      <div 
+        class="shipping-option"
+        *ngFor="let option of shippingOptions"
+        [class.selected]="selectedShipping?.id === option.id"
+        (click)="selectShipping(option)">
+        <div class="option-info">
+          <div class="option-name">{{ option.name }}</div>
+          <div class="option-days">Entrega em até {{ option.days }} dias úteis</div>
+        </div>
+        <div class="option-price">
+          <span *ngIf="option.price === 0" class="free">Grátis</span>
+          <span *ngIf="option.price > 0">{{ formatCurrency(option.price) }}</span>
+        </div>
+        <ion-icon name="checkmark-circle" *ngIf="selectedShipping?.id === option.id"></ion-icon>
+      </div>
+    </div>
+    
+    <!-- Order Summary -->
+    <div class="order-summary">
+      <h3>Resumo do Pedido</h3>
+      <div class="summary-items">
+        <div class="cart-item" *ngFor="let item of cartItems">
+          <img [src]="item.image" [alt]="item.name" />
+          <div class="item-info">
+            <span class="item-name">{{ item.name }}</span>
+            <span class="item-details" *ngIf="item.size || item.color">
+              {{ item.size }} {{ item.color }}
+            </span>
+            <span class="item-qty">Qtd: {{ item.quantity }}</span>
+          </div>
+          <span class="item-price">{{ formatCurrency(item.price * item.quantity) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Payment -->
+  <div class="checkout-step" *ngIf="currentStep === 3">
+    <h2>Forma de Pagamento</h2>
+    
+    <div class="payment-methods">
+      <div 
+        class="payment-method"
+        *ngFor="let method of paymentMethods"
+        [class.selected]="selectedPayment === method.id"
+        (click)="selectPayment(method.id)">
+        <ion-icon [name]="method.icon"></ion-icon>
+        <div class="method-info">
+          <span class="method-name">{{ method.name }}</span>
+          <span class="method-discount" *ngIf="method.discount > 0">
+            {{ method.discount }}% de desconto
+          </span>
+        </div>
+        <ion-icon name="checkmark-circle" *ngIf="selectedPayment === method.id" class="check"></ion-icon>
+      </div>
+    </div>
+    
+    <!-- Credit Card Form -->
+    <div class="card-form" *ngIf="selectedPayment === 'credit' || selectedPayment === 'debit'">
+      <form [formGroup]="paymentForm">
+        <ion-item>
+          <ion-label position="floating">Número do Cartão</ion-label>
+          <ion-input 
+            formControlName="cardNumber" 
+            type="text"
+            maxlength="19"
+            (ionInput)="formatCardNumber($event)">
+          </ion-input>
+        </ion-item>
+        
+        <ion-item>
+          <ion-label position="floating">Nome no Cartão</ion-label>
+          <ion-input formControlName="cardName" type="text"></ion-input>
+        </ion-item>
+        
+        <div class="row">
+          <ion-item>
+            <ion-label position="floating">Validade</ion-label>
+            <ion-input 
+              formControlName="cardExpiry" 
+              type="text"
+              maxlength="5"
+              placeholder="MM/AA"
+              (ionInput)="formatCardExpiry($event)">
+            </ion-input>
+          </ion-item>
+          
+          <ion-item>
+            <ion-label position="floating">CVV</ion-label>
+            <ion-input 
+              formControlName="cardCvv" 
+              type="password"
+              maxlength="4">
+            </ion-input>
+          </ion-item>
+        </div>
+        
+        <ion-item *ngIf="selectedPayment === 'credit'">
+          <ion-label>Parcelas</ion-label>
+          <ion-select formControlName="installments">
+            <ion-select-option *ngFor="let inst of installments" [value]="inst.value">
+              {{ inst.value }}x de {{ formatCurrency(total / inst.value) }} {{ inst.label.includes('juros') ? '' : '- ' + inst.label }}
+            </ion-select-option>
+          </ion-select>
+        </ion-item>
+      </form>
+    </div>
+    
+    <!-- CPF -->
+    <div class="cpf-section">
+      <form [formGroup]="paymentForm">
+        <ion-item>
+          <ion-label position="floating">CPF do Titular</ion-label>
+          <ion-input 
+            formControlName="cpf" 
+            type="text"
+            maxlength="14"
+            (ionInput)="formatCpf($event)">
+          </ion-input>
+        </ion-item>
+      </form>
+    </div>
+  </div>
+</ion-content>
+
+<!-- Footer with Totals and Actions -->
+<ion-footer>
+  <div class="totals-section">
+    <div class="total-row">
+      <span>Subtotal</span>
+      <span>{{ formatCurrency(subtotal) }}</span>
+    </div>
+    <div class="total-row">
+      <span>Frete</span>
+      <span [class.free]="shipping === 0">{{ shipping === 0 ? 'Grátis' : formatCurrency(shipping) }}</span>
+    </div>
+    <div class="total-row" *ngIf="discount > 0">
+      <span>Desconto</span>
+      <span class="discount">-{{ formatCurrency(discount) }}</span>
+    </div>
+    <div class="total-row" *ngIf="paymentDiscount > 0">
+      <span>Desconto {{ selectedPayment === 'pix' ? 'PIX' : (selectedPayment === 'boleto' ? 'Boleto' : 'Pagamento') }}</span>
+      <span class="discount">-{{ formatCurrency(paymentDiscount) }}</span>
+    </div>
+    <div class="total-row total">
+      <span>Total</span>
+      <span>{{ formatCurrency(total) }}</span>
+    </div>
+  </div>
+  
+  <ion-toolbar>
+    <ion-button 
+      *ngIf="currentStep < 3"
+      expand="block" 
+      (click)="nextStep()"
+      [disabled]="currentStep === 1 && !canProceedFromAddress()">
+      Continuar
+    </ion-button>
+    
+    <ion-button 
+      *ngIf="currentStep === 3"
+      expand="block" 
+      (click)="processPayment()"
+      [disabled]="isProcessing || !selectedPayment">
+      <ion-spinner name="crescent" *ngIf="isProcessing"></ion-spinner>
+      <span *ngIf="!isProcessing">Finalizar Compra</span>
+    </ion-button>
+  </ion-toolbar>
+</ion-footer>

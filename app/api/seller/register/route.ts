@@ -150,6 +150,7 @@ export async function GET(request: NextRequest) {
       include: {
         seller: {
           include: {
+            subscription: true, // 1:1 relacionamento
             products: {
               include: {
                 category: true,
@@ -160,6 +161,7 @@ export async function GET(request: NextRequest) {
         },
         workForSeller: {
           include: {
+            subscription: true, // 1:1 relacionamento
             products: {
               include: {
                 category: true,

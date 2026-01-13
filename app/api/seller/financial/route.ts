@@ -24,16 +24,30 @@ export async function GET(request: NextRequest) {
     // Buscar vendedor
     const seller = await prisma.seller.findUnique({
       where: { userId: session.user.id },
+      include: {
+        subscription: {
+          include: {
+            plan: true
+          }
+        }
+      }
     });
 
     if (!seller) {
       return NextResponse.json({ error: 'Vendedor não encontrado' }, { status: 404 });
     }
 
+    // Pegar comissão do plano ativo ou fallback para seller.commission
+    const activePlan = seller.subscription?.plan
+    const platformCommission = activePlan?.platformCommission ?? seller.commission ?? 10
+
     // Buscar todos os pedidos que contêm produtos do vendedor
     const orderItems = await prisma.orderItem.findMany({
       where: {
         sellerId: seller.id,
+        order: {
+          status: { not: 'CANCELLED' }  // Excluir pedidos cancelados
+        }
       },
       include: {
         order: true,
@@ -148,14 +162,31 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Descontar saques pendentes ou aprovados do saldo disponível
+    const pendingWithdrawals = await prisma.withdrawal.findMany({
+      where: {
+        sellerId: seller.id,
+        status: { in: ['PENDING', 'APPROVED', 'PROCESSING'] }
+      }
+    });
+
+    const totalPendingWithdrawals = pendingWithdrawals.reduce((sum, w) => sum + w.amount, 0);
+    // Usar o balance do seller ao invés de calcular dos pedidos
+    availableForWithdrawal = Math.max(0, seller.balance - totalPendingWithdrawals);
+
     const recentSales = Array.from(salesByOrder.values()).slice(0, 20);
     const averageTicket = totalSales > 0 ? totalGross / totalSales : 0;
 
     return NextResponse.json({
       seller: {
         name: seller.storeName,
-        commission: seller.commission,
+        commission: platformCommission,
       },
+      plan: activePlan ? {
+        name: activePlan.name,
+        commission: activePlan.platformCommission,
+        status: seller.subscription?.status,
+      } : null,
       summary: {
         totalGross,
         totalCommission,

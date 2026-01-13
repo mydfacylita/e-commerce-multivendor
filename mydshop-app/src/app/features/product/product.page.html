@@ -1,0 +1,370 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ product?.name || 'Produto' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="toggleFavorite()">
+        <ion-icon slot="icon-only" [name]="isFavorite ? 'heart' : 'heart-outline'" [color]="isFavorite ? 'danger' : ''"></ion-icon>
+      </ion-button>
+      <ion-button (click)="share()">
+        <ion-icon slot="icon-only" name="share-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="product-container" *ngIf="product">
+    <!-- Image Gallery - Simple Scroll -->
+    <div class="image-gallery">
+      <div class="image-container">
+        <img [src]="product.images[currentSlide]" [alt]="product.name" />
+      </div>
+      
+      <!-- Thumbnail Navigation -->
+      <div class="thumbnails" *ngIf="product.images.length > 1">
+        <div 
+          *ngFor="let image of product.images; let i = index" 
+          class="thumbnail"
+          [class.active]="i === currentSlide"
+          (click)="goToSlide(i)">
+          <img [src]="image" [alt]="product.name" />
+        </div>
+      </div>
+      
+      <!-- Discount Badge -->
+      <div class="discount-badge" *ngIf="product.salePrice">
+        -{{ getDiscountPercentage() }}%
+      </div>
+    </div>
+
+    <!-- Product Info -->
+    <div class="product-info">
+      <div class="category">{{ product.category }}</div>
+      <h1 class="product-name">{{ product.name }}</h1>
+      
+      <!-- Rating -->
+      <div class="rating" *ngIf="product.rating">
+        <ion-icon name="star" *ngFor="let star of [1,2,3,4,5]; let i = index" 
+          [color]="i < (product.rating || 0) ? 'warning' : 'medium'">
+        </ion-icon>
+        <span class="rating-text">({{ product.reviewCount || 0 }} avaliações)</span>
+      </div>
+
+      <!-- Price -->
+      <div class="price-section">
+        <div class="sale-price" *ngIf="product.salePrice || getVariantPrice() !== product.price">
+          {{ formatCurrency(getVariantPrice()) }}
+        </div>
+        <div class="original-price" [class.strikethrough]="product.salePrice || getVariantPrice() !== product.price">
+          {{ formatCurrency(product.price) }}
+        </div>
+      </div>
+
+      <!-- Installments -->
+      <div class="installments" *ngIf="product.salePrice || product.price">
+        <ion-icon name="card-outline"></ion-icon>
+        <span>ou até 12x de {{ formatCurrency(getVariantPrice() / 12) }}</span>
+      </div>
+
+      <!-- Size Selection -->
+      <div class="option-section" *ngIf="product.sizes && product.sizes.length > 0">
+        <h3>Tamanho</h3>
+        <div class="options">
+          <ion-chip 
+            *ngFor="let size of product.sizes"
+            [color]="selectedSize === size ? 'primary' : 'medium'"
+            [outline]="selectedSize !== size"
+            (click)="selectSize(size)">
+            {{ size }}
+          </ion-chip>
+        </div>
+      </div>
+
+      <!-- Color Selection -->
+      <div class="option-section" *ngIf="product.colors && product.colors.length > 0">
+        <h3>Cor</h3>
+        <div class="options">
+          <ion-chip 
+            *ngFor="let color of product.colors"
+            [color]="selectedColor === color ? 'primary' : 'medium'"
+            [outline]="selectedColor !== color"
+            (click)="selectColor(color)">
+            {{ color }}
+          </ion-chip>
+        </div>
+      </div>
+
+      <!-- Quantity -->
+      <div class="quantity-section">
+        <h3>Quantidade</h3>
+        <div class="quantity-controls">
+          <ion-button fill="outline" (click)="decrementQuantity()" [disabled]="quantity <= 1">
+            <ion-icon slot="icon-only" name="remove"></ion-icon>
+          </ion-button>
+          <span class="quantity">{{ quantity }}</span>
+          <ion-button fill="outline" (click)="incrementQuantity()" [disabled]="quantity >= getAvailableStock()">
+            <ion-icon slot="icon-only" name="add"></ion-icon>
+          </ion-button>
+        </div>
+        <div class="stock-info" [class.low-stock]="getAvailableStock() < 10">
+          <ion-icon name="cube-outline"></ion-icon>
+          <span *ngIf="getAvailableStock() > 10">{{ getAvailableStock() }} em estoque</span>
+          <span *ngIf="getAvailableStock() <= 10 && getAvailableStock() > 0">Apenas {{ getAvailableStock() }} em estoque!</span>
+          <span *ngIf="getAvailableStock() === 0" class="out-of-stock">Sem estoque</span>
+        </div>
+      </div>
+
+      <!-- Shipping Calculator -->
+      <div class="shipping-section">
+        <h3>Calcular Frete</h3>
+        
+        <!-- Se usuário logado, usar endereço dele -->
+        <div *ngIf="currentUser && userAddress" class="user-address">
+          <div class="address-display">
+            <ion-icon name="location-outline"></ion-icon>
+            <span>{{ userAddress.city }}, {{ userAddress.state }} - {{ userAddress.zipCode }}</span>
+            <ion-button fill="clear" size="small" (click)="showShippingOptions = !showShippingOptions">
+              <ion-icon name="chevron-down-outline" *ngIf="!showShippingOptions"></ion-icon>
+              <ion-icon name="chevron-up-outline" *ngIf="showShippingOptions"></ion-icon>
+            </ion-button>
+          </div>
+          
+          <!-- Mensagem de cálculo automático -->
+          <div *ngIf="isCalculatingShipping && !shippingResult" class="auto-calculating">
+            <ion-spinner name="crescent"></ion-spinner>
+            <span>Calculando frete automaticamente...</span>
+          </div>
+          
+          <!-- Botão para recalcular se já calculou -->
+          <div *ngIf="shippingCalculated && !isCalculatingShipping && !showShippingOptions" class="recalculate">
+            <ion-button expand="block" fill="outline" size="small" (click)="calculateShippingForUser()">
+              <ion-icon name="refresh-outline" slot="start"></ion-icon>
+              Recalcular Frete
+            </ion-button>
+          </div>
+          
+          <!-- Botão inicial se não calculou ainda -->
+          <div *ngIf="!shippingCalculated && !isCalculatingShipping && !showShippingOptions" class="auto-calculate">
+            <ion-button expand="block" fill="outline" (click)="calculateShippingForUser()" [disabled]="isCalculatingShipping">
+              <ion-icon name="calculator-outline" slot="start"></ion-icon>
+              Calcular Frete
+            </ion-button>
+          </div>
+        </div>
+
+        <!-- Se não logado, pedir CEP -->
+        <div *ngIf="!currentUser || !userAddress || showShippingOptions" class="manual-cep">
+          <div class="cep-input">
+            <ion-item>
+              <ion-label position="stacked">CEP de destino</ion-label>
+              <ion-input 
+                [(ngModel)]="shippingCep" 
+                placeholder="00000-000"
+                maxlength="9"
+                (ionInput)="formatCep($event)">
+              </ion-input>
+            </ion-item>
+            <ion-button 
+              expand="block" 
+              [disabled]="!isValidCep(shippingCep) || isCalculatingShipping"
+              (click)="calculateShipping()">
+              <ion-spinner *ngIf="isCalculatingShipping" slot="start"></ion-spinner>
+              <ion-icon *ngIf="!isCalculatingShipping" name="calculator-outline" slot="start"></ion-icon>
+              {{ isCalculatingShipping ? 'Calculando...' : 'Calcular Frete' }}
+            </ion-button>
+          </div>
+        </div>
+
+        <!-- Resultado do frete -->
+        <div *ngIf="shippingResult" class="shipping-result">
+          <div class="shipping-option">
+            <div class="option-info">
+              <span class="service-name">{{ shippingResult.message || 'Entrega padrão' }}</span>
+              <span class="delivery-time">{{ shippingResult.deliveryDays }} {{ shippingResult.deliveryDays === 1 ? 'dia útil' : 'dias úteis' }}</span>
+            </div>
+            <div class="option-price">
+              <span *ngIf="shippingResult.isFree" class="free">GRÁTIS</span>
+              <span *ngIf="!shippingResult.isFree" class="price">R$ {{ shippingResult.shippingCost.toFixed(2).replace('.', ',') }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Erro no cálculo -->
+        <div *ngIf="shippingError" class="shipping-error">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <span>{{ shippingError }}</span>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="description-section">
+        <h3>Descrição</h3>
+        <p>{{ product.description }}</p>
+      </div>
+
+      <!-- Brand and Model -->
+      <div class="product-details" *ngIf="product.brand || product.model">
+        <div class="detail-row" *ngIf="product.brand">
+          <span class="detail-label">Marca:</span>
+          <span class="detail-value">{{ product.brand }}</span>
+        </div>
+        <div class="detail-row" *ngIf="product.model">
+          <span class="detail-label">Modelo:</span>
+          <span class="detail-value">{{ product.model }}</span>
+        </div>
+        <div class="detail-row" *ngIf="product.gtin">
+          <span class="detail-label">GTIN:</span>
+          <span class="detail-value">{{ product.gtin }}</span>
+        </div>
+      </div>
+
+      <!-- Variants Table -->
+      <div class="variants-section" *ngIf="hasVariants()">
+        <h3>Variações Disponíveis</h3>
+        <div class="variants-table">
+          <div class="variant-header">
+            <span class="variant-size">Tamanho</span>
+            <span class="variant-color">Cor</span>
+            <span class="variant-stock">Estoque</span>
+            <span class="variant-price" *ngIf="hasVariantsWithPrice()">Preço</span>
+          </div>
+          <div class="variant-row" 
+               *ngFor="let variant of product.variants"
+               [class.variant-selected]="variant.size === selectedSize && variant.color === selectedColor"
+               [class.variant-out-of-stock]="variant.stock === 0"
+               (click)="selectVariant(variant)">
+            <span class="variant-size">{{ variant.size || '-' }}</span>
+            <span class="variant-color">
+              <span class="color-dot" 
+                    *ngIf="variant.colorHex" 
+                    [style.background-color]="variant.colorHex"></span>
+              {{ variant.color || '-' }}
+            </span>
+            <span class="variant-stock" [class.stock-low]="variant.stock < 10 && variant.stock > 0">
+              <ion-icon name="cube-outline" *ngIf="variant.stock > 0"></ion-icon>
+              <ion-icon name="close-circle" color="danger" *ngIf="variant.stock === 0"></ion-icon>
+              {{ variant.stock || 0 }}
+            </span>
+            <span class="variant-price" *ngIf="variant.price">
+              {{ formatCurrency(variant.price) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Specifications -->
+      <div class="specifications-section" *ngIf="hasSpecifications()">
+        <h3>Especificações</h3>
+        <div class="specs-list">
+          <div class="spec-item" *ngFor="let spec of getObjectEntries(product.specifications)">
+            <span class="spec-label">{{ spec.key }}:</span>
+            <span class="spec-value">{{ spec.value }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attributes -->
+      <div class="attributes-section" *ngIf="hasAttributes()">
+        <h3>Características</h3>
+        <div class="attributes-list">
+          <div class="attribute-item" *ngFor="let attr of getObjectEntries(product.attributes)">
+            <span class="attribute-label">{{ attr.key }}:</span>
+            <span class="attribute-value" 
+                  [class.long-text]="attr.value.length > 100"
+                  [class.html-content]="attr.value.includes('Conteúdo HTML')">
+              <span *ngIf="attr.value.includes('Conteúdo HTML')" class="html-badge">
+                <ion-icon name="code-outline"></ion-icon>
+                Ver detalhes completos
+              </span>
+              <span *ngIf="!attr.value.includes('Conteúdo HTML')">
+                {{ attr.value.length > 200 ? (attr.value.substring(0, 200) + '...') : attr.value }}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Technical Specs -->
+      <div class="technical-specs-section" *ngIf="hasTechnicalSpecs()">
+        <h3>Especificações Técnicas</h3>
+        <div class="technical-specs-list">
+          <div class="tech-spec-item" *ngFor="let spec of getObjectEntries(product.technicalSpecs)">
+            <span class="tech-spec-label">{{ spec.key }}:</span>
+            <span class="tech-spec-value">{{ spec.value }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dimensions -->
+      <div class="dimensions-section" *ngIf="hasDimensions()">
+        <h3>Dimensões</h3>
+        <div class="dimensions-grid">
+          <div class="dimension-item" *ngIf="product.dimensions?.length">
+            <ion-icon name="resize-outline"></ion-icon>
+            <span>Comprimento: {{ product.dimensions?.length }} cm</span>
+          </div>
+          <div class="dimension-item" *ngIf="product.dimensions?.width">
+            <ion-icon name="resize-outline"></ion-icon>
+            <span>Largura: {{ product.dimensions?.width }} cm</span>
+          </div>
+          <div class="dimension-item" *ngIf="product.dimensions?.height">
+            <ion-icon name="resize-outline"></ion-icon>
+            <span>Altura: {{ product.dimensions?.height }} cm</span>
+          </div>
+          <div class="dimension-item" *ngIf="product.dimensions?.weight">
+            <ion-icon name="barbell-outline"></ion-icon>
+            <span>Peso: {{ product.dimensions?.weight }} kg</span>
+          </div>
+          <div class="dimension-item" *ngIf="product.dimensions?.weightWithPackage">
+            <ion-icon name="cube-outline"></ion-icon>
+            <span>Peso c/ embalagem: {{ product.dimensions?.weightWithPackage }} kg</span>
+          </div>
+        </div>
+      </div>
+
+
+
+      <!-- Shipping Info -->
+      <div class="shipping-info">
+        <div class="info-item">
+          <ion-icon name="rocket-outline"></ion-icon>
+          <span>Frete grátis acima de R$ 199</span>
+        </div>
+        <div class="info-item">
+          <ion-icon name="shield-checkmark-outline"></ion-icon>
+          <span>Compra 100% segura</span>
+        </div>
+        <div class="info-item">
+          <ion-icon name="refresh-outline"></ion-icon>
+          <span>30 dias para troca</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="isLoading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Carregando produto...</p>
+  </div>
+</ion-content>
+
+<!-- Footer with Buy Buttons -->
+<ion-footer *ngIf="product && getAvailableStock() > 0">
+  <ion-toolbar>
+    <div class="footer-buttons">
+      <ion-button fill="outline" class="cart-button" (click)="addToCart()">
+        <ion-icon slot="start" name="cart-outline"></ion-icon>
+        Adicionar
+      </ion-button>
+      <ion-button expand="block" class="buy-button" (click)="buyNow()">
+        Comprar Agora
+      </ion-button>
+    </div>
+  </ion-toolbar>
+</ion-footer>

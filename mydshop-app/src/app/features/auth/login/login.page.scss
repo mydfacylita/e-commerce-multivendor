@@ -1,0 +1,97 @@
+.login-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding-top: 40px;
+}
+
+.logo-section {
+  text-align: center;
+  margin-bottom: 40px;
+  
+  .brand-logo {
+    max-width: 200px;
+    max-height: 80px;
+    margin-bottom: 16px;
+  }
+  
+  h1 {
+    font-size: 36px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    
+    .logo-highlight {
+      color: var(--app-primary, #f97316);
+    }
+    
+    .logo-normal {
+      color: var(--app-secondary, #2563eb);
+    }
+  }
+  
+  p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 16px;
+  }
+}
+
+form {
+  ion-item {
+    --background: #f9fafb;
+    --border-radius: 8px;
+    --padding-start: 16px;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    
+    ion-label {
+      color: #6b7280;
+    }
+    
+    ion-button {
+      --color: #6b7280;
+    }
+  }
+  
+  .error-message {
+    color: var(--app-danger, #ef4444);
+    font-size: 12px;
+    margin: -12px 0 16px 4px;
+  }
+  
+  .forgot-password {
+    text-align: right;
+    margin-bottom: 24px;
+    
+    ion-button {
+      --color: var(--app-primary, #f97316);
+    }
+  }
+  
+  .login-button {
+    --background: var(--app-primary, #f97316);
+    --background-hover: var(--app-primary-dark, #ea580c);
+    margin-top: 16px;
+    height: 48px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+}
+
+.register-section {
+  margin-top: auto;
+  padding-top: 40px;
+  text-align: center;
+  
+  p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 14px;
+  }
+  
+  ion-button {
+    --color: #f97316;
+    font-weight: 600;
+  }
+}

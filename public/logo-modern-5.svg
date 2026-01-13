@@ -1,0 +1,12 @@
+<svg width="220" height="60" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Design flat com quadrados -->
+  <rect x="8" y="15" width="12" height="12" rx="2" fill="#F97316"/>
+  <rect x="22" y="15" width="12" height="12" rx="2" fill="#FB923C"/>
+  <rect x="8" y="29" width="12" height="12" rx="2" fill="#3B82F6"/>
+  <rect x="22" y="29" width="12" height="12" rx="2" fill="#60A5FA"/>
+  
+  <!-- Texto bold -->
+  <text x="42" y="38" font-family="Arial, sans-serif" font-size="32" font-weight="900">
+    <tspan fill="#1F2937">MYD</tspan><tspan fill="#3B82F6">SHOP</tspan>
+  </text>
+</svg>

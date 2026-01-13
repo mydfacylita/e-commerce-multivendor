@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { FiUpload, FiRefreshCw, FiCheck, FiX, FiExternalLink, FiTrash2, FiPause, FiPlay, FiAlertCircle, FiCheckCircle, FiInfo } from 'react-icons/fi'
+import { getStatusInfo, formatMLErrors } from '@/lib/mercadolivre'
 
 interface PublishToMarketplaceButtonProps {
   productId: string
@@ -57,6 +58,95 @@ export default function PublishToMarketplaceButton({
     setModal({ ...modal, isOpen: false })
   }
 
+  // Função para traduzir erros da API para mensagens amigáveis
+  const translateApiError = (error: any): string => {
+    if (!error) return 'Erro desconhecido'
+    
+    const message = error.message || ''
+    const code = error.code || ''
+    
+    // Erros do Mercado Livre
+    if (code.includes('price.invalid') || message.includes('minimum of price')) {
+      const minPrice = message.match(/minimum of price (\d+\.?\d*)/)?.[1] || '?'
+      return `Preço muito baixo! O Mercado Livre exige mínimo de R$ ${minPrice}`
+    }
+    
+    if (code.includes('pictures.invalid') || message.includes('pictures')) {
+      return 'As imagens do produto não atendem aos requisitos do marketplace'
+    }
+    
+    if (code.includes('category_id.invalid') || message.includes('category')) {
+      return 'A categoria selecionada não é válida para este marketplace'
+    }
+    
+    if (code.includes('title.invalid') || message.includes('title')) {
+      return 'O título do produto não atende aos requisitos (muito longo ou contém palavras proibidas)'
+    }
+    
+    if (code.includes('description.invalid') || message.includes('description')) {
+      return 'A descrição do produto precisa ser ajustada (muito longa ou contém informações proibidas)'
+    }
+    
+    if (code.includes('shipping.invalid') || message.includes('shipping')) {
+      return 'Configurações de frete inválidas para este produto'
+    }
+    
+    if (code.includes('attributes.invalid') || message.includes('attributes')) {
+      return 'Alguns atributos obrigatórios estão faltando ou são inválidos'
+    }
+    
+    if (code.includes('variations.invalid') || message.includes('variations')) {
+      return 'As variações do produto não estão configuradas corretamente'
+    }
+    
+    // Erros de autorização/credenciais
+    if (code.includes('unauthorized') || code.includes('invalid_token') || message.includes('unauthorized')) {
+      return 'Suas credenciais do marketplace expiraram ou são inválidas'
+    }
+    
+    if (code.includes('forbidden') || message.includes('forbidden')) {
+      return 'Você não tem permissão para realizar esta operação no marketplace'
+    }
+    
+    // Erros de marketplace não encontrado/pausado
+    if (code.includes('not_found') || message.includes('not found')) {
+      return 'O anúncio não foi encontrado no marketplace (pode ter sido removido)'
+    }
+    
+    if (code.includes('paused') || message.includes('paused')) {
+      return 'O anúncio está pausado no marketplace'
+    }
+    
+    if (code.includes('closed') || message.includes('closed')) {
+      return 'O anúncio foi encerrado no marketplace'
+    }
+    
+    // Erros de estoque
+    if (code.includes('stock') || message.includes('available_quantity')) {
+      return 'Problemas com a quantidade disponível em estoque'
+    }
+    
+    // Traduzir mensagens comuns em inglês
+    if (message.includes('Invalid request') || message.includes('Bad request')) {
+      return 'Dados do produto inválidos para este marketplace'
+    }
+    
+    if (message.includes('Internal server error')) {
+      return 'Erro temporário no marketplace. Tente novamente em alguns minutos'
+    }
+    
+    if (message.includes('Too many requests')) {
+      return 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente'
+    }
+    
+    if (message.includes('Service unavailable')) {
+      return 'O marketplace está temporariamente indisponível'
+    }
+    
+    // Se não conseguir traduzir, retorna a mensagem original mais amigável
+    return `Erro do marketplace: ${message || code || 'Verifique os dados do produto'}`
+  }
+
   const handlePublish = async () => {
     if (!selectedMarketplace) {
       showInfoModal({
@@ -85,22 +175,66 @@ export default function PublishToMarketplaceButton({
       const data = await response.json()
 
       if (!response.ok) {
+        // Tratar erros específicos usando tradução
+        if (data.cause && Array.isArray(data.cause)) {
+          const errors = data.cause.map((err: any) => `• ${translateApiError(err)}`)
+          const hasAuthError = data.cause.some((err: any) => 
+            err.code?.includes('unauthorized') || err.code?.includes('invalid_token')
+          )
+
+          // Determinar dicas específicas baseadas nos erros
+          const tips = []
+          if (hasAuthError) {
+            tips.push(
+              '🔑 Problemas de autorização:',
+              '• Vá em Configurações > Integrações',
+              '• Reconecte sua conta do Mercado Livre',
+              '• Verifique se suas permissões estão corretas'
+            )
+          } else {
+            tips.push(
+              '💡 Como corrigir:',
+              '• Edite o produto e ajuste as informações necessárias',
+              '• Verifique se todas as imagens estão corretas',
+              '• Confirme que a categoria está mapeada',
+              '• Tente publicar novamente após as correções'
+            )
+          }
+
+          showInfoModal({
+            type: 'error',
+            title: hasAuthError ? 'Problema de Autorização' : 'Validação do Marketplace Falhou',
+            message: data.message || 'O marketplace rejeitou o produto pelos seguintes motivos:',
+            details: [
+              ...errors,
+              '',
+              ...tips
+            ],
+            action: {
+              label: 'Entendi',
+              onClick: closeInfoModal
+            }
+          })
+          return
+        }
+
+        // Erro genérico
         showInfoModal({
           type: 'error',
           title: 'Erro ao Publicar Produto',
           message: data.message || 'Não foi possível publicar o produto no marketplace.',
-          details: [
+          details: data.error ? [
+            `• Erro: ${data.error}`,
+            '• Verifique se o marketplace está configurado',
+            '• Certifique-se de que o produto tem todas as informações necessárias'
+          ] : [
             '• Verifique se o marketplace está configurado',
             '• Certifique-se de que o produto tem todas as informações necessárias',
-            '• Verifique se você tem autorização para publicar',
-            '• Consulte os logs para mais detalhes'
+            '• Verifique se você tem autorização para publicar'
           ],
           action: {
-            label: 'Tentar Novamente',
-            onClick: () => {
-              closeInfoModal()
-              handlePublish()
-            }
+            label: 'OK',
+            onClick: closeInfoModal
           }
         })
         return
@@ -124,14 +258,20 @@ export default function PublishToMarketplaceButton({
         }
       })
     } catch (error) {
+      console.error('Erro ao publicar:', error)
       showInfoModal({
         type: 'error',
         title: 'Erro de Conexão',
         message: 'Não foi possível conectar ao servidor para publicar o produto.',
         details: [
-          '• Verifique sua conexão com a internet',
+          '🌐 Problemas de conectividade:',
+          '• Verifique sua conexão com a internet', 
           '• O servidor pode estar temporariamente indisponível',
-          '• Tente novamente em alguns instantes'
+          '• Tente novamente em alguns minutos',
+          '',
+          '🔧 Se o problema persistir:',
+          '• Atualize a página e tente novamente',
+          '• Entre em contato com o suporte técnico'
         ],
         action: {
           label: 'Tentar Novamente',
@@ -159,22 +299,50 @@ export default function PublishToMarketplaceButton({
       const data = await response.json()
 
       if (!response.ok) {
+        // Tratar erros específicos usando tradução
+        const errorDetails = []
+        let hasAuthError = false
+        
+        if (data.cause && Array.isArray(data.cause)) {
+          data.cause.forEach((err: any) => {
+            errorDetails.push(`• ${translateApiError(err)}`)
+            if (err.code?.includes('unauthorized') || err.code?.includes('invalid_token')) {
+              hasAuthError = true
+            }
+          })
+        }
+
+        if (errorDetails.length === 0) {
+          const errorMsg = translateApiError(data)
+          errorDetails.push(`• ${errorMsg}`)
+          
+          // Adicionar dicas específicas
+          if (hasAuthError || data.error?.includes('unauthorized')) {
+            errorDetails.push(
+              '',
+              '🔑 Reconecte sua conta:',
+              '• Vá em Configurações > Integrações',
+              '• Autorize novamente o marketplace'
+            )
+          } else {
+            errorDetails.push(
+              '',
+              '🔍 Verificações recomendadas:',
+              '• Confirme se o anúncio ainda existe',
+              '• Verifique sua conexão com a internet',
+              '• Tente novamente em alguns minutos'
+            )
+          }
+        }
+
         showInfoModal({
           type: 'error',
           title: 'Erro ao Sincronizar',
-          message: data.message || 'Não foi possível sincronizar o anúncio com o marketplace.',
-          details: [
-            '• Verifique se o anúncio ainda existe no marketplace',
-            '• Certifique-se de que suas credenciais estão válidas',
-            '• Pode haver limite de requisições - aguarde alguns minutos',
-            '• Verifique os logs do servidor para mais detalhes'
-          ],
+          message: data.message || 'Não foi possível sincronizar o anúncio.',
+          details: errorDetails.filter(Boolean),
           action: {
-            label: 'Tentar Novamente',
-            onClick: () => {
-              closeInfoModal()
-              handleSync(marketplace)
-            }
+            label: 'OK',
+            onClick: closeInfoModal
           }
         })
         return
@@ -198,14 +366,21 @@ export default function PublishToMarketplaceButton({
         }
       })
     } catch (error) {
+      console.error('Erro ao sincronizar:', error)
       showInfoModal({
         type: 'error',
         title: 'Erro de Conexão',
         message: 'Não foi possível conectar ao servidor para sincronizar.',
         details: [
+          '🌐 Problemas de conectividade:',
           '• Verifique sua conexão com a internet',
           '• O servidor pode estar temporariamente indisponível',
-          '• Tente novamente em alguns instantes'
+          '• Tente novamente em alguns instantes',
+          '',
+          '🔧 Se o problema persistir:',
+          '• Atualize a página e tente novamente',
+          '• Verifique se o marketplace está funcionando',
+          '• Entre em contato com o suporte se necessário'
         ],
         action: {
           label: 'Tentar Novamente',
@@ -304,121 +479,7 @@ export default function PublishToMarketplaceButton({
           onClick: closeInfoModal
         }
       })
-      console.error('Erro:', error
-          }
-        }
-      })
-    } catch (error) {
-      showInfoModal({
-        type: 'error',
-        title: 'Erro de Conexão',
-        message: 'Não foi possível conectar ao servidor para sincronizar.',
-        details: [
-          '• Verifique sua conexão com a internet',
-          '• O servidor pode estar temporariamente indisponível',
-          '• Tente novamente em alguns instantes'
-        ],
-        action: {
-          label: 'Tentar Novamente',
-          onClick: () => {
-            closeInfoModal()
-            handleSync(marketplace)
-          }
-        }
-      })
-      console.error('Erro:', error
-          label: 'OK',
-          onClick: () => {
-            closeInfoModal()
-            window.location.reload()
-          }
-        }
-      })
-    } catch (error) {
-      showInfoModal({
-        type: 'error',
-        title: 'Erro de Conexão',
-        message: 'Não foi possível conectar ao servidor para publicar o produto.',
-        details: [
-          '• Verifique sua conexão com a internet',
-          '• O servidor pode estar temporariamente indisponível',
-          '• Tente novamente em alguns instantes'
-        ],
-        action: {
-          label: 'Tentar Novamente',
-          onClick: () => {
-            closeInfoModal()
-            handlePublish()
-          }
-        }
-      })
       console.error('Erro:', error)
-    } finally {
-      setLoading await response.json()
-
-      if (!response.ok) {
-        alert(data.message || 'Erro ao publicar produto')
-        return
-      }
-
-      alert('Produto publicado com sucesso!')
-      window.location.reload()
-    } catch (error) {
-      console.error('Erro:', error)
-      alert('Erro ao publicar produto')
-    } finally {
-      setLoading(false)
-      setShowModal(false)
-    }
-  }
-
-  const handleSync = async (marketplace: string) => {
-    try {
-      setSyncing(marketplace)
-      const response = await fetch(`/api/admin/products/${productId}/sync-listing`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ marketplace }),
-      })
-
-      if (!response.ok) throw new Error('Erro ao sincronizar')
-
-      alert('Sincronização realizada com sucesso!')
-      window.location.reload()
-    } catch (error) {
-      console.error('Erro:', error)
-      alert('Erro ao sincronizar anúncio')
-    } finally {
-      setSyncing(null)
-    }
-  }
-
-  const handleDelete = async (marketplace: string) => {
-    if (confirmDelete !== marketplace) {
-      setConfirmDelete(marketplace)
-      return
-    }
-
-    try {
-      setDeleting(marketplace)
-      const response = await fetch(`/api/admin/products/${productId}/delete-listing`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ marketplace }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        alert(data.message || 'Erro ao excluir anúncio')
-        return
-      }
-
-      alert('Anúncio excluído com sucesso!')
-      window.location.reload()
-    } catch (error) {
-      console.error('Erro:', error)
-      alert('Erro ao excluir anúncio')
     } finally {
       setDeleting(null)
       setConfirmDelete(null)
@@ -426,6 +487,57 @@ export default function PublishToMarketplaceButton({
   }
 
   const handleToggle = async (marketplace: string, currentStatus: string) => {
+    // Verifica se pode ativar baseado no status
+    const statusInfo = getStatusInfo(currentStatus)
+    
+    if (currentStatus === 'under_review') {
+      showInfoModal({
+        type: 'warning',
+        title: '🔍 Anúncio em Análise',
+        message: statusInfo.description,
+        details: [
+          '⏳ O que está acontecendo:',
+          '• O Mercado Livre está revisando seu anúncio',
+          '• Este processo pode levar de algumas horas até 24h',
+          '• Você receberá notificação quando for aprovado',
+          '',
+          '🚫 O que NÃO fazer:',
+          '• Não tente modificar o anúncio agora',
+          '• Não tente ativar/pausar enquanto está em revisão',
+          '• Não crie um novo anúncio do mesmo produto',
+          '',
+          '✅ O que fazer:',
+          '• Aguarde pacientemente a aprovação',
+          '• Verifique sua caixa de emails do ML',
+          '• Use o botão "Sincronizar" para atualizar o status'
+        ],
+        action: {
+          label: 'Entendi',
+          onClick: closeInfoModal
+        }
+      })
+      return
+    }
+    
+    if (!statusInfo.canActivate && currentStatus !== 'active') {
+      showInfoModal({
+        type: 'error',
+        title: `${statusInfo.icon} ${statusInfo.label}`,
+        message: statusInfo.description,
+        details: [
+          '❌ Este anúncio não pode ser ativado no momento',
+          '• Status atual: ' + statusInfo.label,
+          '• Sincronize para verificar atualizações',
+          '• Entre em contato com o marketplace se necessário'
+        ],
+        action: {
+          label: 'OK',
+          onClick: closeInfoModal
+        }
+      })
+      return
+    }
+    
     const action = currentStatus === 'active' ? 'pause' : 'activate'
     const actionText = action === 'pause' ? 'pausar' : 'ativar'
     
@@ -440,13 +552,22 @@ export default function PublishToMarketplaceButton({
       const data = await response.json()
 
       if (!response.ok) {
+        // Usa formatMLErrors para mensagens detalhadas
+        const errorInfo = data.cause ? formatMLErrors(data) : { 
+          message: data.message || `Não foi possível ${actionText} o anúncio`,
+          details: null 
+        }
+        
         showInfoModal({
           type: 'error',
           title: 'Erro ao Alterar Status',
-          message: data.message || `Não foi possível ${actionText} o anúncio.`,
+          message: errorInfo.message,
           details: [
+            '',
+            '💡 Possíveis soluções:',
             '• Verifique sua conexão com o marketplace',
             '• Certifique-se de que suas credenciais estão válidas',
+            '• Sincronize o anúncio para atualizar o status',
             '• Tente novamente em alguns instantes'
           ],
           action: {

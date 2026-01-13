@@ -1,0 +1,38 @@
+<svg width="260" height="70" viewBox="0 0 260 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="shadowWhite">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.35" flood-color="black"/>
+    </filter>
+  </defs>
+  
+  <!-- Globo terrestre ao fundo (versão branca) com pontos -->
+  <g opacity="0.4">
+    <circle cx="155" cy="35" r="32" fill="none" stroke="white" stroke-width="1.5" opacity="0.4"/>
+    <!-- Linhas do globo (latitude) -->
+    <ellipse cx="155" cy="35" rx="32" ry="10" fill="none" stroke="white" stroke-width="1" opacity="0.3"/>
+    <ellipse cx="155" cy="35" rx="32" ry="20" fill="none" stroke="white" stroke-width="1" opacity="0.3"/>
+    <!-- Linha vertical (longitude) -->
+    <ellipse cx="155" cy="35" rx="10" ry="32" fill="none" stroke="white" stroke-width="1" opacity="0.3"/>
+    <ellipse cx="155" cy="35" rx="20" ry="32" fill="none" stroke="white" stroke-width="1" opacity="0.3"/>
+    <!-- Pontos de localização no globo -->
+    <circle cx="140" cy="25" r="2" fill="#F97316" opacity="0.9"/>
+    <circle cx="165" cy="30" r="2" fill="#F97316" opacity="0.9"/>
+    <circle cx="150" cy="45" r="2" fill="#F97316" opacity="0.9"/>
+    <circle cx="175" cy="40" r="2" fill="#F97316" opacity="0.9"/>
+  </g>
+  
+  <!-- Sacola branca -->
+  <g filter="url(#shadowWhite)">
+    <path d="M18 22 L15 49 C15 51.5 16 53 18 53 L34 53 C36 53 37 51.5 37 49 L34 22 Z" fill="white" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M19 22 C19 16 22.5 13 26 13 C29.5 13 33 16 33 22" stroke="#F97316" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <circle cx="23" cy="33" r="2.5" fill="#3B82F6"/>
+    <circle cx="29" cy="33" r="2.5" fill="#3B82F6"/>
+    <ellipse cx="22" cy="27" rx="4" ry="5" fill="#F3F4F6" opacity="0.6"/>
+  </g>
+  
+  <!-- Texto branco arredondado -->
+  <text x="50" y="44" font-family="'Segoe UI', 'Rounded Mplus 1c', Arial, sans-serif" font-size="40" font-weight="900" letter-spacing="-1.5" fill="white" stroke-linejoin="round">MYDSHOP</text>
+  
+  <!-- Tagline -->
+  <text x="50" y="59" font-family="'Segoe UI', Arial, sans-serif" font-size="9" font-weight="600" fill="white" opacity="0.85" letter-spacing="2.5">MARKETPLACE ONLINE</text>
+</svg>

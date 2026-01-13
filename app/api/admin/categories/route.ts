@@ -3,6 +3,29 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export async function GET(req: Request) {
+  try {
+    const categories = await prisma.category.findMany({
+      include: {
+        parent: true,
+        children: true,
+        _count: {
+          select: { products: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    })
+
+    return NextResponse.json(categories)
+  } catch (error) {
+    console.error('Erro ao buscar categorias:', error)
+    return NextResponse.json(
+      { message: 'Erro ao buscar categorias' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
@@ -22,6 +45,7 @@ export async function POST(req: Request) {
         slug: data.slug,
         description: data.description,
         image: data.image,
+        parentId: data.parentId || null,
       },
     })
 

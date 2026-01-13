@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
-import AddToCartButton from '@/components/AddToCartButton'
+import Link from 'next/link'
 import ProductVariantSelector from '@/components/ProductVariantSelector'
-import ProductImageGallery from '@/components/ProductImageGallery'
 import ShippingCalculator from '@/components/ShippingCalculator'
+import Breadcrumb from '@/components/Breadcrumb'
+import ProductDetailClient from '@/components/ProductDetailClient'
 import { serializeProduct } from '@/lib/serialize'
 
 // Função para processar especificações baseado no fornecedor
@@ -126,7 +127,10 @@ function processAttributes(attrs: any, supplierName?: string): Record<string, st
 
 export default async function ProductPage({ params }: { params: { slug: string } }) {
   const productRaw = await prisma.product.findUnique({
-    where: { slug: params.slug },
+    where: { 
+      slug: params.slug,
+      active: true  // Apenas produtos ativos
+    },
     include: { 
       category: true,
       supplier: true  // Incluir informações do fornecedor
@@ -140,155 +144,165 @@ export default async function ProductPage({ params }: { params: { slug: string }
   // Serialize product to convert JSON strings to objects
   const product = serializeProduct(productRaw)
 
+  // Buscar produtos relacionados da mesma categoria
+  const relatedProductsRaw = await prisma.product.findMany({
+    where: {
+      categoryId: product.categoryId,
+      active: true,
+      NOT: {
+        id: product.id  // Excluir o produto atual
+      }
+    },
+    take: 4,
+    include: {
+      category: true
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  })
+
+  const relatedProducts = relatedProductsRaw.map(serializeProduct)
+
   // Log do que vem do banco
   console.log('📦 Produto do banco - ID:', product.id)
   console.log('📦 Campo images:', product.images)
   console.log('📦 Tipo do campo images:', typeof product.images)
+  console.log('📦 Campo variants (raw):', productRaw.variants)
+  console.log('📦 Campo sizes (raw):', productRaw.sizes)
 
   // Processar especificações e atributos baseado no fornecedor
   const processedSpecs = processSpecifications(product.specifications, product.supplier?.name)
   const processedAttrs = processAttributes(product.attributes, product.supplier?.name)
-  const variants = product.variants || null
+  
+  // Parse de variants com suporte a JSON aninhado
+  let variants = null
+  if (product.variants) {
+    try {
+      let parsed = product.variants
+      // Parse recursivo para JSON duplo/triplo
+      while (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed)
+      }
+      variants = Array.isArray(parsed) ? parsed : null
+      console.log('✅ Variants parseados:', variants)
+    } catch (e) {
+      console.error('❌ Erro ao parsear variants:', e)
+      variants = null
+    }
+  } else {
+    console.log('⚠️ Produto sem campo variants')
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="grid md:grid-cols-2 gap-8">
-        <ProductImageGallery images={product.images} productName={product.name} />
+      {/* Breadcrumb de navegação */}
+      <Breadcrumb 
+        items={[
+          { 
+            label: product.category.name, 
+            href: `/categorias/${product.category.slug}` 
+          },
+          { 
+            label: product.name, 
+            href: `/produtos/${product.slug}` 
+          }
+        ]} 
+      />
 
-        <div>
-          {/* Botão de adicionar ao carrinho fixo no topo da coluna direita */}
-          <div className="mb-8">
-            <AddToCartButton product={product} />
-          </div>
+      <ProductDetailClient
+        product={product}
+        variants={variants}
+        processedSpecs={processedSpecs}
+        processedAttrs={processedAttrs}
+      />
 
-          <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
-          <div className="flex items-center space-x-4 mb-6">
-            <span className="text-4xl font-bold text-primary-600">
-              R$ {product.price.toFixed(2)}
-            </span>
-            {product.comparePrice && (
-              <span className="text-2xl text-gray-400 line-through">
-                R$ {product.comparePrice.toFixed(2)}
-              </span>
-            )}
-          </div>
-          <div className="mb-6">
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-              product.stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}>
-              {product.stock > 0 ? `${product.stock} em estoque` : 'Esgotado'}
-            </span>
-          </div>
-          <p className="text-gray-600 mb-6">{product.description}</p>
-          <div className="mb-6">
-            <span className="text-sm text-gray-500">Categoria: </span>
-            <span className="text-primary-600 font-semibold">{product.category.name}</span>
-          </div>
-          {/* Seletor de Variantes (cores, tamanhos, etc) */}
-          <ProductVariantSelector 
-            variants={variants} 
-            supplierName={product.supplier?.name}
-          />
-          {/* Variações antigas (manter como fallback) */}
-          {variants && variants.length > 0 && !product.supplier?.name?.toLowerCase().includes('aliexpress') && (
-            <div className="mb-6 border-t pt-6">
-              <h3 className="font-semibold text-lg mb-3">Opções Disponíveis</h3>
-              <div className="space-y-3">
-                {variants.map((variant: any, index: number) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">{variant.color || variant.size || variant.name}:</span>
-                    <span className="text-sm font-semibold">{variant.value}</span>
-                    {variant.price && (
-                      <span className="text-sm text-primary-600 ml-2">
-                        R$ {parseFloat(variant.price).toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+      {/* Seletor de Variantes (cores, tamanhos, etc) */}
+      <ProductVariantSelector 
+        variants={variants} 
+        supplierName={product.supplier?.name}
+      />
+      
+      {/* Bloco de frete e garantias abaixo das infos do produto */}
+      <div className="space-y-6 mt-8">
+        <ShippingCalculator />
+        <div className="border-t pt-6">
+          <h3 className="font-semibold text-lg mb-4">🛡️ Garantias</h3>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <span className="text-green-600">✓</span>
+              <span>Produto conforme anunciado ou seu dinheiro de volta</span>
             </div>
-          )}
-          {/* Especificações */}
-          {Object.keys(processedSpecs).length > 0 && (
-            <div className="mb-6 border-t pt-6">
-              <h3 className="font-semibold text-lg mb-3">📋 Especificações</h3>
-              <dl className="grid grid-cols-2 gap-3">
-                {Object.entries(processedSpecs).map(([key, value]: [string, any]) => (
-                  <div key={key} className="bg-gray-50 p-3 rounded">
-                    <dt className="text-xs text-gray-500 uppercase">{key}</dt>
-                    <dd className="text-sm font-medium mt-1">{value}</dd>
-                  </div>
-                ))}
-              </dl>
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <span className="text-green-600">✓</span>
+              <span>Suporte completo pós-venda</span>
             </div>
-          )}
-          {/* Atributos extras */}
-          {Object.keys(processedAttrs).length > 0 && (
-            <div className="mb-6 border-t pt-6">
-              <h3 className="font-semibold text-lg mb-3">ℹ️ Informações Adicionais</h3>
-              <ul className="space-y-2">
-                {Object.entries(processedAttrs).map(([key, value]: [string, any]) => (
-                  <li key={key} className="flex items-start">
-                    <span className="text-sm text-gray-600 min-w-[120px]">{key}:</span>
-                    <span className="text-sm font-medium">{value}</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <span className="text-green-600">✓</span>
+              <span>Garantia contra defeitos de fabricação</span>
             </div>
-          )}
-          {/* Bloco de frete, pagamento e garantias abaixo das infos do produto */}
-          <div className="space-y-6 mt-8">
-            <ShippingCalculator />
-            <div className="border-t pt-6">
-              <h3 className="font-semibold text-lg mb-4">💳 Formas de Pagamento</h3>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <span className="text-2xl">💳</span>
-                  <div>
-                    <p className="font-semibold text-gray-800">Cartão de Crédito</p>
-                    <p className="text-sm text-gray-600">Visa, Mastercard, Elo, Amex - Até 12x sem juros</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <span className="text-2xl">💰</span>
-                  <div>
-                    <p className="font-semibold text-gray-800">PIX</p>
-                    <p className="text-sm text-gray-600">Aprovação imediata - 5% de desconto</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <span className="text-2xl">📄</span>
-                  <div>
-                    <p className="font-semibold text-gray-800">Boleto Bancário</p>
-                    <p className="text-sm text-gray-600">À vista - Vencimento em 3 dias</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t pt-6">
-              <h3 className="font-semibold text-lg mb-4">🛡️ Garantias</h3>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <span className="text-green-600">✓</span>
-                  <span>Produto conforme anunciado ou seu dinheiro de volta</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <span className="text-green-600">✓</span>
-                  <span>Suporte completo pós-venda</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <span className="text-green-600">✓</span>
-                  <span>Garantia contra defeitos de fabricação</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <span className="text-green-600">✓</span>
-                  <span>Compra 100% segura e protegida</span>
-                </div>
-              </div>
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <span className="text-green-600">✓</span>
+              <span>Compra 100% segura e protegida</span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Produtos Relacionados */}
+      {relatedProducts.length > 0 && (
+        <div className="mt-16">
+          <h2 className="text-3xl font-bold mb-8 text-center">🔥 Produtos Relacionados</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            {relatedProducts.map((relatedProduct) => {
+              const imageUrl = Array.isArray(relatedProduct.images) && relatedProduct.images.length > 0 
+                ? relatedProduct.images[0] 
+                : '/placeholder-product.jpg'
+              
+              const discount = relatedProduct.comparePrice
+                ? Math.round(((relatedProduct.comparePrice - relatedProduct.price) / relatedProduct.comparePrice) * 100)
+                : 0
+
+              return (
+                <Link 
+                  key={relatedProduct.id} 
+                  href={`/produtos/${relatedProduct.slug}`}
+                  className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden group"
+                >
+                  <div className="relative h-48 bg-gray-100">
+                    <Image
+                      src={imageUrl}
+                      alt={relatedProduct.name}
+                      fill
+                      className="object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                    {discount > 0 && (
+                      <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                        -{discount}%
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-800 mb-2 line-clamp-2 h-12">
+                      {relatedProduct.name}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold text-primary-600">
+                        R$ {relatedProduct.price.toFixed(2)}
+                      </span>
+                      {relatedProduct.comparePrice && (
+                        <span className="text-sm text-gray-400 line-through">
+                          R$ {relatedProduct.comparePrice.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

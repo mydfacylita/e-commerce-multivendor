@@ -67,15 +67,15 @@ async function main() {
   })
 
   orderGroups.forEach((orderData, orderId) => {
-    const orderTotal = orderData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    const hasDropshipping = orderData.items.some(item => item.product.supplierSku)
+    const orderTotal = orderData.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0)
+    const hasDropshipping = orderData.items.some((item: any) => item.product.supplierSku)
     
     console.log(`📋 Pedido: ${orderId}`)
     console.log(`   Status: ${orderData.status}`)
     console.log(`   Total: R$ ${orderTotal.toFixed(2)}`)
     console.log(`   É Dropshipping? ${hasDropshipping ? '✅ SIM' : '❌ NÃO'}`)
     
-    orderData.items.forEach(item => {
+    orderData.items.forEach((item: any) => {
       console.log(`   - ${item.product.name}`)
       console.log(`     Quantidade: ${item.quantity}`)
       console.log(`     Preço: R$ ${item.price}`)

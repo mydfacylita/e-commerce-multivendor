@@ -4,12 +4,23 @@ import { Inter } from 'next/font/google'
 import { Providers } from './providers'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import DynamicFavicon from '@/components/DynamicFavicon'
+import DynamicStyles from '@/components/DynamicStyles'
+import { NavigationProvider } from '@/components/NavigationProvider'
+import LoadingScreen from '@/components/LoadingScreen'
+// Iniciar pollings de pagamento e limpeza automática
+import '@/lib/init'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'E-Commerce Moderno',
   description: 'Sua loja online completa e moderna',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({
@@ -21,11 +32,16 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={inter.className}>
         <Providers>
-          <div className="flex flex-col min-h-screen">
-            <Navbar />
-            <main className="flex-grow">{children}</main>
-            <Footer />
-          </div>
+          <NavigationProvider>
+            <DynamicFavicon />
+            <DynamicStyles />
+            <LoadingScreen />
+            <div className="flex flex-col min-h-screen">
+              <Navbar />
+              <main className="flex-grow">{children}</main>
+              <Footer />
+            </div>
+          </NavigationProvider>
         </Providers>
       </body>
     </html>

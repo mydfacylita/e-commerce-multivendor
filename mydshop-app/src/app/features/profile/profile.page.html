@@ -1,0 +1,62 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Perfil</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Usuário não logado -->
+  <div *ngIf="!isAuthenticated" class="guest-section">
+    <div class="guest-avatar">
+      <ion-icon name="person-circle-outline"></ion-icon>
+    </div>
+    <h2>Bem-vindo!</h2>
+    <p>Faça login para acessar sua conta</p>
+    
+    <div class="auth-buttons">
+      <ion-button expand="block" (click)="goToLogin()">
+        Entrar
+      </ion-button>
+      <ion-button expand="block" fill="outline" (click)="goToRegister()">
+        Criar Conta
+      </ion-button>
+    </div>
+  </div>
+
+  <!-- Usuário logado -->
+  <div *ngIf="isAuthenticated && user" class="user-section">
+    <div class="user-header">
+      <ion-avatar>
+        <img [src]="user.image || 'assets/avatar-placeholder.png'" alt="Avatar">
+      </ion-avatar>
+      <div class="user-info">
+        <h2>{{ user.name }}</h2>
+        <p>{{ user.email }}</p>
+      </div>
+      <ion-button fill="clear" routerLink="/profile/edit">
+        <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+      </ion-button>
+    </div>
+  </div>
+
+  <!-- Menu de opções -->
+  <ion-list class="menu-list">
+    <ion-item *ngFor="let item of menuItems" (click)="goToMenuItem(item.route)" detail>
+      <ion-icon [name]="item.icon" slot="start" color="primary"></ion-icon>
+      <ion-label>{{ item.label }}</ion-label>
+    </ion-item>
+  </ion-list>
+
+  <!-- Botão de logout -->
+  <div *ngIf="isAuthenticated" class="logout-section">
+    <ion-button expand="block" fill="outline" color="danger" (click)="logout()">
+      <ion-icon slot="start" name="log-out-outline"></ion-icon>
+      Sair da Conta
+    </ion-button>
+  </div>
+
+  <!-- Versão do app -->
+  <div class="app-version">
+    <p>MYDSHOP v1.0.0</p>
+  </div>
+</ion-content>

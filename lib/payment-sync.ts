@@ -1,0 +1,568 @@
+/**
+ * SISTEMA UNIFICADO DE VERIFICAÇÃO DE PAGAMENTOS
+ * 
+ * Este arquivo substitui:
+ * - payment-checker.ts
+ * - payment-sync-cron.ts
+ * 
+ * Funciona assim:
+ * 1. Roda a cada 30 segundos
+ * 2. Busca pedidos PENDING com paymentId
+ * 3. Verifica status na API do Mercado Pago
+ * 4. Atualiza pedido se aprovado/rejeitado
+ * 5. Se não tem paymentId, busca por external_reference (orderId)
+ */
+
+import { prisma } from './prisma'
+
+interface MercadoPagoPayment {
+  id: number
+  status: string
+  status_detail: string
+  transaction_amount: number
+  date_created: string
+  date_approved: string | null
+  payment_method_id: string
+  external_reference: string
+}
+
+// Singleton para evitar múltiplas instâncias
+let isRunning = false
+let intervalId: NodeJS.Timeout | null = null
+let accessToken: string | null = null
+let tokenLastFetch = 0
+
+// Configurações de resiliência
+const FETCH_TIMEOUT = 15000 // 15 segundos
+const MAX_RETRIES = 3
+const RETRY_DELAY = 2000 // 2 segundos
+
+/**
+ * Fetch com timeout configurável
+ */
+async function fetchWithTimeout(url: string, options: RequestInit, timeout = FETCH_TIMEOUT): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    })
+    return response
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+/**
+ * Fetch com retry automático
+ */
+async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response | null> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetchWithTimeout(url, options)
+      return response
+    } catch (error: any) {
+      const isLastAttempt = attempt === retries
+      const isTimeout = error?.code === 'UND_ERR_CONNECT_TIMEOUT' || error?.name === 'AbortError'
+      
+      if (isLastAttempt) {
+        console.error(`[PAYMENT-SYNC] ❌ Falha após ${retries} tentativas:`, error.message || error)
+        return null
+      }
+      
+      // Aguardar antes de tentar novamente (exponential backoff)
+      const delay = RETRY_DELAY * attempt
+      console.warn(`[PAYMENT-SYNC] ⚠️ Tentativa ${attempt}/${retries} falhou${isTimeout ? ' (timeout)' : ''}. Retrying in ${delay}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  return null
+}
+
+/**
+ * Busca token do Mercado Pago (com cache de 5 minutos)
+ */
+async function getAccessToken(): Promise<string | null> {
+  // Cache de 5 minutos
+  if (accessToken && Date.now() - tokenLastFetch < 5 * 60 * 1000) {
+    return accessToken
+  }
+
+  try {
+    const gateway = await prisma.paymentGateway.findFirst({
+      where: { gateway: 'MERCADOPAGO', isActive: true }
+    })
+
+    if (!gateway?.config) {
+      console.error('[PAYMENT-SYNC] ❌ Gateway Mercado Pago não configurado')
+      return null
+    }
+
+    let config = gateway.config
+    if (typeof config === 'string') {
+      config = JSON.parse(config)
+    }
+
+    accessToken = (config as any).accessToken || null
+    tokenLastFetch = Date.now()
+    
+    return accessToken
+  } catch (error) {
+    console.error('[PAYMENT-SYNC] ❌ Erro ao buscar token:', error)
+    return null
+  }
+}
+
+/**
+ * Verifica um pagamento específico pelo ID
+ */
+async function checkPaymentById(paymentId: string, token: string): Promise<MercadoPagoPayment | null> {
+  try {
+    const response = await fetchWithRetry(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+
+    if (!response) {
+      console.warn(`[PAYMENT-SYNC] ⚠️ Não foi possível conectar à API para paymentId ${paymentId}`)
+      return null
+    }
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null
+      }
+      console.error(`[PAYMENT-SYNC] Erro HTTP ${response.status} para paymentId ${paymentId}`)
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error(`[PAYMENT-SYNC] Erro ao verificar payment ${paymentId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Busca pagamentos por external_reference (orderId)
+ * Tenta primeiro o orderId exato, depois busca todos os pagamentos recentes
+ * para encontrar os que contém o orderId (para casos legados com timestamp)
+ */
+async function searchPaymentsByOrderId(orderId: string, token: string): Promise<MercadoPagoPayment[]> {
+  try {
+    // Primeiro: Buscar pelo orderId exato
+    const response = await fetchWithRetry(
+      `https://api.mercadopago.com/v1/payments/search?external_reference=${orderId}&sort=date_created&criteria=desc`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    )
+
+    if (response?.ok) {
+      const data = await response.json()
+      if (data.results && data.results.length > 0) {
+        return data.results
+      }
+    }
+
+    // Segundo: Buscar pagamentos recentes e filtrar os que começam com o orderId
+    // (para casos legados onde external_reference era orderId-timestamp)
+    const recentResponse = await fetchWithRetry(
+      `https://api.mercadopago.com/v1/payments/search?sort=date_created&criteria=desc&limit=50`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    )
+
+    if (recentResponse?.ok) {
+      const recentData = await recentResponse.json()
+      const filtered = (recentData.results || []).filter((p: MercadoPagoPayment) => 
+        p.external_reference && p.external_reference.startsWith(orderId)
+      )
+      return filtered
+    }
+
+    return []
+  } catch (error) {
+    console.error(`[PAYMENT-SYNC] Erro ao buscar pagamentos do pedido ${orderId}:`, error)
+    return []
+  }
+}
+
+/**
+ * Atualiza pedido como aprovado
+ */
+async function approveOrder(orderId: string, payment: MercadoPagoPayment): Promise<void> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Atualizar pedido
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'PROCESSING',
+          paymentStatus: 'approved',
+          paymentId: String(payment.id),
+          paymentType: payment.payment_method_id,
+          paymentApprovedAt: payment.date_approved ? new Date(payment.date_approved) : new Date()
+        }
+      })
+
+      // Buscar itens para atualizar balance dos vendedores
+      const orderItems = await tx.orderItem.findMany({
+        where: { orderId },
+        select: { sellerId: true, sellerRevenue: true }
+      })
+
+      // Agrupar receita por vendedor
+      const sellerBalances = new Map<string, number>()
+      for (const item of orderItems) {
+        if (item.sellerId && item.sellerRevenue) {
+          const current = sellerBalances.get(item.sellerId) || 0
+          sellerBalances.set(item.sellerId, current + item.sellerRevenue)
+        }
+      }
+
+      // Atualizar balance de cada vendedor
+      for (const [sellerId, revenue] of sellerBalances.entries()) {
+        await tx.seller.update({
+          where: { id: sellerId },
+          data: {
+            balance: { increment: revenue },
+            totalEarned: { increment: revenue }
+          }
+        })
+      }
+
+      // Verificar se tem pedidos relacionados (parentOrderId)
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { parentOrderId: true }
+      })
+
+      if (order?.parentOrderId) {
+        // Atualizar todos os pedidos relacionados
+        await tx.order.updateMany({
+          where: {
+            parentOrderId: order.parentOrderId,
+            status: 'PENDING'
+          },
+          data: {
+            status: 'PROCESSING',
+            paymentStatus: 'approved',
+            paymentApprovedAt: new Date()
+          }
+        })
+      }
+    })
+
+    console.log(`[PAYMENT-SYNC] ✅ Pedido ${orderId.slice(0, 8)} APROVADO! (${payment.payment_method_id} - R$ ${payment.transaction_amount})`)
+  } catch (error) {
+    console.error(`[PAYMENT-SYNC] ❌ Erro ao aprovar pedido ${orderId}:`, error)
+  }
+}
+
+/**
+ * Marca pedido como rejeitado e limpa paymentId
+ */
+async function rejectOrder(orderId: string, status: string): Promise<void> {
+  try {
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paymentStatus: status,
+        paymentId: null // Limpar para permitir nova tentativa
+      }
+    })
+    console.log(`[PAYMENT-SYNC] ❌ Pedido ${orderId.slice(0, 8)} ${status.toUpperCase()} - limpo para nova tentativa`)
+  } catch (error) {
+    console.error(`[PAYMENT-SYNC] Erro ao rejeitar pedido ${orderId}:`, error)
+  }
+}
+
+/**
+ * Executa verificação de todos os pedidos pendentes
+ */
+async function syncPendingPayments(): Promise<void> {
+  if (isRunning) {
+    return // Já está rodando
+  }
+
+  isRunning = true
+  const startTime = Date.now()
+
+  try {
+    const token = await getAccessToken()
+    if (!token) {
+      console.error('[PAYMENT-SYNC] ❌ Token não disponível')
+      return
+    }
+
+    // Buscar pedidos pendentes dos últimos 2 dias
+    // Excluir pedidos com paymentStatus cancelado/rejeitado - não tem mais o que fazer
+    const pendingOrders = await prisma.order.findMany({
+      where: {
+        status: 'PENDING',
+        createdAt: { gte: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+        paymentStatus: {
+          notIn: ['cancelled', 'rejected', 'refunded', 'charged_back']
+        }
+      },
+      select: {
+        id: true,
+        paymentId: true,
+        total: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    })
+
+    if (pendingOrders.length === 0) {
+      return
+    }
+
+    console.log(`[PAYMENT-SYNC] 🔍 Verificando ${pendingOrders.length} pedidos pendentes...`)
+
+    let approved = 0
+    let rejected = 0
+    let pending = 0
+
+    for (const order of pendingOrders) {
+      try {
+        // Se tem paymentId numérico, verificar diretamente
+        if (order.paymentId && /^\d+$/.test(order.paymentId)) {
+          const payment = await checkPaymentById(order.paymentId, token)
+          
+          if (!payment) {
+            pending++
+            continue
+          }
+
+          if (payment.status === 'approved') {
+            await approveOrder(order.id, payment)
+            approved++
+          } else if (['rejected', 'cancelled', 'refunded'].includes(payment.status)) {
+            await rejectOrder(order.id, payment.status)
+            rejected++
+          } else {
+            pending++
+          }
+          continue
+        }
+
+        // Se não tem paymentId, buscar por external_reference
+        const payments = await searchPaymentsByOrderId(order.id, token)
+        
+        // Filtrar aprovados
+        const approvedPayments = payments.filter(p => p.status === 'approved')
+        
+        if (approvedPayments.length > 0) {
+          // Usar o primeiro aprovado
+          const payment = approvedPayments.sort((a, b) => 
+            new Date(a.date_approved!).getTime() - new Date(b.date_approved!).getTime()
+          )[0]
+          
+          await approveOrder(order.id, payment)
+          approved++
+          continue
+        }
+
+        // Verificar se tem pagamentos pendentes (ainda aguardando)
+        const pendingPayments = payments.filter(p => p.status === 'pending')
+        if (pendingPayments.length > 0) {
+          // Tem pagamento pendente, atualizar paymentId se não tiver
+          if (!order.paymentId) {
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { paymentId: String(pendingPayments[0].id) }
+            })
+          }
+          pending++
+          continue
+        }
+
+        // Verificar se só tem rejeitados (não tem pendente nem aprovado)
+        const rejectedPayments = payments.filter(p => 
+          ['rejected', 'cancelled', 'refunded'].includes(p.status)
+        )
+        
+        if (rejectedPayments.length > 0) {
+          // Só tem rejeitados, marcar como rejeitado
+          await rejectOrder(order.id, rejectedPayments[0].status)
+          rejected++
+          continue
+        }
+
+        // Não encontrou nenhum pagamento, continua pendente
+        pending++
+      } catch (orderError) {
+        // Erro em um pedido específico não deve parar o loop
+        console.error(`[PAYMENT-SYNC] Erro no pedido ${order.id.slice(0, 8)}:`, orderError)
+        pending++
+      }
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2)
+    
+    if (approved > 0 || rejected > 0) {
+      console.log(`[PAYMENT-SYNC] 📊 ${approved} aprovados | ${rejected} rejeitados | ${pending} pendentes (${duration}s)`)
+    }
+
+  } catch (error) {
+    console.error('[PAYMENT-SYNC] ❌ Erro na sincronização:', error)
+  } finally {
+    isRunning = false
+  }
+}
+
+/**
+ * Inicia o sistema de sincronização
+ */
+export function startPaymentSync(): void {
+  if (intervalId) {
+    console.log('[PAYMENT-SYNC] ⚠️ Sistema já está rodando')
+    return
+  }
+
+  console.log('[PAYMENT-SYNC] 🚀 Iniciando sistema unificado de pagamentos (a cada 30s)')
+
+  // Executar a primeira vez após 5 segundos
+  setTimeout(() => {
+    syncPendingPayments()
+  }, 5000)
+
+  // Executar a cada 30 segundos
+  intervalId = setInterval(() => {
+    syncPendingPayments()
+  }, 30 * 1000)
+}
+
+/**
+ * Para o sistema de sincronização
+ */
+export function stopPaymentSync(): void {
+  if (intervalId) {
+    clearInterval(intervalId)
+    intervalId = null
+    console.log('[PAYMENT-SYNC] 🛑 Sistema parado')
+  }
+}
+
+/**
+ * Verifica um pedido específico (para uso da API check-status)
+ */
+export async function checkOrderPayment(orderId: string): Promise<{
+  status: 'approved' | 'pending' | 'rejected' | 'error'
+  paymentStatus?: string
+  message?: string
+}> {
+  try {
+    const token = await getAccessToken()
+    if (!token) {
+      return { status: 'error', message: 'Token não disponível' }
+    }
+
+    // Buscar pedido
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true, paymentId: true, parentOrderId: true }
+    })
+
+    if (!order) {
+      return { status: 'error', message: 'Pedido não encontrado' }
+    }
+
+    // Se já está processando, retornar aprovado
+    if (order.status !== 'PENDING') {
+      return { status: 'approved', paymentStatus: 'approved' }
+    }
+
+    // Verificar por paymentId se existir
+    if (order.paymentId && /^\d+$/.test(order.paymentId)) {
+      const payment = await checkPaymentById(order.paymentId, token)
+      
+      if (payment) {
+        if (payment.status === 'approved') {
+          await approveOrder(order.id, payment)
+          return { status: 'approved', paymentStatus: 'approved', message: 'Pagamento aprovado!' }
+        }
+        
+        if (['rejected', 'cancelled', 'refunded'].includes(payment.status)) {
+          await rejectOrder(order.id, payment.status)
+          return { status: 'rejected', paymentStatus: payment.status }
+        }
+        
+        return { status: 'pending', paymentStatus: payment.status }
+      }
+    }
+
+    // Buscar por external_reference
+    const payments = await searchPaymentsByOrderId(orderId, token)
+    const approvedPayment = payments.find(p => p.status === 'approved')
+    
+    if (approvedPayment) {
+      await approveOrder(orderId, approvedPayment)
+      return { status: 'approved', paymentStatus: 'approved', message: 'Pagamento aprovado!' }
+    }
+
+    const pendingPayment = payments.find(p => p.status === 'pending')
+    if (pendingPayment) {
+      // Atualizar paymentId no pedido se ainda não tiver
+      if (!order.paymentId) {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { paymentId: String(pendingPayment.id) }
+        })
+      }
+      return { status: 'pending', paymentStatus: 'pending' }
+    }
+
+    return { status: 'pending', paymentStatus: 'waiting' }
+  } catch (error) {
+    console.error(`[PAYMENT-SYNC] Erro ao verificar pedido ${orderId}:`, error)
+    return { status: 'error', message: 'Erro interno' }
+  }
+}
+
+/**
+ * Cancela automaticamente pedidos PENDING muito antigos
+ * Roda uma vez por hora para limpar pedidos abandonados
+ */
+async function cancelOldPendingOrders(): Promise<void> {
+  try {
+    // Cancelar pedidos PENDING com mais de 7 dias
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    
+    const result = await prisma.order.updateMany({
+      where: {
+        status: 'PENDING',
+        createdAt: { lt: sevenDaysAgo }
+      },
+      data: {
+        status: 'CANCELLED',
+        paymentStatus: 'expired'
+      }
+    })
+
+    if (result.count > 0) {
+      console.log(`[PAYMENT-SYNC] 🗑️ ${result.count} pedidos antigos cancelados automaticamente`)
+    }
+  } catch (error) {
+    console.error('[PAYMENT-SYNC] Erro ao cancelar pedidos antigos:', error)
+  }
+}
+
+// Rodar cancelamento automático a cada 1 hora
+let cleanupIntervalId: NodeJS.Timeout | null = null
+
+export function startOrderCleanup(): void {
+  if (cleanupIntervalId) return
+  
+  // Executar a primeira vez após 1 minuto
+  setTimeout(() => {
+    cancelOldPendingOrders()
+  }, 60 * 1000)
+
+  // Executar a cada 1 hora
+  cleanupIntervalId = setInterval(() => {
+    cancelOldPendingOrders()
+  }, 60 * 60 * 1000)
+  
+  console.log('[PAYMENT-SYNC] 🧹 Limpeza automática de pedidos ativada (a cada 1h)')
+}

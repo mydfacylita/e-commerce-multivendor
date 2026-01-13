@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { FiUser, FiMail, FiPackage, FiSettings, FiLogOut } from 'react-icons/fi'
 import toast from 'react-hot-toast'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 export default function PerfilPage() {
   const { data: session, status, update } = useSession()
@@ -63,14 +64,7 @@ export default function PerfilPage() {
   }
 
   if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando...</p>
-        </div>
-      </div>
-    )
+    return <LoadingSpinner message="Carregando perfil..." />
   }
 
   return (

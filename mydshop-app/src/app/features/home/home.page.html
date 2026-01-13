@@ -1,0 +1,257 @@
+<ion-header class="ion-no-border">
+  <!-- Barra de Benefícios -->
+  <div class="benefits-bar">
+    <div class="benefit-item">
+      <ion-icon name="car-outline"></ion-icon>
+      <span>Frete grátis acima de R$ 99</span>
+    </div>
+    <div class="benefit-item">
+      <ion-icon name="shield-checkmark-outline"></ion-icon>
+      <span>Compra rápida & segura</span>
+    </div>
+    <div class="benefit-item">
+      <ion-icon name="thumbs-up-outline"></ion-icon>
+      <span>Satisfação garantida</span>
+    </div>
+  </div>
+
+  <ion-toolbar>
+    <!-- Logo -->
+    <ion-title slot="start">
+      <span class="logo" *ngIf="!brand || !brand.logo">
+        <ng-container *ngFor="let part of brandParts">
+          <span [class.logo-highlight]="part.highlight" [class.logo-normal]="!part.highlight">{{ part.text }}</span>
+        </ng-container>
+      </span>
+      <img *ngIf="brand && brand.logo" [src]="brand.logo" [alt]="brand.name" class="header-logo" />
+    </ion-title>
+    
+    <!-- Botões -->
+    <ion-buttons slot="end">
+      <ion-button routerLink="/search">
+        <ion-icon slot="icon-only" name="search-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  
+  <!-- Barra de busca -->
+  <ion-toolbar>
+    <ion-searchbar 
+      [(ngModel)]="searchQuery"
+      [placeholder]="texts?.homeWelcome || 'Buscar produtos...'"
+      (keyup.enter)="goToSearch()"
+      animated="true"
+      mode="ios">
+    </ion-searchbar>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Loading -->
+  <div *ngIf="isLoading" class="loading-container">
+    <ion-spinner name="crescent" color="primary"></ion-spinner>
+    <p>Carregando...</p>
+  </div>
+
+  <!-- Conteúdo -->
+  <div *ngIf="!isLoading">
+    
+    <!-- Carrossel de Banners -->
+    <div class="banner-carousel">
+      <swiper-container 
+        #swiperBanner
+        [pagination]="true"
+        [autoplay]="{ delay: 4000, disableOnInteraction: false }"
+        [loop]="true"
+        class="banner-swiper">
+        
+        <swiper-slide *ngFor="let banner of banners">
+          <div class="banner-slide" [style.background]="banner.gradient" (click)="onBannerClick(banner)">
+            <div class="banner-content">
+              <span class="banner-icon">{{ banner.icon }}</span>
+              <div class="banner-text">
+                <h2>{{ banner.title }}</h2>
+                <p>{{ banner.subtitle }}</p>
+              </div>
+            </div>
+            <ion-button *ngIf="banner.buttonText" fill="solid" color="light" size="small" class="banner-button">
+              {{ banner.buttonText }}
+              <ion-icon slot="end" name="arrow-forward"></ion-icon>
+            </ion-button>
+          </div>
+        </swiper-slide>
+        
+      </swiper-container>
+      
+      <!-- Indicadores customizados -->
+      <div class="banner-indicators">
+        <span 
+          *ngFor="let banner of banners; let i = index" 
+          class="indicator" 
+          [class.active]="currentBannerIndex === i"
+          (click)="goToBanner(i)">
+        </span>
+      </div>
+    </div>
+
+    <!-- Categorias -->
+    <section class="section categories-section">
+      <div class="section-header">
+        <h3>Categorias</h3>
+        <ion-button fill="clear" size="small" routerLink="/tabs/categories">
+          Ver todas
+          <ion-icon slot="end" name="chevron-forward"></ion-icon>
+        </ion-button>
+      </div>
+      
+      <div class="categories-scroll">
+        <div class="category-item" *ngFor="let category of categories" (click)="goToCategory(category)">
+          <div class="category-icon">
+            <ion-icon name="cube-outline"></ion-icon>
+          </div>
+          <span class="category-name">{{ category.name }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Produtos em Destaque -->
+    <section class="section">
+      <div class="section-header">
+        <h3>🌟 Destaques</h3>
+        <ion-button fill="clear" size="small" (click)="viewAllFeatured()">
+          Ver todos
+          <ion-icon slot="end" name="chevron-forward"></ion-icon>
+        </ion-button>
+      </div>
+      
+      <div class="products-scroll">
+        <div class="product-card" *ngFor="let product of featuredProducts" (click)="goToProduct(product)">
+          <!-- Badge de desconto -->
+          <div class="discount-badge" *ngIf="getDiscount(product.price, product.comparePrice) > 0">
+            -{{ getDiscount(product.price, product.comparePrice) }}%
+          </div>
+          
+          <!-- Imagem -->
+          <div class="product-image">
+            <img [src]="product.images?.[0] || 'assets/placeholder.png'" [alt]="product.name" loading="lazy">
+          </div>
+          
+          <!-- Info -->
+          <div class="product-info">
+            <h4 class="product-name">{{ product.name }}</h4>
+            
+            <div class="product-price">
+              <span class="compare-price" *ngIf="product.comparePrice && product.comparePrice > product.price">
+                {{ formatPrice(product.comparePrice) }}
+              </span>
+              <span class="current-price">{{ formatPrice(product.price) }}</span>
+            </div>
+            
+            <!-- Botão adicionar -->
+            <ion-button 
+              expand="block" 
+              size="small" 
+              (click)="addToCart(product, $event)"
+              [disabled]="product.stock <= 0">
+              <ion-icon slot="start" name="cart-outline"></ion-icon>
+              {{ product.stock > 0 ? 'Adicionar' : 'Indisponível' }}
+            </ion-button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Novidades -->
+    <section class="section">
+      <div class="section-header">
+        <h3>🆕 Novidades</h3>
+        <ion-button fill="clear" size="small" (click)="viewAllNew()">
+          Ver todos
+          <ion-icon slot="end" name="chevron-forward"></ion-icon>
+        </ion-button>
+      </div>
+      
+      <div class="products-scroll">
+        <div class="product-card" *ngFor="let product of newProducts" (click)="goToProduct(product)">
+          <!-- Badge de desconto -->
+          <div class="discount-badge" *ngIf="getDiscount(product.price, product.comparePrice) > 0">
+            -{{ getDiscount(product.price, product.comparePrice) }}%
+          </div>
+          
+          <!-- Imagem -->
+          <div class="product-image">
+            <img [src]="product.images?.[0] || 'assets/placeholder.png'" [alt]="product.name" loading="lazy">
+          </div>
+          
+          <!-- Info -->
+          <div class="product-info">
+            <h4 class="product-name">{{ product.name }}</h4>
+            
+            <div class="product-price">
+              <span class="compare-price" *ngIf="product.comparePrice && product.comparePrice > product.price">
+                {{ formatPrice(product.comparePrice) }}
+              </span>
+              <span class="current-price">{{ formatPrice(product.price) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Todos os Produtos (Infinite Scroll) -->
+    <section class="section all-products-section">
+      <div class="section-header">
+        <h3>📦 Todos os Produtos</h3>
+      </div>
+      
+      <div class="products-grid">
+        <div class="product-card-grid" *ngFor="let product of allProducts" (click)="goToProduct(product)">
+          <!-- Badge de desconto -->
+          <div class="discount-badge" *ngIf="getDiscount(product.price, product.comparePrice) > 0">
+            -{{ getDiscount(product.price, product.comparePrice) }}%
+          </div>
+          
+          <!-- Imagem -->
+          <div class="product-image">
+            <img [src]="product.images?.[0] || 'assets/placeholder.png'" [alt]="product.name" loading="lazy">
+          </div>
+          
+          <!-- Info -->
+          <div class="product-info">
+            <h4 class="product-name">{{ product.name }}</h4>
+            
+            <div class="product-price">
+              <span class="compare-price" *ngIf="product.comparePrice && product.comparePrice > product.price">
+                {{ formatPrice(product.comparePrice) }}
+              </span>
+              <span class="current-price">{{ formatPrice(product.price) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading indicator -->
+      <div class="loading-more" *ngIf="isLoadingMore">
+        <ion-spinner name="dots" color="primary"></ion-spinner>
+        <span>Carregando mais produtos...</span>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Infinite Scroll -->
+  <ion-infinite-scroll 
+    threshold="200px" 
+    (ionInfinite)="loadMoreProducts($event)"
+    [disabled]="!hasMoreProducts">
+    <ion-infinite-scroll-content
+      loadingSpinner="bubbles"
+      loadingText="Carregando mais produtos...">
+    </ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+
+</ion-content>

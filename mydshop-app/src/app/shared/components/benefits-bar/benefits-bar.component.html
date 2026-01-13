@@ -1,0 +1,7 @@
+<div class="benefits-bar" [ngClass]="{'animated': showAnimation}">
+  <div class="benefit-item" *ngFor="let benefit of benefits; let i = index" 
+       [style.animation-delay]="showAnimation ? (i * 0.2) + 's' : '0s'">
+    <ion-icon [name]="benefit.icon" class="benefit-icon"></ion-icon>
+    <span class="benefit-text">{{ benefit.text }}</span>
+  </div>
+</div>

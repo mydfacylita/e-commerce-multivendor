@@ -1,0 +1,14 @@
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Design com sacola de compras - versão branca -->
+  <!-- Sacola moderna branca -->
+  <path d="M15 18 L12 45 C12 47 13 48 15 48 L30 48 C32 48 33 47 33 45 L30 18 Z" fill="white" stroke="white" stroke-width="1.5"/>
+  <path d="M16 18 C16 13 19 10 22.5 10 C26 10 29 13 29 18" stroke="#F97316" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <circle cx="20" cy="28" r="1.5" fill="#3B82F6"/>
+  <circle cx="25" cy="28" r="1.5" fill="#3B82F6"/>
+  
+  <!-- Texto clean branco -->
+  <text x="42" y="35" font-family="Arial, sans-serif" font-size="26" font-weight="700">
+    <tspan fill="white">MYDSHOP</tspan>
+  </text>
+  <text x="42" y="47" font-family="Arial, sans-serif" font-size="7" fill="white" opacity="0.8" letter-spacing="2">YOUR MARKETPLACE</text>
+</svg>

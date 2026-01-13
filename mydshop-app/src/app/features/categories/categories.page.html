@@ -1,0 +1,147 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start" *ngIf="selectedCategory">
+      <ion-button (click)="clearCategory()">
+        <ion-icon slot="icon-only" name="arrow-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ selectedCategory?.name || 'Categorias' }}</ion-title>
+    <ion-buttons slot="end" *ngIf="selectedCategory">
+      <ion-button (click)="toggleFilters()">
+        <ion-icon slot="icon-only" name="options-outline"></ion-icon>
+        <ion-badge *ngIf="activeFiltersCount > 0" color="danger">{{ activeFiltersCount }}</ion-badge>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Painel de Filtros -->
+  <div class="filters-overlay" *ngIf="showFilters" (click)="showFilters = false"></div>
+  <div class="filters-panel" [class.active]="showFilters">
+    <div class="filters-header">
+      <h3>Filtros</h3>
+      <ion-button fill="clear" (click)="showFilters = false">
+        <ion-icon slot="icon-only" name="close"></ion-icon>
+      </ion-button>
+    </div>
+    
+    <!-- Ordenação -->
+    <div class="filter-section">
+      <h4>Ordenar por</h4>
+      <ion-radio-group [(ngModel)]="selectedSort">
+        <ion-item *ngFor="let option of sortOptions" lines="none">
+          <ion-label>{{ option.label }}</ion-label>
+          <ion-radio slot="start" [value]="option.value"></ion-radio>
+        </ion-item>
+      </ion-radio-group>
+    </div>
+    
+    <!-- Faixa de Preço -->
+    <div class="filter-section">
+      <h4>Faixa de Preço</h4>
+      <div class="price-inputs">
+        <ion-item>
+          <ion-label position="floating">Preço mínimo</ion-label>
+          <ion-input type="number" [(ngModel)]="minPrice" placeholder="0"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="floating">Preço máximo</ion-label>
+          <ion-input type="number" [(ngModel)]="maxPrice" placeholder="999"></ion-input>
+        </ion-item>
+      </div>
+    </div>
+    
+    <!-- Botões -->
+    <div class="filter-actions">
+      <ion-button fill="outline" expand="block" (click)="clearFilters()">
+        <ion-icon slot="start" name="refresh-outline"></ion-icon>
+        Limpar filtros
+      </ion-button>
+      <ion-button expand="block" (click)="applyFilters()">
+        <ion-icon slot="start" name="checkmark-outline"></ion-icon>
+        Aplicar
+      </ion-button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="isLoading && !selectedCategory" class="loading-container">
+    <ion-spinner name="crescent" color="primary"></ion-spinner>
+  </div>
+
+  <!-- Lista de Categorias -->
+  <ion-list *ngIf="!selectedCategory && !isLoading">
+    <ion-item *ngFor="let category of categories" (click)="selectCategory(category)" detail>
+      <ion-icon name="folder-outline" slot="start" color="primary"></ion-icon>
+      <ion-label>{{ category.name }}</ion-label>
+    </ion-item>
+  </ion-list>
+
+  <!-- Produtos da Categoria -->
+  <div *ngIf="selectedCategory">
+    <!-- Barra de filtros rápidos -->
+    <div class="quick-filters">
+      <ion-chip [color]="selectedSort === 'newest' ? 'primary' : 'medium'" (click)="selectedSort = 'newest'; applyFilters()">
+        <ion-icon name="time-outline"></ion-icon>
+        <ion-label>Recentes</ion-label>
+      </ion-chip>
+      <ion-chip [color]="selectedSort === 'price_asc' ? 'primary' : 'medium'" (click)="selectedSort = 'price_asc'; applyFilters()">
+        <ion-icon name="trending-down-outline"></ion-icon>
+        <ion-label>Menor preço</ion-label>
+      </ion-chip>
+      <ion-chip [color]="selectedSort === 'price_desc' ? 'primary' : 'medium'" (click)="selectedSort = 'price_desc'; applyFilters()">
+        <ion-icon name="trending-up-outline"></ion-icon>
+        <ion-label>Maior preço</ion-label>
+      </ion-chip>
+      <ion-chip [color]="selectedSort === 'bestseller' ? 'primary' : 'medium'" (click)="selectedSort = 'bestseller'; applyFilters()">
+        <ion-icon name="star-outline"></ion-icon>
+        <ion-label>Mais vendidos</ion-label>
+      </ion-chip>
+    </div>
+
+    <div *ngIf="isLoading" class="loading-container">
+      <ion-spinner name="crescent" color="primary"></ion-spinner>
+    </div>
+
+    <!-- Contador de resultados -->
+    <div class="results-count" *ngIf="!isLoading && products.length > 0">
+      <span>{{ products.length }} produto(s)</span>
+    </div>
+
+    <div class="products-grid" *ngIf="!isLoading && products.length > 0">
+      <div class="product-card" *ngFor="let product of products" (click)="goToProduct(product)">
+        <!-- Badge de desconto -->
+        <div class="discount-badge" *ngIf="getDiscountPercent(product) > 0">
+          -{{ getDiscountPercent(product) }}%
+        </div>
+        <div class="product-image">
+          <img [src]="product.images?.[0] || 'assets/placeholder.png'" [alt]="product.name" loading="lazy">
+        </div>
+        <div class="product-info">
+          <h4>{{ product.name }}</h4>
+          <div class="product-price">
+            <span class="compare-price" *ngIf="product.comparePrice && product.comparePrice > product.price">
+              {{ formatCurrency(product.comparePrice) }}
+            </span>
+            <span class="current-price">{{ formatCurrency(product.price) }}</span>
+          </div>
+          <ion-button expand="block" size="small" (click)="addToCart(product, $event)" [disabled]="product.stock <= 0">
+            <ion-icon slot="start" name="cart-outline"></ion-icon>
+            {{ product.stock > 0 ? 'Adicionar' : 'Esgotado' }}
+          </ion-button>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="!isLoading && products.length === 0" class="empty-state">
+      <ion-icon name="cube-outline"></ion-icon>
+      <p>Nenhum produto encontrado</p>
+      <ion-button fill="outline" (click)="clearFilters()">Limpar filtros</ion-button>
+    </div>
+
+    <ion-infinite-scroll (ionInfinite)="loadMore($event)" [disabled]="!hasMore">
+      <ion-infinite-scroll-content loadingSpinner="crescent" loadingText="Carregando mais..."></ion-infinite-scroll-content>
+    </ion-infinite-scroll>
+  </div>
+</ion-content>

@@ -21,6 +21,7 @@ interface Product {
   }
   supplierSku: string | null
   isDropshipping: boolean
+  dropshippingCommission: number | null
 }
 
 export default function VendedorProdutosPage() {
@@ -39,10 +40,11 @@ export default function VendedorProdutosPage() {
 
   const loadProducts = async () => {
     try {
-      const res = await fetch('/api/seller/products')
+      const res = await fetch('/api/admin/products')
       if (res.ok) {
         const data = await res.json()
-        setProducts(data)
+        // API retorna array de produtos
+        setProducts(Array.isArray(data) ? data : data.products || [])
       }
     } catch (error) {
       console.error('Erro ao carregar produtos:', error)
@@ -55,16 +57,18 @@ export default function VendedorProdutosPage() {
     if (!confirm('Deseja realmente excluir este produto?')) return
 
     try {
-      const res = await fetch(`/api/seller/products/${productId}`, {
+      const res = await fetch(`/api/admin/products/${productId}`, {
         method: 'DELETE'
       })
+
+      const data = await res.json()
 
       if (res.ok) {
         alert('Produto excluído com sucesso!')
         loadProducts()
       } else {
-        const data = await res.json()
-        alert(data.error || 'Erro ao excluir produto')
+        // Mostrar mensagem específica da API
+        alert(data.message || 'Erro ao excluir produto')
       }
     } catch (error) {
       console.error('Erro:', error)
@@ -74,17 +78,23 @@ export default function VendedorProdutosPage() {
 
   const handleToggleActive = async (productId: string, currentActive: boolean) => {
     try {
-      const res = await fetch(`/api/seller/products/${productId}/toggle`, {
+      const res = await fetch(`/api/admin/products/${productId}/toggle-active`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active: !currentActive })
       })
 
+      const data = await res.json()
+
       if (res.ok) {
         loadProducts()
+      } else {
+        // Mostrar mensagem de erro da API para o vendedor
+        alert(data.error || data.message || 'Erro ao alterar status do produto')
       }
     } catch (error) {
       console.error('Erro ao alterar status:', error)
+      alert('Erro de conexão ao alterar status do produto')
     }
   }
 
@@ -96,7 +106,10 @@ export default function VendedorProdutosPage() {
     )
   }
 
-  const filteredProducts = products.filter(product => {
+  // Garante que products seja sempre um array
+  const productsArray = Array.isArray(products) ? products : []
+
+  const filteredProducts = productsArray.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesFilter = 
       filterType === 'all' ? true :
@@ -107,10 +120,10 @@ export default function VendedorProdutosPage() {
   })
 
   const stats = {
-    total: products.length,
-    own: products.filter(p => !p.supplierSku).length,
-    dropshipping: products.filter(p => !!p.supplierSku).length,
-    active: products.filter(p => p.active).length
+    total: productsArray.length,
+    own: productsArray.filter(p => !p.supplierSku).length,
+    dropshipping: productsArray.filter(p => !!p.supplierSku).length,
+    active: productsArray.filter(p => p.active).length
   }
 
   return (
@@ -260,6 +273,7 @@ export default function VendedorProdutosPage() {
                     <th className="text-left py-4 px-6 font-semibold">Preço</th>
                     <th className="text-left py-4 px-6 font-semibold">Estoque</th>
                     <th className="text-left py-4 px-6 font-semibold">Tipo</th>
+                    <th className="text-left py-4 px-6 font-semibold">Comissão</th>
                     <th className="text-left py-4 px-6 font-semibold">Status</th>
                     <th className="text-right py-4 px-6 font-semibold">Ações</th>
                   </tr>
@@ -317,6 +331,18 @@ export default function VendedorProdutosPage() {
                               <FiPackage size={14} />
                               Próprio
                             </span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6">
+                          {isDropshipping && product.dropshippingCommission ? (
+                            <div>
+                              <p className="font-semibold text-green-600">{product.dropshippingCommission}%</p>
+                              <p className="text-xs text-gray-500">
+                                R$ {(product.price * product.dropshippingCommission / 100).toFixed(2)}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
                           )}
                         </td>
                         <td className="py-4 px-6">

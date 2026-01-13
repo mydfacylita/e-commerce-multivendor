@@ -9,6 +9,34 @@ export default function SellerSignupPFPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+  
+  // IMPORTANTE: Todos os hooks devem vir ANTES de qualquer return condicional
+  const [formData, setFormData] = useState({
+    // Informações da Loja
+    storeName: '',
+    storeDescription: '',
+    
+    // Dados Pessoais
+    cpf: '',
+    rg: '',
+    dataNascimento: '',
+    
+    // Endereço
+    cep: '',
+    endereco: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    
+    // Dados Bancários
+    banco: '',
+    agencia: '',
+    conta: '',
+    tipoConta: 'corrente',
+    chavePix: '',
+  });
 
   // Verificar autenticação ANTES de mostrar a página
   useEffect(() => {
@@ -38,6 +66,10 @@ export default function SellerSignupPFPage() {
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
   // Mostrar loading enquanto verifica
   if (status === 'loading') {
     return (
@@ -53,37 +85,6 @@ export default function SellerSignupPFPage() {
   if (status === 'unauthenticated') {
     return null;
   }
-
-  const [formData, setFormData] = useState({
-    // Informações da Loja
-    storeName: '',
-    storeDescription: '',
-    
-    // Dados Pessoais
-    cpf: '',
-    rg: '',
-    dataNascimento: '',
-    
-    // Endereço
-    cep: '',
-    endereco: '',
-    numero: '',
-    complemento: '',
-    bairro: '',
-    cidade: '',
-    estado: '',
-    
-    // Dados Bancários
-    banco: '',
-    agencia: '',
-    conta: '',
-    tipoConta: 'corrente',
-    chavePix: '',
-  });
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
 
   const buscarCep = async () => {
     if (formData.cep.length !== 8) return;

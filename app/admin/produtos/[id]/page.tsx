@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FiArrowLeft } from 'react-icons/fi'
 import toast from 'react-hot-toast'
+import ImageUploader from '@/components/admin/ImageUploader'
+import ProductVariantsManager from '@/components/admin/ProductVariantsManager'
 
 interface Category {
   id: string
@@ -17,12 +19,21 @@ interface Supplier {
   commission: number
 }
 
+interface ProductType {
+  id: string
+  name: string
+  slug: string
+  icon?: string
+  active: boolean
+}
+
 export default function EditarProdutoPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(true)
   const [categories, setCategories] = useState<Category[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [productTypes, setProductTypes] = useState<ProductType[]>([])
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -30,11 +41,20 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
     price: '',
     comparePrice: '',
     costPrice: '',
+    // Peso e dimensões
+    weight: '',
+    weightWithPackage: '',
+    length: '',
+    width: '',
+    height: '',
+    lengthWithPackage: '',
+    widthWithPackage: '',
+    heightWithPackage: '',
     categoryId: '',
     supplierId: '',
     supplierSku: '',
     supplierUrl: '',
-    images: '',
+    images: [] as string[],
     stock: '',
     featured: false,
     productType: '', // Tipo de produto
@@ -50,15 +70,27 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
     anatelNumber: '',
     isDualSim: 'Não',
     carrier: 'Desbloqueado',
+    // Campos para Livros
+    bookTitle: '',
+    bookAuthor: '',
+    bookGenre: '',
+    bookPublisher: '',
+    bookIsbn: '',
+    // Campos para Tamanhos e Variações
+    sizeType: '',
+    sizeCategory: '',
+    colorType: 'Única' as 'Única' | 'Variada',
+    variants: '',  // JSON array com tamanho x cor
   })
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productRes, categoriesRes, suppliersRes] = await Promise.all([
+        const [productRes, categoriesRes, suppliersRes, productTypesRes] = await Promise.all([
           fetch(`/api/admin/products/${params.id}`),
-          fetch('/api/categories'),
+          fetch('/api/admin/categories'),
           fetch('/api/admin/suppliers'),
+          fetch('/api/admin/product-types'),
         ])
 
         if (!productRes.ok) throw new Error('Produto não encontrado')
@@ -66,9 +98,23 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
         const product = await productRes.json()
         const categoriesData = await categoriesRes.json()
         const suppliersData = await suppliersRes.json()
+        const productTypesData = await productTypesRes.json()
 
-        setCategories(categoriesData)
-        setSuppliers(suppliersData)
+        console.log('🔍 PRODUTO DO BANCO:', {
+          id: product.id,
+          name: product.name,
+          images_type: typeof product.images,
+          images_value: product.images,
+          sizes_type: typeof product.sizes,
+          sizes_value: product.sizes,
+          variants_type: typeof product.variants,
+          variants_value: product.variants
+        })
+
+        // Garantir que categories é sempre um array
+        setCategories(Array.isArray(categoriesData) ? categoriesData : [])
+        setSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
+        setProductTypes(Array.isArray(productTypesData) ? productTypesData : [])
 
         // Parse technical specs se existir
         let techSpecs: any = {}
@@ -82,6 +128,86 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           console.error('Erro ao parsear technicalSpecs:', e)
         }
 
+        // Parse images de forma segura - lida com JSON duplo
+        let imagesArray: string[] = []
+        if (product.images) {
+          if (Array.isArray(product.images)) {
+            // Já é array, mas pode ter JSON aninhado
+            imagesArray = product.images.map((img: any) => {
+              if (typeof img === 'string') {
+                // Tenta fazer parse se for JSON string
+                try {
+                  const parsed = JSON.parse(img)
+                  return Array.isArray(parsed) ? parsed : [img]
+                } catch {
+                  return img
+                }
+              }
+              return img
+            }).flat().filter((img: string) => img && img.trim())
+          } else if (typeof product.images === 'string') {
+            try {
+              let parsed = JSON.parse(product.images)
+              // Parse recursivo para JSON duplo
+              while (typeof parsed === 'string') {
+                parsed = JSON.parse(parsed)
+              }
+              imagesArray = Array.isArray(parsed) ? parsed : [parsed]
+            } catch {
+              imagesArray = product.images.split('\n').filter((img: string) => img.trim())
+            }
+          }
+        }
+
+        // Parse variants (tamanho x cor) de forma segura - lida com JSON aninhado
+        let variantsString = ''
+        if (product.variants) {
+          if (Array.isArray(product.variants)) {
+            // Já é array, pode ter JSON aninhado
+            const cleanVariants = product.variants.map((v: any) => {
+              if (typeof v === 'string') {
+                try {
+                  return JSON.parse(v)
+                } catch {
+                  return v
+                }
+              }
+              return v
+            }).flat()
+            variantsString = JSON.stringify(cleanVariants, null, 2)
+          } else if (typeof product.variants === 'string') {
+            try {
+              let parsed = product.variants
+              // Parse recursivo para JSON duplo/triplo
+              while (typeof parsed === 'string') {
+                parsed = JSON.parse(parsed)
+              }
+              variantsString = JSON.stringify(parsed, null, 2)
+            } catch (e) {
+              console.error('Erro ao parsear variants:', e)
+              variantsString = product.variants
+            }
+          }
+        }
+        // Se não tem variants mas tem sizes, converte sizes antigas para variants
+        else if (product.sizes) {
+          try {
+            const oldSizes = typeof product.sizes === 'string' ? JSON.parse(product.sizes) : product.sizes
+            if (Array.isArray(oldSizes)) {
+              const converted = oldSizes.map((s: any) => ({
+                size: s.size || '',
+                color: product.color || 'Padrão',
+                colorHex: '#808080',
+                stock: s.stock || 0,
+                price: s.price
+              }))
+              variantsString = JSON.stringify(converted, null, 2)
+            }
+          } catch (e) {
+            console.error('Erro ao converter sizes antigas:', e)
+          }
+        }
+
         setFormData({
           name: product.name || '',
           slug: product.slug || '',
@@ -89,11 +215,19 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           price: product.price?.toString() || '',
           comparePrice: product.comparePrice?.toString() || '',
           costPrice: product.costPrice?.toString() || '',
+          weight: product.weight?.toString() || '',
+          weightWithPackage: product.weightWithPackage?.toString() || '',
+          length: product.length?.toString() || '',
+          width: product.width?.toString() || '',
+          height: product.height?.toString() || '',
+          lengthWithPackage: product.lengthWithPackage?.toString() || '',
+          widthWithPackage: product.widthWithPackage?.toString() || '',
+          heightWithPackage: product.heightWithPackage?.toString() || '',
           categoryId: product.categoryId || '',
           supplierId: product.supplierId || '',
           supplierSku: product.supplierSku || '',
           supplierUrl: product.supplierUrl || '',
-          images: Array.isArray(product.images) ? product.images.join('\n') : '',
+          images: imagesArray,
           stock: product.stock?.toString() || '',
           featured: product.featured || false,
           productType: techSpecs.product_type || '',
@@ -108,6 +242,15 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           anatelNumber: techSpecs.anatel || '',
           isDualSim: techSpecs.dual_sim || 'Não',
           carrier: techSpecs.operadora || 'Desbloqueado',
+          bookTitle: product.bookTitle || '',
+          bookAuthor: product.bookAuthor || '',
+          bookGenre: product.bookGenre || '',
+          bookPublisher: product.bookPublisher || '',
+          bookIsbn: product.bookIsbn || '',
+          sizeType: product.sizeType || '',
+          sizeCategory: product.sizeCategory || '',
+          colorType: variantsString ? 'Variada' : 'Única',
+          variants: variantsString,
         })
       } catch (error) {
         toast.error('Erro ao carregar produto')
@@ -130,12 +273,14 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
     return '0'
   }
 
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     const slug = formData.slug || formData.name.toLowerCase().replace(/\s+/g, '-')
-    const imageArray = formData.images.split('\n').filter((img) => img.trim())
+    const imageArray = formData.images
 
     const cost = parseFloat(formData.costPrice) || 0
     const price = parseFloat(formData.price) || 0
@@ -163,6 +308,14 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           comparePrice: formData.comparePrice ? parseFloat(formData.comparePrice) : null,
           costPrice: cost || null,
           margin: margin || null,
+          weight: formData.weight ? parseFloat(formData.weight) : null,
+          weightWithPackage: formData.weightWithPackage ? parseFloat(formData.weightWithPackage) : null,
+          length: formData.length ? parseFloat(formData.length) : null,
+          width: formData.width ? parseFloat(formData.width) : null,
+          height: formData.height ? parseFloat(formData.height) : null,
+          lengthWithPackage: formData.lengthWithPackage ? parseFloat(formData.lengthWithPackage) : null,
+          widthWithPackage: formData.widthWithPackage ? parseFloat(formData.widthWithPackage) : null,
+          heightWithPackage: formData.heightWithPackage ? parseFloat(formData.heightWithPackage) : null,
           categoryId: formData.categoryId,
           supplierId: formData.supplierId || null,
           supplierSku: formData.supplierSku || null,
@@ -176,16 +329,33 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           model: formData.model || null,
           color: formData.color || null,
           mpn: formData.mpn || null,
+          bookTitle: formData.bookTitle || null,
+          bookAuthor: formData.bookAuthor || null,
+          bookGenre: formData.bookGenre || null,
+          bookPublisher: formData.bookPublisher || null,
+          bookIsbn: formData.bookIsbn || null,
+          variants: formData.variants ? formData.variants : null,
+          sizeType: formData.sizeType || null,
+          sizeCategory: formData.sizeCategory || null,
         }),
       })
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ Erro ao atualizar produto:', errorData)
         throw new Error('Erro ao atualizar produto')
       }
 
+      const result = await response.json()
+      console.log('✅ Produto atualizado com sucesso:', result)
       toast.success('Produto atualizado com sucesso!')
-      router.push('/admin/produtos')
+      
+      // Aguarda um pouco para garantir que o toast seja exibido
+      setTimeout(() => {
+        router.push('/admin/produtos')
+      }, 500)
     } catch (error) {
+      console.error('❌ Erro no handleSubmit:', error)
       toast.error('Erro ao atualizar produto')
     } finally {
       setIsLoading(false)
@@ -202,6 +372,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
       </div>
     )
   }
+
 
   return (
     <div>
@@ -247,7 +418,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
             >
               <option value="">Selecione uma categoria</option>
-              {categories.map((category) => (
+              {Array.isArray(categories) && categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
                 </option>
@@ -319,7 +490,13 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
                 value={formData.stock}
                 onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                 className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                disabled={formData.sizeCategory !== ''}
               />
+              {formData.sizeCategory && (
+                <p className="text-xs text-blue-600 mt-1">
+                  ℹ️ Estoque calculado automaticamente pela soma dos tamanhos
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -366,9 +543,127 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           </div>
         </div>
 
+        {/* PESO E DIMENSÕES */}
+        <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+          <h3 className="text-lg font-bold mb-4 text-blue-900">📦 Peso e Dimensões</h3>
+          
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Peso sem embalagem (kg)</label>
+              <input
+                type="number"
+                step="0.001"
+                value={formData.weight}
+                onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+                placeholder="0.500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Peso com embalagem (kg) *</label>
+              <input
+                type="number"
+                step="0.001"
+                value={formData.weightWithPackage}
+                onChange={(e) => setFormData({ ...formData, weightWithPackage: e.target.value })}
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+                placeholder="0.600"
+              />
+              <p className="text-xs text-blue-600 mt-1">Usado no cálculo de frete</p>
+            </div>
+          </div>
+
+          <p className="text-sm font-medium mb-2 text-blue-900">Dimensões sem embalagem (cm)</p>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-xs mb-1">Comprimento</label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.length}
+                onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm"
+                placeholder="20.0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1">Largura</label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.width}
+                onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm"
+                placeholder="15.0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1">Altura</label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.height}
+                onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm"
+                placeholder="5.0"
+              />
+            </div>
+          </div>
+
+          <p className="text-sm font-medium mb-2 text-blue-900">Dimensões com embalagem (cm)</p>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs mb-1">Comprimento</label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.lengthWithPackage}
+                onChange={(e) => setFormData({ ...formData, lengthWithPackage: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm"
+                placeholder="22.0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1">Largura</label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.widthWithPackage}
+                onChange={(e) => setFormData({ ...formData, widthWithPackage: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm"
+                placeholder="17.0"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1">Altura</label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.heightWithPackage}
+                onChange={(e) => setFormData({ ...formData, heightWithPackage: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm"
+                placeholder="7.0"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Tipo de Produto */}
         <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-          <h3 className="text-lg font-semibold mb-2">🏷️ Tipo de Produto</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold">🏷️ Tipo de Produto</h3>
+            <Link 
+              href="/admin/tipos-produtos"
+              className="text-sm text-primary-600 hover:text-primary-700 hover:underline"
+            >
+              Gerenciar Tipos
+            </Link>
+          </div>
           <p className="text-sm text-gray-600 mb-4">Selecione o tipo para mostrar campos específicos</p>
           
           <div className="grid md:grid-cols-2 gap-6">
@@ -380,13 +675,11 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
                 className="w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 bg-white"
               >
                 <option value="">Selecione o tipo de produto...</option>
-                <option value="celular">📱 Celular / Smartphone</option>
-                <option value="notebook">💻 Notebook / Laptop</option>
-                <option value="tablet">📲 Tablet</option>
-                <option value="relogio">⌚ Relógio / Smartwatch</option>
-                <option value="fone">🎧 Fone de Ouvido / Headset</option>
-                <option value="camera">📷 Câmera</option>
-                <option value="outro">📦 Outro</option>
+                {productTypes.filter(type => type.active).map((type) => (
+                  <option key={type.id} value={type.slug}>
+                    {type.icon} {type.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -448,16 +741,41 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Cor</label>
-              <input
-                type="text"
-                value={formData.color}
-                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+              <label className="block text-sm font-medium mb-2">Tipo de Cor</label>
+              <select
+                value={formData.colorType}
+                onChange={(e) => {
+                  setFormData({ ...formData, colorType: e.target.value as 'Única' | 'Variada' })
+                  // Se mudar para "Única", limpa as variações
+                  if (e.target.value === 'Única') {
+                    setFormData(prev => ({ ...prev, colorVariants: '' }))
+                  }
+                }}
                 className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                placeholder="Preto, Azul, Vermelho..."
-              />
-              <p className="text-xs text-gray-500 mt-1">Cor principal do produto</p>
+              >
+                <option value="Única">Única (uma cor)</option>
+                <option value="Variada">Variada (múltiplas cores)</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.colorType === 'Única' 
+                  ? 'Produto com uma única cor' 
+                  : 'Produto disponível em várias cores'}
+              </p>
             </div>
+
+            {formData.colorType === 'Única' && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Cor do Produto</label>
+                <input
+                  type="text"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  placeholder="Preto, Azul, Vermelho..."
+                />
+                <p className="text-xs text-gray-500 mt-1">Informe a cor principal do produto</p>
+              </div>
+            )}
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium mb-2">MPN (Manufacturer Part Number)</label>
@@ -471,7 +789,45 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
               <p className="text-xs text-gray-500 mt-1">Código do fabricante (opcional)</p>
             </div>
           </div>
+          
         </div>
+
+        {/* Sistema Integrado de Variações (Tamanho × Cor) */}
+        <ProductVariantsManager
+          sizeType={formData.sizeType}
+          sizeCategory={formData.sizeCategory}
+          colorType={formData.colorType}
+          singleColor={formData.color}
+          productImages={formData.images}
+          variants={(() => {
+            try {
+              if (!formData.variants || formData.variants === '') return []
+              // Parse recursivo para JSON aninhado
+              let parsed = formData.variants
+              while (typeof parsed === 'string') {
+                parsed = JSON.parse(parsed)
+              }
+              return Array.isArray(parsed) ? parsed : []
+            } catch (e) {
+              console.error('Erro ao parsear variants no componente:', e, formData.variants)
+              return []
+            }
+          })()}
+          onVariantsChange={(variants) => {
+            setFormData(prev => ({ ...prev, variants: JSON.stringify(variants) }))
+          }}
+          onSizeTypeChange={(type) => {
+            setFormData(prev => ({ ...prev, sizeType: type }))
+          }}
+          onSizeCategoryChange={(category) => {
+            setFormData(prev => ({ ...prev, sizeCategory: category }))
+          }}
+          onTotalStockChange={(totalStock) => {
+            setFormData(prev => ({ ...prev, stock: totalStock.toString() }))
+          }}
+          basePrice={formData.price ? parseFloat(formData.price) : undefined}
+        />
+        
 
         {/* Campos específicos para Celulares - Mercado Livre */}
         {formData.productType === 'celular' && (
@@ -548,17 +904,98 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
         </div>
         )}
 
-        <div>
-          <label className="block text-sm font-medium mb-2">URLs das Imagens *</label>
-          <textarea
-            required
-            value={formData.images}
-            onChange={(e) => setFormData({ ...formData, images: e.target.value })}
-            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-            rows={4}
-            placeholder="Uma URL por linha"
-          />
+        {/* Seção específica para Livros */}
+        {formData.productType === 'livro' && (
+        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+          <h3 className="text-lg font-semibold mb-4">📚 Informações do Livro</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Campos obrigatórios para publicação de livros no Mercado Livre
+          </p>
+          
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Título do Livro *</label>
+              <input
+                type="text"
+                required
+                value={formData.bookTitle}
+                onChange={(e) => setFormData({ ...formData, bookTitle: e.target.value })}
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                placeholder="Clean Code: A Handbook of Agile Software Craftsmanship"
+              />
+              <p className="text-xs text-gray-500 mt-1">Título completo do livro</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Autor(es) *</label>
+              <input
+                type="text"
+                required
+                value={formData.bookAuthor}
+                onChange={(e) => setFormData({ ...formData, bookAuthor: e.target.value })}
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                placeholder="Robert C. Martin"
+              />
+              <p className="text-xs text-gray-500 mt-1">Nome do autor ou autores</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Gênero do Livro *</label>
+              <select
+                required
+                value={formData.bookGenre}
+                onChange={(e) => setFormData({ ...formData, bookGenre: e.target.value })}
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+              >
+                <option value="">Selecione o gênero</option>
+                <option value="Ficção">Ficção</option>
+                <option value="Não-ficção">Não-ficção</option>
+                <option value="Romance">Romance</option>
+                <option value="Suspense">Suspense</option>
+                <option value="Técnico">Técnico</option>
+                <option value="Educacional">Educacional</option>
+                <option value="Autoajuda">Autoajuda</option>
+                <option value="Biografia">Biografia</option>
+                <option value="Infantil">Infantil</option>
+                <option value="Outros">Outros</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Categoria/gênero literário</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Editora *</label>
+              <input
+                type="text"
+                required
+                value={formData.bookPublisher}
+                onChange={(e) => setFormData({ ...formData, bookPublisher: e.target.value })}
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                placeholder="Prentice Hall"
+              />
+              <p className="text-xs text-gray-500 mt-1">Nome da editora</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">ISBN (Código de Barras)</label>
+              <input
+                type="text"
+                value={formData.bookIsbn}
+                onChange={(e) => setFormData({ ...formData, bookIsbn: e.target.value })}
+                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                placeholder="978-0132350884"
+              />
+              <p className="text-xs text-gray-500 mt-1">ISBN-10 ou ISBN-13 (pode ser usado como GTIN)</p>
+            </div>
+          </div>
         </div>
+        )}
+
+        {/* Upload de Imagens */}
+        <ImageUploader
+          images={formData.images}
+          onImagesChange={(images) => setFormData({ ...formData, images })}
+          maxImages={10}
+        />
 
         <div className="flex items-center">
           <input
@@ -592,3 +1029,6 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
     </div>
   )
 }
+
+
+

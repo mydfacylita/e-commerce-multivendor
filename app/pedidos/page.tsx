@@ -4,10 +4,14 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { FiPackage, FiClock, FiCheckCircle, FiTruck } from 'react-icons/fi'
+import { formatOrderNumber } from '@/lib/order'
+import { formatCurrency, formatDate } from '@/lib/format'
 
 interface Order {
   id: string
+  parentOrderId: string | null
   total: number
   status: string
   createdAt: string
@@ -52,6 +56,31 @@ export default function PedidosPage() {
       setIsLoading(false)
     }
   }
+
+  // Agrupar pedidos por parentOrderId para o cliente
+  const groupedOrders = orders.reduce((acc, order) => {
+    const groupKey = order.parentOrderId || order.id
+    
+    if (!acc[groupKey]) {
+      acc[groupKey] = {
+        id: groupKey,
+        displayId: order.parentOrderId || order.id,
+        status: order.status,
+        createdAt: order.createdAt,
+        total: 0,
+        items: [],
+        subOrders: []
+      }
+    }
+    
+    acc[groupKey].total += order.total
+    acc[groupKey].items.push(...order.items)
+    acc[groupKey].subOrders.push(order.id)
+    
+    return acc
+  }, {} as Record<string, any>)
+
+  const displayOrders = Object.values(groupedOrders)
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -119,20 +148,21 @@ export default function PedidosPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {orders.map((order) => (
+          {displayOrders.map((order) => (
             <div key={order.id} className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
                 <div className="flex items-center space-x-4">
                   {getStatusIcon(order.status)}
                   <div>
-                    <p className="text-sm text-gray-600">Pedido #{order.id.slice(0, 8)}</p>
+                    <p className="text-sm text-gray-600">Pedido {formatOrderNumber(order.displayId)}</p>
                     <p className="text-sm text-gray-500">
-                      {new Date(order.createdAt).toLocaleDateString('pt-BR', {
-                        day: '2-digit',
-                        month: 'long',
-                        year: 'numeric',
-                      })}
+                      {formatDate(order.createdAt)}
                     </p>
+                    {order.subOrders.length > 1 && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        {order.subOrders.length} itens de vendedores diferentes
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
@@ -148,20 +178,28 @@ export default function PedidosPage() {
 
               <div className="p-6">
                 <div className="space-y-4">
-                  {order.items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 bg-gray-200 rounded-md flex items-center justify-center">
-                          {item.product.images[0] ? (
-                            <img
-                              src={item.product.images[0]}
-                              alt={item.product.name}
-                              className="w-full h-full object-cover rounded-md"
-                            />
-                          ) : (
-                            <FiPackage className="text-gray-400" />
-                          )}
-                        </div>
+                  {order.items.map((item: any) => {
+                    // Parsear images se for string JSON
+                    const images = typeof item.product.images === 'string' 
+                      ? JSON.parse(item.product.images) 
+                      : item.product.images
+                    const imageUrl = images?.[0] || '/placeholder.jpg'
+                    
+                    return (
+                      <div key={item.id} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="relative w-16 h-16 bg-gray-200 rounded-md flex items-center justify-center flex-shrink-0">
+                            {imageUrl !== '/placeholder.jpg' ? (
+                              <Image
+                                src={imageUrl}
+                                alt={item.product.name}
+                                fill
+                                className="object-cover rounded-md"
+                              />
+                            ) : (
+                              <FiPackage className="text-gray-400" />
+                            )}
+                          </div>
                         <div>
                           <p className="font-semibold">{item.product.name}</p>
                           <p className="text-sm text-gray-600">
@@ -170,24 +208,34 @@ export default function PedidosPage() {
                         </div>
                       </div>
                       <p className="font-semibold">
-                        R$ {(item.price * item.quantity).toFixed(2)}
+                        {formatCurrency(item.price * item.quantity)}
                       </p>
                     </div>
-                  ))}
+                  )})}
                 </div>
 
                 <div className="mt-6 pt-4 border-t flex justify-between items-center">
                   <div>
                     <p className="text-2xl font-bold text-primary-600">
-                      Total: R$ {order.total.toFixed(2)}
+                      Total: {formatCurrency(order.total)}
                     </p>
                   </div>
-                  <Link
-                    href={`/pedidos/${order.id}`}
-                    className="text-primary-600 hover:text-primary-700 font-semibold"
-                  >
-                    Ver Detalhes →
-                  </Link>
+                  <div className="flex items-center space-x-4">
+                    {order.status === 'PENDING' && (
+                      <Link
+                        href={`/checkout/pagamento/${order.subOrders[0]}`}
+                        className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-semibold"
+                      >
+                        Pagar Agora
+                      </Link>
+                    )}
+                    <Link
+                      href={`/pedidos/${order.subOrders[0]}`}
+                      className="text-primary-600 hover:text-primary-700 font-semibold"
+                    >
+                      Ver Detalhes →
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

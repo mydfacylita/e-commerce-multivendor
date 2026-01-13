@@ -1,23 +1,27 @@
 /**
  * Formata o ID do pedido para exibição
- * Converte CUID (cmk3p2d3y0005mpbdndwczpsp) em número sequencial
+ * Converte CUID (cmk3p2d3y0005mpbdndwczpsp) em número amigável
+ * Usa os últimos 6 caracteres alfanuméricos como referência
  */
 export function formatOrderNumber(orderId: string): string {
-  // Extrai parte numérica do CUID e converte para número
-  // Exemplo: cmk3p2d3y0005mpbdndwczpsp -> pega "0005" -> 5
-  const match = orderId.match(/\d+/)
-  if (match) {
-    const num = parseInt(match[0], 10)
-    return num.toString().padStart(6, '0') // Formato: 000005
+  if (!orderId || orderId.length < 8) {
+    return '000000'
   }
   
-  // Fallback: usar hash do ID completo
+  // Pegar os últimos 8 caracteres e converter para número usando hash
+  const suffix = orderId.slice(-8)
+  
+  // Criar um hash numérico mais distribuído
   let hash = 0
-  for (let i = 0; i < orderId.length; i++) {
-    hash = ((hash << 5) - hash) + orderId.charCodeAt(i)
+  for (let i = 0; i < suffix.length; i++) {
+    const char = suffix.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
     hash = hash & hash // Convert to 32bit integer
   }
-  return Math.abs(hash).toString().padStart(6, '0')
+  
+  // Usar valor absoluto e pegar últimos 6 dígitos
+  const num = Math.abs(hash) % 1000000
+  return num.toString().padStart(6, '0')
 }
 
 /**

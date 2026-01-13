@@ -2,23 +2,36 @@ import { prisma } from '@/lib/prisma'
 import ProductCard from '@/components/ProductCard'
 import Hero from '@/components/Hero'
 import CategoryGrid from '@/components/CategoryGrid'
+import LoadMoreProducts from '@/components/LoadMoreProducts'
 import { serializeProducts } from '@/lib/serialize'
 
 export default async function HomePage() {
-  const [featuredProductsRaw, categories, allProductsRaw] = await Promise.all([
+  const [featuredProductsRaw, categories, allProductsRaw, totalProducts] = await Promise.all([
     prisma.product.findMany({
-      where: { featured: true },
+      where: { 
+        featured: true,
+        active: true  // Apenas produtos ativos
+      },
       include: { category: true },
       take: 8,
     }),
+    // Buscar apenas categorias principais (sem pai)
     prisma.category.findMany({
+      where: { parentId: null },
+      include: {
+        _count: {
+          select: { products: true },
+        },
+      },
       take: 6,
     }),
     prisma.product.findMany({
+      where: { active: true },  // Apenas produtos ativos
       include: { category: true },
       take: 12,
       orderBy: { createdAt: 'desc' },
     }),
+    prisma.product.count({ where: { active: true } })
   ])
 
   const featuredProducts = serializeProducts(featuredProductsRaw)
@@ -127,31 +140,14 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Lançamentos */}
-      <section className="py-16 px-4 w-full">
-        <div className="container mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-3xl font-bold mb-2">✨ Lançamentos</h2>
-              <p className="text-gray-600">Novidades que acabaram de chegar</p>
-            </div>
-            <a href="/produtos" className="text-primary-600 hover:text-primary-700 font-semibold">
-              Ver todos →
-            </a>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {allProducts.slice(0, 12).map((product, index) => (
-            <div 
-              key={product.id}
-              className="animate-fade-in"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <ProductCard product={product} />
-            </div>
-          ))}
-          </div>
-        </div>
-      </section>
+      {/* Todos os Produtos com Carregar Mais */}
+      <LoadMoreProducts 
+        initialProducts={allProducts}
+        totalCount={totalProducts}
+        itemsPerPage={12}
+        title="✨ Lançamentos"
+        subtitle="Novidades que acabaram de chegar"
+      />
 
       {/* Newsletter */}
       <section className="py-16 px-4 bg-gradient-to-r from-primary-600 to-primary-800 text-white">

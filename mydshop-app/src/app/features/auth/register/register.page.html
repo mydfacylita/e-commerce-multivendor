@@ -1,0 +1,114 @@
+<ion-content class="ion-padding">
+  <div class="register-container">
+    <div class="logo-section">
+      <!-- Logo dinâmico -->
+      <img *ngIf="brand?.logo" [src]="brand.logo" alt="Logo" class="brand-logo" />
+      
+      <!-- Nome da marca com destaque dinâmico -->
+      <h1 *ngIf="!brand?.logo">
+        <ng-container *ngFor="let part of brandParts">
+          <span [class.logo-highlight]="part.highlight" [class.logo-normal]="!part.highlight">{{ part.text }}</span>
+        </ng-container>
+      </h1>
+      
+      <p>{{ texts?.registerSubtitle || 'Crie sua conta gratuitamente' }}</p>
+    </div>
+
+    <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
+      <ion-item>
+        <ion-label position="floating">Nome Completo</ion-label>
+        <ion-input 
+          type="text" 
+          formControlName="name"
+          autocomplete="name">
+        </ion-input>
+      </ion-item>
+      <div class="error-message" *ngIf="registerForm.get('name')?.touched && registerForm.get('name')?.errors">
+        <span *ngIf="registerForm.get('name')?.errors?.['required']">Nome é obrigatório</span>
+        <span *ngIf="registerForm.get('name')?.errors?.['minlength']">Nome deve ter pelo menos 3 caracteres</span>
+      </div>
+
+      <ion-item>
+        <ion-label position="floating">E-mail</ion-label>
+        <ion-input 
+          type="email" 
+          formControlName="email"
+          autocomplete="email">
+        </ion-input>
+      </ion-item>
+      <div class="error-message" *ngIf="registerForm.get('email')?.touched && registerForm.get('email')?.errors">
+        <span *ngIf="registerForm.get('email')?.errors?.['required']">E-mail é obrigatório</span>
+        <span *ngIf="registerForm.get('email')?.errors?.['email']">E-mail inválido</span>
+      </div>
+
+      <ion-item>
+        <ion-label position="floating">Telefone</ion-label>
+        <ion-input 
+          type="tel" 
+          formControlName="phone"
+          (ionInput)="formatPhone($event)"
+          placeholder="(00) 00000-0000"
+          autocomplete="tel">
+        </ion-input>
+      </ion-item>
+      <div class="error-message" *ngIf="registerForm.get('phone')?.touched && registerForm.get('phone')?.errors">
+        <span *ngIf="registerForm.get('phone')?.errors?.['required']">Telefone é obrigatório</span>
+        <span *ngIf="registerForm.get('phone')?.errors?.['pattern']">Telefone inválido</span>
+      </div>
+
+      <ion-item>
+        <ion-label position="floating">Senha</ion-label>
+        <ion-input 
+          [type]="showPassword ? 'text' : 'password'" 
+          formControlName="password"
+          autocomplete="new-password">
+        </ion-input>
+        <ion-button fill="clear" slot="end" (click)="togglePasswordVisibility()">
+          <ion-icon slot="icon-only" [name]="showPassword ? 'eye-off' : 'eye'"></ion-icon>
+        </ion-button>
+      </ion-item>
+      <div class="error-message" *ngIf="registerForm.get('password')?.touched && registerForm.get('password')?.errors">
+        <span *ngIf="registerForm.get('password')?.errors?.['required']">Senha é obrigatória</span>
+        <span *ngIf="registerForm.get('password')?.errors?.['minlength']">Senha deve ter pelo menos 6 caracteres</span>
+      </div>
+
+      <ion-item>
+        <ion-label position="floating">Confirmar Senha</ion-label>
+        <ion-input 
+          [type]="showConfirmPassword ? 'text' : 'password'" 
+          formControlName="confirmPassword"
+          autocomplete="new-password">
+        </ion-input>
+        <ion-button fill="clear" slot="end" (click)="toggleConfirmPasswordVisibility()">
+          <ion-icon slot="icon-only" [name]="showConfirmPassword ? 'eye-off' : 'eye'"></ion-icon>
+        </ion-button>
+      </ion-item>
+      <div class="error-message" *ngIf="registerForm.get('confirmPassword')?.touched && registerForm.get('confirmPassword')?.errors">
+        <span *ngIf="registerForm.get('confirmPassword')?.errors?.['required']">Confirmação de senha é obrigatória</span>
+        <span *ngIf="registerForm.get('confirmPassword')?.errors?.['mismatch']">As senhas não coincidem</span>
+      </div>
+
+      <ion-item lines="none" class="terms-item">
+        <ion-checkbox formControlName="acceptTerms" slot="start"></ion-checkbox>
+        <ion-label class="terms-label">
+          Li e aceito os <a href="/termos">Termos de Uso</a> e a <a href="/privacidade">Política de Privacidade</a>
+        </ion-label>
+      </ion-item>
+      <div class="error-message" *ngIf="registerForm.get('acceptTerms')?.touched && registerForm.get('acceptTerms')?.errors">
+        <span>Você deve aceitar os termos para continuar</span>
+      </div>
+
+      <ion-button 
+        expand="block" 
+        type="submit" 
+        class="register-button"
+        [disabled]="registerForm.invalid">
+        Criar Conta
+      </ion-button>
+    </form>
+
+    <div class="login-section">
+      <p>Já tem uma conta? <ion-button fill="clear" (click)="goToLogin()">Entrar</ion-button></p>
+    </div>
+  </div>
+</ion-content>

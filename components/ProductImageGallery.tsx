@@ -1,15 +1,41 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 
 interface ProductImageGalleryProps {
   images: string[]
   productName: string
+  selectedColor?: string | null
+  variants?: any[] | null  // Para pegar o imageIndex da cor selecionada
 }
 
-export default function ProductImageGallery({ images, productName }: ProductImageGalleryProps) {
+export default function ProductImageGallery({ images, productName, selectedColor, variants }: ProductImageGalleryProps) {
   const [selectedImage, setSelectedImage] = useState(0)
+
+  // Quando a cor mudar, usar o imageIndex se disponível
+  useEffect(() => {
+    if (selectedColor && variants && variants.length > 0) {
+      // Procurar variant da cor selecionada que tenha imageIndex
+      const variant = variants.find(v => v.color === selectedColor && v.imageIndex !== undefined)
+      
+      if (variant && variant.imageIndex !== undefined && variant.imageIndex < images.length) {
+        setSelectedImage(variant.imageIndex)
+      } else {
+        // Fallback: tentar encontrar por nome do arquivo
+        const colorLower = selectedColor.toLowerCase()
+        const colorImageIndex = images.findIndex(img => 
+          img.toLowerCase().includes(colorLower) || 
+          img.toLowerCase().includes(colorLower.replace(/\s+/g, '-')) ||
+          img.toLowerCase().includes(colorLower.replace(/\s+/g, '_'))
+        )
+        
+        if (colorImageIndex >= 0) {
+          setSelectedImage(colorImageIndex)
+        }
+      }
+    }
+  }, [selectedColor, images, variants])
 
   if (!images || images.length === 0) {
     return (

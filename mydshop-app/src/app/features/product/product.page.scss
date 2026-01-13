@@ -1,0 +1,737 @@
+.product-container {
+  padding-bottom: 100px;
+}
+
+.image-gallery {
+  position: relative;
+  background: #f9fafb;
+  
+  .image-container {
+    width: 100%;
+    height: 350px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+  }
+  
+  .thumbnails {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    
+    .thumbnail {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      cursor: pointer;
+      flex-shrink: 0;
+      
+      &.active {
+        border-color: var(--app-primary, #f97316);
+      }
+      
+      img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+    }
+  }
+  
+  .discount-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: #ef4444;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+.product-info {
+  padding: 20px 16px;
+  
+  .category {
+    font-size: 12px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  
+  .product-name {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0 0 12px 0;
+    line-height: 1.3;
+  }
+  
+  .rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 16px;
+    
+    ion-icon {
+      font-size: 16px;
+    }
+    
+    .rating-text {
+      font-size: 14px;
+      color: #6b7280;
+      margin-left: 8px;
+    }
+  }
+  
+  .price-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    
+    .sale-price {
+      font-size: 28px;
+      font-weight: 700;
+      color: #16a34a;
+    }
+    
+    .original-price {
+      font-size: 24px;
+      font-weight: 600;
+      color: #1f2937;
+      
+      &.strikethrough {
+        font-size: 18px;
+        color: #9ca3af;
+        text-decoration: line-through;
+      }
+    }
+  }
+  
+  .installments {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #6b7280;
+    font-size: 14px;
+    margin-bottom: 24px;
+    
+    ion-icon {
+      font-size: 18px;
+    }
+  }
+}
+
+.option-section {
+  margin-bottom: 20px;
+  
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 12px 0;
+  }
+  
+  .options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    
+    ion-chip {
+      --background: #f3f4f6;
+      --color: #374151;
+      
+      &[color="primary"] {
+        --background: var(--app-primary, #f97316);
+        --color: white;
+      }
+    }
+  }
+}
+
+.quantity-section {
+  margin-bottom: 24px;
+  
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 12px 0;
+  }
+  
+  .quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+    
+    ion-button {
+      --border-color: #d1d5db;
+      --color: #374151;
+      width: 40px;
+      height: 40px;
+    }
+    
+    .quantity {
+      font-size: 18px;
+      font-weight: 600;
+      min-width: 40px;
+      text-align: center;
+    }
+  }
+  
+  .stock-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #6b7280;
+    
+    ion-icon {
+      font-size: 16px;
+    }
+    
+    &.low-stock {
+      color: var(--app-primary, #f97316);
+    }
+    
+    .out-of-stock {
+      color: #ef4444;
+      font-weight: 600;
+    }
+  }
+}
+
+.description-section {
+  margin-bottom: 24px;
+  
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 12px 0;
+  }
+  
+  p {
+    font-size: 14px;
+    color: #6b7280;
+    line-height: 1.6;
+    margin: 0;
+  }
+}
+
+.shipping-info {
+  background: #f0fdf4;
+  border-radius: 12px;
+  padding: 16px;
+  
+  .info-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    
+    ion-icon {
+      font-size: 20px;
+      color: #16a34a;
+    }
+    
+    span {
+      font-size: 14px;
+      color: #374151;
+    }
+    
+    &:not(:last-child) {
+      border-bottom: 1px solid #dcfce7;
+    }
+  }
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  gap: 16px;
+  
+  ion-spinner {
+    --color: var(--app-primary, #f97316);
+    width: 48px;
+    height: 48px;
+  }
+  
+  p {
+    color: #6b7280;
+    margin: 0;
+  }
+}
+
+ion-footer {
+  ion-toolbar {
+    --background: white;
+    --border-width: 1px 0 0 0;
+    --border-color: #e5e7eb;
+    padding: 8px 16px;
+  }
+  
+  .footer-buttons {
+    display: flex;
+    gap: 12px;
+    
+    .cart-button {
+      --border-color: var(--app-primary, #f97316);
+      --color: var(--app-primary, #f97316);
+      flex: 1;
+    }
+    
+    .buy-button {
+      --background: var(--app-primary, #f97316);
+      --background-hover: var(--app-primary-dark, #ea580c);
+      flex: 2;
+    }
+  }
+}
+
+// Product Details Section
+.product-details {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e5e7eb;
+    
+    &:last-child {
+      border-bottom: none;
+    }
+    
+    .detail-label {
+      font-weight: 600;
+      color: #374151;
+      font-size: 14px;
+    }
+    
+    .detail-value {
+      color: #6b7280;
+      font-size: 14px;
+    }
+  }
+}
+
+// Specifications Section
+.specifications-section, .attributes-section, .technical-specs-section {
+  margin: 24px 0;
+  
+  h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+  }
+  
+  .specs-list, .attributes-list, .technical-specs-list {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    
+    .spec-item, .attribute-item, .tech-spec-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 12px 16px;
+      border-bottom: 1px solid #f3f4f6;
+      
+      &:last-child {
+        border-bottom: none;
+      }
+      
+      .spec-label, .attribute-label, .tech-spec-label {
+        font-weight: 500;
+        color: #374151;
+        font-size: 14px;
+        flex: 1;
+        max-width: 40%;
+      }
+      
+      .spec-value, .attribute-value, .tech-spec-value {
+        color: #6b7280;
+        font-size: 14px;
+        text-align: right;
+        flex: 1;
+        word-break: break-word;
+        
+        &.long-text {
+          display: block;
+          margin-top: 4px;
+          line-height: 1.5;
+          text-align: left;
+          padding-left: 0;
+          max-height: 150px;
+          overflow-y: auto;
+          background: #f9fafb;
+          padding: 8px;
+          border-radius: 4px;
+          border: 1px solid #e5e7eb;
+        }
+
+        &.html-content {
+          .html-badge {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #2563eb;
+            font-size: 12px;
+            font-weight: 500;
+            padding: 4px 8px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 4px;
+            
+            ion-icon {
+              font-size: 14px;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Dimensions Section
+.dimensions-section {
+  margin: 24px 0;
+  
+  h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+  }
+  
+  .dimensions-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    
+    .dimension-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      
+      ion-icon {
+        color: var(--app-primary, #f97316);
+        font-size: 18px;
+        flex-shrink: 0;
+      }
+      
+      span {
+        font-size: 14px;
+        color: #374151;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+// Estilos para seção de variantes
+.variants-section {
+  margin-top: 24px;
+  
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 16px;
+  }
+  
+  .variants-table {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    
+    .variant-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr 80px 80px;
+      background: #f9fafb;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 14px;
+      color: #6b7280;
+      border-bottom: 1px solid #e5e7eb;
+      
+      &:not(:has(.variant-price)) {
+        grid-template-columns: 1fr 1fr 80px;
+      }
+    }
+    
+    .variant-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 80px 80px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #f3f4f6;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      
+      &:not(:has(.variant-price)) {
+        grid-template-columns: 1fr 1fr 80px;
+      }
+      
+      &:last-child {
+        border-bottom: none;
+      }
+      
+      &:hover {
+        background: #f9fafb;
+      }
+      
+      &.variant-selected {
+        background: #fef3e2;
+        border-color: var(--app-primary, #f97316);
+        
+        .variant-size, .variant-color {
+          font-weight: 600;
+          color: var(--app-primary, #f97316);
+        }
+      }
+      
+      &.variant-out-of-stock {
+        opacity: 0.5;
+        cursor: not-allowed;
+        
+        &:hover {
+          background: transparent;
+        }
+      }
+      
+      .variant-size, .variant-color, .variant-stock, .variant-price {
+        display: flex;
+        align-items: center;
+        font-size: 14px;
+        color: #374151;
+      }
+      
+      .variant-color {
+        gap: 8px;
+        
+        .color-dot {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          border: 1px solid #e5e7eb;
+          flex-shrink: 0;
+        }
+      }
+      
+      .variant-stock {
+        gap: 4px;
+        
+        &.stock-low {
+          color: #f59e0b;
+        }
+        
+        ion-icon {
+          font-size: 16px;
+        }
+      }
+      
+      .variant-price {
+        font-weight: 600;
+        color: var(--app-primary, #f97316);
+        justify-content: flex-end;
+      }
+    }
+  }
+}
+
+// === ESTILOS PARA SEÇÃO DE FRETE ===
+.shipping-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &::before {
+      content: '🚚';
+      font-size: 18px;
+    }
+  }
+
+  .user-address {
+    margin-bottom: 16px;
+
+    .address-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+
+      ion-icon {
+        color: var(--app-primary, #f97316);
+        font-size: 18px;
+      }
+
+      span {
+        flex: 1;
+        font-size: 14px;
+        color: #374151;
+      }
+
+      ion-button {
+        --color: #6b7280;
+      }
+    }
+
+    .auto-calculate {
+      margin-top: 12px;
+    }
+
+    .auto-calculating {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      ion-spinner {
+        width: 20px;
+        height: 20px;
+        --color: var(--app-primary, #f97316);
+      }
+
+      span {
+        font-size: 14px;
+        color: #0369a1;
+      }
+    }
+
+    .recalculate {
+      margin-top: 12px;
+    }
+  }
+
+  .manual-cep {
+    .cep-input {
+      ion-item {
+        --background: white;
+        --border-color: #d1d5db;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+
+      ion-button {
+        --background: var(--app-primary, #f97316);
+        margin: 0;
+      }
+    }
+  }
+
+  .shipping-result {
+    margin-top: 16px;
+    padding: 16px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+
+    .shipping-option {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      .option-info {
+        flex: 1;
+
+        .service-name {
+          display: block;
+          font-weight: 600;
+          color: #374151;
+          font-size: 14px;
+        }
+
+        .delivery-time {
+          display: block;
+          font-size: 12px;
+          color: #6b7280;
+          margin-top: 4px;
+        }
+      }
+
+      .option-price {
+        text-align: right;
+
+        .free {
+          color: #16a34a;
+          font-weight: 700;
+          font-size: 16px;
+        }
+
+        .price {
+          color: var(--app-primary, #f97316);
+          font-weight: 600;
+          font-size: 16px;
+        }
+      }
+    }
+  }
+
+  .shipping-error {
+    margin-top: 16px;
+    padding: 12px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    ion-icon {
+      color: #ef4444;
+      font-size: 18px;
+    }
+
+    span {
+      color: #dc2626;
+      font-size: 14px;
+    }
+  }
+}

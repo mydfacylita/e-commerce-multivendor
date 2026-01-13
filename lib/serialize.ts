@@ -25,6 +25,9 @@ export function serializeProduct(product: any) {
     attributes: product.attributes
       ? (typeof product.attributes === 'string' ? safeJsonParse(product.attributes) : product.attributes)
       : null,
+    sizes: product.sizes
+      ? (typeof product.sizes === 'string' ? safeJsonParse(product.sizes, []) : product.sizes)
+      : [],
   }
 }
 

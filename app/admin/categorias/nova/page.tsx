@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FiArrowLeft } from 'react-icons/fi'
@@ -9,12 +9,20 @@ import toast from 'react-hot-toast'
 export default function NovaCategoriaPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [categories, setCategories] = useState<any[]>([])
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
     description: '',
     image: '',
+    parentId: '',
   })
+
+  useEffect(() => {
+    fetch('/api/admin/categories')
+      .then(res => res.json())
+      .then(data => setCategories(data))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -88,6 +96,26 @@ export default function NovaCategoriaPage() {
             className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
             placeholder="eletronicos"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Categoria Pai (opcional)</label>
+          <select
+            value={formData.parentId}
+            onChange={(e) => setFormData({ ...formData, parentId: e.target.value })}
+            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+          >
+            <option value="">Nenhuma (Categoria Principal)</option>
+            {categories
+              .filter(cat => !cat.parentId) // Mostrar apenas categorias principais
+              .map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))
+            }
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Selecione uma categoria pai para criar uma subcategoria
+          </p>
         </div>
 
         <div>

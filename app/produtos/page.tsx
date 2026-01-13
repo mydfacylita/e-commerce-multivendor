@@ -1,11 +1,16 @@
 import { prisma } from '@/lib/prisma'
 import ProductCard from '@/components/ProductCard'
+import { serializeProduct } from '@/lib/serialize'
 
 export default async function ProdutosPage() {
-  const products = await prisma.product.findMany({
+  const productsRaw = await prisma.product.findMany({
+    where: { active: true },  // Apenas produtos ativos
     include: { category: true },
     orderBy: { createdAt: 'desc' },
   })
+
+  // Serializar produtos para garantir que images seja um array
+  const products = productsRaw.map(serializeProduct)
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

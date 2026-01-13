@@ -1,0 +1,76 @@
+{
+  // Performance - Desabilitar recursos pesados
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/.nuxt/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.cache/**": true,
+    "**/prisma/migrations/**": true
+  },
+  
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.cache": true,
+    "**/package-lock.json": true,
+    "**/*.sql": true,
+    "**/prisma/migrations": true
+  },
+  
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/.next": true
+  },
+  
+  // TypeScript - Reduzir validações
+  "typescript.tsserver.maxTsServerMemory": 2048,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "typescript.updateImportsOnFileMove.enabled": "never",
+  "javascript.updateImportsOnFileMove.enabled": "never",
+  
+  // Editor - Desabilitar recursos pesados
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": false
+  },
+  "editor.suggestOnTriggerCharacters": true,
+  "editor.parameterHints.enabled": true,
+  "editor.formatOnSave": false,
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": false,
+  "editor.minimap.enabled": false,
+  "editor.renderWhitespace": "none",
+  "editor.codeLens": false,
+  "editor.inlayHints.enabled": "off",
+  
+  // Prisma - Reduzir validações
+  "prisma.enableTelemetry": false,
+  "[prisma]": {
+    "editor.formatOnSave": false,
+    "editor.defaultFormatter": "Prisma.prisma"
+  },
+  
+  // Git - Reduzir operações
+  "git.enabled": true,
+  "git.autorefresh": false,
+  "git.autofetch": false,
+  "git.decorations.enabled": false,
+  
+  // Outros
+  "extensions.autoUpdate": false,
+  "extensions.autoCheckUpdates": false,
+  "workbench.enableExperiments": false,
+  "telemetry.telemetryLevel": "off",
+  
+  // Salvar automático desabilitado
+  "files.autoSave": "off"
+}

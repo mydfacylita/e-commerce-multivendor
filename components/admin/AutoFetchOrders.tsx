@@ -1,28 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { FiRefreshCw } from 'react-icons/fi'
 
 export default function AutoFetchOrders() {
+  const router = useRouter()
+  const pathname = usePathname()
   const [isChecking, setIsChecking] = useState(false)
   const [lastCheck, setLastCheck] = useState<Date | null>(null)
   const [newOrders, setNewOrders] = useState(0)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const isCheckingRef = useRef(false)
 
-  useEffect(() => {
-    // Verificar imediatamente ao carregar
-    checkNewOrders()
-
-    // Configurar polling a cada 30 segundos
-    const interval = setInterval(() => {
-      checkNewOrders()
-    }, 30000) // 30 segundos
-
-    return () => clearInterval(interval)
-  }, [])
-
-  const checkNewOrders = async () => {
-    if (isChecking) return
-
+  const checkNewOrders = useCallback(async () => {
+    // Evitar múltiplas chamadas simultâneas
+    if (isCheckingRef.current) return
+    isCheckingRef.current = true
     setIsChecking(true)
 
     try {
@@ -43,27 +37,55 @@ export default function AutoFetchOrders() {
             audio.play().catch(() => {})
           } catch (e) {}
           
-          // Recarregar após 2 segundos para mostrar novos pedidos
-          setTimeout(() => {
-            window.location.reload()
-          }, 2000)
+          // Atualizar dados sem reload completo
+          router.refresh()
         }
       }
     } catch (error) {
-      console.error('Erro ao verificar pedidos:', error)
+      console.error('Erro ao verificar novos pedidos:', error)
     } finally {
+      isCheckingRef.current = false
       setIsChecking(false)
     }
+  }, [router])
+
+  useEffect(() => {
+    // Só rodar na página de pedidos admin
+    if (!pathname?.includes('/admin/pedidos')) {
+      return
+    }
+
+    // Verificar após 2 segundos do carregamento inicial
+    const initialTimeout = setTimeout(() => {
+      checkNewOrders()
+    }, 2000)
+
+    // Configurar polling a cada 30 segundos
+    intervalRef.current = setInterval(() => {
+      checkNewOrders()
+    }, 30000)
+
+    return () => {
+      clearTimeout(initialTimeout)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [pathname, checkNewOrders])
+
+  // Só mostrar na página de pedidos
+  if (!pathname?.includes('/admin/pedidos')) {
+    return null
   }
 
   return (
-    <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-4 border border-gray-200">
+    <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-3 border border-gray-200 z-50">
       <div className="flex items-center gap-3">
         <div className={`${isChecking ? 'animate-spin' : ''}`}>
-          <FiRefreshCw className="text-blue-600" size={20} />
+          <FiRefreshCw className="text-blue-600" size={18} />
         </div>
         <div>
-          <p className="text-sm font-semibold text-gray-700">
+          <p className="text-xs font-semibold text-gray-700">
             Verificação Automática
           </p>
           {lastCheck && (
@@ -73,7 +95,7 @@ export default function AutoFetchOrders() {
           )}
         </div>
         {newOrders > 0 && (
-          <div className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+          <div className="bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
             {newOrders}
           </div>
         )}
