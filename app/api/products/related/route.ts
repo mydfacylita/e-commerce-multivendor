@@ -54,8 +54,7 @@ export async function GET(request: NextRequest) {
       products = await prisma.product.findMany({
         where: { active: true },
         include: {
-          category: { select: { name: true } },
-          images: { take: 1 }
+          category: { select: { name: true } }
         },
         take: 12,
         orderBy: { createdAt: 'desc' }
