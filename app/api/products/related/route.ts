@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
       name: product.name,
       slug: product.slug,
       price: product.price,
-      originalPrice: product.originalPrice,
-      images: product.images.map(img => img.url),
+      comparePrice: product.comparePrice,
+      images: JSON.parse(product.images as string || '[]'),
       category: product.category,
       stock: product.stock
     }))

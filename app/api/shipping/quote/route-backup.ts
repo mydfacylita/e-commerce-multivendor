@@ -376,8 +376,8 @@ export async function POST(req: NextRequest) {
         }
       } catch (correiosError) {
         console.error('❌ ERRO DURANTE CONSULTA DOS CORREIOS:')
-        console.error('   Message:', correiosError.message)
-        console.error('   Stack:', correiosError.stack)
+        console.error('   Message:', correiosError instanceof Error ? correiosError.message : String(correiosError))
+        console.error('   Stack:', correiosError instanceof Error ? correiosError.stack : '')
       }
     } else {
       console.log('❌ CORREIOS: Não atende condições')

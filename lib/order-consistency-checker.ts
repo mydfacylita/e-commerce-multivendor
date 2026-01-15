@@ -433,7 +433,7 @@ async function checkDropOrdersWithoutSeller(): Promise<ConsistencyIssue[]> {
     })
 
     const invalidDropOrders = dropOrders.filter(order => 
-      order.items.some(item => item.product?.isDrop && !item.sellerId)
+      order.items.some(item => item.product && 'isDrop' in item.product && item.product.isDrop && !item.sellerId)
     )
 
     console.log(`[Consistency] Encontrados ${invalidDropOrders.length} pedidos drop sem vendedor`)
@@ -737,13 +737,13 @@ export async function quickHealthCheck(): Promise<{
       WHERE p.isDrop = 1 AND oi.sellerId IS NULL AND o.status != 'CANCELLED'
     `.then(result => Number(result[0].count)),
     // Sem itens
-    prisma.$queryRaw<[{ count: bigint }]>`
+    prisma.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(*) as count
       FROM \`order\` o
       LEFT JOIN order_item oi ON o.id = oi.orderId
       WHERE oi.id IS NULL AND o.status != 'CANCELLED'
       GROUP BY o.id
-    `.then(result => result.length)
+    `.then(result => result.length || 0)
   ])
 
   const healthy =
