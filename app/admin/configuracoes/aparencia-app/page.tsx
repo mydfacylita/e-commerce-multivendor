@@ -70,6 +70,7 @@ interface AppConfig {
   'app.enableGuestCheckout': boolean
   'app.maintenanceMode': boolean
   'app.maintenanceMessage': string
+  'app.maintenanceReturnDate': string
   
   // Suporte
   'app.termsUrl': string
@@ -157,6 +158,7 @@ const defaultConfig: AppConfig = {
   'app.enableGuestCheckout': false,
   'app.maintenanceMode': false,
   'app.maintenanceMessage': 'Estamos em manutenção. Voltamos em breve!',
+  'app.maintenanceReturnDate': '',
   'app.termsUrl': '/termos',
   'app.privacyUrl': '/privacidade',
   'app.supportEmail': '',
@@ -896,10 +898,19 @@ export default function AparenciaAppPage() {
               <div className="bg-white rounded-lg border p-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Modo Manutenção</h3>
                 
+                <div className="bg-green-50 border-l-4 border-green-500 p-3 mb-4">
+                  <p className="text-sm text-green-800">
+                    <strong>✅ Totalmente Automático!</strong>
+                  </p>
+                  <p className="text-sm text-green-700 mt-1">
+                    Basta ativar abaixo e salvar. Todo o site (exceto admin) entrará em manutenção automaticamente em até 10 segundos.
+                  </p>
+                </div>
+                
                 <label className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg cursor-pointer mb-4">
                   <div>
                     <span className="font-medium text-gray-900">Ativar Manutenção</span>
-                    <p className="text-sm text-gray-500">O app mostrará mensagem de manutenção</p>
+                    <p className="text-sm text-gray-500">Todo o site (exceto admin) mostrará página de manutenção</p>
                   </div>
                   <input
                     type="checkbox"
@@ -919,6 +930,19 @@ export default function AparenciaAppPage() {
                     className="w-full px-3 py-2 border rounded-lg"
                     rows={3}
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Previsão de Retorno
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={config['app.maintenanceReturnDate']}
+                    onChange={(e) => handleChange('app.maintenanceReturnDate', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Data e hora que o site voltará do ar</p>
                 </div>
               </div>
 

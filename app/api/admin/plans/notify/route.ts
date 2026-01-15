@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     }
 
     // Determinar vendedores a notificar baseado no público-alvo
-    let sellers = []
+    let sellers: any[] = []
 
     switch (targetAudience) {
       case 'plan_subscribers':

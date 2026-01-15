@@ -333,15 +333,11 @@ export async function validateUserToken(authHeader: string | null): Promise<{
     // Verificar se o usuário ainda existe e está ativo
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, role: true, name: true, active: true }
+      select: { id: true, email: true, role: true, name: true }
     });
 
     if (!user) {
       return { valid: false, error: 'Usuário não encontrado' };
-    }
-
-    if (!user.active) {
-      return { valid: false, error: 'Conta desativada' };
     }
 
     return {

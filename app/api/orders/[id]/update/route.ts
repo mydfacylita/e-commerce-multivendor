@@ -54,13 +54,31 @@ export async function PUT(
     }
 
     const body = await req.json()
-    const { items, total, shippingAddress, buyerPhone, buyerCpf, couponCode, discountAmount, shippingCost, subtotal, deliveryDays } = body
+    const { 
+      items, 
+      total, 
+      shippingAddress, 
+      buyerPhone, 
+      buyerCpf, 
+      couponCode, 
+      discountAmount, 
+      shippingCost, 
+      subtotal, 
+      deliveryDays,
+      // Campos de transportadora
+      shippingMethod,
+      shippingService,
+      shippingCarrier
+    } = body
 
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     console.log('📦 [UPDATE ORDER] Atualizando pedido:', orderId)
     console.log('   Total:', total)
     console.log('   Subtotal:', subtotal)
     console.log('   Frete:', shippingCost)
+    console.log('   Método Envio:', shippingMethod)
+    console.log('   Serviço:', shippingService)
+    console.log('   Transportadora:', shippingCarrier)
     console.log('   Itens:', items?.length)
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
@@ -92,7 +110,7 @@ export async function PUT(
     })
 
     // Preparar novos itens com comissões calculadas
-    const newOrderItems = []
+    const newOrderItems: any[] = []
     
     for (const item of items) {
       const product = products.find((p) => p.id === item.productId)
@@ -157,6 +175,10 @@ export async function PUT(
           shippingAddress,
           buyerPhone: buyerPhone || existingOrder.buyerPhone,
           buyerCpf: buyerCpf || existingOrder.buyerCpf,
+          // Campos de transportadora
+          shippingMethod: shippingMethod || null,
+          shippingService: shippingService || null,
+          shippingCarrier: shippingCarrier || null,
           // Limpar dados de pagamento antigos para permitir nova tentativa
           paymentId: null,
           paymentStatus: null,

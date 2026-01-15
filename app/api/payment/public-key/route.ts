@@ -28,8 +28,8 @@ export async function GET() {
 
     // Retornar apenas a public key (nunca o access token!)
     return NextResponse.json({
-      publicKey: config.publicKey || config.public_key,
-      environment: config.environment || 'production'
+      publicKey: (config as any).publicKey || (config as any).public_key,
+      environment: (config as any).environment || 'production'
     })
 
   } catch (error) {

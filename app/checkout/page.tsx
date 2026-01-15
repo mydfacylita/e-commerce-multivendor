@@ -74,6 +74,21 @@ export default function CheckoutPage() {
   const [prazoEntrega, setPrazoEntrega] = useState(0)
   const [freteCalculado, setFreteCalculado] = useState(false)
   const [calculandoFrete, setCalculandoFrete] = useState(false)
+  // Campos de transportadora
+  const [shippingMethod, setShippingMethod] = useState<string | null>(null)
+  const [shippingService, setShippingService] = useState<string | null>(null)
+  const [shippingCarrier, setShippingCarrier] = useState<string | null>(null)
+  // Opções de frete disponíveis
+  const [opcoesFreteState, setOpcoesFreteState] = useState<Array<{
+    id: string
+    name: string
+    price: number
+    deliveryDays: number
+    carrier: string
+    method: string
+    service: string
+  }>>([])
+  const [freteSelecionado, setFreteSelecionado] = useState<string | null>(null)
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([])
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
   const [showNewAddressForm, setShowNewAddressForm] = useState(false)
@@ -146,39 +161,118 @@ export default function CheckoutPage() {
     }
   }, [session])
 
+  // Calcular peso total dos produtos
+  const calcularPesoTotal = async (): Promise<number> => {
+    try {
+      const response = await fetch('/api/products/weights', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
+        },
+        body: JSON.stringify({
+          productIds: items.map(item => ({ id: item.id, quantity: item.quantity }))
+        })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return data.totalWeight || items.length * 0.5
+      }
+      return items.length * 0.5
+    } catch (error) {
+      console.error('Erro ao calcular peso:', error)
+      return items.length * 0.5
+    }
+  }
+
   // Calcular frete quando CEP for preenchido
   const calcularFrete = async (cep: string) => {
     if (cep.length !== 8) return
     
     setCalculandoFrete(true)
     try {
+      // Calcular peso real dos produtos (igual ao carrinho)
+      const pesoTotal = await calcularPesoTotal()
+      console.log('⚖️ [Checkout] Peso calculado:', pesoTotal, 'kg')
+      
       const response = await fetch('/api/shipping/quote', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
+        },
         body: JSON.stringify({
           cep,
           cartValue: total(),
-          weight: 1 // peso padrão
+          weight: pesoTotal, // peso real calculado
+          items: items.map(item => ({
+            id: item.id,
+            quantity: item.quantity
+          }))
         })
       })
 
       if (response.ok) {
         const data = await response.json()
         
-        if (data.isFree) {
+        // Se tiver opções de frete, salvar
+        if (data.shippingOptions && data.shippingOptions.length > 0) {
+          setOpcoesFreteState(data.shippingOptions)
+          // Selecionar a primeira opção (mais barata) como padrão
+          const maisBarata = data.shippingOptions[0]
+          setFreteSelecionado(maisBarata.id)
+          setFrete(maisBarata.price)
+          setPrazoEntrega(maisBarata.deliveryDays)
+          setFreteGratis(false)
+          setShippingMethod(maisBarata.method)
+          setShippingService(maisBarata.service)
+          setShippingCarrier(maisBarata.carrier)
+        } else if (data.isFree) {
           setFreteGratis(true)
           setFrete(0)
+          setOpcoesFreteState([])
+          setPrazoEntrega(data.deliveryDays || 0)
+          setShippingMethod(data.shippingMethod || 'propria')
+          setShippingService(data.shippingService || null)
+          setShippingCarrier(data.shippingCarrier || null)
         } else {
           setFreteGratis(false)
           setFrete(data.shippingCost || 0)
+          setOpcoesFreteState([])
+          setPrazoEntrega(data.deliveryDays || 0)
+          setShippingMethod(data.shippingMethod || 'propria')
+          setShippingService(data.shippingService || null)
+          setShippingCarrier(data.shippingCarrier || null)
         }
-        setPrazoEntrega(data.deliveryDays || 0)
         setFreteCalculado(true)
+        
+        console.log('📦 Frete calculado:', {
+          custo: data.shippingCost,
+          prazo: data.deliveryDays,
+          metodo: data.shippingMethod,
+          servico: data.shippingService,
+          transportadora: data.shippingCarrier,
+          opcoes: data.shippingOptions?.length || 0
+        })
       }
     } catch (error) {
       console.error('Erro ao calcular frete:', error)
     } finally {
       setCalculandoFrete(false)
+    }
+  }
+  
+  // Função para selecionar uma opção de frete
+  const selecionarFrete = (opcaoId: string) => {
+    const opcao = opcoesFreteState.find(o => o.id === opcaoId)
+    if (opcao) {
+      setFreteSelecionado(opcaoId)
+      setFrete(opcao.price)
+      setPrazoEntrega(opcao.deliveryDays)
+      setShippingMethod(opcao.method)
+      setShippingService(opcao.service)
+      setShippingCarrier(opcao.carrier)
     }
   }
 
@@ -219,6 +313,10 @@ export default function CheckoutPage() {
       setFrete(0)
       setFreteGratis(false)
       setFreteCalculado(false)
+      // Limpar dados de transportadora
+      setShippingMethod(null)
+      setShippingService(null)
+      setShippingCarrier(null)
     }
   }, [formData.zipCode])
 
@@ -256,6 +354,15 @@ export default function CheckoutPage() {
       cpf: address.cpf || '',
     })
     setShowNewAddressForm(false)
+    
+    // Calcular frete automaticamente ao selecionar endereço
+    const cepNumeros = address.zipCode.replace(/\D/g, '')
+    if (cepNumeros.length === 8) {
+      setFreteCalculado(false)
+      setOpcoesFreteState([])
+      setFreteSelecionado(null)
+      calcularFrete(cepNumeros)
+    }
   }
 
   // Deletar endereço
@@ -410,6 +517,10 @@ export default function CheckoutPage() {
         deliveryDays: prazoEntrega || null,
         buyerPhone: formData.phone,
         buyerCpf: formData.cpf,
+        // Campos de transportadora
+        shippingMethod: shippingMethod || 'propria',
+        shippingService: shippingService || null,
+        shippingCarrier: shippingCarrier || null,
       }
       
       let response: Response
@@ -738,12 +849,90 @@ export default function CheckoutPage() {
               )}
             </div>
 
+            {/* Seção de Escolha de Frete */}
+            {freteCalculado && !freteGratis && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  🚚 Escolha a Forma de Envio
+                </h2>
+                
+                {calculandoFrete ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                    <span className="ml-3 text-gray-600">Calculando opções de frete...</span>
+                  </div>
+                ) : opcoesFreteState.length > 0 ? (
+                  <div className="space-y-3">
+                    {opcoesFreteState.map((opcao) => (
+                      <label
+                        key={opcao.id}
+                        className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all ${
+                          freteSelecionado === opcao.id
+                            ? 'border-primary-600 bg-primary-50 ring-2 ring-primary-200'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="radio"
+                            name="freteOpcaoCheckout"
+                            value={opcao.id}
+                            checked={freteSelecionado === opcao.id}
+                            onChange={() => selecionarFrete(opcao.id)}
+                            className="h-5 w-5 text-primary-600"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-900 text-lg">{opcao.name}</span>
+                              <span className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600">
+                                {opcao.carrier}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              📦 Entrega em até <strong>{opcao.deliveryDays} dias úteis</strong>
+                            </p>
+                            <p className="text-xs text-green-600">
+                              🗓️ Chegará {calcularDataEntrega(opcao.deliveryDays)}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-bold text-xl text-gray-900">
+                          R$ {formatarMoeda(opcao.price)}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-gray-700">
+                      <strong>Frete:</strong> R$ {formatarMoeda(frete)}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Entrega em {prazoEntrega} dias úteis
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {freteGratis && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-green-700">
+                  <span className="text-2xl">🎉</span>
+                  <div>
+                    <p className="font-bold text-lg">Frete Grátis!</p>
+                    <p className="text-sm">Entrega em até {prazoEntrega} dias úteis</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-primary-600 text-white py-4 rounded-md hover:bg-primary-700 font-semibold text-lg disabled:bg-gray-400"
+              disabled={isLoading || !freteCalculado || calculandoFrete}
+              className="w-full bg-primary-600 text-white py-4 rounded-md hover:bg-primary-700 font-semibold text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Processando...' : 'Continuar para Pagamento'}
+              {isLoading ? 'Processando...' : calculandoFrete ? '⏳ Calculando frete...' : !freteCalculado ? '📦 Selecione um endereço para calcular o frete' : 'Continuar para Pagamento'}
             </button>
           </form>
         ) : (

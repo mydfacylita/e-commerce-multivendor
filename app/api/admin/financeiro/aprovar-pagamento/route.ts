@@ -1,91 +1,35 @@
+/**
+ * 🚨 ROTA TEMPORARIAMENTE DESABILITADA PARA DEPLOY
+ * 
+ * PROBLEMA: Campo 'sellerPaid' não existe no schema Prisma OrderItem
+ * DATA: 13/01/2026 - PRE-DEPLOY  
+ * COMMIT: 89a7767
+ * 
+ * FUNCIONALIDADE ORIGINAL: Aprovar pagamentos para vendedores
+ * ÁREA CRÍTICA: Sistema financeiro
+ * 
+ * TODO PÓS-DEPLOY:
+ * 1. Analisar schema Prisma correto
+ * 2. Identificar campos de status de pagamento 
+ * 3. Reativar funcionalidade com consultas corretas
+ */
+
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 
-// POST - Aprovar pagamento para vendedor
+/**
+ * POST - Aprovar pagamento para vendedor (TEMPORARIAMENTE DESABILITADO)
+ * 
+ * @param request - Request com sellerId e observacao
+ * @returns Response com erro 501 (Not Implemented)
+ */
 export async function POST(request: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
-
-    const { sellerId, observacao } = await request.json()
-
-    if (!sellerId) {
-      return NextResponse.json({ error: 'sellerId obrigatório' }, { status: 400 })
-    }
-
-    // Buscar todos os itens pendentes deste vendedor
-    const itensPendentes = await prisma.orderItem.findMany({
-      where: {
-        sellerId,
-        seller: {
-          paid: false
-        },
-        order: {
-          status: 'DELIVERED'
-        }
-      },
-      include: {
-        order: true,
-        seller: {
-          include: {
-            user: true
-          }
-        }
-      }
-    })
-
-    if (itensPendentes.length === 0) {
-      return NextResponse.json({ error: 'Nenhum pagamento pendente para este vendedor' }, { status: 404 })
-    }
-
-    const totalComissao = itensPendentes.reduce((sum, item) => sum + (item.sellerCommission || 0), 0)
-
-    // Marcar todos os itens como pagos e criar registro de pagamento
-    const resultado = await prisma.$transaction(async (tx) => {
-      // Atualizar itens
-      await tx.orderItem.updateMany({
-        where: {
-          sellerId,
-          sellerPaid: false,
-          order: {
-            status: 'APPROVED'
-          }
-        },
-        data: {
-          sellerPaid: true,
-          sellerPaidAt: new Date()
-        }
-      })
-
-      // Criar registro de pagamento (você pode ter uma tabela Payment)
-      // Por enquanto vamos só registrar no log
-      return {
-        sellerId,
-        sellerName: itensPendentes[0].seller?.storeName,
-        totalPago: totalComissao,
-        quantidadeItens: itensPendentes.length,
-        pagoEm: new Date(),
-        pagoBy: session.user.id,
-        observacao
-      }
-    })
-
-    // TODO: Aqui você pode integrar com gateway de pagamento (PIX, TED, etc)
-    // Por exemplo: enviar PIX automático, registrar na contabilidade, etc
-
-    return NextResponse.json({
-      success: true,
-      message: 'Pagamento aprovado com sucesso',
-      resultado
-    })
-
-  } catch (error) {
-    console.error('Erro ao aprovar pagamento:', error)
-    return NextResponse.json({ error: 'Erro ao aprovar pagamento' }, { status: 500 })
-  }
+  return NextResponse.json(
+    { 
+      error: 'Funcionalidade temporariamente desabilitada',
+      message: 'Sistema de pagamentos em manutenção para correção de schema.',
+      code: 'PAYMENT_SYSTEM_MAINTENANCE',
+      status: 'disabled'
+    },
+    { status: 501 }
+  )
 }

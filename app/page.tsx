@@ -2,11 +2,11 @@ import { prisma } from '@/lib/prisma'
 import ProductCard from '@/components/ProductCard'
 import Hero from '@/components/Hero'
 import CategoryGrid from '@/components/CategoryGrid'
-import LoadMoreProducts from '@/components/LoadMoreProducts'
+import InfiniteHomeSections from '@/components/InfiniteHomeSections'
 import { serializeProducts } from '@/lib/serialize'
 
 export default async function HomePage() {
-  const [featuredProductsRaw, categories, allProductsRaw, totalProducts] = await Promise.all([
+  const [featuredProductsRaw, categories] = await Promise.all([
     prisma.product.findMany({
       where: { 
         featured: true,
@@ -24,18 +24,10 @@ export default async function HomePage() {
         },
       },
       take: 6,
-    }),
-    prisma.product.findMany({
-      where: { active: true },  // Apenas produtos ativos
-      include: { category: true },
-      take: 12,
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.product.count({ where: { active: true } })
+    })
   ])
 
   const featuredProducts = serializeProducts(featuredProductsRaw)
-  const allProducts = serializeProducts(allProductsRaw)
 
   return (
     <div className="min-h-screen">
@@ -140,14 +132,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Todos os Produtos com Carregar Mais */}
-      <LoadMoreProducts 
-        initialProducts={allProducts}
-        totalCount={totalProducts}
-        itemsPerPage={12}
-        title="✨ Lançamentos"
-        subtitle="Novidades que acabaram de chegar"
-      />
+      {/* Seções Infinitas de Ofertas */}
+      <InfiniteHomeSections />
 
       {/* Newsletter */}
       <section className="py-16 px-4 bg-gradient-to-r from-primary-600 to-primary-800 text-white">

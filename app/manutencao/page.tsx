@@ -1,6 +1,31 @@
-import Image from 'next/image'
+'use client'
+
+import { useEffect, useState } from 'react'
+
+interface MaintenanceConfig {
+  message: string
+  returnDate: string | null
+}
 
 export default function ManutencaoPage() {
+  const [config, setConfig] = useState<MaintenanceConfig>({
+    message: 'Estamos trabalhando para trazer novidades e melhorias para você! Em breve estaremos de volta com uma experiência ainda melhor.',
+    returnDate: null
+  })
+
+  useEffect(() => {
+    fetch('/api/config/maintenance')
+      .then(res => res.json())
+      .then(data => {
+        console.log('Config de manutenção:', data)
+        setConfig({
+          message: data.message || config.message,
+          returnDate: data.returnDate || null
+        })
+      })
+      .catch(err => console.error('Erro ao carregar config:', err))
+  }, [])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-orange-50 flex items-center justify-center px-4">
       <div className="text-center max-w-lg">
@@ -45,14 +70,15 @@ export default function ManutencaoPage() {
 
         {/* Mensagem */}
         <p className="text-gray-600 text-lg mb-8 leading-relaxed">
-          Estamos trabalhando para trazer novidades e melhorias para você! 
-          Em breve estaremos de volta com uma experiência ainda melhor.
+          {config.message}
         </p>
 
         {/* Tempo estimado */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
           <p className="text-sm text-gray-500 mb-2">Previsão de retorno</p>
-          <p className="text-2xl font-bold text-primary-600">Em breve!</p>
+          <p className="text-2xl font-bold text-primary-600">
+            {config.returnDate || 'Em breve!'}
+          </p>
         </div>
 
         {/* Contato */}

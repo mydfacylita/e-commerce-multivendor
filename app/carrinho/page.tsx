@@ -45,12 +45,29 @@ export default function CarrinhoPage() {
   const [frete, setFrete] = useState(0)
   const [prazoEntrega, setPrazoEntrega] = useState<number | null>(null)
   const [freteGratis, setFreteGratis] = useState(false)
+  const [promoFrete, setPromoFrete] = useState<{ minValue: number; missing: number; ruleName: string } | null>(null)
+  const [opcoesFreteState, setOpcoesFreteState] = useState<Array<{
+    id: string
+    name: string
+    price: number
+    deliveryDays: number
+    carrier: string
+    method: string
+    service: string
+  }>>([])
+  const [freteCarregando, setFreteCarregando] = useState(false)
+  const [freteSelecionado, setFreteSelecionado] = useState<string | null>(null)
 
   const calcularPesoTotal = async () => {
     try {
+      console.log('⚖️ [Carrinho] Calculando peso para itens:', items.map(item => ({ id: item.id, quantity: item.quantity })))
+      
       const response = await fetch('/api/products/weights', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
+        },
         body: JSON.stringify({
           productIds: items.map(item => ({ id: item.id, quantity: item.quantity }))
         })
@@ -58,10 +75,13 @@ export default function CarrinhoPage() {
       
       if (response.ok) {
         const data = await response.json()
+        console.log('📦 [Carrinho] Peso calculado:', data.totalWeight, 'kg')
         return data.totalWeight || items.length * 0.5 // Fallback: 0.5kg por item
       }
+      console.warn('⚠️ [Carrinho] API de peso não retornou OK, usando fallback')
       return items.length * 0.5
-    } catch {
+    } catch (error) {
+      console.error('❌ [Carrinho] Erro ao calcular peso:', error)
       return items.length * 0.5 // Fallback em caso de erro
     }
   }
@@ -86,39 +106,87 @@ export default function CarrinhoPage() {
       return
     }
 
+    setFreteCarregando(true)
+    
     try {
       // Calcular peso total real dos produtos
       const totalWeight = await calcularPesoTotal()
       
+      console.log('🚚 [Carrinho] Calculando frete:', { cep, cartValue: subtotal, weight: totalWeight, items: items.length })
+      
       const response = await fetch('/api/shipping/quote', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
+        },
         body: JSON.stringify({
           cep,
           cartValue: subtotal,
-          weight: totalWeight
+          weight: totalWeight,
+          items: items.map(item => ({
+            id: item.id,
+            quantity: item.quantity
+          }))
         })
       })
 
+      console.log('📦 [Carrinho] Resposta do frete:', response.status)
+
       if (response.ok) {
         const data = await response.json()
+        console.log('✅ [Carrinho] Dados do frete:', data)
         
-        if (data.isFree) {
+        // Guardar info de promoção se existir
+        if (data.promo) {
+          setPromoFrete(data.promo)
+        } else {
+          setPromoFrete(null)
+        }
+        
+        // Se tiver opções de frete, salvar
+        if (data.shippingOptions && data.shippingOptions.length > 0) {
+          setOpcoesFreteState(data.shippingOptions)
+          // Selecionar a primeira opção (mais barata) como padrão
+          const maisBarata = data.shippingOptions[0]
+          setFreteSelecionado(maisBarata.id)
+          setFrete(maisBarata.price)
+          setPrazoEntrega(maisBarata.deliveryDays)
+          setFreteGratis(false)
+          toast.success(`${data.shippingOptions.length} opções de frete encontradas!`)
+        } else if (data.isFree) {
           setFreteGratis(true)
           setFrete(0)
           setPrazoEntrega(data.deliveryDays || null)
+          setOpcoesFreteState([])
           toast.success(data.message || 'Frete grátis!')
         } else {
           setFreteGratis(false)
           setFrete(data.shippingCost)
           setPrazoEntrega(data.deliveryDays || null)
+          setOpcoesFreteState([])
           toast.success(`Frete: R$ ${formatarMoeda(data.shippingCost)} - ${data.deliveryDays} dias úteis`)
         }
       } else {
-        toast.error('Erro ao calcular frete')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ [Carrinho] Erro na API de frete:', response.status, errorData)
+        toast.error(errorData.error || 'Erro ao calcular frete')
       }
     } catch (error) {
+      console.error('❌ [Carrinho] Exceção ao calcular frete:', error)
       toast.error('Erro ao calcular frete')
+    } finally {
+      setFreteCarregando(false)
+    }
+  }
+  
+  // Função para selecionar uma opção de frete
+  const selecionarFrete = (opcaoId: string) => {
+    const opcao = opcoesFreteState.find(o => o.id === opcaoId)
+    if (opcao) {
+      setFreteSelecionado(opcaoId)
+      setFrete(opcao.price)
+      setPrazoEntrega(opcao.deliveryDays)
     }
   }
 
@@ -208,7 +276,7 @@ export default function CarrinhoPage() {
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}
                       className="p-2 hover:bg-gray-100 transition"
-                      disabled={item.stock && item.quantity >= item.stock}
+                      disabled={!!item.stock && item.quantity >= item.stock}
                     >
                       <FiPlus />
                     </button>
@@ -294,14 +362,63 @@ export default function CarrinhoPage() {
               </div>
               <button
                 onClick={calcularFrete}
-                className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-semibold"
+                disabled={freteCarregando}
+                className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Calcular
+                {freteCarregando ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Calculando...
+                  </>
+                ) : 'Calcular'}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Informe o CEP para calcular o frete e prazo de entrega
-            </p>
+            
+            {/* Opções de frete disponíveis */}
+            {opcoesFreteState.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <p className="text-sm font-semibold text-gray-700">Escolha a forma de envio:</p>
+                {opcoesFreteState.map((opcao) => (
+                  <label
+                    key={opcao.id}
+                    className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-all ${
+                      freteSelecionado === opcao.id
+                        ? 'border-primary-600 bg-primary-50 ring-2 ring-primary-200'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="freteOpcao"
+                        value={opcao.id}
+                        checked={freteSelecionado === opcao.id}
+                        onChange={() => selecionarFrete(opcao.id)}
+                        className="h-4 w-4 text-primary-600"
+                      />
+                      <div>
+                        <span className="font-semibold text-gray-900">{opcao.name}</span>
+                        <p className="text-xs text-gray-500">
+                          Entrega em até {opcao.deliveryDays} dias úteis
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-bold text-gray-900">
+                      R$ {formatarMoeda(opcao.price)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            
+            {opcoesFreteState.length === 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                Informe o CEP para calcular o frete e prazo de entrega
+              </p>
+            )}
           </div>
         </div>
 
@@ -343,6 +460,22 @@ export default function CarrinhoPage() {
                   )}
                 </div>
               </div>
+              
+              {/* Banner de promoção de frete */}
+              {promoFrete && !freteGratis && (
+                <div className="mt-3 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm font-medium text-yellow-800 flex items-start gap-2">
+                    <span className="text-lg">💡</span>
+                    <span>
+                      Adicione mais <strong className="text-orange-600">R$ {formatarMoeda(promoFrete.missing)}</strong> para
+                      aproveitar <strong className="text-green-600">{promoFrete.ruleName}</strong>!
+                    </span>
+                  </p>
+                  <p className="text-xs text-yellow-600 mt-1 ml-6">
+                    Compras acima de R$ {formatarMoeda(promoFrete.minValue)} têm frete especial para sua região
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="border-t pt-4 mb-6">

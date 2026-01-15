@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     }
 
     // Buscar access token do MP
-    const prisma = (await import('@/lib/prisma')).default
+    const { prisma } = await import('@/lib/prisma')
     const mpConfig = await prisma.paymentGateway.findFirst({
       where: { gateway: 'MERCADOPAGO', isActive: true }
     })
@@ -74,7 +74,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const prisma = (await import('@/lib/prisma')).default
+    const { prisma } = await import('@/lib/prisma')
     const mpConfig = await prisma.paymentGateway.findFirst({
       where: { gateway: 'MERCADOPAGO', isActive: true }
     })

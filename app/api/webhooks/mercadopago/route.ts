@@ -123,11 +123,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true })
     }
 
-    console.log('📦 Pedido encontrado:', pedido.orderNumber)
+    console.log('📦 Pedido encontrado:', pedido.id)
 
     // Atualizar status conforme o pagamento
     if (payment.status === 'approved') {
-      console.log('✅ Pagamento aprovado! Atualizando pedido...')
+      console.log('✅ Pagamento aprovado! Verificando antifraude...')
+      
+      // 🔒 Verificar se precisa passar por análise de fraude
+      const needsFraudCheck = pedido.fraudScore !== null && pedido.fraudScore >= 30
+      const fraudApproved = pedido.fraudStatus === 'approved'
       
       // Buscar itens do pedido para calcular comissões
       const orderItems = await prisma.orderItem.findMany({
@@ -136,12 +140,27 @@ export async function POST(request: Request) {
 
       // Atualizar pedido e balance dos vendedores em uma transação
       await prisma.$transaction(async (tx) => {
+        // Determinar status do pedido baseado em antifraude
+        let orderStatus = pedido.status
+        if (needsFraudCheck) {
+          if (fraudApproved) {
+            orderStatus = 'PROCESSING'
+            console.log('✅ Antifraude já aprovado - Liberando para PROCESSING')
+          } else {
+            orderStatus = 'PENDING'
+            console.log('⚠️ Aguardando aprovação do antifraude')
+          }
+        } else {
+          orderStatus = 'PROCESSING'
+          console.log('✅ Sem necessidade de análise de fraude - Liberando para PROCESSING')
+        }
+
         // Atualizar pedido
         await tx.order.update({
           where: { id: pedido.id },
           data: { 
             paymentStatus: 'APPROVED',
-            status: 'PROCESSING',
+            status: orderStatus,
             paymentApprovedAt: new Date()
           }
         })
@@ -156,16 +175,21 @@ export async function POST(request: Request) {
           }
         }
 
-        // Incrementar balance de cada vendedor
-        for (const [sellerId, revenue] of sellerBalances.entries()) {
-          await tx.seller.update({
-            where: { id: sellerId },
-            data: {
-              balance: { increment: revenue },
-              totalEarned: { increment: revenue }
-            }
-          })
-          console.log(`💰 Balance do vendedor ${sellerId.slice(0, 8)} incrementado em R$ ${revenue.toFixed(2)}`)
+        // 💰 Incrementar balance apenas se pedido for para PROCESSING
+        // Se está aguardando antifraude, não incrementa ainda
+        if (orderStatus === 'PROCESSING') {
+          for (const [sellerId, revenue] of sellerBalances.entries()) {
+            await tx.seller.update({
+              where: { id: sellerId },
+              data: {
+                balance: { increment: revenue },
+                totalEarned: { increment: revenue }
+              }
+            })
+            console.log(`💰 Balance do vendedor ${sellerId.slice(0, 8)} incrementado em R$ ${revenue.toFixed(2)}`)
+          }
+        } else {
+          console.log('⏳ Balance não incrementado - aguardando aprovação antifraude')
         }
       })
 

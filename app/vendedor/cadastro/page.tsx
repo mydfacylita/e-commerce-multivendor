@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { FiUser, FiBriefcase, FiChevronRight, FiClock, FiAlertCircle } from 'react-icons/fi';
+import { FiUser, FiBriefcase, FiChevronRight, FiClock, FiAlertCircle, FiX } from 'react-icons/fi';
 
 export default function SellerSignupPage() {
   const router = useRouter();

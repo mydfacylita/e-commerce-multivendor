@@ -115,7 +115,8 @@ export async function POST(request: NextRequest) {
       payerPhone,    // Telefone do comprador - ajuda a evitar rejected_high_risk
       payerAddress,  // Endereço do comprador - obrigatório para boleto
       externalReference: externalReference || referenceId || `${type}_${Date.now()}`,
-      notificationUrl: `${process.env.NEXTAUTH_URL}/api/payment/webhook`,
+      // WEBHOOK_URL para URL pública (produção), fallback para NEXTAUTH_URL
+      notificationUrl: `${process.env.WEBHOOK_URL || process.env.NEXTAUTH_URL}/api/payment/webhook`,
       paymentMethod, // Adicionar método de pagamento
       metadata: {
         userId: session.user.id,

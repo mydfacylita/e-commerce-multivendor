@@ -162,7 +162,7 @@ export async function PUT(request: NextRequest) {
     // Atualizar subscription
     const updated = await prisma.subscription.update({
       where: { id: subscriptionId },
-      data: { status: newStatus }
+      data: { status: newStatus as any }
     })
 
     console.log('🔔 Webhook pagamento processado:', {

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 // Códigos de serviço dos Correios
 const SERVICOS_CORREIOS = {
   SEDEX: '04014',
@@ -34,6 +37,14 @@ export async function POST(request: NextRequest) {
     const body: CotacaoRequest = await request.json()
     const { cepOrigem, cepDestino, peso, comprimento, altura, largura, valor } = body
 
+    console.log('📦 [Correios] Nova consulta de frete:', {
+      cepOrigem,
+      cepDestino,
+      peso,
+      dimensoes: `${comprimento}x${altura}x${largura}cm`,
+      valor
+    })
+
     if (!cepOrigem || !cepDestino) {
       return NextResponse.json({ error: 'CEP de origem e destino são obrigatórios' }, { status: 400 })
     }
@@ -42,6 +53,8 @@ export async function POST(request: NextRequest) {
     const configs = await prisma.systemConfig.findMany({
       where: { key: { startsWith: 'correios.' } }
     })
+
+    console.log(`⚙️ [Correios] Configurações encontradas:`, configs.length)
 
     const configMap: Record<string, string> = {}
     configs.forEach((c: { key: string; value: string }) => {
@@ -161,8 +174,8 @@ async function consultarCorreios(params: {
       headers: {
         'Accept': 'text/xml',
       },
-      // Timeout de 10 segundos
-      signal: AbortSignal.timeout(10000)
+      // Timeout de 5 segundos
+      signal: AbortSignal.timeout(5000)
     })
 
     if (!response.ok) {

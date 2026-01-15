@@ -10,10 +10,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    // Verificar se há credenciais configuradas
-    const auth = await prisma.aliExpressAuth.findUnique({
+    // Verificar se há credenciais configuradas (buscar primeiro por userId, depois qualquer)
+    let auth = await prisma.aliExpressAuth.findUnique({
       where: { userId: session.user.id }
     });
+
+    // Se não encontrou por userId, buscar qualquer configuração existente
+    if (!auth) {
+      auth = await prisma.aliExpressAuth.findFirst();
+    }
 
     if (!auth) {
       return NextResponse.json({

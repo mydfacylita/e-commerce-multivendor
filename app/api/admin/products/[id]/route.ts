@@ -267,30 +267,30 @@ export async function PUT(
       }
 
       sellerId = seller.id
-      console.log('✅ Vendedor validado:', seller.storeName)
+    }
 
-      // VERIFICAR SE O PRODUTO PERTENCE AO VENDEDOR
-      console.log('\n🔍 Verificando ownership do produto...')
-      const existingProduct = await prisma.product.findUnique({
-        where: { id: params.id }
-      })
+    console.log('\n🔍 Verificando produto...')
 
-      if (!existingProduct) {
-        console.log('❌ Produto não encontrado')
-        return NextResponse.json({ message: 'Produto não encontrado' }, { status: 404 })
-      }
+    // Obter dados da requisição e produto existente (escopo global)
+    const data = await req.json()
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: params.id }
+    })
 
-      if (existingProduct.sellerId !== sellerId) {
-        console.log('❌ Produto não pertence ao vendedor')
-        console.log('   Product sellerId:', existingProduct.sellerId)
-        console.log('   User sellerId:', sellerId)
-        return NextResponse.json({ message: 'Você não tem permissão para editar este produto' }, { status: 403 })
-      }
+    if (!existingProduct) {
+      console.log('❌ Produto não encontrado')
+      return NextResponse.json({ message: 'Produto não encontrado' }, { status: 404 })
+    }
 
-      console.log('✅ Produto pertence ao vendedor')
+    // Validações específicas do SELLER
+    if (session.user.role === 'SELLER') {
+    if (existingProduct.sellerId !== sellerId) {
+      console.log('❌ Produto não pertence ao vendedor')
+      return NextResponse.json({ message: 'Você não tem permissão para editar este produto' }, { status: 403 })
+    }
 
-      // SE FOR DROPSHIPPING, VALIDAR CAMPOS EDITÁVEIS E VERIFICAR PREÇO MÍNIMO
-      if (existingProduct.isDropshipping && existingProduct.supplierSku) {
+    // SE FOR DROPSHIPPING, VALIDAR CAMPOS EDITÁVEIS E VERIFICAR PREÇO MÍNIMO
+    if (existingProduct.isDropshipping && existingProduct.supplierSku) {
         console.log('⚠️  Produto dropshipping - validando preço mínimo...')
         
         // Buscar produto original para validar preço
@@ -352,7 +352,6 @@ export async function PUT(
       })
     }
 
-    const data = await req.json()
     console.log('\n📝 Atualizando produto...')
 
     const product = await prisma.product.update({

@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
         where: { id: existing.id },
         data: {
           isActive,
-          config: configData
+          config: JSON.stringify(configData)
         }
       })
     } else {
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
         data: {
           gateway: 'MERCADOPAGO',
           isActive,
-          config: configData
+          config: JSON.stringify(configData)
         }
       })
     }

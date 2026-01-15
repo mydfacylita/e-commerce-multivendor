@@ -39,24 +39,23 @@ model User {
   @@map("user")
 }
 
-// Endereços de entrega do cliente
 model Address {
-  id           String   @id @default(cuid())
-  userId       String
-  label        String?  // Ex: "Casa", "Trabalho", "Mãe"
-  recipientName String? // Nome do destinatário (pode ser diferente do usuário)
-  street       String   // Rua, número
-  complement   String?  // Apartamento, bloco, etc
-  neighborhood String?  // Bairro
-  city         String
-  state        String
-  zipCode      String   // CEP
-  phone        String?
-  cpf          String?
-  isDefault    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  userId        String
+  label         String?
+  recipientName String?
+  street        String
+  complement    String?
+  neighborhood  String?
+  city          String
+  state         String
+  zipCode       String
+  phone         String?
+  cpf           String?
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, isDefault])
@@ -154,83 +153,81 @@ model Category {
   parentId    String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
-  products    Product[]
   parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
 
   @@index([parentId])
   @@map("category")
 }
 
 model Product {
-  id                     String               @id @default(cuid())
-  name                   String
-  slug                   String               @unique
-  description            String?              @db.Text
-  price                  Float
-  comparePrice           Float?
-  costPrice              Float?
-  shippingCost           Float?
-  taxCost                Float?
-  totalCost              Float?
-  margin                 Float?
-  isDropshipping         Boolean              @default(false)
-  dropshippingCommission Float?
-  images                 String               @db.Text
-  stock                  Int                  @default(0)
-  featured               Boolean              @default(false)
-  categoryId             String
-  sellerId               String?
-  supplierId             String?
-  supplierSku            String?
-  supplierUrl            String?              @db.Text
-  specifications         String?              @db.Text
-  variants               String?              @db.Text
-  attributes             String?              @db.Text
-  sizes                  String?              @db.Text // JSON array com tamanhos disponíveis
-  sizeType               String?              // Tipo: 'adult', 'children', 'baby', 'unisex', etc
-  sizeCategory           String?              // Categoria: 'shoes', 'clothing', 'accessories', etc
-  gtin                   String?
-  brand                  String?
-  model                  String?
-  color                  String?
-  mpn                    String?
-  technicalSpecs         String?              @db.Text
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
-  availableForDropship   Boolean              @default(true)
-  isChoiceProduct        Boolean              @default(false)
-  lastSyncAt             DateTime?
-  supplierRating         Float?
-  supplierShippingSpeed  Float?
-  supplierStock          Int?
-  supplierStoreId        String?
-  supplierStoreName      String?
-  active                 Boolean              @default(true)
-  bookAuthor             String?
-  bookGenre              String?
-  bookIsbn               String?
-  bookPublisher          String?
-  bookTitle              String?
-  // Dimensões e peso do produto
-  weight                 Float?               // Peso em kg (sem embalagem)
-  weightWithPackage      Float?               // Peso em kg (com embalagem)
-  length                 Float?               // Comprimento em cm (sem embalagem)
-  width                  Float?               // Largura em cm (sem embalagem)
-  height                 Float?               // Altura em cm (sem embalagem)
-  lengthWithPackage      Float?               // Comprimento em cm (com embalagem)
-  widthWithPackage       Float?               // Largura em cm (com embalagem)
-  heightWithPackage      Float?               // Altura em cm (com embalagem)
-  // Configurações de pagamento do produto
-  acceptsCreditCard      Boolean?             // null = usa padrão do sistema, true/false = regra específica
-  maxInstallments        Int?                 // null = usa padrão do sistema, número = máx parcelas
-  installmentsFreeInterest Int?               // Parcelas sem juros (vendedor absorve)
-  cartItems              CartItem[]
-  marketplaceListings    MarketplaceListing[]
-  orderItems             OrderItem[]
-  category               Category             @relation(fields: [categoryId], references: [id])
-  seller                 Seller?              @relation(fields: [sellerId], references: [id])
-  supplier               Supplier?            @relation(fields: [supplierId], references: [id])
+  id                       String               @id @default(cuid())
+  name                     String
+  slug                     String               @unique
+  description              String?              @db.Text
+  price                    Float
+  comparePrice             Float?
+  costPrice                Float?
+  shippingCost             Float?
+  taxCost                  Float?
+  totalCost                Float?
+  margin                   Float?
+  isDropshipping           Boolean              @default(false)
+  dropshippingCommission   Float?
+  images                   String               @db.Text
+  stock                    Int                  @default(0)
+  featured                 Boolean              @default(false)
+  categoryId               String
+  sellerId                 String?
+  supplierId               String?
+  supplierSku              String?
+  supplierUrl              String?              @db.Text
+  specifications           String?              @db.Text
+  variants                 String?              @db.Text
+  attributes               String?              @db.Text
+  sizes                    String?              @db.Text
+  sizeType                 String?
+  sizeCategory             String?
+  gtin                     String?
+  brand                    String?
+  model                    String?
+  color                    String?
+  mpn                      String?
+  technicalSpecs           String?              @db.Text
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  availableForDropship     Boolean              @default(true)
+  isChoiceProduct          Boolean              @default(false)
+  lastSyncAt               DateTime?
+  supplierRating           Float?
+  supplierShippingSpeed    Float?
+  supplierStock            Int?
+  supplierStoreId          String?
+  supplierStoreName        String?
+  active                   Boolean              @default(true)
+  bookAuthor               String?
+  bookGenre                String?
+  bookIsbn                 String?
+  bookPublisher            String?
+  bookTitle                String?
+  weight                   Float?
+  weightWithPackage        Float?
+  length                   Float?
+  width                    Float?
+  height                   Float?
+  lengthWithPackage        Float?
+  widthWithPackage         Float?
+  heightWithPackage        Float?
+  acceptsCreditCard        Boolean?
+  installmentsFreeInterest Int?
+  maxInstallments          Int?
+  cartItems                CartItem[]
+  marketplaceListings      MarketplaceListing[]
+  orderItems               OrderItem[]
+  category                 Category             @relation(fields: [categoryId], references: [id])
+  seller                   Seller?              @relation(fields: [sellerId], references: [id])
+  supplier                 Supplier?            @relation(fields: [supplierId], references: [id])
 
   @@index([categoryId])
   @@index([sellerId])
@@ -303,10 +300,6 @@ model Order {
   buyerCpf           String?
   paymentMethod      String?
   shippingCost       Float?
-  deliveryDays       Int?        // Prazo de entrega em dias úteis
-  couponCode         String?
-  discountAmount     Float?
-  subtotal           Float?
   buyerMessages      String?     @db.Text
   cancelReason       String?
   commissionAmount   Float?
@@ -319,6 +312,32 @@ model Order {
   paymentId          String?
   paymentStatus      String?
   paymentType        String?
+  couponCode         String?
+  discountAmount     Float?
+  subtotal           Float?
+  deliveryDays       Int?
+  expeditionNotes    String?     @db.Text
+  labelPrintedAt     DateTime?
+  packagingBoxId     String?
+  packedAt           DateTime?
+  packedBy           String?
+  separatedAt        DateTime?
+  separatedBy        String?
+  shippedAt          DateTime?
+  shippedBy          String?
+  shippingCarrier    String?
+  shippingLabel      String?     @db.Text
+  shippingLabelType  String?
+  shippingMethod     String?
+  shippingService    String?
+  fraudScore         Int?
+  fraudReasons       String?     @db.Text
+  fraudStatus        String?     @db.VarChar(50)
+  fraudCheckedAt     DateTime?   @db.DateTime(0)
+  fraudCheckedBy     String?     @db.VarChar(255)
+  fraudNotes         String?     @db.Text
+  ipAddress          String?     @db.VarChar(100)
+  userAgent          String?     @db.Text
   seller             Seller?     @relation("SellerOrders", fields: [sellerId], references: [id])
   soldBySeller       Seller?     @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
   user               User?       @relation(fields: [userId], references: [id])
@@ -334,6 +353,10 @@ model Order {
   @@index([userId, status])
   @@index([marketplaceOrderId])
   @@index([parentOrderId])
+  @@index([packagingBoxId])
+  @@index([shippingMethod])
+  @@index([fraudScore], map: "idx_fraud_score")
+  @@index([fraudStatus], map: "idx_fraud_status")
   @@map("order")
 }
 
@@ -343,8 +366,6 @@ model OrderItem {
   productId        String
   quantity         Int
   price            Float
-  selectedSize     String?
-  selectedColor    String?
   createdAt        DateTime     @default(now())
   itemType         ItemType     @default(STOCK)
   commissionAmount Float?
@@ -355,6 +376,8 @@ model OrderItem {
   supplierStatus   String?
   supplierCost     Float?
   trackingCode     String?
+  selectedSize     String?
+  selectedColor    String?
   refundedAt       DateTime?
   order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product          Product      @relation(fields: [productId], references: [id])
@@ -417,24 +440,24 @@ model ShopeeAuth {
 }
 
 model TikTokShopAuth {
-  id             String    @id @default(cuid())
-  userId         String    @unique
-  appKey         String
-  appSecret      String    @db.Text
-  accessToken    String?   @db.Text
-  refreshToken   String?   @db.Text
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  appKey               String
+  appSecret            String    @db.Text
+  accessToken          String?   @db.Text
+  refreshToken         String?   @db.Text
   accessTokenExpireIn  Int?
   refreshTokenExpireIn Int?
-  shopId         String?
-  shopName       String?
-  shopCipher     String?   @db.Text
-  openId         String?
-  sellerName     String?
-  region         String?   @default("BR")
-  expiresAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopId               String?
+  shopName             String?
+  shopCipher           String?   @db.Text
+  openId               String?
+  sellerName           String?
+  region               String?   @default("BR")
+  expiresAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("tiktokshopauth")
 }
@@ -591,8 +614,8 @@ model RefundItem {
   orderItemId String
   amount      Float
   createdAt   DateTime  @default(now())
-  refund      Refund    @relation(fields: [refundId], references: [id])
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+  refund      Refund    @relation(fields: [refundId], references: [id])
 
   @@index([refundId])
   @@index([orderItemId])
@@ -658,6 +681,150 @@ model prisma_migrations_itemtype {
   value String @id
 
   @@map("_prisma_migrations_itemtype")
+}
+
+model ShippingRule {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  regionType      String
+  regions         String   @db.Text
+  minWeight       Float?
+  maxWeight       Float?
+  shippingCost    Float
+  costPerKg       Float?
+  freeShippingMin Float?
+  deliveryDays    Int
+  isActive        Boolean  @default(true)
+  priority        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  minCartValue    Float?
+  maxCartValue    Float?
+
+  @@index([isActive])
+  @@index([regionType])
+  @@index([priority])
+  @@map("shippingrule")
+}
+
+model PackagingBox {
+  id          String        @id @default(cuid())
+  name        String
+  code        String        @unique
+  type        PackagingType @default(BOX)
+  innerLength Float
+  innerWidth  Float
+  innerHeight Float
+  outerLength Float
+  outerWidth  Float
+  outerHeight Float
+  emptyWeight Float
+  maxWeight   Float
+  maxVolume   Float?
+  cost        Float         @default(0)
+  isActive    Boolean       @default(true)
+  isDefault   Boolean       @default(false)
+  priority    Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([isActive])
+  @@index([type])
+  @@index([priority])
+  @@map("packagingbox")
+}
+
+model ShippingCarrier {
+  id           String              @id @default(cuid())
+  code         String              @unique
+  name         String
+  type         ShippingCarrierType @default(CARRIER)
+  logo         String?
+  color        String?
+  isActive     Boolean             @default(true)
+  isDefault    Boolean             @default(false)
+  apiUrl       String?
+  apiKey       String?
+  apiSecret    String?
+  apiToken     String?             @db.Text
+  apiConfig    String?             @db.Text
+  contractCode String?
+  adminCode    String?
+  username     String?
+  password     String?
+  senderCNPJ   String?
+  senderCEP    String?
+  labelFormat  String?             @default("PDF")
+  labelWidth   Float?
+  labelHeight  Float?
+  trackingUrl  String?
+  priority     Int                 @default(0)
+  minWeight    Float?
+  maxWeight    Float?
+  maxLength    Float?
+  maxWidth     Float?
+  maxHeight    Float?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  services     ShippingService[]
+
+  @@index([isActive])
+  @@index([code])
+  @@map("shippingcarrier")
+}
+
+model ShippingService {
+  id             String          @id @default(cuid())
+  carrierId      String
+  code           String
+  name           String
+  description    String?
+  minDays        Int?
+  maxDays        Int?
+  additionalDays Int?            @default(0)
+  baseCost       Float?
+  costPerKg      Float?
+  percentageFee  Float?
+  isActive       Boolean         @default(true)
+  maxWeight      Float?
+  maxValue       Float?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  carrier        ShippingCarrier @relation(fields: [carrierId], references: [id], onDelete: Cascade)
+
+  @@unique([carrierId, code])
+  @@index([carrierId])
+  @@index([isActive])
+  @@map("shippingservice")
+}
+
+model SystemConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  category    String
+  label       String
+  description String?  @db.Text
+  type        String   @default("text")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([key])
+  @@map("systemconfig")
+}
+
+model analytics_table {
+  id          String   @id
+  name        String
+  description String?  @db.Text
+  data        String   @db.LongText
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([createdAt])
+  @@index([name])
 }
 
 enum EmployeeRole {
@@ -736,44 +903,17 @@ enum WithdrawalStatus {
   @@map("withdrawal_status")
 }
 
-model ShippingRule {
-  id              String   @id @default(cuid())
-  name            String
-  description     String?
-  regionType      String   // 'STATE', 'CITY', 'NATIONWIDE', 'ZIPCODE_RANGE'
-  regions         String   @db.Text // JSON array com estados/cidades/faixas de CEP
-  minWeight       Float?   // kg
-  maxWeight       Float?   // kg
-  minCartValue    Float?   // R$
-  maxCartValue    Float?   // R$
-  shippingCost    Float    // Custo fixo
-  costPerKg       Float?   // Custo adicional por kg
-  freeShippingMin Float?   // Frete grátis acima deste valor
-  deliveryDays    Int      // Prazo de entrega em dias
-  isActive        Boolean  @default(true)
-  priority        Int      @default(0) // Maior prioridade = aplicada primeiro
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([isActive])
-  @@index([regionType])
-  @@index([priority])
-  @@map("shippingrule")
+enum ShippingCarrierType {
+  OWN
+  CARRIER
+  POSTAL
+  AGGREGATOR
 }
 
-// Configurações gerais do sistema
-model SystemConfig {
-  id          String   @id @default(cuid())
-  key         String   @unique // Ex: "site.name", "appearance.primaryColor"
-  value       String   @db.Text // Valor em JSON para flexibilidade
-  category    String   // Ex: "geral", "aparencia", "ecommerce", "seo"
-  label       String   // Nome amigável
-  description String?  @db.Text
-  type        String   @default("text") // text, textarea, color, image, boolean, number, json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([category])
-  @@index([key])
-  @@map("systemconfig")
+enum PackagingType {
+  BOX
+  ENVELOPE
+  TUBE
+  BAG
+  CUSTOM
 }

@@ -13,6 +13,10 @@ interface ShippingOption {
   name: string;
   price: number;
   days: number;
+  // Campos de transportadora
+  shippingMethod?: string;
+  shippingService?: string;
+  shippingCarrier?: string;
 }
 
 @Component({
@@ -419,6 +423,10 @@ export class CheckoutPage implements OnInit {
         isFree: boolean;
         message?: string;
         options?: Array<{ id: string; name: string; price: number; days: number }>;
+        // Campos de transportadora
+        shippingMethod?: string;
+        shippingService?: string;
+        shippingCarrier?: string;
       }
       
       // Chamar API de cálculo de frete
@@ -431,15 +439,24 @@ export class CheckoutPage implements OnInit {
       ) as ShippingQuoteResponse;
 
       if (response.options && response.options.length > 0) {
-        // Se a API retornar múltiplas opções
-        this.shippingOptions = response.options;
+        // Se a API retornar múltiplas opções - mapear com campos de transportadora
+        this.shippingOptions = response.options.map(opt => ({
+          ...opt,
+          shippingMethod: response.shippingMethod || 'propria',
+          shippingService: opt.name,
+          shippingCarrier: response.shippingCarrier
+        }));
       } else {
         // Opção única da API
         this.shippingOptions = [{
           id: response.isFree ? 'free' : 'standard',
           name: response.isFree ? 'Frete Grátis' : (response.message || 'Entrega Padrão'),
           price: response.shippingCost,
-          days: response.deliveryDays
+          days: response.deliveryDays,
+          // Incluir dados da transportadora
+          shippingMethod: response.shippingMethod || 'propria',
+          shippingService: response.shippingService || (response.isFree ? 'Frete Grátis' : 'Padrão'),
+          shippingCarrier: response.shippingCarrier || 'Entrega Própria'
         }];
         
         // Se não for frete grátis e valor permite, adicionar opção expressa
@@ -448,7 +465,10 @@ export class CheckoutPage implements OnInit {
             id: 'express',
             name: 'Expresso',
             price: response.shippingCost + 15,
-            days: Math.max(1, response.deliveryDays - 3)
+            days: Math.max(1, response.deliveryDays - 3),
+            shippingMethod: response.shippingMethod || 'propria',
+            shippingService: 'Expresso',
+            shippingCarrier: response.shippingCarrier || 'Entrega Própria'
           });
         }
       }
@@ -467,13 +487,16 @@ export class CheckoutPage implements OnInit {
           id: 'free',
           name: 'Frete Grátis',
           price: 0,
-          days: 10
+          days: 10,
+          shippingMethod: 'propria',
+          shippingService: 'Frete Grátis',
+          shippingCarrier: 'Entrega Própria'
         }];
       } else {
         // Fallback com valores padrão
         this.shippingOptions = [
-          { id: 'standard', name: 'Padrão', price: 15.90, days: 7 },
-          { id: 'express', name: 'Expresso', price: 29.90, days: 3 }
+          { id: 'standard', name: 'Padrão', price: 15.90, days: 7, shippingMethod: 'propria', shippingService: 'Padrão', shippingCarrier: 'Entrega Própria' },
+          { id: 'express', name: 'Expresso', price: 29.90, days: 3, shippingMethod: 'propria', shippingService: 'Expresso', shippingCarrier: 'Entrega Própria' }
         ];
       }
       
@@ -655,6 +678,10 @@ export class CheckoutPage implements OnInit {
           method: this.selectedShipping?.id,
           price: this.shipping
         },
+        // Campos de transportadora para geração de etiqueta
+        shippingMethod: this.selectedShipping?.shippingMethod || 'propria',
+        shippingService: this.selectedShipping?.shippingService || this.selectedShipping?.name,
+        shippingCarrier: this.selectedShipping?.shippingCarrier || 'Entrega Própria',
         payment: {
           method: this.selectedPayment,
           cpf: this.paymentForm.get('cpf')?.value?.replace(/\D/g, ''),

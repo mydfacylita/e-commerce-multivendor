@@ -35,8 +35,8 @@ async function getMercadoPagoToken(): Promise<string | null> {
       config = JSON.parse(config)
     }
     
-    console.log('[SYNC-CRON] ✅ Token encontrado:', config.accessToken?.substring(0, 20) + '...')
-    return config.accessToken || null;
+    console.log('[SYNC-CRON] ✅ Token encontrado:', (config as any).accessToken?.substring(0, 20) + '...')
+    return (config as any).accessToken || null;
   } catch (error) {
     console.error('[SYNC-CRON] ❌ Erro ao buscar credenciais:', error);
     return null;

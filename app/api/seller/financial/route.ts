@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       if (!salesByOrder.has(item.orderId)) {
         salesByOrder.set(item.orderId, {
           id: item.orderId,
-          orderNumber: item.order.orderNumber,
+          orderNumber: item.order.id, // Usando ID como orderNumber
           createdAt: item.order.createdAt,
           status: item.order.status,
           total: 0,

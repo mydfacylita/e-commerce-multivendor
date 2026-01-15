@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     // Buscar assinaturas
     const subscriptions = await prisma.subscription.findMany({
       where: {
-        ...(status && { status }),
+        ...(status && { status: status as any }),
         ...(sellerId && { sellerId })
       },
       include: {

@@ -239,7 +239,7 @@ async function fetchMercadoLivreOrders() {
             let commissionAmount = 0
             let sellerRevenue = 0
 
-            if (isDropshipping) {
+            if (isDropshipping && product.supplierSku) {
               // Buscar comissão do produto ORIGINAL
               const originalProduct = await prisma.product.findUnique({
                 where: { id: product.supplierSku },

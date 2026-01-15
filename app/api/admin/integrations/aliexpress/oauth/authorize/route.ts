@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     }
 
     // URL de autorização do AliExpress (formato correto conforme documentação)
-    const redirectUri = `${process.env.NEXTAUTH_URL}/api/admin/integrations/aliexpress/oauth/callback`;
+    const redirectUri = `${process.env.ALIEXPRESS_CALLBACK_URL}/api/admin/integrations/aliexpress/oauth/callback`;
     
     // URL correta baseada na documentação OAuth 2.0 do AliExpress
     const authUrl = new URL('https://auth.aliexpress.com/oauth/authorize');

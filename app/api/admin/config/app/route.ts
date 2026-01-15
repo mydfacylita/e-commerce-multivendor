@@ -48,6 +48,7 @@ const APP_CONFIG_KEYS = [
   'app.enableGuestCheckout',
   'app.maintenanceMode',
   'app.maintenanceMessage',
+  'app.maintenanceReturnDate',
   
   // Suporte
   'app.termsUrl',

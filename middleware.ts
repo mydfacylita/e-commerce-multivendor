@@ -2,8 +2,13 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
-// ⚠️ MODO MANUTENÇÃO - Altere para true quando for subir a loja
-const MAINTENANCE_MODE = false
+// 🔧 Cache do modo manutenção (evita sobrecarga)
+let maintenanceCache = {
+  enabled: false,
+  lastCheck: 0,
+  checking: false
+}
+const CACHE_TTL = 10000 // 10 segundos
 
 // � API Key para o app móvel (carregada do env ou validada no banco)
 const APP_API_KEY = process.env.APP_API_KEY || ''
@@ -48,6 +53,45 @@ const PUBLIC_API_ROUTES = [
 ]
 
 /**
+ * 🔧 Buscar modo de manutenção (com cache inteligente)
+ */
+async function getMaintenanceMode(baseUrl: string): Promise<boolean> {
+  const now = Date.now()
+  
+  // Se cache é válido, retorna imediatamente
+  if (now - maintenanceCache.lastCheck < CACHE_TTL) {
+    return maintenanceCache.enabled
+  }
+
+  // Se já está checando, retorna cache atual (evita múltiplas chamadas)
+  if (maintenanceCache.checking) {
+    return maintenanceCache.enabled
+  }
+
+  maintenanceCache.checking = true
+
+  try {
+    const response = await fetch(`${baseUrl}/api/config/maintenance-status`, {
+      method: 'GET',
+      headers: { 'x-internal': 'true' },
+      cache: 'no-store'
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      maintenanceCache.enabled = data.enabled || false
+      maintenanceCache.lastCheck = now
+    }
+  } catch (error) {
+    console.error('[Middleware] Erro ao verificar manutenção:', error)
+  } finally {
+    maintenanceCache.checking = false
+  }
+
+  return maintenanceCache.enabled
+}
+
+/**
  * 🔒 Configurar headers CORS
  */
 function setCorsHeaders(response: NextResponse, origin: string | null) {
@@ -71,13 +115,26 @@ export async function middleware(request: NextRequest) {
     return setCorsHeaders(response, origin)
   }
 
-  // 🔧 MODO MANUTENÇÃO
-  if (MAINTENANCE_MODE) {
-    // Permite acesso à página de manutenção e arquivos estáticos
-    const allowedPaths = ['/manutencao', '/_next', '/favicon.ico', '/logo', '/api/health']
-    const isAllowed = allowedPaths.some(path => pathname.startsWith(path))
+  // 🔧 MODO MANUTENÇÃO (não verifica em rotas especiais)
+  const skipMaintenance = [
+    '/manutencao',
+    '/_next',
+    '/favicon.ico',
+    '/logo',
+    '/api/health',
+    '/api/config',
+    '/admin',
+    '/login',
+    '/registro',
+    '/api/auth',
+    '/api/admin'
+  ].some(path => pathname.startsWith(path))
+
+  if (!skipMaintenance) {
+    const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+    const isInMaintenance = await getMaintenanceMode(baseUrl)
     
-    if (!isAllowed) {
+    if (isInMaintenance) {
       return NextResponse.redirect(new URL('/manutencao', request.url))
     }
   }
@@ -160,7 +217,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/vendedor/:path*',
-    '/api/:path*',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 }

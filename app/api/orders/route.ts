@@ -3,9 +3,16 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { validateApiKey, validateUserToken } from '@/lib/api-security'
+import { analyzeFraud } from '@/lib/fraud-detection'
 
 export async function POST(req: NextRequest) {
   try {
+    // Capturar IP do usuário
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                     req.headers.get('x-real-ip') ||
+                     null
+    const userAgent = req.headers.get('user-agent') || null
+
     // 🔐 Validar API Key (obrigatório para app móvel)
     const apiKey = req.headers.get('x-api-key')
     if (apiKey) {
@@ -46,13 +53,47 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { items, total, shippingAddress, buyerPhone, buyerCpf, couponCode, discountAmount, shippingCost, subtotal } = body
+    const { 
+      items, 
+      total, 
+      shippingAddress, 
+      buyerPhone, 
+      buyerCpf, 
+      couponCode, 
+      discountAmount, 
+      shippingCost, 
+      subtotal,
+      // Campos de transportadora (formato web)
+      shippingMethod,     // 'correios', 'jadlog', 'propria', 'melhorenvio', etc.
+      shippingService,    // 'SEDEX', 'PAC', 'Expresso', etc.
+      shippingCarrier,    // Nome da transportadora para exibição
+      // Suporte a formato do app móvel
+      address,  // { street, number, city, state, zipCode, ... }
+      shipping, // { method, price }
+      payment,  // { method, cpf, installments }
+      totals    // { subtotal, shipping, discount, total }
+    } = body
+
+    // Normalizar dados do app móvel para formato web
+    const normalizedShippingAddress = shippingAddress || (address ? JSON.stringify(address) : null)
+    const normalizedTotal = total || totals?.total
+    const normalizedSubtotal = subtotal || totals?.subtotal
+    const normalizedShippingCost = shippingCost ?? shipping?.price ?? 0
+    const normalizedBuyerCpf = buyerCpf || payment?.cpf
+    
+    // Extrair método de envio do formato app ou web
+    const normalizedShippingMethod = shippingMethod || (shipping?.method === 'free' ? 'propria' : shipping?.method) || 'propria'
+    const normalizedShippingService = shippingService || null
+    const normalizedShippingCarrier = shippingCarrier || null
 
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     console.log('📦 [CREATE ORDER] Dados recebidos:')
-    console.log('   Total:', total)
-    console.log('   Subtotal:', subtotal)
-    console.log('   Frete:', shippingCost)
+    console.log('   Total:', normalizedTotal)
+    console.log('   Subtotal:', normalizedSubtotal)
+    console.log('   Frete:', normalizedShippingCost)
+    console.log('   Método Envio:', normalizedShippingMethod)
+    console.log('   Serviço:', normalizedShippingService)
+    console.log('   Transportadora:', normalizedShippingCarrier)
     console.log('   Cupom:', couponCode)
     console.log('   Desconto:', discountAmount)
     console.log('   Itens:', items?.length)
@@ -178,9 +219,10 @@ export async function POST(req: NextRequest) {
       const [[destination, orderItems]] = Array.from(itemsByDestination.entries())
       
       console.log('💾 [SALVANDO NO BANCO] Dados que SERÃO salvos:')
-      console.log('   Total:', total)
-      console.log('   Subtotal:', subtotal || total)
-      console.log('   ShippingCost:', shippingCost || 0)
+      console.log('   Total:', normalizedTotal)
+      console.log('   Subtotal:', normalizedSubtotal || normalizedTotal)
+      console.log('   ShippingCost:', normalizedShippingCost)
+      console.log('   ShippingMethod:', normalizedShippingMethod)
       console.log('   CouponCode:', couponCode || null)
       console.log('   DiscountAmount:', discountAmount || 0)
       console.log('   Items com size/color:', orderItems.map((i: any) => ({
@@ -189,21 +231,53 @@ export async function POST(req: NextRequest) {
         selectedColor: i.selectedColor
       })))
       
+      // 🛡️ ANÁLISE DE FRAUDE
+      console.log('\n🛡️ [ANTIFRAUDE] Analisando pedido...')
+      const fraudAnalysis = await analyzeFraud({
+        userId,
+        total: normalizedTotal,
+        buyerCpf: normalizedBuyerCpf || null,
+        buyerEmail: user?.email || null,
+        buyerPhone: buyerPhone || null,
+        shippingAddress: normalizedShippingAddress || null,
+        ipAddress,
+        paymentMethod: payment?.method || null,
+        paymentDetails: null // Será preenchido depois na confirmação de pagamento
+      })
+      
+      console.log(`   Score de Risco: ${fraudAnalysis.score}/100`)
+      console.log(`   Nível: ${fraudAnalysis.riskLevel.toUpperCase()}`)
+      console.log(`   Alertar Equipe: ${fraudAnalysis.shouldAlert ? 'SIM ⚠️' : 'NÃO ✅'}`)
+      if (fraudAnalysis.reasons.length > 0) {
+        console.log('   Motivos:')
+        fraudAnalysis.reasons.forEach(r => console.log(`     - ${r}`))
+      }
+      
       const order = await prisma.order.create({
         data: {
           user: { connect: { id: userId } },
-          total,
-          subtotal: subtotal || total,
-          shippingCost: shippingCost || 0,
+          total: normalizedTotal,
+          subtotal: normalizedSubtotal || normalizedTotal,
+          shippingCost: normalizedShippingCost,
           deliveryDays: body.deliveryDays || null,
           couponCode: couponCode || null,
-          discountAmount: discountAmount || 0,
-          shippingAddress,
+          discountAmount: discountAmount || totals?.discount || 0,
+          shippingAddress: normalizedShippingAddress,
           status: 'PENDING',
           buyerName: user?.name || '',
           buyerEmail: user?.email || '',
           buyerPhone: buyerPhone || '',
-          buyerCpf: buyerCpf || '',
+          buyerCpf: normalizedBuyerCpf || '',
+          // Campos de transportadora
+          shippingMethod: normalizedShippingMethod,
+          shippingService: normalizedShippingService,
+          shippingCarrier: normalizedShippingCarrier,
+          // Campos de antifraude
+          fraudScore: fraudAnalysis.score,
+          fraudReasons: JSON.stringify(fraudAnalysis.reasons),
+          fraudStatus: fraudAnalysis.shouldAlert ? 'pending' : null,
+          ipAddress,
+          userAgent,
           items: {
             create: orderItems
           },
@@ -243,16 +317,20 @@ export async function POST(req: NextRequest) {
             parentOrderId,
             total: subTotal,
             subtotal: subTotal,
-            shippingCost: (shippingCost || 0) / itemsByDestination.size, // Divide frete entre subpedidos
+            shippingCost: normalizedShippingCost / itemsByDestination.size, // Divide frete entre subpedidos
             deliveryDays: body.deliveryDays || null,
             couponCode: couponCode || null,
-            discountAmount: (discountAmount || 0) / itemsByDestination.size, // Divide desconto proporcionalmente
-            shippingAddress,
+            discountAmount: (discountAmount || totals?.discount || 0) / itemsByDestination.size, // Divide desconto proporcionalmente
+            shippingAddress: normalizedShippingAddress,
             status: 'PENDING',
             buyerName: user?.name || '',
             buyerEmail: user?.email || '',
             buyerPhone: buyerPhone || '',
-            buyerCpf: buyerCpf || '',
+            buyerCpf: normalizedBuyerCpf || '',
+            // Campos de transportadora
+            shippingMethod: normalizedShippingMethod,
+            shippingService: normalizedShippingService,
+            shippingCarrier: normalizedShippingCarrier,
             items: {
               create: orderItems
             },
@@ -299,7 +377,7 @@ export async function GET(req: Request) {
     }
 
     const orders = await prisma.order.findMany({
-      where: { userId: userId },
+      where: { userId: session.user.id },
       include: {
         items: {
           include: { product: true },

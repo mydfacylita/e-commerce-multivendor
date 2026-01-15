@@ -1,0 +1,7 @@
+# Ignorer app Angular
+mydshop-app/
+mydshop-app/**
+*.android.ts
+*.ios.ts
+capacitor.config.ts
+ionic.config.json

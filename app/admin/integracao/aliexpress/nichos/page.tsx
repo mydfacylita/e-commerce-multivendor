@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 
 // Lista expandida de nichos
 const NICHOS_PRODUTOS = [
@@ -92,6 +93,12 @@ export default function NichosAliExpressPage() {
   const [manualSearch, setManualSearch] = useState('');
   const [productLinks, setProductLinks] = useState('');
   const [loadingLinks, setLoadingLinks] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Marcar como montado no cliente
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Buscar fornecedor AliExpress ao carregar
   useEffect(() => {
@@ -378,7 +385,7 @@ export default function NichosAliExpressPage() {
     p.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (initialLoading) {
+  if (initialLoading || !mounted) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
@@ -398,12 +405,20 @@ export default function NichosAliExpressPage() {
             <h1 className="text-3xl font-bold text-gray-900">Importar Produtos AliExpress</h1>
             <p className="text-gray-600 mt-1">Selecione nichos, busque produtos e escolha quais importar</p>
           </div>
-          <button
-            onClick={() => router.back()}
-            className="px-4 py-2 text-gray-600 hover:text-gray-900"
-          >
-            ← Voltar
-          </button>
+          <div className="flex items-center gap-4">
+            <a
+              href="/admin/integracao/aliexpress/produto-detalhes"
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
+            >
+              🔍 Analisar Produto (Ver Dados API)
+            </a>
+            <button
+              onClick={() => router.back()}
+              className="px-4 py-2 text-gray-600 hover:text-gray-900"
+            >
+              ← Voltar
+            </button>
+          </div>
         </div>
 
         {/* Seleção de Nichos */}

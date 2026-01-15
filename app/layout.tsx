@@ -8,6 +8,7 @@ import DynamicFavicon from '@/components/DynamicFavicon'
 import DynamicStyles from '@/components/DynamicStyles'
 import { NavigationProvider } from '@/components/NavigationProvider'
 import LoadingScreen from '@/components/LoadingScreen'
+import AnalyticsTracker from '@/components/AnalyticsTracker'
 // Iniciar pollings de pagamento e limpeza automática
 import '@/lib/init'
 
@@ -36,6 +37,7 @@ export default function RootLayout({
             <DynamicFavicon />
             <DynamicStyles />
             <LoadingScreen />
+            <AnalyticsTracker />
             <div className="flex flex-col min-h-screen">
               <Navbar />
               <main className="flex-grow">{children}</main>

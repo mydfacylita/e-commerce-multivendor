@@ -1,6 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateApiKey } from '@/lib/api-security'
+import { PackagingService, PackagingResult } from '@/lib/packaging-service'
+
+export const dynamic = 'force-dynamic'
+
+// Função para identificar estado pelo CEP
+function getCepState(cep: string): string | null {
+  const cepRanges: { [key: string]: string[][] } = {
+    'SP': [['01000000', '19999999']],
+    'RJ': [['20000000', '28999999']],
+    'ES': [['29000000', '29999999']],
+    'MG': [['30000000', '39999999']],
+    'BA': [['40000000', '48999999']],
+    'SE': [['49000000', '49999999']],
+    'PE': [['50000000', '56999999']],
+    'AL': [['57000000', '57999999']],
+    'PB': [['58000000', '58999999']],
+    'RN': [['59000000', '59999999']],
+    'CE': [['60000000', '63999999']],
+    'PI': [['64000000', '64999999']],
+    'MA': [['65000000', '65999999']],
+    'PA': [['66000000', '68899999']],
+    'AP': [['68900000', '68999999']],
+    'AM': [['69000000', '69299999'], ['69400000', '69899999']],
+    'RR': [['69300000', '69399999']],
+    'AC': [['69900000', '69999999']],
+    'DF': [['70000000', '72799999'], ['73000000', '73699999']],
+    'GO': [['72800000', '72999999'], ['73700000', '76799999']],
+    'TO': [['77000000', '77999999']],
+    'MT': [['78000000', '78899999']],
+    'RO': [['76800000', '76999999']],
+    'MS': [['79000000', '79999999']],
+    'PR': [['80000000', '87999999']],
+    'SC': [['88000000', '89999999']],
+    'RS': [['90000000', '99999999']]
+  }
+
+  const cleanCep = cep.replace(/\D/g, '')
+  const cepNum = parseInt(cleanCep)
+
+  for (const [state, ranges] of Object.entries(cepRanges)) {
+    for (const [min, max] of ranges) {
+      if (cepNum >= parseInt(min) && cepNum <= parseInt(max)) {
+        return state
+      }
+    }
+  }
+  return null
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +63,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { cep, cartValue, weight } = await req.json()
+    const body = await req.json()
+    const { cep, cartValue, weight: bodyWeight, products } = body
 
     if (!cep) {
       return NextResponse.json(
@@ -23,6 +72,78 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Calcular peso e dimensões dos produtos usando o serviço de empacotamento
+    let packagingResult: PackagingResult | null = null
+    let totalWeight = bodyWeight || 0.3
+    let totalLength = 20
+    let totalWidth = 15
+    let totalHeight = 10
+
+    if (products && Array.isArray(products) && products.length > 0) {
+      // Buscar dados completos dos produtos no banco
+      const cartProducts = []
+      
+      for (const item of products) {
+        const productId = item.id || item.productId
+        if (!productId) continue
+
+        const cleanProductId = productId.split('_')[0]
+        const quantity = item.quantity || 1
+
+        const product = await prisma.product.findUnique({
+          where: { id: cleanProductId }
+        })
+
+        if (product) {
+          cartProducts.push({
+            id: product.id,
+            name: product.name,
+            quantity,
+            weight: product.weight || 0.3,
+            length: product.length || 16,
+            width: product.width || 11,
+            height: product.height || 5
+          })
+        } else {
+          // Produto não encontrado, usar valores padrão
+          cartProducts.push({
+            id: cleanProductId,
+            name: `Produto ${cleanProductId}`,
+            quantity,
+            weight: 0.3,
+            length: 16,
+            width: 11,
+            height: 5
+          })
+        }
+      }
+
+      // Usar serviço de empacotamento inteligente
+      if (cartProducts.length > 0) {
+        packagingResult = await PackagingService.selectBestPackaging(cartProducts)
+        
+        if (packagingResult.packaging) {
+          totalWeight = packagingResult.packaging.totalWeight
+          totalLength = packagingResult.packaging.outerLength
+          totalWidth = packagingResult.packaging.outerWidth
+          totalHeight = packagingResult.packaging.outerHeight
+          
+          console.log(`📦 Embalagem selecionada: ${packagingResult.packaging.name}`)
+          console.log(`   Peso total: ${totalWeight}kg | Dim: ${totalLength}x${totalWidth}x${totalHeight}cm`)
+          console.log(`   Peso volumétrico: ${packagingResult.packaging.volumetricWeight.toFixed(2)}kg`)
+          console.log(`   Utilização: ${packagingResult.debug.utilizationPercent}%`)
+        }
+      }
+    }
+
+    // Peso mínimo para Correios
+    if (totalWeight < 0.3) totalWeight = 0.3
+    if (totalLength < 16) totalLength = 16
+    if (totalWidth < 11) totalWidth = 11
+    if (totalHeight < 2) totalHeight = 2
+
+    console.log(`📦 Frete: CEP=${cep} | Peso=${totalWeight}kg | Dim=${totalLength}x${totalWidth}x${totalHeight}cm`)
 
     // Buscar regras ativas ordenadas por prioridade
     const rules = await prisma.shippingRule.findMany({
@@ -35,18 +156,54 @@ export async function POST(req: NextRequest) {
         shippingCost: 0,
         deliveryDays: 7,
         isFree: true,
-        message: 'Frete grátis'
+        message: 'Frete grátis',
+        // Campos de transportadora
+        shippingMethod: 'propria',
+        shippingService: 'Frete Grátis',
+        shippingCarrier: 'Entrega Própria'
       })
     }
 
     // Limpar CEP
     const cleanCep = cep.replace(/\D/g, '')
-    console.log('🔍 Calculando frete para CEP:', cleanCep, '| Carrinho:', cartValue, '| Peso:', weight)
+    console.log('🔍 Calculando frete para CEP:', cleanCep, '| Carrinho:', cartValue, '| Peso:', totalWeight)
+
+    // Coletar informações sobre promoções/requisitos mínimos
+    let promoInfo: { minValue: number; ruleName: string } | null = null
 
     // Tentar encontrar regra que se aplica
     for (const rule of rules) {
       console.log(`📋 Testando regra: ${rule.name} (${rule.regionType})`)
       
+      // Verificar se a região aplica primeiro (para coletar info de promoção relevante)
+      let matchesRegion = false
+      try {
+        const regions = JSON.parse(rule.regions)
+        if (rule.regionType === 'NATIONWIDE') {
+          matchesRegion = true
+        } else if (rule.regionType === 'STATE') {
+          const estadoCep = getCepState(cleanCep)
+          matchesRegion = !!estadoCep && regions.includes(estadoCep)
+        } else if (rule.regionType === 'ZIPCODE_RANGE') {
+          const cepNum = parseInt(cleanCep)
+          matchesRegion = regions.some((range: any) => {
+            const [min, max] = range.split('-').map((c: string) => parseInt(c.replace(/\D/g, '')))
+            return cepNum >= min && cepNum <= max
+          })
+        } else if (rule.regionType === 'CITY') {
+          matchesRegion = true
+        }
+      } catch (e) {
+        matchesRegion = rule.regionType === 'NATIONWIDE'
+      }
+
+      // Se a região aplica mas o valor não atinge o mínimo, guardar info
+      if (matchesRegion && rule.minCartValue && cartValue < rule.minCartValue) {
+        if (!promoInfo || rule.minCartValue < promoInfo.minValue) {
+          promoInfo = { minValue: rule.minCartValue, ruleName: rule.name }
+        }
+      }
+
       // Verificar restrições de valor do carrinho
       if (rule.minCartValue && cartValue < rule.minCartValue) {
         console.log(`❌ Carrinho R$${cartValue} < mínimo R$${rule.minCartValue}`)
@@ -58,49 +215,16 @@ export async function POST(req: NextRequest) {
       }
 
       // Verificar restrições de peso
-      if (rule.minWeight && weight < rule.minWeight) {
-        console.log(`❌ Peso ${weight}kg < mínimo ${rule.minWeight}kg`)
+      if (rule.minWeight && totalWeight < rule.minWeight) {
+        console.log(`❌ Peso ${totalWeight}kg < mínimo ${rule.minWeight}kg`)
         continue
       }
-      if (rule.maxWeight && weight > rule.maxWeight) {
-        console.log(`❌ Peso ${weight}kg > máximo ${rule.maxWeight}kg`)
+      if (rule.maxWeight && totalWeight > rule.maxWeight) {
+        console.log(`❌ Peso ${totalWeight}kg > máximo ${rule.maxWeight}kg`)
         continue
       }
 
-      // Verificar regiões
-      let matchesRegion = false
-      try {
-        const regions = JSON.parse(rule.regions)
-        console.log('📍 Regiões da regra:', regions)
-
-        if (rule.regionType === 'NATIONWIDE') {
-          matchesRegion = true
-          console.log('✅ NATIONWIDE - aplica para todo Brasil')
-        } else if (rule.regionType === 'STATE') {
-          // Pegar estado do CEP (primeiros 2 dígitos identificam região, mas vamos simplificar)
-          matchesRegion = true // Por enquanto aceita todos
-          console.log('✅ STATE - aceito (implementação simplificada)')
-        } else if (rule.regionType === 'ZIPCODE_RANGE') {
-          // Verificar se CEP está nas faixas
-          const cepNum = parseInt(cleanCep)
-          console.log('🔢 CEP numérico:', cepNum)
-          
-          matchesRegion = regions.some((range: any) => {
-            const [min, max] = range.split('-').map((c: string) => parseInt(c.replace(/\D/g, '')))
-            const matches = cepNum >= min && cepNum <= max
-            console.log(`  Faixa ${min}-${max}: ${matches ? '✅ MATCH' : '❌ não match'}`)
-            return matches
-          })
-        } else if (rule.regionType === 'CITY') {
-          // Por enquanto aceita
-          matchesRegion = true
-          console.log('✅ CITY - aceito (implementação simplificada)')
-        }
-      } catch (e) {
-        console.log('⚠️ Erro ao parsear regiões:', e)
-        matchesRegion = rule.regionType === 'NATIONWIDE'
-      }
-
+      // Já verificamos matchesRegion acima, só precisamos logar
       if (!matchesRegion) {
         console.log('❌ Região não corresponde')
         continue
@@ -112,8 +236,8 @@ export async function POST(req: NextRequest) {
       let shippingCost = rule.shippingCost
 
       // Adicionar custo por peso
-      if (rule.costPerKg && weight) {
-        shippingCost += rule.costPerKg * weight
+      if (rule.costPerKg && totalWeight) {
+        shippingCost += rule.costPerKg * totalWeight
       }
 
       // Verificar frete grátis
@@ -122,7 +246,12 @@ export async function POST(req: NextRequest) {
           shippingCost: 0,
           deliveryDays: rule.deliveryDays,
           isFree: true,
-          message: `Frete grátis! (compra acima de R$ ${rule.freeShippingMin.toFixed(2)})`
+          message: `Frete grátis! (compra acima de R$ ${rule.freeShippingMin.toFixed(2)})`,
+          packaging: packagingResult?.packaging || null,
+          // Campos de transportadora
+          shippingMethod: 'propria',
+          shippingService: 'Frete Grátis',
+          shippingCarrier: 'Entrega Própria'
         })
       }
 
@@ -130,7 +259,12 @@ export async function POST(req: NextRequest) {
         shippingCost: parseFloat(shippingCost.toFixed(2)),
         deliveryDays: rule.deliveryDays,
         isFree: false,
-        ruleName: rule.name
+        ruleName: rule.name,
+        packaging: packagingResult?.packaging || null,
+        // Campos de transportadora
+        shippingMethod: 'propria',
+        shippingService: rule.name,
+        shippingCarrier: 'Entrega Própria'
       })
     }
 
@@ -155,10 +289,10 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             cepOrigem: cepOrigemConfig.value,
             cepDestino: cleanCep,
-            peso: weight || 0.5,
-            comprimento: 20,
-            altura: 10,
-            largura: 15,
+            peso: totalWeight,
+            comprimento: totalLength,
+            altura: totalHeight,
+            largura: totalWidth,
             valor: cartValue
           })
         })
@@ -166,21 +300,48 @@ export async function POST(req: NextRequest) {
         if (correiosResponse.ok) {
           const correiosData = await correiosResponse.json()
           
-          // Pegar o resultado mais barato sem erro
-          const resultadosValidos = correiosData.resultados?.filter((r: any) => !r.erro && r.valor > 0)
+          // Pegar todos os resultados válidos sem erro
+          const resultadosValidos = correiosData.resultados?.filter((r: any) => !r.erro && r.valor > 0) || []
           
-          if (resultadosValidos && resultadosValidos.length > 0) {
+          if (resultadosValidos.length > 0) {
             // Ordenar por valor (mais barato primeiro)
             resultadosValidos.sort((a: any, b: any) => a.valor - b.valor)
             const maisBarato = resultadosValidos[0]
             
-            console.log(`✅ Correios: ${maisBarato.servico} - R$ ${maisBarato.valor} (${maisBarato.prazo} dias)`)
+            // Mostrar todas as opções no log
+            resultadosValidos.forEach((r: any) => {
+              console.log(`✅ Correios: ${r.servico} - R$ ${r.valor} (${r.prazo} dias)`)
+            })
+            
+            // Mapear todas as opções para o cliente escolher
+            const shippingOptions = resultadosValidos.map((r: any) => ({
+              id: `correios_${r.servico.toLowerCase().replace(/\s+/g, '_')}`,
+              name: r.servico,
+              price: r.valor,
+              deliveryDays: r.prazo,
+              carrier: 'Correios',
+              method: 'correios',
+              service: r.servico
+            }))
             
             return NextResponse.json({
               shippingCost: maisBarato.valor,
               deliveryDays: maisBarato.prazo,
               isFree: false,
-              message: `Via Correios (${maisBarato.servico})`
+              message: `Via Correios`,
+              packaging: packagingResult?.packaging || null,
+              // Campos de transportadora (opção mais barata como padrão)
+              shippingMethod: 'correios',
+              shippingService: maisBarato.servico,
+              shippingCarrier: 'Correios',
+              // TODAS as opções de frete para o cliente escolher
+              shippingOptions,
+              // Info de promoção
+              promo: promoInfo ? {
+                minValue: promoInfo.minValue,
+                missing: parseFloat((promoInfo.minValue - cartValue).toFixed(2)),
+                ruleName: promoInfo.ruleName
+              } : null
             })
           }
         }
@@ -190,11 +351,28 @@ export async function POST(req: NextRequest) {
     }
 
     // Fallback: frete padrão
+    let fallbackMessage = 'Frete padrão'
+    if (promoInfo) {
+      const faltam = promoInfo.minValue - cartValue
+      fallbackMessage = `Frete padrão - 💡 Adicione mais R$ ${faltam.toFixed(2)} para frete especial!`
+    }
+    
     return NextResponse.json({
       shippingCost: 15.00,
       deliveryDays: 10,
       isFree: false,
-      message: 'Frete padrão'
+      message: fallbackMessage,
+      packaging: packagingResult?.packaging || null,
+      // Campos de transportadora
+      shippingMethod: 'propria',
+      shippingService: 'Padrão',
+      shippingCarrier: 'Entrega Própria',
+      // Info de promoção
+      promo: promoInfo ? {
+        minValue: promoInfo.minValue,
+        missing: parseFloat((promoInfo.minValue - cartValue).toFixed(2)),
+        ruleName: promoInfo.ruleName
+      } : null
     })
 
   } catch (error) {

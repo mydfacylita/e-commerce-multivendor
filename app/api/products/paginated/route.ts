@@ -6,6 +6,9 @@ import { sanitizeHtml } from '@/lib/validation'
 import { logError, sanitizeError } from '@/lib/error-handler'
 import { validateApiKey } from '@/lib/api-security'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     // 🔒 Validar API Key

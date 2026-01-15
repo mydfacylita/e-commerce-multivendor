@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const state = searchParams.get('state'); // userId
     
     if (!code || !state) {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/admin/integracao/aliexpress?error=no_code`);
+      return NextResponse.redirect(`${process.env.ALIEXPRESS_CALLBACK_URL}/admin/integracao/aliexpress?error=no_code`);
     }
 
     console.log('✅ Código OAuth recebido:', code);
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!auth) {
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/admin/integracao/aliexpress?error=no_config`);
+      return NextResponse.redirect(`${process.env.ALIEXPRESS_CALLBACK_URL}/admin/integracao/aliexpress?error=no_config`);
     }
 
     // Trocar código por access token - Endpoint oficial /rest/auth/token/create
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     if (!accessToken) {
       console.error('❌ Access token não encontrado na resposta');
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/admin/integracao/aliexpress?error=no_token`);
+      return NextResponse.redirect(`${process.env.ALIEXPRESS_CALLBACK_URL}/admin/integracao/aliexpress?error=no_token`);
     }
 
     // Salvar tokens no banco
@@ -125,10 +125,10 @@ export async function GET(req: NextRequest) {
     console.log('✅ Access token salvo com sucesso!');
     console.log('⏰ Expira em:', expiresAt);
 
-    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/admin/integracao/aliexpress?success=authorized`);
+    return NextResponse.redirect(`${process.env.ALIEXPRESS_CALLBACK_URL}/admin/integracao/aliexpress?success=authorized`);
   } catch (error) {
     console.error('❌ Erro no callback OAuth:', error);
-    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/admin/integracao/aliexpress?error=callback_failed`);
+    return NextResponse.redirect(`${process.env.ALIEXPRESS_CALLBACK_URL}/admin/integracao/aliexpress?error=callback_failed`);
   }
 }
 

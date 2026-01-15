@@ -2,6 +2,7 @@
 
 import { FiShoppingCart } from 'react-icons/fi'
 import { useCartStore } from '@/lib/store'
+import { analytics } from '@/lib/analytics-client'
 import toast from 'react-hot-toast'
 
 interface Product {
@@ -55,6 +56,14 @@ export default function AddToCartButton({ product, disabled, selectedColor, sele
       : `${product.name} adicionado ao carrinho!`
     
     toast.success(message)
+    
+    // Registrar evento de analytics
+    analytics.addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1
+    })
   }
 
   const isDisabled = disabled || product.stock === 0

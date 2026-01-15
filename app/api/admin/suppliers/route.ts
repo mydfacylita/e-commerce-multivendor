@@ -47,7 +47,7 @@ export async function GET() {
       orderBy: { name: 'asc' },
     })
 
-    return NextResponse.json(suppliers)
+    return NextResponse.json({ suppliers })
   } catch (error) {
     console.error('Erro ao buscar fornecedores:', error)
     return NextResponse.json(

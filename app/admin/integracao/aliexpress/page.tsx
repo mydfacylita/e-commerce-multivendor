@@ -31,6 +31,7 @@ interface InfoModal {
 }
 
 export default function AliExpressIntegrationPage() {
+  const [mounted, setMounted] = useState(false)
   const [status, setStatus] = useState<AliExpressStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
@@ -46,6 +47,10 @@ export default function AliExpressIntegrationPage() {
     title: '',
     message: ''
   })
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Categorias principais do AliExpress para Dropshipping
   const categories = [
@@ -168,7 +173,11 @@ export default function AliExpressIntegrationPage() {
 
   const fetchSuppliers = async () => {
     try {
+      console.log('🔍 Buscando fornecedores...');
       const response = await fetch('/api/admin/suppliers')
+      
+      console.log('📊 Response status:', response.status);
+      
       if (!response.ok) {
         if (response.status === 401) {
           showModal({
@@ -185,8 +194,23 @@ export default function AliExpressIntegrationPage() {
         throw new Error(`Status ${response.status}`)
       }
       const data = await response.json()
+      console.log('📋 Dados recebidos:', data);
+      console.log('📋 Fornecedores encontrados:', data.suppliers?.length || 0);
+      
       setSuppliers(data.suppliers || [])
+      
+      // Auto-selecionar AliExpress se existir e nenhum estiver selecionado
+      if (data.suppliers && data.suppliers.length > 0 && !selectedSupplier) {
+        const aliexpressSupplier = data.suppliers.find((s: any) => 
+          s.name.toLowerCase().includes('aliexpress') || s.type === 'aliexpress'
+        );
+        if (aliexpressSupplier) {
+          setSelectedSupplier(aliexpressSupplier.id);
+          console.log('✅ Auto-selecionado fornecedor:', aliexpressSupplier.name);
+        }
+      }
     } catch (error) {
+      console.error('❌ Erro ao buscar fornecedores:', error);
       showModal({
         type: 'error',
         title: 'Erro ao Carregar Fornecedores',
@@ -492,6 +516,10 @@ export default function AliExpressIntegrationPage() {
     }
   }
 
+  if (!mounted) {
+    return null
+  }
+
   return (
     <div>
       <Link
@@ -724,16 +752,24 @@ export default function AliExpressIntegrationPage() {
                       onChange={(e) => setSelectedSupplier(e.target.value)}
                       className="w-full border border-gray-300 rounded-md px-4 py-2"
                     >
-                      <option value="">Selecione um fornecedor</option>
+                      <option value="">
+                        {suppliers.length === 0 ? 'Carregando fornecedores...' : 'Selecione um fornecedor'}
+                      </option>
                       {suppliers.map((supplier) => (
                         <option key={supplier.id} value={supplier.id}>
                           {supplier.name}
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Produtos serão vinculados a este fornecedor
-                    </p>
+                    {suppliers.length === 0 ? (
+                      <p className="text-xs text-red-500 mt-1">
+                        ⚠️ Nenhum fornecedor encontrado. Recarregue a página.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Produtos serão vinculados a este fornecedor ({suppliers.length} disponíveis)
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -790,10 +826,20 @@ export default function AliExpressIntegrationPage() {
                     )}
                   </button>
 
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                    <p className="text-sm text-yellow-800">
-                      <strong>✅ Produtos validados para Dropshipping:</strong> A API retorna apenas produtos pré-aprovados pelo programa de Dropshipping do AliExpress para o Brasil.
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                    <h4 className="font-semibold text-blue-800 mb-3">🔍 Sistema de Validação Dropshipping</h4>
+                    <p className="text-sm text-blue-700 mb-3">
+                      Nossa busca agora <strong>pré-valida automaticamente</strong> todos os produtos para garantir 100% de compatibilidade:
                     </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-blue-700">
+                      <div>• ✅ Teste de frete em tempo real</div>
+                      <div>• 🚫 Filtro anti-AliExpress Choice</div>
+                      <div>• 💰 Preço mínimo R$ 8,00</div>
+                      <div>• ⚡ Validação antes da importação</div>
+                    </div>
+                    <div className="mt-3 p-2 bg-white rounded text-xs text-blue-600 font-medium">
+                      🎯 Resultado: Apenas produtos 100% compatíveis com dropshipping chegam até sua loja!
+                    </div>
                   </div>
                 </div>
               </div>

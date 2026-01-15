@@ -139,13 +139,13 @@ export async function getNubankService() {
     config = JSON.parse(config)
   }
   
-  if (!config.clientId || !config.clientSecret) {
+  if (!(config as any).clientId || !(config as any).clientSecret) {
     throw new Error('Nubank credentials not configured')
   }
 
   return new NubankService(
-    config.clientId,
-    config.clientSecret,
-    config.environment || 'production'
+    (config as any).clientId,
+    (config as any).clientSecret,
+    (config as any).environment || 'production'
   )
 }

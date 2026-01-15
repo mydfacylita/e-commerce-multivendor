@@ -8,72 +8,68 @@ const nextConfig = {
       },
     ],
   },
-  // 🌐 CORS: Permitir requisições de outros IPs (mobile app)
+  
+  // 🚀 BUILD CONFIG: Otimizado para produção
+  trailingSlash: false,
+  
+  // 🚀 BUILD CONFIG: Generate build ID
+  async generateBuildId() {
+    return 'production-build-' + Date.now()
+  },
+
+  // Otimizações de performance
+  experimental: {
+    optimizeCss: true
+  },
+  
+  // Comprimir respostas
+  compress: true,
+  
+  // 🔒 SEGURANÇA: Não gerar source maps em produção (esconde código fonte)
+  productionBrowserSourceMaps: false,
+  
+  // 🔒 SEGURANÇA: Desabilitar indicador de X-Powered-By
+  poweredByHeader: false,
+  
+  // 🔒 SEGURANÇA: Desabilitar overlay de erro que expõe código
+  devIndicators: {
+    buildActivity: false,
+    buildActivityPosition: 'bottom-right',
+  },
+  
+  // Prefetch otimizado
+  onDemandEntries: {
+    maxInactiveAge: 60 * 1000,
+    pagesBufferLength: 2,
+  },
+  
+  // 🚀 BUILD CONFIG: Unified headers configuration
   async headers() {
     return [
+      // CORS para APIs
       {
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, x-api-key' },
+          { key: 'Cache-Control', value: 'no-store' }, // Prevent caching of API routes
         ],
       },
-    ];
-  },
-  // Otimizações de performance
-  experimental: {
-    optimizeCss: true,
-  },
-  // Comprimir respostas
-  compress: true,
-  // 🔒 SEGURANÇA: Não gerar source maps em produção (esconde código fonte)
-  productionBrowserSourceMaps: false,
-  // 🔒 SEGURANÇA: Desabilitar indicador de X-Powered-By
-  poweredByHeader: false,
-  // 🔒 SEGURANÇA: Desabilitar overlay de erro que expõe código
-  devIndicators: {
-    buildActivity: true,
-    buildActivityPosition: 'bottom-right',
-  },
-  // Prefetch otimizado
-  onDemandEntries: {
-    maxInactiveAge: 60 * 1000,
-    pagesBufferLength: 5,
-  },
-  
-  // 🔒 HEADERS DE SEGURANÇA
-  async headers() {
-    return [
+      // Headers de segurança para todas as rotas
       {
-        // Aplicar a todas as rotas
         source: '/(.*)',
         headers: [
           // Prevenir clickjacking
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY'
-          },
+          { key: 'X-Frame-Options', value: 'DENY' },
           // Prevenir MIME type sniffing
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff'
-          },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
           // Controlar informações do referrer
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin'
-          },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           // Desabilitar recursos desnecessários
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
-          },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
           // Proteção XSS (navegadores antigos)
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block'
-          },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
           // Forçar HTTPS (apenas em produção)
           ...(process.env.NODE_ENV === 'production' ? [{
             key: 'Strict-Transport-Security',

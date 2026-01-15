@@ -24,12 +24,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Salvar ou atualizar credenciais
+    // IMPORTANTE: Limpar accessToken para forçar nova autorização
     await prisma.aliExpressAuth.upsert({
       where: { userId: session.user.id },
       update: {
         appKey: cleanAppKey,
         appSecret: cleanAppSecret,
-        trackingId: cleanTrackingId || null
+        trackingId: cleanTrackingId || null,
+        accessToken: null,
+        refreshToken: null,
+        expiresAt: null
       },
       create: {
         userId: session.user.id,

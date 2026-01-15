@@ -26,7 +26,7 @@ export async function GET() {
         },
         // Excluir pedidos cancelados
         status: {
-          notIn: ['CANCELLED', 'CANCELED', 'REFUNDED']
+          notIn: ['CANCELLED']
         }
       },
       include: {

@@ -5,6 +5,9 @@ import { isValidCEP } from '@/lib/validation'
 import { validateApiKey } from '@/lib/api-security'
 import * as crypto from 'crypto'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 /**
  * 🔒 Fetch com timeout
  */
@@ -56,7 +59,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { items, shippingAddress, zipCode } = body
 
+    console.log('🚚 [Shipping Calculate] Nova solicitação:', {
+      itemCount: items?.length || 0,
+      zipCode,
+      shippingAddress: shippingAddress ? 'Fornecido' : 'Não fornecido'
+    })
+
     if (!items || !Array.isArray(items) || items.length === 0) {
+      console.log('❌ [Shipping Calculate] Nenhum item fornecido')
       return NextResponse.json(
         { message: 'Nenhum item fornecido' },
         { status: 400 }
