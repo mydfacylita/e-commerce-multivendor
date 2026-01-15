@@ -43,7 +43,37 @@ const nextConfig = {
     pagesBufferLength: 2,
   },
   
-  // 🚀 BUILD CONFIG: Unified headers configuration
+  // � SEGURANÇA: Rewrites baseado em host para subdomínio admin
+  async rewrites() {
+    return {
+      beforeFiles: [
+        // Quando acessar gerencial-sys.mydshop.com.br/, redireciona para /admin
+        {
+          source: '/',
+          has: [
+            {
+              type: 'host',
+              value: 'gerencial-sys.mydshop.com.br',
+            },
+          ],
+          destination: '/admin',
+        },
+        // Mapeia todas as rotas do subdomínio para /admin/*
+        {
+          source: '/:path((?!admin).*)',
+          has: [
+            {
+              type: 'host',
+              value: 'gerencial-sys.mydshop.com.br',
+            },
+          ],
+          destination: '/admin/:path*',
+        },
+      ],
+    }
+  },
+  
+  // �🚀 BUILD CONFIG: Unified headers configuration
   async headers() {
     return [
       // CORS para APIs

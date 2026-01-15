@@ -108,6 +108,18 @@ function setCorsHeaders(response: NextResponse, origin: string | null) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const origin = request.headers.get('origin')
+  const host = request.headers.get('host') || ''
+
+  // 🔒 SEGURANÇA: Bloquear /admin no domínio principal
+  // Apenas permite acesso via subdomínio gerencial-sys.mydshop.com.br
+  if (pathname.startsWith('/admin')) {
+    const isAdminSubdomain = host.startsWith('gerencial-sys.')
+    
+    if (!isAdminSubdomain) {
+      // Retorna 404 para esconder que a rota existe
+      return new NextResponse(null, { status: 404 })
+    }
+  }
 
   // 🔒 Tratar preflight OPTIONS para CORS
   if (request.method === 'OPTIONS') {
