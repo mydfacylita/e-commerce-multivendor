@@ -5,11 +5,8 @@ workflows:
     instance_type: mac_mini_m1
     
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.mydshop.app
       vars:
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_WORKSPACE: "mydshop-app/ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
       node: 18
       xcode: latest
@@ -18,56 +15,52 @@ workflows:
     triggering:
       events:
         - push
-        - pull_request
       branch_patterns:
-        - pattern: main
-          include: true
-        - pattern: develop
+        - pattern: master
           include: true
 
     scripts:
       - name: Install dependencies
         script: |
+          cd mydshop-app
           npm ci
           
       - name: Build web assets
         script: |
+          cd mydshop-app
           npm run build
           
       - name: Update Capacitor
         script: |
+          cd mydshop-app
           npx cap sync ios
           
       - name: Install CocoaPods
         script: |
-          cd ios/App
+          cd mydshop-app/ios/App
           pod install
-          
-      - name: Set up code signing
-        script: |
-          xcode-project use-profiles
           
       - name: Build iOS app
         script: |
-          xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
+          cd mydshop-app
+          xcodebuild -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ios \
+            build
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - mydshop-app/build/ios/**/*.app
       - /tmp/xcodebuild_logs/*.log
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
 
     publishing:
       email:
         recipients:
-          - seu-email@exemplo.com
+          - contato@mydshop.com.br
         notify:
           success: true
           failure: true
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
 
   android-workflow:
     name: Android Build
@@ -75,10 +68,6 @@ workflows:
     instance_type: mac_mini_m1
     
     environment:
-      android_signing:
-        - mydshop_keystore
-      groups:
-        - google_play
       vars:
         PACKAGE_NAME: "com.mydshop.app"
       node: 18
@@ -88,40 +77,38 @@ workflows:
       events:
         - push
       branch_patterns:
-        - pattern: main
+        - pattern: master
           include: true
 
     scripts:
       - name: Install dependencies
         script: |
+          cd mydshop-app
           npm ci
           
       - name: Build web assets
         script: |
+          cd mydshop-app
           npm run build
           
       - name: Update Capacitor
         script: |
+          cd mydshop-app
           npx cap sync android
           
-      - name: Build Android APK/AAB
+      - name: Build Android APK
         script: |
-          cd android
-          ./gradlew assembleRelease
-          ./gradlew bundleRelease
+          cd mydshop-app/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
     artifacts:
-      - android/app/build/outputs/**/*.apk
-      - android/app/build/outputs/**/*.aab
+      - mydshop-app/android/app/build/outputs/**/*.apk
 
     publishing:
       email:
         recipients:
-          - seu-email@exemplo.com
+          - contato@mydshop.com.br
         notify:
           success: true
           failure: true
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
-        submit_as_draft: true
