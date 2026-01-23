@@ -48,6 +48,34 @@ const routes: Routes = [
     canActivate: [AuthGuard]
   },
   
+  // Detalhes do pedido (requer autenticação)
+  {
+    path: 'order-details/:id',
+    loadChildren: () => import('./features/order-details/order-details.module').then(m => m.OrderDetailsPageModule),
+    canActivate: [AuthGuard]
+  },
+  
+  // Sucesso do pedido / Pagamento
+  {
+    path: 'order-success/:id',
+    loadChildren: () => import('./features/order-success/order-success.module').then(m => m.OrderSuccessPageModule),
+    canActivate: [AuthGuard]
+  },
+  
+  // Página de pagamento (escolher método)
+  {
+    path: 'payment/:id',
+    loadChildren: () => import('./features/payment/payment.module').then(m => m.PaymentPageModule),
+    canActivate: [AuthGuard]
+  },
+  
+  // Editar perfil (requer autenticação)
+  {
+    path: 'profile/edit',
+    loadChildren: () => import('./features/profile/edit/edit-profile.module').then(m => m.EditProfilePageModule),
+    canActivate: [AuthGuard]
+  },
+  
   // Fallback
   {
     path: '**',

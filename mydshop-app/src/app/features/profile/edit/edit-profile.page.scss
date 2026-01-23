@@ -1,0 +1,118 @@
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0 32px;
+
+  .avatar-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    cursor: pointer;
+
+    .avatar-image {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid var(--app-primary, #f97316);
+    }
+
+    .avatar-placeholder {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--app-primary, #f97316), var(--app-primary-dark, #ea580c));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 4px solid var(--app-primary, #f97316);
+
+      span {
+        font-size: 40px;
+        font-weight: 700;
+        color: white;
+        text-transform: uppercase;
+      }
+    }
+
+    .edit-badge {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--app-primary, #f97316);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+      ion-icon {
+        font-size: 18px;
+        color: white;
+      }
+    }
+  }
+
+  .avatar-hint {
+    margin-top: 12px;
+    font-size: 14px;
+    color: #6b7280;
+  }
+}
+
+ion-list {
+  background: transparent;
+  padding: 0;
+
+  ion-item {
+    --background: #f9fafb;
+    --border-radius: 12px;
+    margin-bottom: 8px;
+    --padding-start: 16px;
+    --padding-end: 16px;
+
+    ion-label {
+      font-weight: 500;
+      color: #374151;
+    }
+
+    ion-input {
+      --padding-top: 8px;
+      --padding-bottom: 8px;
+      font-size: 16px;
+    }
+
+    .readonly-field {
+      opacity: 0.6;
+    }
+  }
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 12px;
+  padding: 4px 16px;
+  margin-top: -4px;
+  margin-bottom: 8px;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  padding: 0 16px;
+  margin: -4px 0 16px;
+}
+
+.button-section {
+  padding: 24px 0;
+
+  ion-button {
+    --border-radius: 12px;
+    height: 50px;
+    font-weight: 600;
+  }
+}

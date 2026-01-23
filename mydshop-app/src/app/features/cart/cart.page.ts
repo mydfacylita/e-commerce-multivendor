@@ -90,6 +90,11 @@ export class CartPage implements OnInit {
     }
   }
 
+  async removeCoupon() {
+    await this.cartService.removeCoupon();
+    this.showToast('Cupom removido', 'success');
+  }
+
   async goToCheckout() {
     const isAuthenticated = await this.authService.checkAuth();
     

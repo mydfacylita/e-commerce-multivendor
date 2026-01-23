@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService, User } from '../../core/services/auth.service';
-import { AlertController } from '@ionic/angular';
+import { AlertController, ViewWillEnter } from '@ionic/angular';
 
 @Component({
   selector: 'app-profile',
@@ -9,9 +9,10 @@ import { AlertController } from '@ionic/angular';
   styleUrls: ['./profile.page.scss'],
   standalone: false
 })
-export class ProfilePage implements OnInit {
+export class ProfilePage implements OnInit, ViewWillEnter {
   user: User | null = null;
   isAuthenticated = false;
+  isLoading = true;
 
   menuItems = [
     { icon: 'receipt-outline', label: 'Meus Pedidos', route: '/orders' },
@@ -32,11 +33,26 @@ export class ProfilePage implements OnInit {
   ngOnInit() {
     this.authService.currentUser$.subscribe(user => {
       this.user = user;
+      console.log('🔐 Profile: user changed', user?.email);
     });
     
     this.authService.isAuthenticated$.subscribe(isAuth => {
       this.isAuthenticated = isAuth;
+      console.log('🔐 Profile: isAuthenticated changed', isAuth);
     });
+  }
+  
+  async ionViewWillEnter() {
+    // Aguardar inicialização do AuthService
+    this.isLoading = true;
+    await this.authService.waitForInit();
+    this.isLoading = false;
+    
+    // Atualizar estado
+    const isAuth = await this.authService.checkAuth();
+    if (isAuth && !this.user) {
+      this.user = await this.authService.getUserAsync();
+    }
   }
 
   goToLogin() {

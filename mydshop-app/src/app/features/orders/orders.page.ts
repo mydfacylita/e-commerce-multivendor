@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { LoadingController, ToastController, AlertController } from '@ionic/angular';
 import { ApiService } from '../../core/services/api.service';
+import { formatOrderNumber } from '../../shared/utils/order.utils';
 
 interface OrderItem {
   id: string;
@@ -63,9 +64,10 @@ export class OrdersPage implements OnInit {
   async loadOrders() {
     this.isLoading = true;
     
-    this.apiService.get<{ orders: Order[] }>('/orders').subscribe({
+    this.apiService.get<{ orders: any[] }>('/orders').subscribe({
       next: (response) => {
-        this.orders = response.orders || [];
+        // Mapear dados da API para o formato esperado
+        this.orders = (response.orders || []).map(order => this.mapOrder(order));
         this.applyFilter();
         this.isLoading = false;
       },
@@ -79,6 +81,58 @@ export class OrdersPage implements OnInit {
         toast.present();
       }
     });
+  }
+  
+  /**
+   * Mapeia pedido da API para formato do frontend
+   */
+  private mapOrder(apiOrder: any): Order {
+    // Parsear imagens do produto (pode ser JSON string)
+    const parseImages = (images: any): string => {
+      if (!images) return 'assets/placeholder.png';
+      try {
+        const parsed = typeof images === 'string' ? JSON.parse(images) : images;
+        return Array.isArray(parsed) ? parsed[0] : parsed;
+      } catch {
+        return typeof images === 'string' ? images : 'assets/placeholder.png';
+      }
+    };
+    
+    return {
+      id: apiOrder.id,
+      orderNumber: formatOrderNumber(apiOrder.id),
+      status: apiOrder.status,
+      statusLabel: this.getStatusLabel(apiOrder.status),
+      createdAt: apiOrder.createdAt,
+      total: apiOrder.total,
+      items: (apiOrder.items || []).map((item: any) => ({
+        id: item.id,
+        name: item.product?.name || 'Produto',
+        price: item.price,
+        quantity: item.quantity,
+        image: parseImages(item.product?.images),
+        size: item.selectedSize,
+        color: item.selectedColor
+      })),
+      tracking: apiOrder.trackingCode ? {
+        code: apiOrder.trackingCode,
+        carrier: apiOrder.shippingCarrier || 'Correios',
+        url: `https://www.linkcorreios.com.br/?id=${apiOrder.trackingCode}`
+      } : undefined
+    };
+  }
+  
+  private getStatusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      'PENDING': 'Pendente',
+      'PAID': 'Pago',
+      'PROCESSING': 'Em processamento',
+      'SHIPPED': 'Enviado',
+      'DELIVERED': 'Entregue',
+      'CANCELLED': 'Cancelado',
+      'REFUNDED': 'Reembolsado'
+    };
+    return labels[status] || status;
   }
 
   async doRefresh(event: any) {

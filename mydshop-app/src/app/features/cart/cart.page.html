@@ -7,13 +7,16 @@
 <ion-content>
   <!-- Carrinho vazio -->
   <div *ngIf="cart.items.length === 0" class="empty-cart">
-    <ion-icon name="cart-outline"></ion-icon>
+    <div class="empty-cart-icon">
+      <ion-icon name="cart-outline"></ion-icon>
+    </div>
     <h2>Seu carrinho está vazio</h2>
-    <p>Adicione produtos para continuar</p>
-    <ion-button routerLink="/tabs/home">
-      <ion-icon slot="start" name="storefront-outline"></ion-icon>
-      Explorar Produtos
-    </ion-button>
+    <p>Descubra produtos incríveis e adicione ao seu carrinho</p>
+    <button class="explore-btn" routerLink="/tabs/home">
+      <ion-icon name="storefront-outline"></ion-icon>
+      <span>Explorar Produtos</span>
+      <ion-icon name="arrow-forward-outline" class="arrow"></ion-icon>
+    </button>
   </div>
 
   <!-- Itens do carrinho -->
@@ -22,7 +25,7 @@
       <ion-item-sliding *ngFor="let item of cart.items">
         <ion-item>
           <ion-thumbnail slot="start">
-            <img [src]="item.image || 'assets/placeholder.png'" [alt]="item.name">
+            <img [src]="item.image | imageUrl" [alt]="item.name">
           </ion-thumbnail>
           
           <ion-label>
@@ -53,7 +56,20 @@
 
     <!-- Cupom -->
     <div class="coupon-section">
-      <ion-item>
+      <!-- Cupom aplicado -->
+      <ion-item *ngIf="cart.couponCode" lines="none" class="coupon-applied">
+        <ion-icon name="pricetag" slot="start" color="success"></ion-icon>
+        <ion-label>
+          <h3>{{ cart.couponCode }}</h3>
+          <p>Desconto de {{ formatPrice(cart.discount) }}</p>
+        </ion-label>
+        <ion-button slot="end" fill="clear" color="danger" (click)="removeCoupon()">
+          <ion-icon slot="icon-only" name="close-circle"></ion-icon>
+        </ion-button>
+      </ion-item>
+      
+      <!-- Input para aplicar cupom -->
+      <ion-item *ngIf="!cart.couponCode">
         <ion-input 
           [(ngModel)]="couponCode" 
           placeholder="Cupom de desconto"
@@ -73,7 +89,7 @@
         <span>{{ formatPrice(cart.subtotal) }}</span>
       </div>
       <div class="summary-row" *ngIf="cart.discount > 0">
-        <span>Desconto</span>
+        <span>Desconto <span *ngIf="cart.couponCode">({{ cart.couponCode }})</span></span>
         <span class="discount">-{{ formatPrice(cart.discount) }}</span>
       </div>
       <div class="summary-row" *ngIf="cart.shipping > 0">

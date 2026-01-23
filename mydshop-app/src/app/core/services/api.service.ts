@@ -9,9 +9,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError, BehaviorSubject, from } from 'rxjs';
 import { catchError, retry, switchMap, finalize } from 'rxjs/operators';
-import { Platform } from '@ionic/angular';
 import { environment } from '../../../environments/environment';
 import { StorageService } from './storage.service';
+import { getApiUrl, logApiConfig } from '../config/api.config';
 
 export interface ApiResponse<T> {
   data?: T;
@@ -27,32 +27,38 @@ export interface ApiResponse<T> {
 })
 export class ApiService {
   private readonly isLoading = new BehaviorSubject<boolean>(false);
+  private apiUrl: string;
   
   // Observable para componentes que querem mostrar loading
   public isLoading$ = this.isLoading.asObservable();
 
   constructor(
     private http: HttpClient,
-    private storage: StorageService,
-    private platform: Platform
-  ) {}
-
-  /**
-   * Retorna a URL base correta baseada na plataforma
-   */
-  private getBaseUrl(): string {
-    // No browser, usar proxy
-    return environment.apiUrl;
+    private storage: StorageService
+  ) {
+    // Configuração centralizada - definida uma vez
+    this.apiUrl = getApiUrl();
+    logApiConfig();
   }
 
   /**
-   * Cria headers com token de autenticação
+   * Retorna a URL base da API
+   */
+  private getBaseUrl(): string {
+    return this.apiUrl;
+  }
+
+  /**
+   * Cria headers com token de autenticação e API Key
    */
   private async getHeaders(): Promise<HttpHeaders> {
     const token = await this.storage.get(environment.auth.tokenKey);
+    console.log('🔐 API Headers - Token:', token ? 'Presente' : 'Ausente');
+    
     let headers = new HttpHeaders({
       'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'x-api-key': environment.apiKey
     });
 
     if (token) {
@@ -189,6 +195,35 @@ export class ApiService {
       switchMap(headers => {
         return this.http.delete<T>(`${this.getBaseUrl()}${endpoint}`, { headers });
       }),
+      finalize(() => this.isLoading.next(false)),
+      catchError((error) => this.handleError(error))
+    );
+  }
+
+  /**
+   * GET request público (sem autenticação)
+   * Útil para verificar status de pagamento, etc.
+   */
+  getPublic<T>(endpoint: string, params?: any): Observable<T> {
+    this.isLoading.next(true);
+    
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'x-api-key': environment.apiKey
+    });
+
+    let httpParams = new HttpParams();
+    if (params) {
+      Object.keys(params).forEach(key => {
+        if (params[key] !== null && params[key] !== undefined) {
+          httpParams = httpParams.set(key, params[key].toString());
+        }
+      });
+    }
+
+    return this.http.get<T>(`${this.getBaseUrl()}${endpoint}`, { headers, params: httpParams }).pipe(
+      retry(1),
       finalize(() => this.isLoading.next(false)),
       catchError((error) => this.handleError(error))
     );

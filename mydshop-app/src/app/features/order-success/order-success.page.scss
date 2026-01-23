@@ -1,0 +1,305 @@
+// Variáveis
+$primary-color: var(--ion-color-primary);
+$success-color: var(--ion-color-success);
+$danger-color: var(--ion-color-danger);
+$warning-color: var(--ion-color-warning);
+$medium-color: var(--ion-color-medium);
+$light-color: var(--ion-color-light);
+
+// Card principal
+.payment-card {
+  background: var(--ion-card-background, #fff);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+
+  &.success {
+    border: 2px solid var(--ion-color-success);
+  }
+
+  &.error {
+    border: 2px solid var(--ion-color-danger);
+  }
+}
+
+// Header do pagamento
+.payment-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+
+  .payment-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+
+    ion-icon {
+      font-size: 32px;
+      color: #fff;
+    }
+
+    &.pix {
+      background: linear-gradient(135deg, #32BCAD 0%, #00A896 100%);
+    }
+
+    &.boleto {
+      background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+    }
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+    color: var(--ion-text-color);
+  }
+
+  .order-info {
+    font-size: 0.95rem;
+    color: $medium-color;
+    margin: 0;
+  }
+}
+
+// Badge de expiração
+.expiration-badge,
+.due-date-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(var(--ion-color-warning-rgb), 0.15);
+  color: var(--ion-color-warning-shade);
+  padding: 0.6rem 1rem;
+  border-radius: 24px;
+  margin: 0 auto 1.5rem;
+  font-size: 0.9rem;
+  max-width: fit-content;
+
+  ion-icon {
+    font-size: 1.1rem;
+  }
+
+  strong {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 1rem;
+  }
+}
+
+.due-date-badge {
+  background: rgba(var(--ion-color-primary-rgb), 0.1);
+  color: var(--ion-color-primary-shade);
+}
+
+// QR Code
+.qr-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.qr-code-box {
+  background: #fff;
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+
+  img {
+    display: block;
+    width: 200px;
+    height: 200px;
+    border-radius: 8px;
+  }
+}
+
+.qr-not-available {
+  text-align: center;
+  color: $medium-color;
+  font-size: 0.9rem;
+  padding: 2rem;
+}
+
+// Instruções
+.instructions {
+  text-align: center;
+  margin-bottom: 1.25rem;
+
+  p {
+    color: $medium-color;
+    font-size: 0.9rem;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .divider {
+    display: block;
+    color: var(--ion-color-medium-shade);
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
+    position: relative;
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 30%;
+      height: 1px;
+      background: var(--ion-color-light-shade);
+    }
+
+    &::before {
+      left: 10%;
+    }
+
+    &::after {
+      right: 10%;
+    }
+  }
+}
+
+// Código PIX/Boleto
+.pix-code-section,
+.barcode-section {
+  margin-bottom: 1rem;
+
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: $medium-color;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .code-display {
+    background: var(--ion-color-light);
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    border: 1px solid var(--ion-color-light-shade);
+
+    span {
+      display: block;
+      font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+      font-size: 0.75rem;
+      color: var(--ion-color-dark);
+      word-break: break-all;
+      line-height: 1.4;
+    }
+  }
+}
+
+// Status de verificação
+.status-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(var(--ion-color-primary-rgb), 0.05);
+  border-radius: 8px;
+  margin-top: 1rem;
+
+  span {
+    color: $primary-color;
+    font-size: 0.85rem;
+  }
+
+  ion-spinner {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+// Resultado (aprovado/rejeitado)
+.result-container {
+  text-align: center;
+  padding: 1rem 0;
+
+  .result-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.25rem;
+
+    ion-icon {
+      font-size: 48px;
+    }
+
+    &.success {
+      background: rgba(var(--ion-color-success-rgb), 0.1);
+
+      ion-icon {
+        color: $success-color;
+      }
+    }
+
+    &.error {
+      background: rgba(var(--ion-color-danger-rgb), 0.1);
+
+      ion-icon {
+        color: $danger-color;
+      }
+    }
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+    color: var(--ion-text-color);
+  }
+
+  .order-info {
+    font-size: 0.95rem;
+    color: $medium-color;
+    margin: 0 0 0.75rem;
+  }
+
+  .result-message {
+    font-size: 0.95rem;
+    color: $medium-color;
+    margin: 0;
+  }
+}
+
+// Botões de ação
+.action-buttons {
+  padding-top: 0.5rem;
+
+  ion-button {
+    --border-radius: 12px;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+// Animações
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.qr-code-box {
+  animation: pulse 2s ease-in-out infinite;
+}

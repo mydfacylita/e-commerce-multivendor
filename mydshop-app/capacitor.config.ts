@@ -11,11 +11,11 @@ const config: CapacitorConfig = {
   plugins: {
     // Splash Screen
     SplashScreen: {
-      launchShowDuration: 2000,
-      launchAutoHide: true,
-      backgroundColor: '#FFFFFF',
+      launchShowDuration: 0,
+      launchAutoHide: false,
+      backgroundColor: '#0A1929',
       androidSplashResourceName: 'splash',
-      androidScaleType: 'CENTER_CROP',
+      androidScaleType: 'CENTER_INSIDE',
       showSpinner: false,
       splashFullScreen: true,
       splashImmersive: true
@@ -23,8 +23,8 @@ const config: CapacitorConfig = {
     
     // Status Bar
     StatusBar: {
-      style: 'DARK',
-      backgroundColor: '#007acc',
+      style: 'LIGHT',
+      backgroundColor: '#0A1929',
       overlaysWebView: false
     },
     
@@ -40,11 +40,18 @@ const config: CapacitorConfig = {
     }
   },
   
+  // Servidor para desenvolvimento - usar HTTP para evitar Mixed Content
+  server: {
+    androidScheme: 'http', // HTTP para permitir requisições HTTP
+    cleartext: true
+  },
+  
   // Configurações Android
   android: {
-    allowMixedContent: false,
+    allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: false // Desabilitar em produção
+    webContentsDebuggingEnabled: true, // Habilitar para debug
+    useLegacyBridge: true
   },
   
   // Configurações iOS

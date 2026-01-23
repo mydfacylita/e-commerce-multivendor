@@ -1,0 +1,216 @@
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+  color: var(--ion-color-medium);
+}
+
+.payment-container {
+  padding: 1rem;
+}
+
+.order-header {
+  text-align: center;
+  padding: 1.5rem;
+  background: var(--ion-card-background);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  h2 {
+    font-size: 1rem;
+    color: var(--ion-color-medium);
+    margin: 0 0 0.5rem;
+    font-weight: 500;
+  }
+
+  .total-label {
+    font-size: 0.85rem;
+    color: var(--ion-color-medium);
+    margin: 0;
+  }
+
+  .total-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--ion-color-primary);
+    margin: 0.25rem 0 0;
+  }
+}
+
+.payment-methods {
+  h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 1rem;
+    color: var(--ion-text-color);
+  }
+}
+
+.payment-method {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--ion-card-background);
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+
+  &.selected {
+    border-color: var(--ion-color-primary);
+    background: var(--ion-color-primary-tint);
+  }
+
+  .method-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--ion-color-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    ion-icon {
+      font-size: 24px;
+      color: var(--ion-color-primary);
+    }
+  }
+
+  &.selected .method-icon {
+    background: var(--ion-color-primary);
+
+    ion-icon {
+      color: #fff;
+    }
+  }
+
+  .method-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+
+    .method-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--ion-text-color);
+    }
+
+    .method-description {
+      font-size: 0.8rem;
+      color: var(--ion-color-medium);
+    }
+
+    .method-discount {
+      font-size: 0.8rem;
+      color: var(--ion-color-success);
+      font-weight: 600;
+    }
+  }
+
+  .check-icon {
+    font-size: 24px;
+    color: var(--ion-color-primary);
+  }
+}
+
+.payment-summary {
+  background: var(--ion-card-background);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    font-size: 0.95rem;
+
+    &.discount {
+      color: var(--ion-color-success);
+    }
+
+    &.total {
+      border-top: 1px solid var(--ion-color-light);
+      margin-top: 0.5rem;
+      padding-top: 0.75rem;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+  }
+}
+
+// Formulário de Cartão de Crédito
+.credit-card-form {
+  background: var(--ion-card-background);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-top: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 1rem;
+    color: var(--ion-text-color);
+  }
+
+  ion-item {
+    --background: var(--ion-color-light);
+    --border-radius: 10px;
+    --padding-start: 12px;
+    --inner-padding-end: 12px;
+    margin-bottom: 0.75rem;
+    border-radius: 10px;
+    
+    &::part(native) {
+      border-radius: 10px;
+    }
+  }
+
+  ion-input {
+    --padding-top: 8px;
+    --padding-bottom: 8px;
+    font-size: 1rem;
+  }
+
+  ion-select {
+    --padding-top: 8px;
+    --padding-bottom: 8px;
+  }
+
+  .card-row {
+    display: flex;
+    gap: 0.75rem;
+
+    .expiry-item {
+      flex: 1;
+    }
+
+    .cvv-item {
+      flex: 0.7;
+    }
+  }
+}
+
+ion-footer {
+  ion-toolbar {
+    padding: 0.5rem 1rem 1rem;
+    --background: transparent;
+    --border-width: 0;
+  }
+
+  ion-button {
+    --border-radius: 12px;
+    height: 52px;
+    font-weight: 600;
+    font-size: 1rem;
+  }
+}

@@ -1,0 +1,167 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Pagamento</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="isLoading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Carregando...</p>
+  </div>
+
+  <div class="payment-container" *ngIf="!isLoading && order">
+    <!-- Header do Pedido -->
+    <div class="order-header">
+      <h2>Pedido {{ orderNumber }}</h2>
+      <p class="total-label">Valor total</p>
+      <p class="total-value">{{ formatCurrency(order.total) }}</p>
+    </div>
+
+    <!-- Métodos de Pagamento -->
+    <div class="payment-methods">
+      <h3>Escolha a forma de pagamento</h3>
+      
+      <div 
+        class="payment-method"
+        *ngFor="let method of paymentMethods"
+        [class.selected]="selectedPayment === method.id"
+        (click)="selectPayment(method.id)">
+        
+        <div class="method-icon">
+          <ion-icon [name]="method.icon"></ion-icon>
+        </div>
+        
+        <div class="method-info">
+          <span class="method-name">{{ method.name }}</span>
+          <span class="method-description">{{ method.description }}</span>
+          <span class="method-discount" *ngIf="method.discount > 0">
+            {{ method.discount }}% de desconto
+          </span>
+        </div>
+        
+        <ion-icon 
+          name="checkmark-circle" 
+          class="check-icon"
+          *ngIf="selectedPayment === method.id">
+        </ion-icon>
+      </div>
+    </div>
+
+    <!-- Resumo -->
+    <div class="payment-summary" *ngIf="selectedPayment">
+      <div class="summary-row">
+        <span>Subtotal</span>
+        <span>{{ formatCurrency(order.total) }}</span>
+      </div>
+      <div class="summary-row discount" *ngIf="selectedPayment === 'pix' && pixDiscount > 0">
+        <span>Desconto PIX ({{ pixDiscount }}%)</span>
+        <span>-{{ formatCurrency(order.total * pixDiscount / 100) }}</span>
+      </div>
+      <div class="summary-row total">
+        <span>Total a pagar</span>
+        <span>{{ formatCurrency(totalWithDiscount) }}</span>
+      </div>
+    </div>
+
+    <!-- Formulário de Cartão de Crédito -->
+    <div class="credit-card-form" *ngIf="selectedPayment === 'credit'">
+      <h3>Dados do Cartão</h3>
+      
+      <ion-item>
+        <ion-input
+          label="Número do Cartão"
+          labelPlacement="floating"
+          type="tel"
+          [(ngModel)]="cardData.number"
+          (ionInput)="formatCardNumber($event)"
+          placeholder="0000 0000 0000 0000"
+          maxlength="19">
+        </ion-input>
+      </ion-item>
+
+      <ion-item>
+        <ion-input
+          label="Nome no Cartão"
+          labelPlacement="floating"
+          type="text"
+          [(ngModel)]="cardData.holderName"
+          placeholder="NOME COMO ESTÁ NO CARTÃO"
+          style="text-transform: uppercase;">
+        </ion-input>
+      </ion-item>
+
+      <div class="card-row">
+        <ion-item class="expiry-item">
+          <ion-input
+            label="Validade"
+            labelPlacement="floating"
+            type="tel"
+            [(ngModel)]="cardData.expiry"
+            (ionInput)="formatExpiry($event)"
+            placeholder="MM/AA"
+            maxlength="5">
+          </ion-input>
+        </ion-item>
+
+        <ion-item class="cvv-item">
+          <ion-input
+            label="CVV"
+            labelPlacement="floating"
+            type="tel"
+            [(ngModel)]="cardData.cvv"
+            placeholder="123"
+            maxlength="4">
+          </ion-input>
+        </ion-item>
+      </div>
+
+      <!-- CPF do titular -->
+      <ion-item>
+        <ion-input
+          label="CPF do Titular"
+          labelPlacement="floating"
+          type="tel"
+          [(ngModel)]="cardData.cpf"
+          (ionInput)="formatCPF($event)"
+          placeholder="000.000.000-00"
+          maxlength="14">
+        </ion-input>
+      </ion-item>
+
+      <!-- Parcelas -->
+      <ion-item>
+        <ion-select
+          label="Parcelas"
+          labelPlacement="floating"
+          [(ngModel)]="cardData.installments"
+          interface="action-sheet">
+          <ion-select-option *ngFor="let opt of installmentOptions" [value]="opt.value">
+            {{ opt.label }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+    </div>
+  </div>
+</ion-content>
+
+<ion-footer *ngIf="!isLoading && order">
+  <ion-toolbar>
+    <ion-button 
+      expand="block" 
+      [disabled]="!selectedPayment || isProcessing"
+      (click)="processPayment()">
+      <ion-spinner name="crescent" *ngIf="isProcessing"></ion-spinner>
+      <span *ngIf="!isProcessing">
+        <ion-icon name="lock-closed-outline" slot="start"></ion-icon>
+        Pagar {{ formatCurrency(totalWithDiscount) }}
+      </span>
+    </ion-button>
+  </ion-toolbar>
+</ion-footer>

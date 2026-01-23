@@ -19,8 +19,6 @@ export interface CartItem {
   quantity: number;
   image: string;
   stock?: number;
-  size?: string;
-  color?: string;
   selectedSize?: string;
   selectedColor?: string;
 }
@@ -31,6 +29,7 @@ export interface Cart {
   shipping: number;
   discount: number;
   total: number;
+  couponCode?: string | null;
 }
 
 const CART_STORAGE_KEY = 'mydshop_cart';
@@ -44,7 +43,8 @@ export class CartService {
     subtotal: 0,
     shipping: 0,
     discount: 0,
-    total: 0
+    total: 0,
+    couponCode: null
   });
 
   public cart$ = this.cart.asObservable();
@@ -63,8 +63,26 @@ export class CartService {
   private async loadCart(): Promise<void> {
     try {
       const savedCart = await this.storage.get<Cart>(CART_STORAGE_KEY);
-      if (savedCart && savedCart.items.length > 0) {
-        this.cart.next(savedCart);
+      if (savedCart && savedCart.items && savedCart.items.length > 0) {
+        // Garantir que todos os valores numéricos são válidos
+        const sanitizedCart: Cart = {
+          items: savedCart.items,
+          subtotal: Number(savedCart.subtotal) || 0,
+          shipping: Number(savedCart.shipping) || 0,
+          discount: Number(savedCart.discount) || 0,
+          total: Number(savedCart.total) || 0,
+          couponCode: savedCart.couponCode || null
+        };
+        
+        // Recalcular total se necessário
+        if (isNaN(sanitizedCart.total) || sanitizedCart.total === 0) {
+          sanitizedCart.subtotal = sanitizedCart.items.reduce(
+            (sum, item) => sum + (item.price * item.quantity), 0
+          );
+          sanitizedCart.total = sanitizedCart.subtotal + sanitizedCart.shipping - sanitizedCart.discount;
+        }
+        
+        this.cart.next(sanitizedCart);
       }
     } catch (error) {
       console.error('Erro ao carregar carrinho:', error);
@@ -87,11 +105,15 @@ export class CartService {
       (sum, item) => sum + (item.price * item.quantity),
       0
     );
+    
+    // Garantir que os valores são números válidos
+    const shipping = Number(currentCart.shipping) || 0;
+    const discount = Number(currentCart.discount) || 0;
 
     this.cart.next({
       ...currentCart,
       subtotal,
-      total: subtotal + currentCart.shipping - currentCart.discount
+      total: subtotal + shipping - discount
     });
   }
 
@@ -179,7 +201,8 @@ export class CartService {
       subtotal: 0,
       shipping: 0,
       discount: 0,
-      total: 0
+      total: 0,
+      couponCode: null
     });
     await this.saveCart();
   }
@@ -189,22 +212,64 @@ export class CartService {
    */
   async applyCoupon(code: string): Promise<number> {
     try {
-      const request = await this.api.post<{ discount: number }>('/coupons/validate', {
+      const request = await this.api.post<{ 
+        valid: boolean;
+        discount?: number; 
+        discountAmount?: number;
+        error?: string;
+        message?: string;
+      }>('/coupons/validate', {
         code,
         subtotal: this.cart.value.subtotal
       });
       const response = await firstValueFrom(request);
 
+      // Verificar se a resposta é válida
+      if (!response.valid) {
+        throw new Error(response.error || response.message || 'Cupom inválido');
+      }
+
       const currentCart = this.cart.value;
-      currentCart.discount = response.discount;
-      currentCart.total = currentCart.subtotal + currentCart.shipping - response.discount;
+      // Garantir que o desconto é um número válido
+      const discountValue = Number(response.discountAmount) || Number(response.discount) || 0;
+      
+      if (isNaN(discountValue)) {
+        throw new Error('Erro ao calcular desconto');
+      }
+
+      currentCart.discount = discountValue;
+      currentCart.couponCode = code.toUpperCase();
+      currentCart.total = currentCart.subtotal + currentCart.shipping - discountValue;
       this.cart.next(currentCart);
       await this.saveCart();
 
-      return response.discount;
-    } catch (error) {
+      return discountValue;
+    } catch (error: any) {
+      // Tratar erro de resposta HTTP
+      if (error.error) {
+        throw new Error(error.error.error || error.error.message || 'Cupom inválido');
+      }
       throw error;
     }
+  }
+
+  /**
+   * Remove cupom aplicado
+   */
+  async removeCoupon(): Promise<void> {
+    const currentCart = this.cart.value;
+    currentCart.couponCode = null;
+    currentCart.discount = 0;
+    currentCart.total = currentCart.subtotal + currentCart.shipping;
+    this.cart.next(currentCart);
+    await this.saveCart();
+  }
+
+  /**
+   * Retorna o cupom aplicado
+   */
+  getCouponCode(): string | null {
+    return this.cart.value.couponCode || null;
   }
 
   /**

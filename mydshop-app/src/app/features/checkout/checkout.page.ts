@@ -644,7 +644,7 @@ export class CheckoutPage implements OnInit {
     }
     
     const loading = await this.loadingController.create({
-      message: 'Processando pagamento...',
+      message: 'Criando pedido...',
       spinner: 'crescent'
     });
     await loading.present();
@@ -656,13 +656,16 @@ export class CheckoutPage implements OnInit {
       const selectedAddress = this.getSelectedAddress();
       const addressData = selectedAddress || this.addressForm.value;
       
+      // Obter cupom aplicado do carrinho
+      const couponCode = this.cartService.getCouponCode();
+      
       const orderData = {
         items: this.cartItems.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
           price: item.price,
-          size: item.size,
-          color: item.color
+          selectedSize: item.selectedSize || null,
+          selectedColor: item.selectedColor || null
         })),
         address: {
           id: selectedAddress?.id,
@@ -682,6 +685,10 @@ export class CheckoutPage implements OnInit {
         shippingMethod: this.selectedShipping?.shippingMethod || 'propria',
         shippingService: this.selectedShipping?.shippingService || this.selectedShipping?.name,
         shippingCarrier: this.selectedShipping?.shippingCarrier || 'Entrega Própria',
+        // Prazo de entrega
+        deliveryDays: this.selectedShipping?.days || null,
+        // Cupom de desconto
+        couponCode: couponCode || null,
         payment: {
           method: this.selectedPayment,
           cpf: this.paymentForm.get('cpf')?.value?.replace(/\D/g, ''),
@@ -696,18 +703,61 @@ export class CheckoutPage implements OnInit {
         }
       };
       
-      const response = await firstValueFrom(this.apiService.post<any>('/orders', orderData));
+      // 1. Criar pedido
+      const orderResponse = await firstValueFrom(this.apiService.post<any>('/orders', orderData));
+      const orderId = orderResponse.orderId;
+      
+      console.log('📦 Pedido criado:', orderId);
+      
+      // 2. Atualizar loading
+      loading.message = 'Processando pagamento...';
+      
+      // 3. Criar pagamento para o pedido
+      const paymentMethod = this.mapPaymentMethod(this.selectedPayment!);
+      const paymentPayload: any = {
+        amount: this.total,
+        description: `Pedido #${orderId.slice(0, 8).toUpperCase()}`,
+        type: 'ORDER',
+        referenceId: orderId,
+        paymentMethod: paymentMethod
+      };
+      
+      // Se for cartão, adicionar dados do cartão
+      if (this.selectedPayment === 'credit' || this.selectedPayment === 'debit') {
+        // Nota: Em produção, usar tokenização do gateway (ex: MercadoPago.js)
+        // Por enquanto, enviar dados do cartão para o backend tokenizar
+        paymentPayload.cardNumber = this.paymentForm.get('cardNumber')?.value?.replace(/\s/g, '');
+        paymentPayload.cardName = this.paymentForm.get('cardName')?.value;
+        paymentPayload.cardExpiry = this.paymentForm.get('cardExpiry')?.value;
+        paymentPayload.cardCvv = this.paymentForm.get('cardCvv')?.value;
+        paymentPayload.installments = this.paymentForm.get('installments')?.value || 1;
+      }
+      
+      const paymentResponse = await firstValueFrom(this.apiService.post<any>('/payment/create', paymentPayload));
+      
+      console.log('💳 Pagamento criado:', paymentResponse);
       
       await loading.dismiss();
       
       // Clear cart after successful order
       this.cartService.clearCart();
       
+      // Salvar dados do pagamento no localStorage (código PIX é muito grande para URL)
+      localStorage.setItem(`payment_${orderId}`, JSON.stringify({
+        paymentId: paymentResponse.paymentId,
+        status: paymentResponse.status,
+        qrCode: paymentResponse.qrCode,
+        qrCodeBase64: paymentResponse.qrCodeBase64,
+        boletoUrl: paymentResponse.boletoUrl,
+        barcode: paymentResponse.barcode,
+        boletoNumber: paymentResponse.boletoNumber,
+        dueDate: paymentResponse.dueDate
+      }));
+      
       // Navigate to order confirmation
-      this.router.navigate(['/order-success', response.orderId], {
+      this.router.navigate(['/order-success', orderId], {
         queryParams: {
-          paymentMethod: this.selectedPayment,
-          paymentData: JSON.stringify(response.paymentData)
+          paymentMethod: this.selectedPayment
         }
       });
       
@@ -717,6 +767,24 @@ export class CheckoutPage implements OnInit {
     }
     
     this.isProcessing = false;
+  }
+  
+  /**
+   * Mapeia método de pagamento do app para o formato da API
+   */
+  private mapPaymentMethod(method: string): string {
+    switch (method) {
+      case 'pix':
+        return 'pix';
+      case 'boleto':
+        return 'boleto';
+      case 'credit':
+        return 'credit_card';
+      case 'debit':
+        return 'debit_card';
+      default:
+        return 'pix';
+    }
   }
 
   async showToast(message: string, color: string) {

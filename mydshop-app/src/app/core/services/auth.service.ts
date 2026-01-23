@@ -50,6 +50,10 @@ export interface RegisterData {
 export class AuthService {
   private currentUser = new BehaviorSubject<User | null>(null);
   private isAuthenticated = new BehaviorSubject<boolean>(false);
+  
+  // 🔐 Promise para aguardar inicialização completa
+  private initialized: Promise<void>;
+  private initResolve!: () => void;
 
   // Observables públicos
   public currentUser$ = this.currentUser.asObservable();
@@ -61,7 +65,18 @@ export class AuthService {
     private storage: StorageService,
     private navCtrl: NavController
   ) {
+    // Criar promise de inicialização
+    this.initialized = new Promise(resolve => {
+      this.initResolve = resolve;
+    });
     this.loadUserFromStorage();
+  }
+
+  /**
+   * Aguarda inicialização do serviço
+   */
+  public async waitForInit(): Promise<void> {
+    return this.initialized;
   }
 
   /**
@@ -73,11 +88,17 @@ export class AuthService {
       const token = await this.storage.get<string>(environment.auth.tokenKey);
 
       if (user && token) {
+        console.log('🔐 Usuário recuperado do storage:', user.email);
         this.currentUser.next(user);
         this.isAuthenticated.next(true);
+      } else {
+        console.log('🔐 Nenhum usuário no storage');
       }
     } catch (error) {
       console.error('Erro ao carregar usuário do storage:', error);
+    } finally {
+      // Sempre resolver a promise, independente do resultado
+      this.initResolve();
     }
   }
 
@@ -182,16 +203,40 @@ export class AuthService {
 
   /**
    * Verificar se usuário está autenticado
+   * Aguarda inicialização para evitar race condition
    */
   async checkAuth(): Promise<boolean> {
+    // 🔐 Aguardar inicialização do storage
+    await this.initialized;
+    
     const token = await this.storage.get<string>(environment.auth.tokenKey);
-    return !!token;
+    const hasToken = !!token;
+    
+    // Sincronizar estado se necessário
+    if (hasToken && !this.isAuthenticated.value) {
+      const user = await this.storage.get<User>(environment.auth.userKey);
+      if (user) {
+        this.currentUser.next(user);
+        this.isAuthenticated.next(true);
+      }
+    }
+    
+    console.log('🔐 checkAuth:', hasToken ? 'Autenticado' : 'Não autenticado');
+    return hasToken;
   }
 
   /**
-   * Obter usuário atual
+   * Obter usuário atual (síncrono - para uso em templates)
    */
   getUser(): User | null {
+    return this.currentUser.value;
+  }
+  
+  /**
+   * Obter usuário atual (async - aguarda inicialização)
+   */
+  async getUserAsync(): Promise<User | null> {
+    await this.initialized;
     return this.currentUser.value;
   }
 }

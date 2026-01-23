@@ -1,0 +1,170 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/orders"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Pagamento</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <!-- PIX Payment Section -->
+  <div class="payment-card" *ngIf="paymentMethod === 'pix' && paymentStatus === 'pending'">
+    <!-- Header com ícone -->
+    <div class="payment-header">
+      <div class="payment-icon pix">
+        <ion-icon name="qr-code-outline"></ion-icon>
+      </div>
+      <h2>Pague com PIX</h2>
+      <p class="order-info">Pedido {{ orderNumber }}</p>
+    </div>
+
+    <!-- Timer de expiração -->
+    <div class="expiration-badge" *ngIf="timeRemaining && timeRemaining !== 'Expirado'">
+      <ion-icon name="time-outline"></ion-icon>
+      <span>Expira em: <strong>{{ timeRemaining }}</strong></span>
+    </div>
+
+    <!-- QR Code -->
+    <div class="qr-wrapper">
+      <div class="qr-code-box" *ngIf="localQrCodeDataUrl">
+        <img [src]="localQrCodeDataUrl" alt="QR Code PIX" />
+      </div>
+      
+      <div class="qr-code-box" *ngIf="!localQrCodeDataUrl && paymentData?.qrCodeBase64">
+        <img [src]="paymentData!.qrCodeBase64" alt="QR Code PIX" />
+      </div>
+      
+      <div class="qr-code-box" *ngIf="!localQrCodeDataUrl && !paymentData?.qrCodeBase64 && paymentData?.qrCode">
+        <img [src]="getQrCodeUrl()" alt="QR Code PIX" (error)="onQrCodeError($event)" />
+      </div>
+
+      <p class="qr-not-available" *ngIf="!paymentData?.qrCode && !paymentData?.qrCodeBase64 && !localQrCodeDataUrl">
+        QR Code não disponível
+      </p>
+    </div>
+
+    <!-- Instruções -->
+    <div class="instructions">
+      <p>Escaneie o QR Code com o app do seu banco</p>
+      <span class="divider">ou</span>
+      <p>Copie o código abaixo</p>
+    </div>
+
+    <!-- Código PIX -->
+    <div class="pix-code-section" *ngIf="paymentData?.qrCode">
+      <div class="code-display">
+        <span>{{ paymentData!.qrCode | slice:0:40 }}...</span>
+      </div>
+      <ion-button expand="block" color="primary" (click)="copyPixCode()">
+        <ion-icon name="copy-outline" slot="start"></ion-icon>
+        Copiar Código PIX
+      </ion-button>
+    </div>
+
+    <!-- Status de verificação -->
+    <div class="status-check" *ngIf="isCheckingStatus">
+      <ion-spinner name="dots" color="primary"></ion-spinner>
+      <span>Verificando pagamento...</span>
+    </div>
+  </div>
+
+  <!-- Boleto Payment Section -->
+  <div class="payment-card" *ngIf="paymentMethod === 'boleto' && paymentStatus === 'pending'">
+    <!-- Header com ícone -->
+    <div class="payment-header">
+      <div class="payment-icon boleto">
+        <ion-icon name="barcode-outline"></ion-icon>
+      </div>
+      <h2>Pague com Boleto</h2>
+      <p class="order-info">Pedido {{ orderNumber }}</p>
+    </div>
+
+    <!-- Data de vencimento -->
+    <div class="due-date-badge" *ngIf="paymentData?.dueDate">
+      <ion-icon name="calendar-outline"></ion-icon>
+      <span>Vencimento: <strong>{{ paymentData!.dueDate }}</strong></span>
+    </div>
+
+    <!-- Instruções -->
+    <div class="instructions">
+      <p>Pague em qualquer banco, lotérica ou pelo app do seu banco</p>
+    </div>
+
+    <!-- Código de Barras -->
+    <div class="barcode-section" *ngIf="paymentData?.barcode || paymentData?.boletoNumber">
+      <label>Código de Barras</label>
+      <div class="code-display">
+        <span>{{ paymentData?.barcode || paymentData?.boletoNumber }}</span>
+      </div>
+      <ion-button expand="block" color="primary" (click)="copyBoletoCode()">
+        <ion-icon name="copy-outline" slot="start"></ion-icon>
+        Copiar Código
+      </ion-button>
+    </div>
+
+    <!-- Abrir boleto -->
+    <ion-button 
+      expand="block" 
+      fill="outline" 
+      *ngIf="paymentData?.boletoUrl"
+      (click)="openBoletoLink()">
+      <ion-icon name="open-outline" slot="start"></ion-icon>
+      Abrir Boleto PDF
+    </ion-button>
+
+    <!-- Status de verificação -->
+    <div class="status-check" *ngIf="isCheckingStatus">
+      <ion-spinner name="dots" color="primary"></ion-spinner>
+      <span>Verificando pagamento...</span>
+    </div>
+  </div>
+
+  <!-- Cartão Aprovado -->
+  <div class="payment-card success" *ngIf="(paymentMethod === 'credit' || paymentMethod === 'debit') && paymentStatus === 'approved'">
+    <div class="result-container">
+      <div class="result-icon success">
+        <ion-icon name="checkmark-circle"></ion-icon>
+      </div>
+      <h2>Pagamento Aprovado!</h2>
+      <p class="order-info">Pedido {{ orderNumber }}</p>
+      <p class="result-message">Seu pedido está sendo preparado.</p>
+    </div>
+  </div>
+
+  <!-- PIX/Boleto Aprovado -->
+  <div class="payment-card success" *ngIf="paymentStatus === 'approved' && (paymentMethod === 'pix' || paymentMethod === 'boleto')">
+    <div class="result-container">
+      <div class="result-icon success">
+        <ion-icon name="checkmark-circle"></ion-icon>
+      </div>
+      <h2>Pagamento Confirmado!</h2>
+      <p class="order-info">Pedido {{ orderNumber }}</p>
+      <p class="result-message">Seu pedido está sendo preparado.</p>
+    </div>
+  </div>
+
+  <!-- Pagamento Rejeitado -->
+  <div class="payment-card error" *ngIf="paymentStatus === 'rejected'">
+    <div class="result-container">
+      <div class="result-icon error">
+        <ion-icon name="close-circle"></ion-icon>
+      </div>
+      <h2>Pagamento Recusado</h2>
+      <p class="order-info">Pedido {{ orderNumber }}</p>
+      <p class="result-message">Tente novamente com outro método de pagamento.</p>
+    </div>
+  </div>
+
+  <!-- Botões de Ação -->
+  <div class="action-buttons">
+    <ion-button expand="block" (click)="goToOrders()">
+      <ion-icon name="list-outline" slot="start"></ion-icon>
+      Ver Meus Pedidos
+    </ion-button>
+    
+    <ion-button expand="block" fill="clear" (click)="goToHome()">
+      Continuar Comprando
+    </ion-button>
+  </div>
+</ion-content>

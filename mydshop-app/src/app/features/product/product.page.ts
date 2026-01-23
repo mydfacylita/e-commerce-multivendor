@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ToastController, LoadingController, AlertController } from '@ionic/angular';
-import { ProductsService, Product } from '../../core/services/products.service';
+import { ToastController, LoadingController, AlertController, ModalController } from '@ionic/angular';
+import { ProductsService, Product, Review, ReviewStats, Question, QuestionStats } from '../../core/services/products.service';
 import { CartService } from '../../core/services/cart.service';
 import { AuthService, User } from '../../core/services/auth.service';
 import { ApiService } from '../../core/services/api.service';
@@ -29,6 +29,9 @@ interface UserAddress {
   standalone: false
 })
 export class ProductPage implements OnInit {
+  // Math para usar no template
+  Math = Math;
+  
   product: Product | null = null;
   selectedSize: string | null = null;
   selectedColor: string | null = null;
@@ -47,6 +50,30 @@ export class ProductPage implements OnInit {
   shippingCalculated = false;
   showShippingOptions = false;
 
+  // Propriedades para avaliações
+  reviews: Review[] = [];
+  reviewStats: ReviewStats | null = null;
+  isLoadingReviews = false;
+  showReviewForm = false;
+  reviewSortBy = 'recent';
+  newReview = {
+    rating: 0,
+    title: '',
+    comment: '',
+    pros: '',
+    cons: ''
+  };
+  submittingReview = false;
+
+  // Propriedades para perguntas
+  questions: Question[] = [];
+  questionStats: QuestionStats | null = null;
+  isLoadingQuestions = false;
+  showQuestionForm = false;
+  questionFilter = 'all';
+  newQuestion = '';
+  submittingQuestion = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -56,7 +83,8 @@ export class ProductPage implements OnInit {
     private apiService: ApiService,
     private toastController: ToastController,
     private loadingController: LoadingController,
-    private alertController: AlertController
+    private alertController: AlertController,
+    private modalController: ModalController
   ) {}
 
   ngOnInit() {
@@ -167,6 +195,10 @@ export class ProductPage implements OnInit {
         if (this.currentUser && this.userAddress && !this.shippingCalculated) {
           this.calculateShippingForUser();
         }
+
+        // Carregar avaliações e perguntas
+        this.loadReviews();
+        this.loadQuestions();
       },
       error: async (error: any) => {
         loading.dismiss();
@@ -244,8 +276,8 @@ export class ProductPage implements OnInit {
       image: this.product.images[0],
       quantity: this.quantity,
       stock: this.product.stock,
-      size: this.selectedSize || undefined,
-      color: this.selectedColor || undefined
+      selectedSize: this.selectedSize || undefined,
+      selectedColor: this.selectedColor || undefined
     };
 
     this.cartService.addItem(cartItem);
@@ -297,8 +329,8 @@ export class ProductPage implements OnInit {
       image: this.product.images[0],
       quantity: this.quantity,
       stock: this.product.stock,
-      size: this.selectedSize || undefined,
-      color: this.selectedColor || undefined
+      selectedSize: this.selectedSize || undefined,
+      selectedColor: this.selectedColor || undefined
     };
 
     this.cartService.addItem(cartItem);
@@ -688,5 +720,227 @@ export class ProductPage implements OnInit {
     } finally {
       this.isCalculatingShipping = false;
     }
+  }
+
+  // ========================================
+  // MÉTODOS PARA AVALIAÇÕES
+  // ========================================
+
+  /**
+   * Carrega avaliações do produto
+   */
+  async loadReviews() {
+    if (!this.product) return;
+
+    this.isLoadingReviews = true;
+    try {
+      const response = await this.productsService.getReviews(this.product.id, 1, this.reviewSortBy).toPromise();
+      if (response) {
+        this.reviews = response.reviews;
+        this.reviewStats = response.stats;
+      }
+    } catch (error) {
+      console.error('Erro ao carregar avaliações:', error);
+    } finally {
+      this.isLoadingReviews = false;
+    }
+  }
+
+  /**
+   * Altera ordenação das avaliações
+   */
+  async changeReviewSort(sortBy: string) {
+    this.reviewSortBy = sortBy;
+    await this.loadReviews();
+  }
+
+  /**
+   * Define rating da nova avaliação
+   */
+  setNewRating(rating: number) {
+    this.newReview.rating = rating;
+  }
+
+  /**
+   * Abre formulário de avaliação
+   */
+  toggleReviewForm() {
+    if (!this.currentUser) {
+      this.showLoginAlert('Para avaliar este produto, você precisa estar logado.');
+      return;
+    }
+    this.showReviewForm = !this.showReviewForm;
+  }
+
+  /**
+   * Envia nova avaliação
+   */
+  async submitReview() {
+    if (!this.product) return;
+    if (this.newReview.rating === 0) {
+      this.showToast('Selecione uma nota de 1 a 5 estrelas', 'warning');
+      return;
+    }
+
+    this.submittingReview = true;
+    try {
+      await this.productsService.submitReview(this.product.id, this.newReview).toPromise();
+      this.showToast('Avaliação enviada! Será publicada após aprovação.', 'success');
+      this.showReviewForm = false;
+      this.newReview = { rating: 0, title: '', comment: '', pros: '', cons: '' };
+      await this.loadReviews();
+    } catch (error: any) {
+      this.showToast(error.error?.message || 'Erro ao enviar avaliação', 'danger');
+    } finally {
+      this.submittingReview = false;
+    }
+  }
+
+  /**
+   * Marca avaliação como útil
+   */
+  async markHelpful(reviewId: string) {
+    if (!this.product) return;
+    if (!this.currentUser) {
+      this.showLoginAlert('Para votar, você precisa estar logado.');
+      return;
+    }
+
+    try {
+      await this.productsService.markReviewHelpful(this.product.id, reviewId, true).toPromise();
+      // Atualizar contador localmente
+      const review = this.reviews.find(r => r.id === reviewId);
+      if (review) {
+        review.helpfulCount++;
+      }
+      this.showToast('Voto registrado!', 'success');
+    } catch (error: any) {
+      this.showToast(error.error?.message || 'Erro ao votar', 'warning');
+    }
+  }
+
+  /**
+   * Retorna array para renderizar estrelas
+   */
+  getStarsArray(rating: number): boolean[] {
+    return [1, 2, 3, 4, 5].map(i => i <= rating);
+  }
+
+  /**
+   * Calcula porcentagem da barra de rating
+   */
+  getRatingPercentage(stars: number): number {
+    if (!this.reviewStats || this.reviewStats.totalReviews === 0) return 0;
+    const count = this.reviewStats.distribution[stars as keyof typeof this.reviewStats.distribution] || 0;
+    return (count / this.reviewStats.totalReviews) * 100;
+  }
+
+  // ========================================
+  // MÉTODOS PARA PERGUNTAS
+  // ========================================
+
+  /**
+   * Carrega perguntas do produto
+   */
+  async loadQuestions() {
+    if (!this.product) return;
+
+    this.isLoadingQuestions = true;
+    try {
+      const answered = this.questionFilter === 'answered' ? true : 
+                       this.questionFilter === 'unanswered' ? false : undefined;
+      const response = await this.productsService.getQuestions(this.product.id, 1, answered).toPromise();
+      if (response) {
+        this.questions = response.questions;
+        this.questionStats = response.stats;
+      }
+    } catch (error) {
+      console.error('Erro ao carregar perguntas:', error);
+    } finally {
+      this.isLoadingQuestions = false;
+    }
+  }
+
+  /**
+   * Filtra perguntas
+   */
+  async changeQuestionFilter(filter: string) {
+    this.questionFilter = filter;
+    await this.loadQuestions();
+  }
+
+  /**
+   * Abre formulário de pergunta
+   */
+  toggleQuestionForm() {
+    if (!this.currentUser) {
+      this.showLoginAlert('Para fazer uma pergunta, você precisa estar logado.');
+      return;
+    }
+    this.showQuestionForm = !this.showQuestionForm;
+  }
+
+  /**
+   * Envia nova pergunta
+   */
+  async submitQuestion() {
+    if (!this.product) return;
+    if (this.newQuestion.trim().length < 10) {
+      this.showToast('A pergunta deve ter pelo menos 10 caracteres', 'warning');
+      return;
+    }
+
+    this.submittingQuestion = true;
+    try {
+      await this.productsService.submitQuestion(this.product.id, this.newQuestion.trim()).toPromise();
+      this.showToast('Pergunta enviada! Você receberá uma notificação quando for respondida.', 'success');
+      this.showQuestionForm = false;
+      this.newQuestion = '';
+      await this.loadQuestions();
+    } catch (error: any) {
+      this.showToast(error.error?.message || 'Erro ao enviar pergunta', 'danger');
+    } finally {
+      this.submittingQuestion = false;
+    }
+  }
+
+  // ========================================
+  // MÉTODOS AUXILIARES
+  // ========================================
+
+  /**
+   * Exibe toast
+   */
+  async showToast(message: string, color: string = 'primary') {
+    const toast = await this.toastController.create({
+      message,
+      duration: 3000,
+      color,
+      position: 'bottom'
+    });
+    await toast.present();
+  }
+
+  /**
+   * Alerta para login
+   */
+  async showLoginAlert(message: string) {
+    const alert = await this.alertController.create({
+      header: 'Login Necessário',
+      message,
+      buttons: [
+        { text: 'Cancelar', role: 'cancel' },
+        { text: 'Fazer Login', handler: () => this.router.navigate(['/auth/login']) }
+      ]
+    });
+    await alert.present();
+  }
+
+  /**
+   * Formata data para exibição
+   */
+  formatDate(dateString: string): string {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 }

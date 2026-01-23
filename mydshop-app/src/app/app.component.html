@@ -1,3 +1,14 @@
 <ion-app>
+  <!-- Tela de Splash/Loading com transição suave -->
+  <div *ngIf="showSplash" class="splash-screen" [class.fade-out]="splashFading">
+    <div class="splash-content">
+      <img src="assets/logo.png" alt="MYDSHOP" class="splash-logo" />
+      <div class="splash-loader">
+        <div class="loader-bar"></div>
+      </div>
+      <p class="splash-text">Carregando...</p>
+    </div>
+  </div>
+  
   <ion-router-outlet></ion-router-outlet>
 </ion-app>

@@ -1,0 +1,475 @@
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 50vh;
+  color: #6b7280;
+  
+  p {
+    margin-top: 16px;
+  }
+}
+
+.order-details {
+  padding: 16px;
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  
+  .order-info {
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 4px 0;
+      color: #1f2937;
+    }
+    
+    .order-date {
+      font-size: 14px;
+      color: #6b7280;
+      margin: 0;
+    }
+  }
+  
+  .status-badge {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 20px;
+    
+    ion-icon {
+      margin-right: 4px;
+    }
+  }
+}
+
+.status-timeline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 16px;
+  background: #f9fafb;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  
+  .timeline-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0.4;
+    
+    &.active {
+      opacity: 1;
+      
+      .step-icon {
+        background: var(--app-primary, #f97316);
+        color: white;
+      }
+    }
+    
+    .step-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 6px;
+      
+      ion-icon {
+        font-size: 18px;
+      }
+    }
+    
+    span {
+      font-size: 10px;
+      color: #374151;
+      font-weight: 500;
+    }
+  }
+  
+  .timeline-line {
+    flex: 1;
+    height: 2px;
+    background: #e5e7eb;
+    margin: 0 4px;
+    margin-bottom: 20px;
+    
+    &.active {
+      background: var(--app-primary, #f97316);
+    }
+  }
+}
+
+.tracking-section,
+.items-section,
+.address-section,
+.payment-section {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0 0 16px 0;
+    
+    ion-icon {
+      color: var(--app-primary, #f97316);
+    }
+  }
+}
+
+.tracking-info {
+  .tracking-code {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    
+    .label {
+      color: #6b7280;
+      font-size: 14px;
+    }
+    
+    .code {
+      font-family: monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+  }
+}
+
+.order-items {
+  .order-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f3f4f6;
+    
+    &:last-child {
+      border-bottom: none;
+    }
+    
+    .item-image {
+      width: 60px;
+      height: 60px;
+      border-radius: 8px;
+      object-fit: cover;
+      margin-right: 12px;
+    }
+    
+    .item-details {
+      flex: 1;
+      
+      h4 {
+        font-size: 14px;
+        font-weight: 500;
+        color: #1f2937;
+        margin: 0 0 4px 0;
+      }
+      
+      .item-variant {
+        font-size: 12px;
+        color: #6b7280;
+        margin: 0 0 2px 0;
+      }
+      
+      .item-qty {
+        font-size: 12px;
+        color: #9ca3af;
+        margin: 0;
+      }
+    }
+    
+    .item-price {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--app-primary, #f97316);
+    }
+  }
+}
+
+.address-card {
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  
+  p {
+    font-size: 14px;
+    color: #374151;
+    margin: 0 0 4px 0;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.payment-summary {
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 14px;
+    color: #374151;
+    
+    &.total {
+      border-top: 1px solid #e5e7eb;
+      margin-top: 8px;
+      padding-top: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #1f2937;
+    }
+    
+    .discount {
+      color: #22c55e;
+    }
+  }
+}
+
+.actions-section {
+  padding: 16px 0;
+  
+  ion-button {
+    --border-radius: 8px;
+  }
+}
+
+// Seção de Nota Fiscal
+.invoice-section {
+  margin-bottom: 24px;
+  
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #1f2937;
+    
+    ion-icon {
+      color: var(--app-primary, #f97316);
+    }
+  }
+}
+
+.invoice-card {
+  padding: 16px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-radius: 12px;
+  border: 1px solid #86efac;
+  
+  .invoice-info {
+    margin-bottom: 16px;
+    
+    .invoice-number {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      
+      .label {
+        font-size: 14px;
+        color: #374151;
+        font-weight: 500;
+      }
+      
+      .value {
+        font-size: 16px;
+        font-weight: 700;
+        color: #166534;
+      }
+    }
+    
+    .invoice-key {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      
+      .label {
+        font-size: 12px;
+        color: #6b7280;
+      }
+      
+      .key {
+        font-size: 11px;
+        color: #374151;
+        font-family: monospace;
+      }
+      
+      ion-button {
+        --padding-start: 4px;
+        --padding-end: 4px;
+        height: 24px;
+      }
+    }
+  }
+  
+  .invoice-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    
+    ion-button {
+      --border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+  }
+}
+
+// Seção de Previsão de Entrega
+.delivery-section {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0 0 16px 0;
+    
+    ion-icon {
+      color: var(--app-primary, #f97316);
+    }
+  }
+  
+  .delivery-card {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+    border: 1px solid #fed7aa;
+    border-radius: 12px;
+    padding: 16px;
+    
+    .delivery-date {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+      
+      ion-icon {
+        font-size: 24px;
+        margin-top: 2px;
+      }
+      
+      .delivery-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        
+        .delivery-label {
+          font-size: 12px;
+          color: #9a3412;
+          font-weight: 500;
+        }
+        
+        .delivery-value {
+          font-size: 16px;
+          font-weight: 700;
+          color: #c2410c;
+          text-transform: capitalize;
+        }
+        
+        .delivery-days {
+          font-size: 12px;
+          color: #6b7280;
+        }
+      }
+    }
+    
+    .shipping-method {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 1px solid #fed7aa;
+      
+      ion-icon {
+        font-size: 18px;
+      }
+      
+      span {
+        font-size: 14px;
+        color: #374151;
+      }
+    }
+  }
+}
+
+// Mensagem de Entregue
+.delivered-section {
+  margin-bottom: 16px;
+  
+  .delivered-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    border: 1px solid #86efac;
+    border-radius: 12px;
+    padding: 16px 20px;
+    
+    ion-icon {
+      font-size: 24px;
+    }
+    
+    span {
+      font-size: 16px;
+      font-weight: 600;
+      color: #166534;
+    }
+  }
+}
+
+// Linha do método de pagamento no resumo
+.payment-method-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e5e7eb;
+  
+  ion-icon {
+    font-size: 18px;
+  }
+  
+  span {
+    font-size: 14px;
+    color: #374151;
+    font-weight: 500;
+  }
+}
+
+// Linha de desconto com destaque
+.discount-row {
+  span.discount {
+    color: #16a34a !important;
+    font-weight: 600;
+  }
+}

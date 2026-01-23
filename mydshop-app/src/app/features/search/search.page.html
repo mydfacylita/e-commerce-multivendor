@@ -93,7 +93,7 @@
     <div class="products-grid" *ngIf="products.length > 0">
       <div class="product-card" *ngFor="let product of products" (click)="openProduct(product)">
         <div class="product-image">
-          <img [src]="product.images[0]" [alt]="product.name" />
+          <img [src]="product.images[0] | imageUrl" [alt]="product.name" />
           <div class="discount-badge" *ngIf="product.salePrice">
             -{{ getDiscountPercentage(product) }}%
           </div>

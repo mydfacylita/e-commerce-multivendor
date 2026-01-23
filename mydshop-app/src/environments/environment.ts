@@ -8,6 +8,9 @@
 export const environment = {
   production: false,
   
+  // 🔧 Ambiente Mobile: 'local' para desenvolvimento, 'production' para produção
+  MOBILE_ENV: 'local',
+  
   // API Backend - URL relativa (proxy redireciona para localhost:3000)
   apiUrl: '/api',
   

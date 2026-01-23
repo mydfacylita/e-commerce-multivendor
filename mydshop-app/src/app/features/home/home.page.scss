@@ -281,6 +281,8 @@ ion-header {
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
     
     .discount-badge {
       position: absolute;
@@ -299,6 +301,7 @@ ion-header {
       width: 100%;
       height: 140px;
       overflow: hidden;
+      flex-shrink: 0;
       
       img {
         width: 100%;
@@ -309,9 +312,13 @@ ion-header {
     
     .product-info {
       padding: 12px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
       
       .product-name {
-        margin: 0 0 8px 0;
+        margin: 0;
         font-size: 13px;
         font-weight: 500;
         color: $dark;
@@ -320,24 +327,64 @@ ion-header {
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        height: 34px;
+        min-height: 34px;
+      }
+      
+      // Área flexível para empurrar preço e ações para baixo
+      .product-spacer {
+        flex: 1;
+        min-height: 4px;
       }
       
       .product-price {
-        margin-bottom: 8px;
+        margin-top: auto;
+        margin-bottom: 6px;
         
         .compare-price {
           display: block;
           font-size: 11px;
           color: $medium;
           text-decoration: line-through;
+          margin-bottom: 2px;
+          min-height: 14px;
         }
         
         .current-price {
+          display: block;
           font-size: 16px;
           font-weight: 700;
           color: $primary;
         }
+      }
+      
+      .free-shipping-badge {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: #ecfdf5;
+        color: #059669;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        
+        ion-icon {
+          font-size: 12px;
+          flex-shrink: 0;
+        }
+        
+        span {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+      
+      // Placeholder quando não tem frete grátis
+      .shipping-placeholder {
+        height: 24px;
+        margin-bottom: 8px;
       }
       
       ion-button {
@@ -345,6 +392,8 @@ ion-header {
         --padding-end: 8px;
         font-size: 12px;
         height: 32px;
+        margin-top: auto;
+        flex-shrink: 0;
       }
     }
   }
@@ -362,6 +411,8 @@ ion-header {
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    display: flex;
+    flex-direction: column;
     
     .discount-badge {
       position: absolute;
@@ -380,6 +431,7 @@ ion-header {
       width: 100%;
       height: 140px;
       overflow: hidden;
+      flex-shrink: 0;
       
       img {
         width: 100%;
@@ -390,9 +442,12 @@ ion-header {
     
     .product-info {
       padding: 12px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
       
       .product-name {
-        margin: 0 0 8px 0;
+        margin: 0;
         font-size: 13px;
         font-weight: 500;
         color: $dark;
@@ -401,22 +456,64 @@ ion-header {
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        height: 34px;
+        min-height: 34px;
+      }
+      
+      // Área flexível
+      .product-spacer {
+        flex: 1;
+        min-height: 4px;
       }
       
       .product-price {
+        margin-top: auto;
+        margin-bottom: 6px;
+        
         .compare-price {
           display: block;
           font-size: 11px;
           color: $medium;
           text-decoration: line-through;
+          margin-bottom: 2px;
+          min-height: 14px;
         }
         
         .current-price {
+          display: block;
           font-size: 16px;
           font-weight: 700;
           color: $primary;
         }
+      }
+      
+      .free-shipping-badge {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: #ecfdf5;
+        color: #059669;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 600;
+        margin-top: 6px;
+        
+        ion-icon {
+          font-size: 12px;
+          flex-shrink: 0;
+        }
+        
+        span {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+      
+      // Placeholder quando não tem frete grátis
+      .shipping-placeholder {
+        height: 24px;
+        margin-top: 6px;
       }
     }
   }
@@ -533,4 +630,201 @@ ion-infinite-scroll {
   100% {
     left: 100%;
   }
+}
+
+// ============================================
+// 🌟 SPOTLIGHT - Produto em Destaque
+// ============================================
+.spotlight-section {
+  margin: 16px 0;
+  
+  .spotlight-card {
+    background: #ffffff;
+    border-radius: 20px;
+    margin: 0 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    
+    &:active {
+      transform: scale(0.98);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  .spotlight-image {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    background: #ffffff;
+    
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 16px;
+    }
+    
+    .spotlight-discount-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+  }
+  
+  .spotlight-content {
+    padding: 20px;
+  }
+  
+  .spotlight-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0 0 12px 0;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .spotlight-rating {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    
+    .stars {
+      display: flex;
+      gap: 2px;
+      
+      ion-icon {
+        font-size: 18px;
+      }
+    }
+    
+    .rating-text {
+      font-size: 14px;
+      color: #6b7280;
+    }
+  }
+  
+  .spotlight-price {
+    margin-bottom: 16px;
+    
+    .compare-price {
+      display: block;
+      font-size: 14px;
+      color: #9ca3af;
+      text-decoration: line-through;
+      margin-bottom: 4px;
+    }
+    
+    .current-price {
+      display: block;
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--app-primary, #f97316);
+    }
+    
+    .installment {
+      display: block;
+      font-size: 13px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+  }
+  
+  .spotlight-shipping {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    
+    ion-icon {
+      font-size: 24px;
+      color: #16a34a;
+    }
+    
+    .shipping-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    
+    .shipping-cost {
+      font-size: 15px;
+      font-weight: 600;
+      color: #374151;
+      
+      &.free {
+        color: #16a34a;
+        font-weight: 700;
+      }
+    }
+    
+    .shipping-time {
+      font-size: 13px;
+      color: #6b7280;
+    }
+  }
+  
+  ion-button {
+    --background: var(--app-primary, #f97316);
+    --background-activated: var(--app-primary, #ea580c);
+    --border-radius: 12px;
+    font-weight: 600;
+    font-size: 16px;
+    height: 48px;
+  }
+}
+
+// ============================================
+// 🕐 VISTOS RECENTEMENTE
+// ============================================
+.recently-viewed-section {
+  background: #ffffff;
+  padding: 20px 0;
+  margin: 16px 0;
+}
+
+// ============================================
+// 🔀 SEÇÕES DINÂMICAS
+// ============================================
+.dynamic-section {
+  margin: 16px 0;
+  padding: 20px 0;
+  background: #ffffff;
+}
+
+// ============================================
+// ANIMAÇÕES
+// ============================================
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.spotlight-section,
+.recently-viewed-section,
+.dynamic-section {
+  animation: fadeInUp 0.4s ease-out forwards;
 }

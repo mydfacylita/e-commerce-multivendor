@@ -68,3 +68,22 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Android
+android/app/build/
+android/.gradle/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+*.apk
+*.aab
+*.keystore
+!mydshop-release.keystore
+
+# iOS
+ios/App/Pods/
+ios/App/App/public/
+*.ipa
+*.xcarchive
+
+# Capacitor
+capacitor.config.json

@@ -18,12 +18,18 @@
   <ion-toolbar>
     <!-- Logo -->
     <ion-title slot="start">
-      <span class="logo" *ngIf="!brand || !brand.logo">
+      <span class="logo" *ngIf="!brand?.logo || logoFailed">
         <ng-container *ngFor="let part of brandParts">
           <span [class.logo-highlight]="part.highlight" [class.logo-normal]="!part.highlight">{{ part.text }}</span>
         </ng-container>
       </span>
-      <img *ngIf="brand && brand.logo" [src]="brand.logo" [alt]="brand.name" class="header-logo" />
+      <img *ngIf="brand?.logo && !logoFailed" 
+           [src]="brand?.logo" 
+           [alt]="brand?.name || 'Logo'" 
+           class="header-logo"
+          
+           (load)="onLogoLoad()"
+           (error)="onLogoError($event)" />
     </ion-title>
     
     <!-- Botões -->
@@ -47,6 +53,18 @@
 </ion-header>
 
 <ion-content>
+  <!-- DEBUG MODE - Remover depois -->
+  <div *ngIf="showDebug" style="background: #1a1a2e; color: #0f0; padding: 10px; font-size: 11px; font-family: monospace; max-height: 200px; overflow-y: auto; position: sticky; top: 0; z-index: 9999;">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+      <strong>🐛 DEBUG MODE</strong>
+      <button (click)="showDebug = false" style="background: #f00; color: #fff; border: none; padding: 2px 8px; border-radius: 3px;">X</button>
+    </div>
+    <div *ngFor="let msg of debugMessages" [style.color]="msg.includes('ERRO') ? '#f00' : msg.includes('OK') ? '#0f0' : '#0ff'">
+      {{ msg }}
+    </div>
+    <div *ngIf="debugMessages.length === 0">Aguardando logs...</div>
+  </div>
+  
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
@@ -61,12 +79,14 @@
   <div *ngIf="!isLoading">
     
     <!-- Carrossel de Banners -->
-    <div class="banner-carousel">
+    <div class="banner-carousel" *ngIf="banners.length > 0">
       <swiper-container 
         #swiperBanner
-        [pagination]="true"
-        [autoplay]="{ delay: 4000, disableOnInteraction: false }"
-        [loop]="true"
+        pagination="true"
+        pagination-clickable="true"
+        autoplay-delay="4000"
+        autoplay-disable-on-interaction="false"
+        loop="true"
         class="banner-swiper">
         
         <swiper-slide *ngFor="let banner of banners">
@@ -119,7 +139,7 @@
     </section>
 
     <!-- Produtos em Destaque -->
-    <section class="section">
+    <section class="section" *ngIf="featuredProducts.length > 0">
       <div class="section-header">
         <h3>🌟 Destaques</h3>
         <ion-button fill="clear" size="small" (click)="viewAllFeatured()">
@@ -137,19 +157,32 @@
           
           <!-- Imagem -->
           <div class="product-image">
-            <img [src]="product.images?.[0] || 'assets/placeholder.png'" [alt]="product.name" loading="lazy">
+            <img [src]="product.images?.[0] | imageUrl" [alt]="product.name" loading="lazy">
           </div>
           
           <!-- Info -->
           <div class="product-info">
             <h4 class="product-name">{{ product.name }}</h4>
             
+            <!-- Espaçador flexível -->
+            <div class="product-spacer"></div>
+            
+            <!-- Preços -->
             <div class="product-price">
-              <span class="compare-price" *ngIf="product.comparePrice && product.comparePrice > product.price">
-                {{ formatPrice(product.comparePrice) }}
+              <span class="compare-price">
+                <ng-container *ngIf="product.comparePrice && product.comparePrice > product.price">
+                  {{ formatPrice(product.comparePrice) }}
+                </ng-container>
               </span>
               <span class="current-price">{{ formatPrice(product.price) }}</span>
             </div>
+            
+            <!-- Frete Grátis ou placeholder -->
+            <div class="free-shipping-badge" *ngIf="hasFreeShipping(product)">
+              <ion-icon name="car-outline"></ion-icon>
+              <span>{{ getFreeShippingLabel(product) }}</span>
+            </div>
+            <div class="shipping-placeholder" *ngIf="!hasFreeShipping(product)"></div>
             
             <!-- Botão adicionar -->
             <ion-button 
@@ -166,7 +199,7 @@
     </section>
 
     <!-- Novidades -->
-    <section class="section">
+    <section class="section" *ngIf="newProducts.length > 0">
       <div class="section-header">
         <h3>🆕 Novidades</h3>
         <ion-button fill="clear" size="small" (click)="viewAllNew()">
@@ -184,19 +217,179 @@
           
           <!-- Imagem -->
           <div class="product-image">
-            <img [src]="product.images?.[0] || 'assets/placeholder.png'" [alt]="product.name" loading="lazy">
+            <img [src]="product.images?.[0] | imageUrl" [alt]="product.name" loading="lazy">
           </div>
           
           <!-- Info -->
           <div class="product-info">
             <h4 class="product-name">{{ product.name }}</h4>
             
+            <!-- Espaçador flexível -->
+            <div class="product-spacer"></div>
+            
+            <!-- Preços -->
             <div class="product-price">
-              <span class="compare-price" *ngIf="product.comparePrice && product.comparePrice > product.price">
-                {{ formatPrice(product.comparePrice) }}
+              <span class="compare-price">
+                <ng-container *ngIf="product.comparePrice && product.comparePrice > product.price">
+                  {{ formatPrice(product.comparePrice) }}
+                </ng-container>
               </span>
               <span class="current-price">{{ formatPrice(product.price) }}</span>
             </div>
+            
+            <!-- Frete Grátis ou placeholder -->
+            <div class="free-shipping-badge" *ngIf="hasFreeShipping(product)">
+              <ion-icon name="car-outline"></ion-icon>
+              <span>{{ getFreeShippingLabel(product) }}</span>
+            </div>
+            <div class="shipping-placeholder" *ngIf="!hasFreeShipping(product)"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🌟 SPOTLIGHT - Produto em Destaque com Detalhes -->
+    <section class="section spotlight-section" *ngIf="spotlightProduct">
+      <div class="section-header">
+        <h3>🎯 Produto do Momento</h3>
+      </div>
+      
+      <div class="spotlight-card" (click)="goToProduct(spotlightProduct)">
+        <div class="spotlight-image">
+          <img [src]="spotlightProduct.images?.[0] | imageUrl" [alt]="spotlightProduct.name" loading="lazy">
+          <div class="spotlight-discount-badge" *ngIf="getDiscount(spotlightProduct.price, spotlightProduct.comparePrice) > 0">
+            -{{ getDiscount(spotlightProduct.price, spotlightProduct.comparePrice) }}% OFF
+          </div>
+        </div>
+        
+        <div class="spotlight-content">
+          <h2 class="spotlight-name">{{ spotlightProduct.name }}</h2>
+          
+          <!-- Avaliações -->
+          <div class="spotlight-rating" *ngIf="spotlightRating.total > 0">
+            <div class="stars">
+              <ion-icon *ngFor="let star of getStarsArray(spotlightRating.average)" [name]="star" color="warning"></ion-icon>
+            </div>
+            <span class="rating-text">{{ spotlightRating.average.toFixed(1) }} ({{ spotlightRating.total }} avaliações)</span>
+          </div>
+          <div class="spotlight-rating" *ngIf="spotlightRating.total === 0">
+            <span class="rating-text" style="color: #999;">Seja o primeiro a avaliar!</span>
+          </div>
+          
+          <!-- Preço -->
+          <div class="spotlight-price">
+            <span class="compare-price" *ngIf="spotlightProduct.comparePrice && spotlightProduct.comparePrice > spotlightProduct.price">
+              De: {{ formatPrice(spotlightProduct.comparePrice) }}
+            </span>
+            <span class="current-price">{{ formatPrice(spotlightProduct.price) }}</span>
+            <span class="installment">ou 12x de {{ formatPrice(spotlightProduct.price / 12) }}</span>
+          </div>
+          
+          <!-- Frete -->
+          <div class="spotlight-shipping">
+            <ion-icon name="car-outline"></ion-icon>
+            <span class="shipping-info">
+              <span class="shipping-cost" [class.free]="spotlightProduct.price >= 199">
+                {{ getEstimatedShipping(spotlightProduct) }}
+              </span>
+              <span class="shipping-time">Entrega: {{ getEstimatedDelivery() }}</span>
+            </span>
+          </div>
+          
+          <!-- Botão -->
+          <ion-button expand="block" (click)="addToCart(spotlightProduct, $event)" [disabled]="spotlightProduct.stock <= 0">
+            <ion-icon slot="start" name="cart-outline"></ion-icon>
+            {{ spotlightProduct.stock > 0 ? 'Comprar Agora' : 'Indisponível' }}
+          </ion-button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🕐 VISTOS RECENTEMENTE -->
+    <section class="section recently-viewed-section" *ngIf="recentlyViewed.length > 0">
+      <div class="section-header">
+        <h3>🕐 Vistos Recentemente</h3>
+        <ion-button fill="clear" size="small" (click)="recentlyViewedService.clear(); recentlyViewed = [];">
+          Limpar
+          <ion-icon slot="end" name="trash-outline"></ion-icon>
+        </ion-button>
+      </div>
+      
+      <div class="products-scroll">
+        <div class="product-card" *ngFor="let product of recentlyViewed" (click)="goToProduct(product)">
+          <div class="discount-badge" *ngIf="getDiscount(product.price, product.comparePrice) > 0">
+            -{{ getDiscount(product.price, product.comparePrice) }}%
+          </div>
+          
+          <div class="product-image">
+            <img [src]="product.images?.[0] | imageUrl" [alt]="product.name" loading="lazy">
+          </div>
+          
+          <div class="product-info">
+            <h4 class="product-name">{{ product.name }}</h4>
+            
+            <!-- Espaçador flexível -->
+            <div class="product-spacer"></div>
+            
+            <!-- Preços -->
+            <div class="product-price">
+              <span class="compare-price">
+                <ng-container *ngIf="product.comparePrice && product.comparePrice > product.price">
+                  {{ formatPrice(product.comparePrice) }}
+                </ng-container>
+              </span>
+              <span class="current-price">{{ formatPrice(product.price) }}</span>
+            </div>
+            
+            <!-- Frete Grátis ou placeholder -->
+            <div class="free-shipping-badge" *ngIf="hasFreeShipping(product)">
+              <ion-icon name="car-outline"></ion-icon>
+              <span>{{ getFreeShippingLabel(product) }}</span>
+            </div>
+            <div class="shipping-placeholder" *ngIf="!hasFreeShipping(product)"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🔀 SEÇÕES DINÂMICAS ALEATÓRIAS -->
+    <section class="section dynamic-section" *ngFor="let section of dynamicSections">
+      <div class="section-header">
+        <h3>{{ section.title }}</h3>
+      </div>
+      
+      <div class="products-scroll">
+        <div class="product-card" *ngFor="let product of section.products" (click)="goToProduct(product)">
+          <div class="discount-badge" *ngIf="getDiscount(product.price, product.comparePrice) > 0">
+            -{{ getDiscount(product.price, product.comparePrice) }}%
+          </div>
+          
+          <div class="product-image">
+            <img [src]="product.images?.[0] | imageUrl" [alt]="product.name" loading="lazy">
+          </div>
+          
+          <div class="product-info">
+            <h4 class="product-name">{{ product.name }}</h4>
+            
+            <!-- Espaçador flexível -->
+            <div class="product-spacer"></div>
+            
+            <!-- Preços -->
+            <div class="product-price">
+              <span class="compare-price">
+                <ng-container *ngIf="product.comparePrice && product.comparePrice > product.price">
+                  {{ formatPrice(product.comparePrice) }}
+                </ng-container>
+              </span>
+              <span class="current-price">{{ formatPrice(product.price) }}</span>
+            </div>
+            
+            <!-- Frete Grátis ou placeholder -->
+            <div class="free-shipping-badge" *ngIf="hasFreeShipping(product)">
+              <ion-icon name="car-outline"></ion-icon>
+              <span>{{ getFreeShippingLabel(product) }}</span>
+            </div>
+            <div class="shipping-placeholder" *ngIf="!hasFreeShipping(product)"></div>
           </div>
         </div>
       </div>
@@ -208,7 +401,14 @@
         <h3>📦 Todos os Produtos</h3>
       </div>
       
-      <div class="products-grid">
+      <!-- Mensagem quando não há produtos -->
+      <div *ngIf="!isLoading && allProducts.length === 0" class="empty-state">
+        <ion-icon name="bag-outline" style="font-size: 64px; color: #ccc; margin-bottom: 16px;"></ion-icon>
+        <h4 style="color: #666; margin: 0;">Nenhum produto disponível</h4>
+        <p style="color: #999; font-size: 14px;">Em breve teremos novidades!</p>
+      </div>
+      
+      <div class="products-grid" *ngIf="allProducts.length > 0">
         <div class="product-card-grid" *ngFor="let product of allProducts" (click)="goToProduct(product)">
           <!-- Badge de desconto -->
           <div class="discount-badge" *ngIf="getDiscount(product.price, product.comparePrice) > 0">
@@ -217,22 +417,37 @@
           
           <!-- Imagem -->
           <div class="product-image">
-            <img [src]="product.images?.[0] || 'assets/placeholder.png'" [alt]="product.name" loading="lazy">
+            <img [src]="product.images?.[0] | imageUrl" [alt]="product.name" loading="lazy">
           </div>
           
           <!-- Info -->
           <div class="product-info">
             <h4 class="product-name">{{ product.name }}</h4>
             
+            <!-- Espaçador flexível -->
+            <div class="product-spacer"></div>
+            
+            <!-- Preços -->
             <div class="product-price">
-              <span class="compare-price" *ngIf="product.comparePrice && product.comparePrice > product.price">
-                {{ formatPrice(product.comparePrice) }}
+              <span class="compare-price">
+                <ng-container *ngIf="product.comparePrice && product.comparePrice > product.price">
+                  {{ formatPrice(product.comparePrice) }}
+                </ng-container>
               </span>
               <span class="current-price">{{ formatPrice(product.price) }}</span>
             </div>
+            
+            <!-- Frete Grátis ou placeholder -->
+            <div class="free-shipping-badge" *ngIf="hasFreeShipping(product)">
+              <ion-icon name="car-outline"></ion-icon>
+              <span>{{ getFreeShippingLabel(product) }}</span>
+            </div>
+            <div class="shipping-placeholder" *ngIf="!hasFreeShipping(product)"></div>
           </div>
         </div>
       </div>
+      
+      <!-- Fecha div products-grid quando tem produtos -->
 
       <!-- Loading indicator -->
       <div class="loading-more" *ngIf="isLoadingMore">

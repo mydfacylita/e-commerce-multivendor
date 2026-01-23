@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { RouterModule, Routes } from '@angular/router';
 import { CategoriesPage } from './categories.page';
+import { ImageUrlPipe } from '../../shared/pipes/image-url.pipe';
 
 const routes: Routes = [
   { path: '', component: CategoriesPage }
@@ -14,7 +15,8 @@ const routes: Routes = [
     CommonModule,
     FormsModule,
     IonicModule,
-    RouterModule.forChild(routes)
+    RouterModule.forChild(routes),
+    ImageUrlPipe
   ],
   declarations: [CategoriesPage]
 })

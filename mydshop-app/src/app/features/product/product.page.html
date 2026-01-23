@@ -22,7 +22,7 @@
     <!-- Image Gallery - Simple Scroll -->
     <div class="image-gallery">
       <div class="image-container">
-        <img [src]="product.images[currentSlide]" [alt]="product.name" />
+        <img [src]="product.images[currentSlide] | imageUrl" [alt]="product.name" />
       </div>
       
       <!-- Thumbnail Navigation -->
@@ -32,7 +32,7 @@
           class="thumbnail"
           [class.active]="i === currentSlide"
           (click)="goToSlide(i)">
-          <img [src]="image" [alt]="product.name" />
+          <img [src]="image | imageUrl" [alt]="product.name" />
         </div>
       </div>
       
@@ -342,6 +342,292 @@
         <div class="info-item">
           <ion-icon name="refresh-outline"></ion-icon>
           <span>30 dias para troca</span>
+        </div>
+      </div>
+
+      <!-- ========================================
+           SEÇÃO DE AVALIAÇÕES
+           ======================================== -->
+      <div class="reviews-section">
+        <div class="section-header">
+          <h3>
+            <ion-icon name="star"></ion-icon>
+            Avaliações
+            <span class="count" *ngIf="reviewStats">({{ reviewStats.totalReviews }})</span>
+          </h3>
+          <ion-button fill="clear" size="small" (click)="toggleReviewForm()">
+            <ion-icon slot="start" name="create-outline"></ion-icon>
+            Avaliar
+          </ion-button>
+        </div>
+
+        <!-- Estatísticas de Avaliações -->
+        <div class="review-stats" *ngIf="reviewStats && reviewStats.totalReviews > 0">
+          <div class="rating-summary">
+            <div class="average-rating">
+              <span class="rating-number">{{ reviewStats.averageRating.toFixed(1) }}</span>
+              <div class="stars">
+                <ion-icon *ngFor="let filled of getStarsArray(Math.round(reviewStats.averageRating))" 
+                  [name]="filled ? 'star' : 'star-outline'" 
+                  color="warning">
+                </ion-icon>
+              </div>
+              <span class="total-text">{{ reviewStats.totalReviews }} avaliações</span>
+            </div>
+            <div class="rating-bars">
+              <div class="rating-bar" *ngFor="let star of [5,4,3,2,1]">
+                <span class="star-label">{{ star }} ★</span>
+                <div class="bar-container">
+                  <div class="bar-fill" [style.width.%]="getRatingPercentage(star)"></div>
+                </div>
+                <span class="count">{{ $any(reviewStats.distribution)[star] || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Formulário Nova Avaliação -->
+        <div class="review-form" *ngIf="showReviewForm">
+          <h4>Escreva sua avaliação</h4>
+          
+          <div class="rating-selector">
+            <span class="label">Nota:</span>
+            <div class="stars-selector">
+              <ion-icon *ngFor="let i of [1,2,3,4,5]" 
+                [name]="i <= newReview.rating ? 'star' : 'star-outline'" 
+                [color]="i <= newReview.rating ? 'warning' : 'medium'"
+                (click)="setNewRating(i)">
+              </ion-icon>
+            </div>
+          </div>
+
+          <ion-item>
+            <ion-label position="stacked">Título (opcional)</ion-label>
+            <ion-input [(ngModel)]="newReview.title" placeholder="Resumo da sua avaliação"></ion-input>
+          </ion-item>
+
+          <ion-item>
+            <ion-label position="stacked">Comentário</ion-label>
+            <ion-textarea [(ngModel)]="newReview.comment" rows="3" placeholder="Conte sua experiência com o produto"></ion-textarea>
+          </ion-item>
+
+          <ion-item>
+            <ion-label position="stacked">Pontos positivos (opcional)</ion-label>
+            <ion-input [(ngModel)]="newReview.pros" placeholder="O que você gostou?"></ion-input>
+          </ion-item>
+
+          <ion-item>
+            <ion-label position="stacked">Pontos negativos (opcional)</ion-label>
+            <ion-input [(ngModel)]="newReview.cons" placeholder="O que poderia melhorar?"></ion-input>
+          </ion-item>
+
+          <div class="form-actions">
+            <ion-button fill="outline" (click)="showReviewForm = false">Cancelar</ion-button>
+            <ion-button (click)="submitReview()" [disabled]="submittingReview || newReview.rating === 0">
+              <ion-spinner *ngIf="submittingReview" slot="start"></ion-spinner>
+              {{ submittingReview ? 'Enviando...' : 'Enviar Avaliação' }}
+            </ion-button>
+          </div>
+        </div>
+
+        <!-- Ordenação -->
+        <div class="sort-options" *ngIf="reviews.length > 0">
+          <ion-segment [(ngModel)]="reviewSortBy" (ionChange)="changeReviewSort($any($event.detail.value))">
+            <ion-segment-button value="recent">
+              <ion-label>Recentes</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="helpful">
+              <ion-label>Úteis</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="rating-high">
+              <ion-label>Melhores</ion-label>
+            </ion-segment-button>
+          </ion-segment>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading-reviews" *ngIf="isLoadingReviews">
+          <ion-spinner name="crescent"></ion-spinner>
+          <span>Carregando avaliações...</span>
+        </div>
+
+        <!-- Lista de Avaliações -->
+        <div class="reviews-list" *ngIf="!isLoadingReviews">
+          <div class="review-card" *ngFor="let review of reviews">
+            <div class="review-header">
+              <div class="user-info">
+                <ion-avatar>
+                  <img [src]="review.user.image || 'assets/avatar-placeholder.png'" />
+                </ion-avatar>
+                <div class="user-details">
+                  <span class="user-name">{{ review.user.name }}</span>
+                  <span class="review-date">{{ formatDate(review.createdAt) }}</span>
+                </div>
+              </div>
+              <div class="review-rating">
+                <ion-icon *ngFor="let filled of getStarsArray(review.rating)" 
+                  [name]="filled ? 'star' : 'star-outline'" 
+                  color="warning">
+                </ion-icon>
+              </div>
+            </div>
+
+            <div class="verified-badge" *ngIf="review.isVerified">
+              <ion-icon name="checkmark-circle" color="success"></ion-icon>
+              <span>Compra verificada</span>
+            </div>
+
+            <h5 class="review-title" *ngIf="review.title">{{ review.title }}</h5>
+            <p class="review-comment" *ngIf="review.comment">{{ review.comment }}</p>
+
+            <div class="review-pros" *ngIf="review.pros">
+              <ion-icon name="thumbs-up" color="success"></ion-icon>
+              <span>{{ review.pros }}</span>
+            </div>
+
+            <div class="review-cons" *ngIf="review.cons">
+              <ion-icon name="thumbs-down" color="danger"></ion-icon>
+              <span>{{ review.cons }}</span>
+            </div>
+
+            <!-- Imagens da avaliação -->
+            <div class="review-images" *ngIf="review.images && review.images.length > 0">
+              <img *ngFor="let img of review.images" [src]="img" />
+            </div>
+
+            <!-- Resposta do vendedor -->
+            <div class="seller-reply" *ngIf="review.sellerReply">
+              <div class="reply-header">
+                <ion-icon name="storefront"></ion-icon>
+                <span>Resposta do vendedor</span>
+                <span class="reply-date" *ngIf="review.sellerReplyAt">{{ formatDate(review.sellerReplyAt) }}</span>
+              </div>
+              <p>{{ review.sellerReply }}</p>
+            </div>
+
+            <div class="review-actions">
+              <ion-button fill="clear" size="small" (click)="markHelpful(review.id)">
+                <ion-icon slot="start" name="thumbs-up-outline"></ion-icon>
+                Útil ({{ review.helpfulCount }})
+              </ion-button>
+            </div>
+          </div>
+
+          <!-- Sem avaliações -->
+          <div class="empty-reviews" *ngIf="reviews.length === 0 && !isLoadingReviews">
+            <ion-icon name="chatbubble-ellipses-outline"></ion-icon>
+            <p>Este produto ainda não tem avaliações.</p>
+            <ion-button fill="outline" (click)="toggleReviewForm()">Seja o primeiro a avaliar!</ion-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           SEÇÃO DE PERGUNTAS
+           ======================================== -->
+      <div class="questions-section">
+        <div class="section-header">
+          <h3>
+            <ion-icon name="chatbubbles"></ion-icon>
+            Perguntas e Respostas
+            <span class="count" *ngIf="questionStats">({{ questionStats.totalQuestions }})</span>
+          </h3>
+          <ion-button fill="clear" size="small" (click)="toggleQuestionForm()">
+            <ion-icon slot="start" name="help-circle-outline"></ion-icon>
+            Perguntar
+          </ion-button>
+        </div>
+
+        <!-- Estatísticas -->
+        <div class="question-stats" *ngIf="questionStats && questionStats.totalQuestions > 0">
+          <div class="stat-item">
+            <span class="stat-number">{{ questionStats.totalQuestions }}</span>
+            <span class="stat-label">Total</span>
+          </div>
+          <div class="stat-item answered">
+            <span class="stat-number">{{ questionStats.answeredCount }}</span>
+            <span class="stat-label">Respondidas</span>
+          </div>
+          <div class="stat-item pending">
+            <span class="stat-number">{{ questionStats.unansweredCount }}</span>
+            <span class="stat-label">Aguardando</span>
+          </div>
+        </div>
+
+        <!-- Formulário Nova Pergunta -->
+        <div class="question-form" *ngIf="showQuestionForm">
+          <ion-item>
+            <ion-label position="stacked">Sua pergunta</ion-label>
+            <ion-textarea [(ngModel)]="newQuestion" rows="3" placeholder="Digite sua dúvida sobre o produto..."></ion-textarea>
+          </ion-item>
+          <p class="form-hint">Mínimo 10 caracteres. Evite informações pessoais.</p>
+          <div class="form-actions">
+            <ion-button fill="outline" (click)="showQuestionForm = false">Cancelar</ion-button>
+            <ion-button (click)="submitQuestion()" [disabled]="submittingQuestion || newQuestion.length < 10">
+              <ion-spinner *ngIf="submittingQuestion" slot="start"></ion-spinner>
+              {{ submittingQuestion ? 'Enviando...' : 'Enviar Pergunta' }}
+            </ion-button>
+          </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filter-options" *ngIf="questions.length > 0">
+          <ion-segment [(ngModel)]="questionFilter" (ionChange)="changeQuestionFilter($any($event.detail.value))">
+            <ion-segment-button value="all">
+              <ion-label>Todas</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="answered">
+              <ion-label>Respondidas</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="unanswered">
+              <ion-label>Aguardando</ion-label>
+            </ion-segment-button>
+          </ion-segment>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading-questions" *ngIf="isLoadingQuestions">
+          <ion-spinner name="crescent"></ion-spinner>
+          <span>Carregando perguntas...</span>
+        </div>
+
+        <!-- Lista de Perguntas -->
+        <div class="questions-list" *ngIf="!isLoadingQuestions">
+          <div class="question-card" *ngFor="let question of questions">
+            <div class="question-content">
+              <div class="question-header">
+                <ion-avatar>
+                  <img [src]="question.user.image || 'assets/avatar-placeholder.png'" />
+                </ion-avatar>
+                <div class="question-meta">
+                  <span class="user-name">{{ question.user.name }}</span>
+                  <span class="question-date">{{ formatDate(question.createdAt) }}</span>
+                </div>
+                <ion-chip [color]="question.answer ? 'success' : 'warning'" [outline]="true">
+                  <ion-icon [name]="question.answer ? 'checkmark-circle' : 'time'"></ion-icon>
+                  {{ question.answer ? 'Respondida' : 'Aguardando' }}
+                </ion-chip>
+              </div>
+              <p class="question-text">{{ question.question }}</p>
+            </div>
+
+            <!-- Resposta -->
+            <div class="answer-content" *ngIf="question.answer">
+              <div class="answer-header">
+                <ion-icon name="storefront" color="primary"></ion-icon>
+                <span class="seller-label">Resposta do vendedor</span>
+                <span class="answer-date" *ngIf="question.answeredAt">{{ formatDate(question.answeredAt) }}</span>
+              </div>
+              <p class="answer-text">{{ question.answer }}</p>
+            </div>
+          </div>
+
+          <!-- Sem perguntas -->
+          <div class="empty-questions" *ngIf="questions.length === 0 && !isLoadingQuestions">
+            <ion-icon name="help-buoy-outline"></ion-icon>
+            <p>Nenhuma pergunta ainda.</p>
+            <ion-button fill="outline" (click)="toggleQuestionForm()">Faça a primeira pergunta!</ion-button>
+          </div>
         </div>
       </div>
     </div>

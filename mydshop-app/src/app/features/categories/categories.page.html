@@ -116,7 +116,7 @@
           -{{ getDiscountPercent(product) }}%
         </div>
         <div class="product-image">
-          <img [src]="product.images?.[0] || 'assets/placeholder.png'" [alt]="product.name" loading="lazy">
+          <img [src]="product.images?.[0] | imageUrl" [alt]="product.name" loading="lazy">
         </div>
         <div class="product-info">
           <h4>{{ product.name }}</h4>

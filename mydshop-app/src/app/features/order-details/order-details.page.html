@@ -1,0 +1,247 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="goBack()">
+        <ion-icon slot="icon-only" name="arrow-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Detalhes do Pedido</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="isLoading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Carregando pedido...</p>
+  </div>
+
+  <div class="order-details" *ngIf="!isLoading && order">
+    <!-- Header do Pedido -->
+    <div class="order-header">
+      <div class="order-info">
+        <h1>Pedido {{ order.orderNumber }}</h1>
+        <p class="order-date">{{ formatDate(order.createdAt) }}</p>
+      </div>
+      <ion-badge [color]="getStatusColor(order.status)" class="status-badge">
+        <ion-icon [name]="getStatusIcon(order.status)"></ion-icon>
+        {{ order.statusLabel }}
+      </ion-badge>
+    </div>
+
+    <!-- Status Timeline -->
+    <div class="status-timeline" *ngIf="order.status !== 'CANCELLED'">
+      <div class="timeline-step" [class.active]="['PENDING', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'].includes(order.status)">
+        <div class="step-icon">
+          <ion-icon name="card-outline"></ion-icon>
+        </div>
+        <span>Pagamento</span>
+      </div>
+      <div class="timeline-line" [class.active]="['PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED'].includes(order.status)"></div>
+      <div class="timeline-step" [class.active]="['PROCESSING', 'SHIPPED', 'DELIVERED'].includes(order.status)">
+        <div class="step-icon">
+          <ion-icon name="cube-outline"></ion-icon>
+        </div>
+        <span>Preparação</span>
+      </div>
+      <div class="timeline-line" [class.active]="['SHIPPED', 'DELIVERED'].includes(order.status)"></div>
+      <div class="timeline-step" [class.active]="['SHIPPED', 'DELIVERED'].includes(order.status)">
+        <div class="step-icon">
+          <ion-icon name="airplane-outline"></ion-icon>
+        </div>
+        <span>Enviado</span>
+      </div>
+      <div class="timeline-line" [class.active]="order.status === 'DELIVERED'"></div>
+      <div class="timeline-step" [class.active]="order.status === 'DELIVERED'">
+        <div class="step-icon">
+          <ion-icon name="checkmark-done-outline"></ion-icon>
+        </div>
+        <span>Entregue</span>
+      </div>
+    </div>
+
+    <!-- Rastreamento -->
+    <div class="tracking-section" *ngIf="order.tracking">
+      <h3>
+        <ion-icon name="location-outline"></ion-icon>
+        Rastreamento
+      </h3>
+      <div class="tracking-info">
+        <div class="tracking-code">
+          <span class="label">Código:</span>
+          <span class="code">{{ order.tracking.code }}</span>
+          <ion-button fill="clear" size="small" (click)="copyTrackingCode()">
+            <ion-icon slot="icon-only" name="copy-outline"></ion-icon>
+          </ion-button>
+        </div>
+        <ion-button expand="block" fill="outline" (click)="trackOrder()">
+          <ion-icon slot="start" name="navigate-outline"></ion-icon>
+          Rastrear Envio
+        </ion-button>
+      </div>
+    </div>
+
+    <!-- Itens do Pedido -->
+    <div class="items-section">
+      <h3>
+        <ion-icon name="bag-outline"></ion-icon>
+        Itens do Pedido
+      </h3>
+      <div class="order-items">
+        <div class="order-item" *ngFor="let item of order.items">
+          <img [src]="item.image | imageUrl" [alt]="item.name" class="item-image" />
+          <div class="item-details">
+            <h4>{{ item.name }}</h4>
+            <p class="item-variant" *ngIf="item.size || item.color">
+              <span *ngIf="item.size">Tam: {{ item.size }}</span>
+              <span *ngIf="item.size && item.color"> | </span>
+              <span *ngIf="item.color">Cor: {{ item.color }}</span>
+            </p>
+            <p class="item-qty">Qtd: {{ item.quantity }}</p>
+          </div>
+          <span class="item-price">{{ formatCurrency(item.price * item.quantity) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Previsão de Entrega -->
+    <div class="delivery-section" *ngIf="order.status !== 'DELIVERED' && order.status !== 'CANCELLED'">
+      <h3>
+        <ion-icon name="calendar-outline"></ion-icon>
+        Previsão de Entrega
+      </h3>
+      <div class="delivery-card">
+        <div class="delivery-date">
+          <ion-icon name="time-outline" color="primary"></ion-icon>
+          <div class="delivery-info" *ngIf="order.estimatedDeliveryDate">
+            <span class="delivery-label">Chegada prevista até</span>
+            <span class="delivery-value">{{ formatDeliveryDate(order.estimatedDeliveryDate) }}</span>
+            <span class="delivery-days" *ngIf="order.deliveryDays">({{ order.deliveryDays }} dias úteis)</span>
+          </div>
+          <div class="delivery-info" *ngIf="!order.estimatedDeliveryDate && order.deliveryDays">
+            <span class="delivery-label">Prazo de entrega</span>
+            <span class="delivery-value">{{ order.deliveryDays }} dias úteis</span>
+          </div>
+          <div class="delivery-info" *ngIf="!order.estimatedDeliveryDate && !order.deliveryDays">
+            <span class="delivery-label">Previsão</span>
+            <span class="delivery-value">Consulte o rastreio</span>
+          </div>
+        </div>
+        <div class="shipping-method" *ngIf="order.shippingMethod || order.shippingCarrier">
+          <ion-icon name="cube-outline" color="medium"></ion-icon>
+          <span>{{ getShippingLabel() }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mensagem de Entregue -->
+    <div class="delivered-section" *ngIf="order.status === 'DELIVERED'">
+      <div class="delivered-card">
+        <ion-icon name="checkmark-circle" color="success"></ion-icon>
+        <span>Pedido entregue com sucesso!</span>
+      </div>
+    </div>
+
+    <!-- Endereço de Entrega -->
+    <div class="address-section">
+      <h3>
+        <ion-icon name="home-outline"></ion-icon>
+        Endereço de Entrega
+      </h3>
+      <div class="address-card">
+        <p>{{ order.shippingAddress.street }}, {{ order.shippingAddress.number }}</p>
+        <p *ngIf="order.shippingAddress.complement">{{ order.shippingAddress.complement }}</p>
+        <p>{{ order.shippingAddress.neighborhood }}</p>
+        <p>{{ order.shippingAddress.city }} - {{ order.shippingAddress.state }}</p>
+        <p>CEP: {{ order.shippingAddress.zipCode }}</p>
+      </div>
+    </div>
+
+    <!-- Resumo do Pagamento -->
+    <div class="payment-section">
+      <h3>
+        <ion-icon name="card-outline"></ion-icon>
+        Resumo
+      </h3>
+      <div class="payment-summary">
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span>{{ formatCurrency(order.subtotal) }}</span>
+        </div>
+        <div class="summary-row">
+          <span>Frete ({{ getShippingLabel() }})</span>
+          <span>{{ order.shippingCost === 0 ? 'Grátis' : formatCurrency(order.shippingCost) }}</span>
+        </div>
+        <div class="summary-row discount-row" *ngIf="order.discount > 0">
+          <span>Desconto {{ getDiscountLabel() }}</span>
+          <span class="discount">-{{ formatCurrency(order.discount) }}</span>
+        </div>
+        <div class="summary-row total">
+          <span>Total</span>
+          <span>{{ formatCurrency(order.total) }}</span>
+        </div>
+        <div class="payment-method-row" *ngIf="order.paymentMethod || order.paymentType">
+          <ion-icon [name]="getPaymentIcon()" color="primary"></ion-icon>
+          <span>{{ getPaymentMethodLabel() }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nota Fiscal -->
+    <div class="invoice-section" *ngIf="order.invoice">
+      <h3>
+        <ion-icon name="document-text-outline"></ion-icon>
+        Nota Fiscal
+      </h3>
+      <div class="invoice-card">
+        <div class="invoice-info">
+          <div class="invoice-number">
+            <span class="label">NF-e Nº:</span>
+            <span class="value">{{ order.invoice.number }}</span>
+          </div>
+          <div class="invoice-key" *ngIf="order.invoice.accessKey">
+            <span class="label">Chave:</span>
+            <span class="key">{{ order.invoice.accessKey.substring(0, 20) }}...</span>
+            <ion-button fill="clear" size="small" (click)="copyAccessKey()">
+              <ion-icon slot="icon-only" name="copy-outline"></ion-icon>
+            </ion-button>
+          </div>
+        </div>
+        <div class="invoice-actions">
+          <ion-button expand="block" fill="outline" color="primary" (click)="openDanfe()">
+            <ion-icon slot="start" name="document-outline"></ion-icon>
+            Ver DANFE (PDF)
+          </ion-button>
+          <ion-button expand="block" fill="outline" color="secondary" (click)="openXml()">
+            <ion-icon slot="start" name="code-slash-outline"></ion-icon>
+            Baixar XML
+          </ion-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="actions-section">
+      <!-- Botão Pagar Agora (apenas para pedidos pendentes) -->
+      <ion-button 
+        expand="block" 
+        color="primary" 
+        *ngIf="order.status === 'PENDING'"
+        (click)="goToPayment()">
+        <ion-icon slot="start" name="card-outline"></ion-icon>
+        Pagar Agora
+      </ion-button>
+      
+      <!-- Botão Cancelar (pedidos pendentes ou pagos) -->
+      <ion-button 
+        expand="block" 
+        color="danger" 
+        fill="outline" 
+        *ngIf="order.status === 'PENDING' || order.status === 'PAID'"
+        (click)="cancelOrder()">
+        <ion-icon slot="start" name="close-circle-outline"></ion-icon>
+        Cancelar Pedido
+      </ion-button>
+    </div>
+  </div>
+</ion-content>

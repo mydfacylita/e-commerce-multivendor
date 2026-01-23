@@ -27,7 +27,7 @@
   <div *ngIf="isAuthenticated && user" class="user-section">
     <div class="user-header">
       <ion-avatar>
-        <img [src]="user.image || 'assets/avatar-placeholder.png'" alt="Avatar">
+        <img [src]="user.image | imageUrl" alt="Avatar">
       </ion-avatar>
       <div class="user-info">
         <h2>{{ user.name }}</h2>

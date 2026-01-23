@@ -1,0 +1,78 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tabs/profile"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Editar Perfil</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <!-- Avatar Section -->
+  <div class="avatar-section">
+    <div class="avatar-container" (click)="selectImageSource()">
+      <!-- Com imagem -->
+      <img *ngIf="avatarPreview" [src]="avatarPreview" alt="Avatar" class="avatar-image">
+      
+      <!-- Sem imagem - mostra iniciais -->
+      <div *ngIf="!avatarPreview" class="avatar-placeholder">
+        <span>{{ getInitials() }}</span>
+      </div>
+      
+      <!-- Ícone de edição -->
+      <div class="edit-badge">
+        <ion-icon name="camera"></ion-icon>
+      </div>
+    </div>
+    <p class="avatar-hint">Toque para alterar a foto</p>
+  </div>
+
+  <!-- Form -->
+  <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+    <ion-list>
+      <ion-item>
+        <ion-label position="stacked">Nome completo *</ion-label>
+        <ion-input 
+          formControlName="name" 
+          type="text" 
+          placeholder="Seu nome"
+          [clearInput]="true">
+        </ion-input>
+      </ion-item>
+      <div class="error-message" *ngIf="profileForm.get('name')?.touched && profileForm.get('name')?.errors?.['required']">
+        Nome é obrigatório
+      </div>
+      <div class="error-message" *ngIf="profileForm.get('name')?.touched && profileForm.get('name')?.errors?.['minlength']">
+        Nome deve ter pelo menos 3 caracteres
+      </div>
+
+      <ion-item>
+        <ion-label position="stacked">Email</ion-label>
+        <ion-input 
+          [value]="user?.email" 
+          type="email" 
+          [readonly]="true"
+          class="readonly-field">
+        </ion-input>
+      </ion-item>
+      <p class="field-hint">O email não pode ser alterado</p>
+
+      <ion-item>
+        <ion-label position="stacked">Telefone</ion-label>
+        <ion-input 
+          formControlName="phone" 
+          type="tel" 
+          placeholder="(00) 00000-0000"
+          [clearInput]="true">
+        </ion-input>
+      </ion-item>
+    </ion-list>
+
+    <div class="button-section">
+      <ion-button expand="block" type="submit" [disabled]="profileForm.invalid || isLoading">
+        <ion-spinner *ngIf="isLoading" name="crescent"></ion-spinner>
+        <span *ngIf="!isLoading">Salvar Alterações</span>
+      </ion-button>
+    </div>
+  </form>
+</ion-content>

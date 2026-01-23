@@ -9,9 +9,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { catchError, tap, map } from 'rxjs/operators';
-import { Platform } from '@ionic/angular';
 import { environment } from '../../../environments/environment';
 import { StorageService } from './storage.service';
+import { getApiUrl, getImageUrl } from '../config/api.config';
 
 // Interfaces de configuração
 export interface BrandConfig {
@@ -67,6 +67,18 @@ export interface EcommerceConfig {
   freeShippingMin: number;
   pixDiscount: number;
   boletoDiscount: number;
+}
+
+export interface FreeShippingRule {
+  minValue: number;
+  region: string;
+  regionType?: string;
+}
+
+export interface FreeShippingInfo {
+  hasFreeShipping: boolean;
+  bestOffer?: FreeShippingRule;
+  rules: FreeShippingRule[];
 }
 
 export interface BannerConfig {
@@ -179,6 +191,7 @@ const CONFIG_CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 })
 export class AppConfigService {
   private config = new BehaviorSubject<AppConfig>(DEFAULT_CONFIG);
+  private freeShippingInfo = new BehaviorSubject<FreeShippingInfo>({ hasFreeShipping: false, rules: [] });
   private lastFetch = 0;
   private isLoading = false;
 
@@ -189,48 +202,44 @@ export class AppConfigService {
   public texts$ = this.config$.pipe(map(c => c.texts));
   public features$ = this.config$.pipe(map(c => c.features));
   public status$ = this.config$.pipe(map(c => c.status));
+  public freeShippingInfo$ = this.freeShippingInfo.asObservable();
 
   constructor(
     private http: HttpClient,
-    private storage: StorageService,
-    private platform: Platform
+    private storage: StorageService
   ) {
     this.init();
   }
 
   /**
-   * Retorna a URL correta baseada na plataforma
+   * Retorna a URL da API de configuração
    */
   private getConfigUrl(): string {
-    const isCapacitor = this.platform.is('capacitor');
-    const isAndroid = this.platform.is('android');
-    const isIOS = this.platform.is('ios');
-    
-    console.log('🔍 Platform Detection:', {
-      isCapacitor,
-      isAndroid, 
-      isIOS,
-      platforms: this.platform.platforms()
-    });
-    
-    // Se estiver rodando em Capacitor (dispositivo físico), usar URL direta
-    if (isCapacitor) {
-      const url = 'http://192.168.3.20:3000/api/app/config';
-      console.log('📱 Using direct URL for Capacitor:', url);
-      return url;
-    }
-    
-    // Se estiver acessando via IP (tablet/celular), usar URL direta
-    if (window.location.hostname === '192.168.3.20') {
-      const url = 'http://192.168.3.20:3000/api/app/config';
-      console.log('🌐 Using direct URL for IP access:', url);
-      return url;
-    }
-    
-    // No browser localhost, usar proxy
-    const url = '/api/app/config';
-    console.log('🌐 Using proxy URL for browser:', url);
+    const url = `${getApiUrl()}/app/config`;
+    console.log('🎨 Config URL:', url);
     return url;
+  }
+
+  /**
+   * Processa URLs de imagens na configuração
+   * Converte URLs relativas para absolutas (necessário no Capacitor)
+   */
+  private processConfigImages(config: AppConfig): AppConfig {
+    return {
+      ...config,
+      brand: {
+        ...config.brand,
+        logo: config.brand.logo ? getImageUrl(config.brand.logo) : null,
+        logoLight: config.brand.logoLight ? getImageUrl(config.brand.logoLight) : null,
+        logoDark: config.brand.logoDark ? getImageUrl(config.brand.logoDark) : null,
+        icon: config.brand.icon ? getImageUrl(config.brand.icon) : null,
+        splashScreen: config.brand.splashScreen ? getImageUrl(config.brand.splashScreen) : null,
+      },
+      banners: config.banners?.map(banner => ({
+        ...banner,
+        image: banner.image ? getImageUrl(banner.image) : null
+      })) || []
+    };
   }
 
   /**
@@ -280,20 +289,22 @@ export class AppConfigService {
     this.isLoading = true;
     const now = Date.now();
 
+    const configUrl = this.getConfigUrl();
     console.log('🔄 AppConfigService: Buscando config do servidor...');
+    console.log('🔄 URL completa:', configUrl);
+    console.log('🔄 API Key:', environment.apiKey?.substring(0, 20) + '...');
 
-    return this.http.get<AppConfig>(this.getConfigUrl(), {
+    return this.http.get<AppConfig>(configUrl, {
       headers: {
         'x-api-key': environment.apiKey
       }
     }).pipe(
+      map(config => this.processConfigImages(config)),
       tap(async (config) => {
-        console.log('✅ AppConfigService: Config recebida:', {
-          brand: config.brand?.name,
-          logo: config.brand?.logo,
-          theme: config.theme,
-          ecommerce: config.ecommerce
-        });
+        console.log('✅ AppConfigService: Config recebida do servidor!');
+        console.log('✅ Brand:', JSON.stringify(config.brand));
+        console.log('✅ Logo:', config.brand?.logo);
+        console.log('✅ Theme:', JSON.stringify(config.theme));
         
         this.config.next(config);
         this.lastFetch = now;
@@ -306,7 +317,11 @@ export class AppConfigService {
         this.applyTheme(config.theme);
       }),
       catchError((error) => {
-        console.error('❌ AppConfigService: Erro ao carregar configurações:', error);
+        console.error('❌ AppConfigService: Erro ao carregar configurações!');
+        console.error('❌ Erro completo:', JSON.stringify(error));
+        console.error('❌ Status:', error?.status);
+        console.error('❌ Message:', error?.message);
+        console.error('❌ URL:', error?.url);
         this.isLoading = false;
         return of(this.config.value);
       })
@@ -378,6 +393,10 @@ export class AppConfigService {
     root.style.setProperty('--ion-color-success', theme.success);
     root.style.setProperty('--ion-color-warning', theme.warning);
     root.style.setProperty('--ion-color-danger', theme.danger);
+    
+    // Aplicar cor de fundo ao Ionic
+    root.style.setProperty('--ion-background-color', theme.background);
+    root.style.setProperty('--ion-toolbar-background', theme.background);
   }
 
   /**
@@ -421,5 +440,65 @@ export class AppConfigService {
     }
     
     return [{ text: name, highlight: true }];
+  }
+
+  /**
+   * Busca informações de frete grátis do servidor
+   */
+  loadFreeShippingInfo(): Observable<FreeShippingInfo> {
+    const url = `${getApiUrl()}/shipping/free-shipping-info`;
+    
+    return this.http.get<FreeShippingInfo>(url, {
+      headers: {
+        'x-api-key': environment.apiKey
+      }
+    }).pipe(
+      tap(info => {
+        console.log('🚚 FreeShippingInfo carregado:', info);
+        this.freeShippingInfo.next(info);
+      }),
+      catchError(err => {
+        console.error('🚚 Erro ao carregar FreeShippingInfo:', err);
+        return of({ hasFreeShipping: false, rules: [] });
+      })
+    );
+  }
+
+  /**
+   * Retorna o valor atual de frete grátis
+   */
+  getFreeShippingInfo(): FreeShippingInfo {
+    return this.freeShippingInfo.value;
+  }
+
+  /**
+   * Verifica se um produto tem frete grátis baseado no preço
+   */
+  hasFreeShipping(productPrice: number): boolean {
+    const info = this.freeShippingInfo.value;
+    if (!info.hasFreeShipping) return false;
+    
+    if (info.bestOffer) {
+      return productPrice >= info.bestOffer.minValue;
+    }
+    return false;
+  }
+
+  /**
+   * Retorna texto de frete grátis para um produto
+   */
+  getFreeShippingText(productPrice: number): string | null {
+    const info = this.freeShippingInfo.value;
+    if (!info.hasFreeShipping || !info.bestOffer) return null;
+    
+    if (productPrice >= info.bestOffer.minValue) {
+      const region = info.bestOffer.region;
+      // Só mostra região se ela existir e não for genérica
+      if (region && region !== 'Todo o Brasil') {
+        return `Frete Grátis · ${region}`;
+      }
+      return 'Frete Grátis';
+    }
+    return null;
   }
 }
