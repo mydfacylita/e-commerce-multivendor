@@ -23,7 +23,7 @@ workflows:
       - name: Install dependencies
         script: |
           cd mydshop-app
-          npm ci
+          npm ci --legacy-peer-deps
           
       - name: Build web assets
         script: |
@@ -84,7 +84,7 @@ workflows:
       - name: Install dependencies
         script: |
           cd mydshop-app
-          npm ci
+          npm ci --legacy-peer-deps
           
       - name: Build web assets
         script: |
