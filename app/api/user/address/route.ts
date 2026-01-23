@@ -107,6 +107,8 @@ export async function POST(request: NextRequest) {
       state,
       zipCode,
       phone,
+      reference,
+      notes,
       isDefault
     } = body
 
@@ -144,6 +146,8 @@ export async function POST(request: NextRequest) {
           state,
           zipCode: zipCode.replace(/\D/g, ''),
           phone,
+          reference,
+          notes,
           isDefault: isDefault || false
         }
       })
@@ -164,6 +168,8 @@ export async function POST(request: NextRequest) {
           state,
           zipCode: zipCode.replace(/\D/g, ''),
           phone,
+          reference,
+          notes,
           isDefault: isDefault || addressCount === 0
         }
       })

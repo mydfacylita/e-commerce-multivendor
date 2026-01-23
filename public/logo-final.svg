@@ -35,6 +35,8 @@
     <path d="M19 22 C19 16 22.5 13 26 13 C29.5 13 33 16 33 22" stroke="#F97316" stroke-width="3.5" fill="none" stroke-linecap="round"/>
     <circle cx="23" cy="33" r="2.5" fill="white"/>
     <circle cx="29" cy="33" r="2.5" fill="white"/>
+    <!-- Boquinha sorrindo -->
+    <path d="M22 40 Q26 44 30 40" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
     <ellipse cx="22" cy="27" rx="4" ry="5" fill="white" opacity="0.35"/>
   </g>
   

@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') || 'packed' // packed = pronto para coleta, shipped = já despachados
     const orderIds = searchParams.get('ids')?.split(',').filter(Boolean) || []
+    const carrier = searchParams.get('carrier') // Filtrar por transportadora específica
 
     // Buscar dados da empresa
     const company = await prisma.companySettings.findFirst()
@@ -50,6 +51,14 @@ export async function GET(request: NextRequest) {
           whereCondition.packedAt = { not: null }
           break
       }
+    }
+
+    // Filtrar por transportadora se especificada
+    if (carrier) {
+      whereCondition.OR = [
+        { shippingCarrier: carrier },
+        { shippingMethod: carrier }
+      ]
     }
 
     // Buscar pedidos com itens
@@ -92,13 +101,13 @@ export async function GET(request: NextRequest) {
     }))
 
     if (ordersWithPackaging.length === 0) {
-      return new NextResponse(generateEmptyGuide(company, logoUrl), {
+      return new NextResponse(generateEmptyGuide(company, logoUrl, carrier), {
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
       })
     }
 
     // Gerar HTML da guia de coleta
-    const html = generateCollectionGuide(ordersWithPackaging, company, logoUrl)
+    const html = generateCollectionGuide(ordersWithPackaging, company, logoUrl, carrier)
 
     return new NextResponse(html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
@@ -110,13 +119,14 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function generateEmptyGuide(company: any, logoUrl: string): string {
+function generateEmptyGuide(company: any, logoUrl: string, carrier: string | null): string {
+  const carrierText = carrier ? ` - ${carrier}` : ''
   return `
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Guia de Coleta - ${company?.name || 'MYDSHOP'}</title>
+  <title>Guia de Coleta${carrierText} - ${company?.name || 'MYDSHOP'}</title>
   <style>
     ${getStyles()}
   </style>
@@ -125,7 +135,7 @@ function generateEmptyGuide(company: any, logoUrl: string): string {
   <div class="page">
     ${generateHeader(company, logoUrl)}
     <div class="empty-message">
-      <h2>Nenhum pedido pronto para coleta</h2>
+      <h2>Nenhum pedido pronto para coleta${carrier ? ` (${carrier})` : ''}</h2>
       <p>Embale os pedidos separados para gerar a guia de coleta.</p>
     </div>
   </div>
@@ -134,9 +144,10 @@ function generateEmptyGuide(company: any, logoUrl: string): string {
 `
 }
 
-function generateCollectionGuide(orders: any[], company: any, logoUrl: string): string {
+function generateCollectionGuide(orders: any[], company: any, logoUrl: string, carrier: string | null): string {
   const now = new Date()
   const dataHora = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const carrierText = carrier ? ` - ${carrier}` : ''
   
   // Separar pedidos por status
   const pedidosParaColeta = orders.filter(o => !o.shippedAt)
@@ -165,7 +176,7 @@ function generateCollectionGuide(orders: any[], company: any, logoUrl: string): 
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Guia de Coleta - ${company?.name || 'MYDSHOP'}</title>
+  <title>Guia de Coleta${carrierText} - ${company?.name || 'MYDSHOP'}</title>
   <style>
     ${getStyles()}
   </style>
@@ -177,7 +188,7 @@ function generateCollectionGuide(orders: any[], company: any, logoUrl: string): 
     <!-- Informações do Documento -->
     <div class="doc-info">
       <div class="doc-title">
-        <h1>🚚 GUIA DE COLETA</h1>
+        <h1>🚚 GUIA DE COLETA${carrier ? ` <span style="color: #059669; font-size: 0.8em;">(${carrier})</span>` : ''}</h1>
         <p class="doc-date">Gerado em: ${dataHora}</p>
       </div>
       <div class="doc-summary">

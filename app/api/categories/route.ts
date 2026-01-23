@@ -7,6 +7,13 @@ import { validateApiKey } from '@/lib/api-security'
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
+// CORS é tratado pelo middleware global - não adicionar headers duplicados
+
+// OPTIONS - Preflight para CORS (tratado pelo middleware)
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204 })
+}
+
 export async function GET(request: NextRequest) {
   try {
     // 🔐 Validar API Key

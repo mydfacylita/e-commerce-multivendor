@@ -286,7 +286,8 @@ export async function GET(req: NextRequest) {
 
     const availableBalance = seller.balance - totalPendingPayments
 
-    const [orderItems, withdrawals] = await Promise.all([
+    const [orderItems, withdrawals, eanPurchases] = await Promise.all([
+      // Vendas de produtos (CRÉDITOS)
       prisma.orderItem.findMany({
         where: {
           sellerId: seller.id,
@@ -307,15 +308,32 @@ export async function GET(req: NextRequest) {
           }
         }
       }),
+      // Saques (DÉBITOS)
       prisma.withdrawal.findMany({
         where: { sellerId: seller.id },
         orderBy: { createdAt: 'desc' }
-      })
+      }),
+      // Compras de pacotes EAN (DÉBITOS) - apenas pagos
+      prisma.$queryRawUnsafe<any[]>(`
+        SELECT 
+          ep.id,
+          ep.packageId,
+          ep.quantity,
+          ep.type as eanType,
+          ep.price,
+          ep.paidAt,
+          ep.createdAt,
+          pkg.name as packageName
+        FROM EANPurchase ep
+        LEFT JOIN EANPackage pkg ON ep.packageId = pkg.id
+        WHERE ep.sellerId = '${seller.id}' AND ep.status = 'PAID'
+        ORDER BY ep.paidAt DESC
+      `)
     ])
 
     // Transformar em transações unificadas
     const transactions = [
-      // Vendas como créditos
+      // Vendas de produtos (CRÉDITOS - vendedor ganha comissão)
       ...orderItems.map(item => ({
         id: `sale-${item.id}`,
         type: 'CREDIT' as const,
@@ -324,6 +342,16 @@ export async function GET(req: NextRequest) {
         date: item.createdAt,
         status: item.order.status,
         reference: item.orderId
+      })),
+      // Compras de pacotes EAN (DÉBITOS - vendedor paga)
+      ...eanPurchases.map(purchase => ({
+        id: `ean-${purchase.id}`,
+        type: 'DEBIT' as const,
+        description: `Compra: Pacote EAN ${purchase.packageName || 'Código EAN'} (${purchase.quantity} códigos ${purchase.eanType})`,
+        amount: Number(purchase.price),
+        date: purchase.paidAt || purchase.createdAt,
+        status: 'DELIVERED',
+        reference: purchase.id
       })),
       // Saques como débitos
       ...withdrawals.map(w => ({

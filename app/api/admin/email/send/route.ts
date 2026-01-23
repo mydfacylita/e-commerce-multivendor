@@ -64,19 +64,70 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Criar transporter
-    const transporter = nodemailer.createTransport({
+    // Criar transporter com configurações mais robustas
+    const smtpPort = parseInt(configMap['smtpPort'] || '587')
+    const isSecure = smtpPort === 465 || configMap['smtpSecure'] === 'true'
+    
+    console.log('[Email] Configurações SMTP:', {
       host: configMap['smtpHost'],
-      port: parseInt(configMap['smtpPort'] || '587'),
-      secure: configMap['smtpSecure'] === 'true',
+      port: smtpPort,
+      secure: isSecure,
+      user: configMap['smtpUser']
+    })
+    
+    // Tentar criar transporter com diferentes configurações
+    let transporter = nodemailer.createTransport({
+      host: configMap['smtpHost'],
+      port: smtpPort,
+      secure: isSecure,
       auth: {
         user: configMap['smtpUser'],
         pass: configMap['smtpPassword']
       },
       tls: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        ciphers: 'SSLv3'
       }
     })
+
+    // Verificar conexão antes de enviar
+    try {
+      await transporter.verify()
+      console.log('[Email] Conexão SMTP verificada com sucesso')
+    } catch (verifyError: any) {
+      console.error('[Email] Erro na verificação SMTP:', verifyError.message)
+      
+      // Tentar com porta 465 (SSL) se falhou com 587
+      if (smtpPort === 587) {
+        console.log('[Email] Tentando com porta 465 (SSL)...')
+        transporter = nodemailer.createTransport({
+          host: configMap['smtpHost'],
+          port: 465,
+          secure: true,
+          auth: {
+            user: configMap['smtpUser'],
+            pass: configMap['smtpPassword']
+          },
+          tls: {
+            rejectUnauthorized: false
+          }
+        })
+        
+        try {
+          await transporter.verify()
+          console.log('[Email] Conexão SMTP (465) verificada com sucesso')
+        } catch (err2: any) {
+          // Se ainda falhar, retorna erro detalhado
+          return NextResponse.json({ 
+            error: `Falha na autenticação SMTP. Verifique usuário e senha. Detalhe: ${verifyError.message}` 
+          }, { status: 500 })
+        }
+      } else {
+        return NextResponse.json({ 
+          error: `Falha na autenticação SMTP. Verifique usuário e senha. Detalhe: ${verifyError.message}` 
+        }, { status: 500 })
+      }
+    }
 
     // Enviar email
     const info = await transporter.sendMail({

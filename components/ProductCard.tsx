@@ -7,6 +7,11 @@ import { useCartStore } from '@/lib/store'
 import toast from 'react-hot-toast'
 import { useState } from 'react'
 
+// Formatar moeda brasileira
+const formatCurrency = (value: number) => {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
 interface Product {
   id: string
   name: string
@@ -80,24 +85,6 @@ export default function ProductCard({ product }: { product: Product }) {
               </div>
             )}
           </div>
-
-          {/* Overlay com botão - Aparece no hover */}
-          <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-all duration-300 ${
-            isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}>
-            <button
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                handleAddToCart()
-              }}
-              disabled={product.stock === 0}
-              className="bg-white text-primary-600 px-6 py-3 rounded-lg font-bold hover:bg-accent-500 hover:text-white transform hover:scale-105 transition disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto"
-            >
-              <FiShoppingCart className="inline mr-2" />
-              {product.stock === 0 ? 'Indisponível' : 'COMPRAR AGORA'}
-            </button>
-          </div>
         </div>
       </Link>
       
@@ -110,22 +97,22 @@ export default function ProductCard({ product }: { product: Product }) {
         
         {/* Preços */}
         <div className="space-y-1 flex-1">
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-primary-600">
-              R$ {product.price.toFixed(2)}
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-xl font-bold text-primary-600 whitespace-nowrap">
+              {formatCurrency(product.price)}
             </span>
             {product.comparePrice && (
-              <span className="text-gray-400 line-through text-xs">
-                R$ {product.comparePrice.toFixed(2)}
+              <span className="text-gray-400 line-through text-xs whitespace-nowrap">
+                {formatCurrency(product.comparePrice)}
               </span>
             )}
           </div>
           {discount > 0 && (
             <p className="text-green-600 text-xs font-semibold">
-              💰 Economize R$ {(product.comparePrice! - product.price).toFixed(2)}
+              💰 Economize {formatCurrency(product.comparePrice! - product.price)}
             </p>
           )}
-          <p className="text-xs text-gray-500">ou 3x de R$ {(product.price / 3).toFixed(2)}</p>
+          <p className="text-xs text-gray-500">ou 3x de {formatCurrency(product.price / 3)}</p>
         </div>
 
         {/* Estoque/Urgência */}

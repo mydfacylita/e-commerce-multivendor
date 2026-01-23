@@ -27,6 +27,10 @@ model User {
   cartItems        CartItem[]
   mercadoLivreAuth MercadoLivreAuth?
   orders           Order[]
+  returnRequests   ReturnRequest[]
+  productReviews   ProductReview[]
+  productQuestions ProductQuestion[]
+  reviewHelpfuls   ReviewHelpful[]
   seller           Seller?           @relation("SellerOwner")
   shopeeAuth       ShopeeAuth?
   tiktokShopAuth   TikTokShopAuth?
@@ -52,6 +56,8 @@ model Address {
   zipCode       String
   phone         String?
   cpf           String?
+  reference     String?  @db.VarChar(255)
+  notes         String?  @db.Text
   isDefault     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -222,9 +228,26 @@ model Product {
   acceptsCreditCard        Boolean?
   installmentsFreeInterest Int?
   maxInstallments          Int?
+  aliquotaCofins           Float?               @map("aliquota_cofins")
+  aliquotaIcms             Float?               @map("aliquota_icms")
+  aliquotaPis              Float?               @map("aliquota_pis")
+  cest                     String?
+  cfopInterestadual        String?              @map("cfop_interestadual")
+  cfopInterno              String?              @map("cfop_interno")
+  cstCofins                String?              @map("cst_cofins")
+  cstIcms                  String?              @map("cst_icms")
+  cstPis                   String?              @map("cst_pis")
+  ncm                      String?
+  origem                   String?              @default("0")
+  reducaoBcIcms            Float?               @map("reducao_bc_icms")
+  tributacaoEspecial       String?              @default("normal") @map("tributacao_especial")
+  unidadeComercial         String?              @default("UN") @map("unidade_comercial")
+  unidadeTributavel        String?              @default("UN") @map("unidade_tributavel")
   cartItems                CartItem[]
   marketplaceListings      MarketplaceListing[]
   orderItems               OrderItem[]
+  reviews                  ProductReview[]
+  questions                ProductQuestion[]
   category                 Category             @relation(fields: [categoryId], references: [id])
   seller                   Seller?              @relation(fields: [sellerId], references: [id])
   supplier                 Supplier?            @relation(fields: [supplierId], references: [id])
@@ -278,71 +301,75 @@ model CartItem {
 }
 
 model Order {
-  id                 String      @id @default(cuid())
-  userId             String?
-  parentOrderId      String?
-  status             OrderStatus @default(PENDING)
-  total              Float
-  profit             Float?
-  shippingAddress    String      @db.Text
-  paymentIntentId    String?
-  supplierOrderId    String?
-  trackingCode       String?
-  marketplaceName    String?
-  marketplaceOrderId String?     @unique
-  sentToSupplier     Boolean     @default(false)
-  sentToSupplierAt   DateTime?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-  buyerEmail         String?
-  buyerName          String?
-  buyerPhone         String?
-  buyerCpf           String?
-  paymentMethod      String?
-  shippingCost       Float?
-  buyerMessages      String?     @db.Text
-  cancelReason       String?
-  commissionAmount   Float?
-  commissionRate     Float?
-  sellerRevenue      Float?
-  soldBySellerId     String?
-  sellerId           String?
-  paymentApprovedAt  DateTime?
-  paymentDetails     String?     @db.LongText
-  paymentId          String?
-  paymentStatus      String?
-  paymentType        String?
-  couponCode         String?
-  discountAmount     Float?
-  subtotal           Float?
-  deliveryDays       Int?
-  expeditionNotes    String?     @db.Text
-  labelPrintedAt     DateTime?
-  packagingBoxId     String?
-  packedAt           DateTime?
-  packedBy           String?
-  separatedAt        DateTime?
-  separatedBy        String?
-  shippedAt          DateTime?
-  shippedBy          String?
-  shippingCarrier    String?
-  shippingLabel      String?     @db.Text
-  shippingLabelType  String?
-  shippingMethod     String?
-  shippingService    String?
-  fraudScore         Int?
-  fraudReasons       String?     @db.Text
-  fraudStatus        String?     @db.VarChar(50)
-  fraudCheckedAt     DateTime?   @db.DateTime(0)
-  fraudCheckedBy     String?     @db.VarChar(255)
-  fraudNotes         String?     @db.Text
-  ipAddress          String?     @db.VarChar(100)
-  userAgent          String?     @db.Text
-  seller             Seller?     @relation("SellerOrders", fields: [sellerId], references: [id])
-  soldBySeller       Seller?     @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
-  user               User?       @relation(fields: [userId], references: [id])
-  items              OrderItem[]
-  refunds            Refund[]
+  id                    String          @id @default(cuid())
+  userId                String?
+  parentOrderId         String?
+  status                OrderStatus     @default(PENDING)
+  total                 Float
+  profit                Float?
+  shippingAddress       String          @db.Text
+  paymentIntentId       String?
+  supplierOrderId       String?
+  trackingCode          String?
+  correiosIdPrePostagem String?
+  marketplaceName       String?
+  marketplaceOrderId    String?         @unique
+  sentToSupplier        Boolean         @default(false)
+  sentToSupplierAt      DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  buyerEmail            String?
+  buyerName             String?
+  buyerPhone            String?
+  buyerCpf              String?
+  paymentMethod         String?
+  shippingCost          Float?
+  buyerMessages         String?         @db.Text
+  cancelReason          String?
+  commissionAmount      Float?
+  commissionRate        Float?
+  sellerRevenue         Float?
+  soldBySellerId        String?
+  sellerId              String?
+  paymentApprovedAt     DateTime?
+  paymentDetails        String?         @db.LongText
+  paymentId             String?
+  paymentStatus         String?
+  paymentType           String?
+  couponCode            String?
+  discountAmount        Float?
+  subtotal              Float?
+  deliveryDays          Int?
+  expeditionNotes       String?         @db.Text
+  labelPrintedAt        DateTime?
+  packagingBoxId        String?
+  packedAt              DateTime?
+  packedBy              String?
+  separatedAt           DateTime?
+  separatedBy           String?
+  shippedAt             DateTime?
+  shippedBy             String?
+  shippingCarrier       String?
+  shippingLabel         String?         @db.Text
+  shippingLabelType     String?
+  shippingMethod        String?
+  shippingService       String?
+  fraudScore            Int?
+  fraudReasons          String?         @db.Text
+  fraudStatus           String?         @db.VarChar(50)
+  fraudCheckedAt        DateTime?       @db.DateTime(0)
+  fraudCheckedBy        String?         @db.VarChar(255)
+  fraudNotes            String?         @db.Text
+  ipAddress             String?         @db.VarChar(100)
+  userAgent             String?         @db.Text
+  invoices              Invoice[]
+  seller                Seller?         @relation("SellerOrders", fields: [sellerId], references: [id])
+  soldBySeller          Seller?         @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
+  user                  User?           @relation(fields: [userId], references: [id])
+  items                 OrderItem[]
+  refunds               Refund[]
+  returnRequests        ReturnRequest[]
+  productReviews        ProductReview[]
 
   @@index([userId])
   @@index([sellerId])
@@ -357,6 +384,7 @@ model Order {
   @@index([shippingMethod])
   @@index([fraudScore], map: "idx_fraud_score")
   @@index([fraudStatus], map: "idx_fraud_status")
+  @@index([correiosIdPrePostagem], map: "idx_correios_prepostagem")
   @@map("order")
 }
 
@@ -375,6 +403,7 @@ model OrderItem {
   supplierOrderId  String?
   supplierStatus   String?
   supplierCost     Float?
+  costPrice        Float?            // Preço de custo no momento da venda
   trackingCode     String?
   selectedSize     String?
   selectedColor    String?
@@ -499,6 +528,9 @@ model CompanySettings {
   notifyNewDropshippingProducts Boolean  @default(true)
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
+  city                          String?  @db.VarChar(100)
+  state                         String?  @db.VarChar(2)
+  zipCode                       String?  @db.VarChar(10)
 
   @@map("company_settings")
 }
@@ -827,6 +859,197 @@ model analytics_table {
   @@index([name])
 }
 
+model Invoice {
+  id                       String        @id @default(cuid())
+  orderId                  String
+  invoiceNumber            String?       @unique
+  accessKey                String?       @unique
+  series                   String?
+  type                     InvoiceType
+  status                   InvoiceStatus @default(PENDING)
+  issuedBy                 String?
+  issuedAt                 DateTime?
+  cancelledAt              DateTime?
+  cancelReason             String?       @db.Text
+  xmlUrl                   String?
+  pdfUrl                   String?
+  danfeUrl                 String?
+  cfop                     String?
+  naturezaOperacao         String?
+  emitenteCnpj             String?
+  emitenteNome             String?
+  emitenteIE               String?       @db.VarChar(20)
+  emitenteCRT              String?       @db.VarChar(2)
+  emitenteLogradouro       String?       @db.VarChar(255)
+  emitenteNumero           String?       @db.VarChar(60)
+  emitenteComplemento      String?       @db.VarChar(60)
+  emitenteBairro           String?       @db.VarChar(60)
+  emitenteMunicipio        String?       @db.VarChar(60)
+  emitenteMunicipioCod     String?       @db.VarChar(7)
+  emitenteUF               String?       @db.VarChar(2)
+  emitenteCEP              String?       @db.VarChar(8)
+  destinatarioCpf          String?
+  destinatarioCnpj         String?
+  destinatarioNome         String?
+  destinatarioLogradouro   String?       @db.VarChar(255)
+  destinatarioNumero       String?       @db.VarChar(60)
+  destinatarioComplemento  String?       @db.VarChar(60)
+  destinatarioBairro       String?       @db.VarChar(60)
+  destinatarioMunicipio    String?       @db.VarChar(60)
+  destinatarioMunicipioCod String?       @db.VarChar(7)
+  destinatarioUF           String?       @db.VarChar(2)
+  destinatarioCEP          String?       @db.VarChar(8)
+  valorTotal               Float
+  valorProdutos            Float
+  valorFrete               Float?
+  valorDesconto            Float?
+  valorIcms                Float?
+  valorIpi                 Float?
+  valorPis                 Float?
+  valorCofins              Float?
+  xmlAssinado              String?       @db.LongText
+  protocol                 String?
+  externalId               String?
+  externalProvider         String?
+  errorMessage             String?       @db.Text
+  metadata                 String?       @db.LongText
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+  order                    Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([type])
+  @@index([issuedAt])
+  @@index([createdAt])
+  @@index([invoiceNumber])
+  @@index([accessKey])
+  @@map("invoice")
+}
+
+model ReturnRequest {
+  id          String    @id @default(cuid()) @db.VarChar(255)
+  orderId     String    @db.VarChar(255)
+  userId      String    @db.VarChar(255)
+  itemIds     String    @db.LongText
+  reason      String    @db.VarChar(255)
+  description String?   @db.Text
+  status      String    @default("PENDING") @db.VarChar(50)
+  adminNotes  String?   @db.Text
+  requestedAt DateTime  @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String?   @db.VarChar(255)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  order       Order     @relation(fields: [orderId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("return_request")
+}
+
+model eancode {
+  id        String       @id
+  sellerId  String
+  code      String       @unique(map: "code") @db.VarChar(13)
+  type      eancode_type @default(INTERNAL)
+  productId String?
+  used      Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  usedAt    DateTime?
+
+  @@index([code], map: "EANCode_code_idx")
+  @@index([productId], map: "EANCode_productId_idx")
+  @@index([sellerId], map: "EANCode_sellerId_idx")
+}
+
+model eancredit {
+  id         String         @id
+  sellerId   String
+  quantity   Int
+  used       Int            @default(0)
+  type       eancredit_type @default(INTERNAL)
+  purchaseId String?
+  expiresAt  DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@index([sellerId], map: "EANCredit_sellerId_idx")
+}
+
+model eanpackage {
+  id           String          @id @db.VarChar(36)
+  name         String          @db.VarChar(100)
+  description  String?         @db.Text
+  quantity     Int
+  price        Decimal         @default(0.00) @db.Decimal(10, 2)
+  type         eanpackage_type
+  planId       String?         @db.VarChar(36)
+  active       Boolean?        @default(true)
+  displayOrder Int?            @default(0)
+  popular      Boolean?        @default(false)
+  createdAt    DateTime        @db.DateTime(0)
+  updatedAt    DateTime?       @db.DateTime(0)
+
+  @@index([active], map: "idx_active")
+  @@index([planId], map: "idx_plan")
+}
+
+model eanpurchase {
+  id        String             @id
+  sellerId  String
+  packageId String
+  quantity  Int
+  type      eanpurchase_type
+  price     Decimal            @db.Decimal(10, 2)
+  status    eanpurchase_status @default(PENDING)
+  paymentId String?
+  paidAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  @@index([sellerId], map: "EANPurchase_sellerId_idx")
+  @@index([status], map: "EANPurchase_status_idx")
+}
+
+model invoice_event {
+  id          String             @id @db.VarChar(255)
+  invoice_id  String             @db.VarChar(255)
+  type        invoice_event_type
+  description String?            @db.Text
+  protocol    String?            @db.VarChar(50)
+  seq_evento  Int?               @default(1)
+  xml_url     String?            @db.VarChar(500)
+  xml_content String?            @db.LongText
+  created_at  DateTime?          @default(now()) @db.DateTime(0)
+  created_by  String?            @db.VarChar(255)
+
+  @@index([created_at], map: "idx_invoice_event_created_at")
+  @@index([invoice_id], map: "idx_invoice_event_invoice_id")
+  @@index([type], map: "idx_invoice_event_type")
+}
+
+model cities {
+  id       Int    @id @default(autoincrement())
+  name     String @db.VarChar(100)
+  stateId  Int
+  ibgeCode Int    @unique(map: "uk_ibge")
+  states   states @relation(fields: [stateId], references: [id], onUpdate: Restrict, map: "fk_city_state")
+
+  @@index([name], map: "idx_name")
+  @@index([stateId], map: "idx_state")
+}
+
+model states {
+  id       Int      @id @default(autoincrement())
+  name     String   @db.VarChar(50)
+  uf       String   @unique(map: "uk_uf") @db.Char(2)
+  ibgeCode Int      @unique(map: "uk_ibge")
+  cities   cities[]
+}
+
 enum EmployeeRole {
   MANAGER
   OPERATOR
@@ -916,4 +1139,195 @@ enum PackagingType {
   TUBE
   BAG
   CUSTOM
+}
+
+enum InvoiceStatus {
+  PENDING
+  PROCESSING
+  ISSUED
+  CANCELLED
+  ERROR
+
+  @@map("invoice_status")
+}
+
+enum InvoiceType {
+  ADMIN
+  SELLER
+
+  @@map("invoice_type")
+}
+
+enum eancode_type {
+  OFFICIAL
+  INTERNAL
+}
+
+enum eancredit_type {
+  OFFICIAL
+  INTERNAL
+}
+
+enum eanpurchase_type {
+  OFFICIAL
+  INTERNAL
+}
+
+enum eanpackage_type {
+  OFFICIAL
+  INTERNAL
+}
+
+enum eanpurchase_status {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum invoice_event_type {
+  EMISSAO
+  AUTORIZACAO
+  CANCELAMENTO
+  CCE
+  INUTILIZACAO
+  CONSULTA
+  ERRO
+}
+
+// ========================================
+// AVALIAÇÕES E PERGUNTAS DE PRODUTOS
+// ========================================
+
+model ProductReview {
+  id            String   @id @default(cuid())
+  productId     String
+  userId        String
+  orderId       String?  // Vincula à compra (só pode avaliar se comprou)
+  rating        Int      // 1-5 estrelas
+  title         String?  @db.VarChar(200)
+  comment       String?  @db.Text
+  pros          String?  @db.Text  // Pontos positivos
+  cons          String?  @db.Text  // Pontos negativos
+  images        String?  @db.Text  // JSON array de URLs
+  isVerified    Boolean  @default(false) // Compra verificada
+  isApproved    Boolean  @default(false) // Aprovado para exibição
+  isReported    Boolean  @default(false) // Denunciado
+  helpfulCount  Int      @default(0)     // Quantas pessoas acharam útil
+  reportCount   Int      @default(0)     // Quantas denúncias
+  sellerReply   String?  @db.Text        // Resposta do vendedor
+  sellerReplyAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order         Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  helpfulVotes  ReviewHelpful[]
+
+  @@unique([productId, userId, orderId]) // Um usuário pode avaliar o mesmo produto várias vezes se comprou várias vezes
+  @@index([productId])
+  @@index([userId])
+  @@index([orderId])
+  @@index([rating])
+  @@index([isApproved])
+  @@index([createdAt])
+  @@map("product_review")
+}
+
+model ProductQuestion {
+  id           String    @id @default(cuid())
+  productId    String
+  userId       String
+  question     String    @db.Text
+  answer       String?   @db.Text
+  answeredBy   String?   // ID do vendedor ou admin que respondeu
+  answeredAt   DateTime?
+  isPublic     Boolean   @default(true)
+  isApproved   Boolean   @default(false)
+  isReported   Boolean   @default(false)
+  reportCount  Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([userId])
+  @@index([isApproved])
+  @@index([answeredAt])
+  @@index([createdAt])
+  @@map("product_question")
+}
+
+// Tabela para registrar votos de "útil" em avaliações
+model ReviewHelpful {
+  id        String   @id @default(cuid())
+  reviewId  String
+  userId    String
+  isHelpful Boolean  @default(true) // true = útil, false = não útil
+  createdAt DateTime @default(now())
+
+  review    ProductReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId]) // Um usuário só pode votar uma vez por review
+  @@index([reviewId])
+  @@index([userId])
+  @@map("review_helpful")
+}
+
+// Cupons de Desconto
+model Coupon {
+  id                String       @id @default(cuid())
+  code              String       @unique // Código do cupom (ex: PRIMEIRACOMPRA)
+  description       String?      // Descrição interna
+  discountType      DiscountType @default(PERCENTAGE) // PERCENTAGE ou FIXED
+  discountValue     Float        // Valor do desconto (% ou R$)
+  minOrderValue     Float?       // Valor mínimo do pedido para usar
+  maxDiscountValue  Float?       // Valor máximo de desconto (para %)
+  maxUses           Int?         // Limite total de usos (null = ilimitado)
+  maxUsesPerUser    Int?         @default(1) // Limite por usuário
+  usageCount        Int          @default(0) // Contador de usos
+  validFrom         DateTime     @default(now()) // Data início da validade
+  validUntil        DateTime?    // Data fim da validade (null = sem fim)
+  isActive          Boolean      @default(true)
+  // Restrições
+  allowedStates     String?      @db.Text // Estados permitidos (JSON array: ["MA", "SP"])
+  allowedCategories String?      @db.Text // Categorias permitidas (JSON array de IDs)
+  excludedProducts  String?      @db.Text // Produtos excluídos (JSON array de IDs)
+  firstPurchaseOnly Boolean      @default(false) // Apenas primeira compra
+  // Auditoria
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  createdBy         String?      // ID do admin que criou
+  
+  usages            CouponUsage[]
+
+  @@index([code])
+  @@index([isActive])
+  @@index([validFrom, validUntil])
+  @@map("coupon")
+}
+
+// Registro de uso de cupons
+model CouponUsage {
+  id        String   @id @default(cuid())
+  couponId  String
+  orderId   String
+  userId    String?
+  discount  Float    // Valor do desconto aplicado
+  createdAt DateTime @default(now())
+
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([userId])
+  @@index([orderId])
+  @@map("coupon_usage")
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
 }

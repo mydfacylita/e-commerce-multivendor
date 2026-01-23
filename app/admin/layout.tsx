@@ -32,7 +32,9 @@ import {
   FiChevronDown,
   FiChevronRight,
   FiMapPin,
-  FiShield
+  FiShield,
+  FiLink,
+  FiPrinter
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -45,6 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     logistica: false,
     gestao: false,
     monitoramento: false,
+    integracoes: false,
     configuracoes: false
   })
 
@@ -121,6 +124,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Tipos</span>
                 </Link>
                 <Link
+                  href="/admin/ean"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/ean' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiBarChart2 className="text-base" />
+                  <span>Solicitações EAN</span>
+                </Link>
+                <Link
+                  href="/admin/ean/codigos"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/ean/codigos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiTag className="text-base" />
+                  <span>Meus Códigos EAN</span>
+                </Link>
+                <Link
+                  href="/admin/ean/pacotes"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/ean/pacotes' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiPackage className="text-base" />
+                  <span>Pacotes EAN</span>
+                </Link>
+                <Link
                   href="/admin/fornecedores"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/fornecedores' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
@@ -158,6 +182,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiBox className="text-base" />
                   <span>Dropshipping</span>
+                </Link>
+                <Link
+                  href="/admin/devolucoes"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/devolucoes' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiFileText className="text-base" />
+                  <span>Devoluções</span>
+                </Link>
+                <Link
+                  href="/admin/cupons"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/cupons' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiTag className="text-base" />
+                  <span>Cupons</span>
                 </Link>
               </div>
             )}
@@ -197,6 +235,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiBox className="text-base" />
                   <span>Embalagens</span>
+                </Link>
+                <Link
+                  href="/admin/etiquetas-produtos"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/etiquetas-produtos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiTag className="text-base" />
+                  <span>Etiquetas Produtos</span>
                 </Link>
               </div>
             )}
@@ -243,6 +288,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiDollarSign className="text-base" />
                   <span>Financeiro</span>
+                </Link>
+                <Link
+                  href="/admin/contabilidade"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/contabilidade') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiFileText className="text-base" />
+                  <span>Contabilidade</span>
+                </Link>
+                <Link
+                  href="/admin/invoices"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/invoices') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiFileText className="text-base" />
+                  <span>Notas Fiscais</span>
                 </Link>
                 <Link
                   href="/admin/planos"
@@ -329,14 +388,58 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           </div>
 
-          {/* Links diretos */}
-          <Link
-            href="/dropshipping"
-            className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname === '/dropshipping' ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
-          >
-            <FiZap className="text-lg" />
-            <span>Integrações</span>
-          </Link>
+          {/* Integrações */}
+          <div>
+            <button
+              onClick={() => toggleSection('integracoes')}
+              className="w-full flex items-center justify-between px-4 py-2 rounded-md hover:bg-gray-100 text-gray-900 font-medium"
+            >
+              <div className="flex items-center space-x-3">
+                <FiZap className="text-lg" />
+                <span>Integrações</span>
+              </div>
+              {openSections.integracoes ? <FiChevronDown /> : <FiChevronRight />}
+            </button>
+            {openSections.integracoes && (
+              <div className="ml-4 mt-1 space-y-1">
+                <Link
+                  href="/admin/integracao"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiZap className="text-base" />
+                  <span>Todas Integrações</span>
+                </Link>
+                <Link
+                  href="/admin/integracao/envios"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/envios' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiTruck className="text-base" />
+                  <span>Correios</span>
+                </Link>
+                <Link
+                  href="/admin/integracao/mercadopago"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/mercadopago' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiCreditCard className="text-base" />
+                  <span>Mercado Pago</span>
+                </Link>
+                <Link
+                  href="/admin/integracao/whatsapp"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/whatsapp' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiSmartphone className="text-base" />
+                  <span>WhatsApp</span>
+                </Link>
+                <Link
+                  href="/admin/integracao/aliexpress"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/integracao/aliexpress') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiShoppingCart className="text-base" />
+                  <span>Dropshipping</span>
+                </Link>
+              </div>
+            )}
+          </div>
 
           <Link
             href="/admin/email"
@@ -368,11 +471,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Geral</span>
                 </Link>
                 <Link
+                  href="/admin/configuracoes/nota-fiscal"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/nota-fiscal' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiFileText className="text-base" />
+                  <span>Nota Fiscal (NF-e)</span>
+                </Link>
+                <Link
                   href="/admin/configuracoes/aparencia-app"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/aparencia-app' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
                   <FiSmartphone className="text-base" />
                   <span>Aparência App</span>
+                </Link>
+                <Link
+                  href="/admin/configuracoes/email"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/email' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiMail className="text-base" />
+                  <span>Contas de E-mail</span>
+                </Link>
+                <Link
+                  href="/admin/configuracoes/impressoras"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/impressoras' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiPrinter className="text-base" />
+                  <span>Impressoras</span>
                 </Link>
               </div>
             )}

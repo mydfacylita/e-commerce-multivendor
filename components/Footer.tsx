@@ -200,6 +200,22 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/politica-devolucao" className="hover:text-white">
+                  Política de Cancelamento e Devoluções
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-semibold mb-4">Legal</h4>
+            <ul className="space-y-2 text-gray-400">
+              <li>
+                <Link href="/termos" className="hover:text-white">
+                  Termos de Uso
+                </Link>
+              </li>
+              <li>
                 <Link href="/politica-privacidade" className="hover:text-white">
                   Política de Privacidade
                 </Link>

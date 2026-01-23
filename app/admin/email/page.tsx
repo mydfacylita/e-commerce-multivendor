@@ -406,7 +406,7 @@ export default function EmailPage() {
                       {email.subject}
                     </p>
                     <p className="text-xs text-gray-500 truncate mt-1">
-                      {email.body.substring(0, 80)}...
+                      {(email.body || '').substring(0, 80) || 'Clique para visualizar'}...
                     </p>
                     {email.attachments && email.attachments.length > 0 && (
                       <div className="flex items-center gap-1 mt-2 text-gray-400">
@@ -521,15 +521,47 @@ export default function EmailPage() {
 
             {/* Conteúdo do Email */}
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="prose max-w-none">
-                {selectedEmail.bodyHtml ? (
-                  <div dangerouslySetInnerHTML={{ __html: selectedEmail.bodyHtml }} />
-                ) : (
+              {selectedEmail.bodyHtml ? (
+                <iframe
+                  srcDoc={`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                      <meta charset="UTF-8">
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                      <style>
+                        body { 
+                          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                          margin: 0;
+                          padding: 0;
+                          color: #333;
+                          line-height: 1.6;
+                        }
+                        img { max-width: 100%; height: auto; }
+                        a { color: #2563eb; }
+                        table { max-width: 100%; }
+                      </style>
+                    </head>
+                    <body>${selectedEmail.bodyHtml}</body>
+                    </html>
+                  `}
+                  sandbox="allow-same-origin"
+                  className="w-full min-h-[400px] border-0"
+                  style={{ height: 'calc(100vh - 400px)' }}
+                  title="Email Content"
+                />
+              ) : selectedEmail.body ? (
+                <div className="prose max-w-none">
                   <pre className="whitespace-pre-wrap font-sans text-gray-700">
                     {selectedEmail.body}
                   </pre>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="text-gray-500 text-center py-8">
+                  <FiMail size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>Nenhum conteúdo disponível</p>
+                </div>
+              )}
 
               {/* Anexos */}
               {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (

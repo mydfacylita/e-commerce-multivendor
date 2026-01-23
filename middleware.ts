@@ -35,9 +35,9 @@ const ALLOWED_ORIGINS = [
 
 // 🔐 Rotas que requerem API Key do app móvel
 const API_KEY_REQUIRED_ROUTES = [
-  '/api/products',
-  '/api/categories',
   '/api/app/config',
+  '/api/app/products', // App móvel usa rota separada
+  '/api/app/categories',
   '/api/shipping/calculate',
   '/api/shipping/quote',
 ]
@@ -50,6 +50,8 @@ const PUBLIC_API_ROUTES = [
   '/api/payment/webhook',
   '/api/admin/mercadopago/webhook',
   '/api/cron/',
+  '/api/products/', // Rotas de produto são públicas (reviews, questions, detalhes)
+  '/api/shipping/free-shipping-info', // Info pública de frete grátis
 ]
 
 /**
@@ -153,7 +155,12 @@ export async function middleware(request: NextRequest) {
 
   // 🔒 Aplicar CORS em rotas de API
   if (pathname.startsWith('/api/')) {
-    // 🔓 Verificar se é rota pública (webhooks, auth, etc)
+    // �️ Rota de imagem gerencia seu próprio CORS (retorna binário)
+    if (pathname.startsWith('/api/image/')) {
+      return NextResponse.next()
+    }
+    
+    // �🔓 Verificar se é rota pública (webhooks, auth, etc)
     const isPublicApiRoute = PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))
     
     if (!isPublicApiRoute) {

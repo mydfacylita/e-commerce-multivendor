@@ -9,8 +9,8 @@ import DynamicStyles from '@/components/DynamicStyles'
 import { NavigationProvider } from '@/components/NavigationProvider'
 import LoadingScreen from '@/components/LoadingScreen'
 import AnalyticsTracker from '@/components/AnalyticsTracker'
-// Iniciar pollings de pagamento e limpeza automática
-import '@/lib/init'
+// NOTA: Jobs de background agora são iniciados via instrumentation.ts (Next.js 14)
+// Não usar mais: import '@/lib/init'
 
 const inter = Inter({ subsets: ['latin'] })
 

@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
 
     // 🔐 Tentar autenticação por JWT (app móvel) ou Session (web)
     let userId: string | null = null
+    let isFromApp = false // Identificar se veio do app móvel
     
     const authHeader = req.headers.get('authorization')
     if (authHeader) {
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
         )
       }
       userId = tokenValidation.user?.userId || null
+      isFromApp = true // Veio do app móvel via JWT
     } else {
       // Web: usar Session
       const session = await getServerSession(authOptions)
@@ -71,7 +73,7 @@ export async function POST(req: NextRequest) {
       address,  // { street, number, city, state, zipCode, ... }
       shipping, // { method, price }
       payment,  // { method, cpf, installments }
-      totals    // { subtotal, shipping, discount, total }
+      totals    // { subtotal, shipping, discount, paymentDiscount, total }
     } = body
 
     // Normalizar dados do app móvel para formato web
@@ -80,6 +82,9 @@ export async function POST(req: NextRequest) {
     const normalizedSubtotal = subtotal || totals?.subtotal
     const normalizedShippingCost = shippingCost ?? shipping?.price ?? 0
     const normalizedBuyerCpf = buyerCpf || payment?.cpf
+    
+    // Calcular desconto total (cupom + desconto do método de pagamento como PIX)
+    const normalizedDiscountAmount = discountAmount || ((totals?.discount || 0) + (totals?.paymentDiscount || 0))
     
     // Extrair método de envio do formato app ou web
     const normalizedShippingMethod = shippingMethod || (shipping?.method === 'free' ? 'propria' : shipping?.method) || 'propria'
@@ -95,7 +100,7 @@ export async function POST(req: NextRequest) {
     console.log('   Serviço:', normalizedShippingService)
     console.log('   Transportadora:', normalizedShippingCarrier)
     console.log('   Cupom:', couponCode)
-    console.log('   Desconto:', discountAmount)
+    console.log('   Desconto:', normalizedDiscountAmount, '(cupom:', totals?.discount, '+ pagto:', totals?.paymentDiscount, ')')
     console.log('   Itens:', items?.length)
     items?.forEach((item: any, i: number) => {
       console.log(`   Item ${i + 1}:`, {
@@ -170,12 +175,15 @@ export async function POST(req: NextRequest) {
       let commissionAmount = 0
       let sellerRevenue = 0
       let supplierCost = null
+      
+      // Salvar o costPrice do produto no momento da venda
+      const productCostPrice = product.costPrice || product.totalCost || 0
 
       if (isDropshipping) {
         // DROP: vendedor tem DESCONTO de X% no preço base
         // Ex: Produto R$1,00 com 15% desconto = Vendedor paga R$0,85
         // Se vende por R$1,10, lucro = R$0,25
-        const costPrice = product.costPrice || product.totalCost || 0
+        const costPrice = productCostPrice
         commissionRate = product.dropshippingCommission || 0
         const discount = (costPrice * commissionRate) / 100
         const vendorCost = costPrice - discount // Custo do vendedor após desconto
@@ -194,6 +202,7 @@ export async function POST(req: NextRequest) {
         productId: item.productId,
         quantity: item.quantity,
         price: item.price,
+        costPrice: productCostPrice, // ✅ Salvar custo no momento da venda
         selectedSize: item.selectedSize || null,
         selectedColor: item.selectedColor || null,
         itemType: isDropshipping ? 'DROPSHIPPING' : 'STOCK',
@@ -224,7 +233,7 @@ export async function POST(req: NextRequest) {
       console.log('   ShippingCost:', normalizedShippingCost)
       console.log('   ShippingMethod:', normalizedShippingMethod)
       console.log('   CouponCode:', couponCode || null)
-      console.log('   DiscountAmount:', discountAmount || 0)
+      console.log('   DiscountAmount:', normalizedDiscountAmount)
       console.log('   Items com size/color:', orderItems.map((i: any) => ({
         productId: i.productId,
         selectedSize: i.selectedSize,
@@ -261,13 +270,17 @@ export async function POST(req: NextRequest) {
           shippingCost: normalizedShippingCost,
           deliveryDays: body.deliveryDays || null,
           couponCode: couponCode || null,
-          discountAmount: discountAmount || totals?.discount || 0,
+          discountAmount: normalizedDiscountAmount,
           shippingAddress: normalizedShippingAddress,
           status: 'PENDING',
           buyerName: user?.name || '',
           buyerEmail: user?.email || '',
           buyerPhone: buyerPhone || '',
           buyerCpf: normalizedBuyerCpf || '',
+          // Origem do pedido
+          marketplaceName: isFromApp ? 'APP' : null,
+          // Forma de pagamento
+          paymentMethod: payment?.method || null,
           // Campos de transportadora
           shippingMethod: normalizedShippingMethod,
           shippingService: normalizedShippingService,
@@ -290,6 +303,35 @@ export async function POST(req: NextRequest) {
       console.log('   ShippingCost salvo:', order.shippingCost)
       console.log('   CouponCode salvo:', order.couponCode)
       console.log('   DiscountAmount salvo:', order.discountAmount)
+
+      // Registrar uso do cupom se aplicado
+      if (couponCode) {
+        try {
+          const coupon = await prisma.coupon.findUnique({
+            where: { code: couponCode.toUpperCase() }
+          })
+          if (coupon) {
+            // Incrementar contador de uso
+            await prisma.coupon.update({
+              where: { id: coupon.id },
+              data: { usageCount: { increment: 1 } }
+            })
+            // Registrar uso
+            await prisma.couponUsage.create({
+              data: {
+                couponId: coupon.id,
+                orderId: order.id,
+                userId: userId,
+                discountApplied: normalizedDiscountAmount || 0
+              }
+            })
+            console.log('   ✅ Uso do cupom registrado:', couponCode)
+          }
+        } catch (couponError) {
+          console.error('   ⚠️ Erro ao registrar uso do cupom:', couponError)
+          // Não falha o pedido por erro no cupom
+        }
+      }
 
       console.log(`   Pedido: ${order.id}`)
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
@@ -320,13 +362,15 @@ export async function POST(req: NextRequest) {
             shippingCost: normalizedShippingCost / itemsByDestination.size, // Divide frete entre subpedidos
             deliveryDays: body.deliveryDays || null,
             couponCode: couponCode || null,
-            discountAmount: (discountAmount || totals?.discount || 0) / itemsByDestination.size, // Divide desconto proporcionalmente
+            discountAmount: normalizedDiscountAmount / itemsByDestination.size, // Divide desconto proporcionalmente
             shippingAddress: normalizedShippingAddress,
             status: 'PENDING',
             buyerName: user?.name || '',
             buyerEmail: user?.email || '',
             buyerPhone: buyerPhone || '',
             buyerCpf: normalizedBuyerCpf || '',
+            // Forma de pagamento
+            paymentMethod: payment?.method || null,
             // Campos de transportadora
             shippingMethod: normalizedShippingMethod,
             shippingService: normalizedShippingService,
@@ -340,6 +384,34 @@ export async function POST(req: NextRequest) {
 
         createdOrders.push(order.id)
         console.log(`   └─ ${destination}: ${order.id} (R$ ${subTotal.toFixed(2)})`)
+      }
+
+      // Registrar uso do cupom para pedidos híbridos (apenas uma vez)
+      if (couponCode && createdOrders.length > 0) {
+        try {
+          const coupon = await prisma.coupon.findUnique({
+            where: { code: couponCode.toUpperCase() }
+          })
+          if (coupon) {
+            // Incrementar contador de uso
+            await prisma.coupon.update({
+              where: { id: coupon.id },
+              data: { usageCount: { increment: 1 } }
+            })
+            // Registrar uso (usar o primeiro pedido como referência)
+            await prisma.couponUsage.create({
+              data: {
+                couponId: coupon.id,
+                orderId: createdOrders[0],
+                userId: userId,
+                discountApplied: normalizedDiscountAmount || 0
+              }
+            })
+            console.log('   ✅ Uso do cupom registrado:', couponCode)
+          }
+        } catch (couponError) {
+          console.error('   ⚠️ Erro ao registrar uso do cupom:', couponError)
+        }
       }
 
       console.log(`✅ ${createdOrders.length} subpedidos criados`)
@@ -367,9 +439,27 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions)
+    // 🔐 Tentar autenticação por JWT (app móvel) ou Session (web)
+    let userId: string | null = null
+    
+    const authHeader = req.headers.get('authorization')
+    if (authHeader) {
+      // App móvel: usar JWT
+      const tokenValidation = await validateUserToken(authHeader)
+      if (!tokenValidation.valid) {
+        return NextResponse.json(
+          { message: tokenValidation.error || 'Token inválido' },
+          { status: 401 }
+        )
+      }
+      userId = tokenValidation.user?.userId || null
+    } else {
+      // Web: usar Session
+      const session = await getServerSession(authOptions)
+      userId = session?.user?.id || null
+    }
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json(
         { message: 'Não autorizado' },
         { status: 401 }
@@ -377,7 +467,7 @@ export async function GET(req: Request) {
     }
 
     const orders = await prisma.order.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       include: {
         items: {
           include: { product: true },
@@ -386,7 +476,8 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json(orders)
+    // Retornar no formato esperado pelo app { orders: [...] }
+    return NextResponse.json({ orders })
   } catch (error) {
     console.error('Erro ao buscar pedidos:', error)
     return NextResponse.json(

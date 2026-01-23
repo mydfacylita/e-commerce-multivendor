@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
       zipCode,
       phone,
       cpf,
+      reference,
+      notes,
       isDefault
     } = data
 
@@ -99,6 +101,8 @@ export async function POST(request: NextRequest) {
         zipCode: zipCode.replace(/\D/g, ''), // Só números
         phone: phone?.replace(/\D/g, '') || null,
         cpf: cpf?.replace(/\D/g, '') || null,
+        reference: reference || null,
+        notes: notes || null,
         isDefault: shouldBeDefault
       }
     })

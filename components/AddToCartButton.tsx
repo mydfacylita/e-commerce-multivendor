@@ -19,14 +19,26 @@ interface AddToCartButtonProps {
   disabled?: boolean
   selectedColor?: string | null
   selectedSize?: string | null
+  quantity?: number
+  variantStock?: number // Estoque específico da variante
 }
 
-export default function AddToCartButton({ product, disabled, selectedColor, selectedSize }: AddToCartButtonProps) {
+export default function AddToCartButton({ 
+  product, 
+  disabled, 
+  selectedColor, 
+  selectedSize, 
+  quantity = 1,
+  variantStock 
+}: AddToCartButtonProps) {
   const addItem = useCartStore((state) => state.addItem)
+  
+  // Usar estoque da variante se disponível, senão usar estoque do produto
+  const currentStock = variantStock !== undefined ? variantStock : product.stock
 
   const handleAddToCart = () => {
     if (disabled) {
-      if (product.stock === 0) {
+      if (currentStock === 0) {
         toast.error('Produto esgotado!')
       } else {
         toast.error('Por favor, selecione cor e tamanho!')
@@ -40,10 +52,10 @@ export default function AddToCartButton({ product, disabled, selectedColor, sele
       name: product.name,
       price: product.price,
       image: product.images[0] || '/placeholder.jpg',
-      quantity: 1,
+      quantity: quantity,
       selectedColor: selectedColor || null,
       selectedSize: selectedSize || null,
-      stock: product.stock,
+      stock: currentStock,
       slug: product.slug,
     })
     
@@ -51,9 +63,10 @@ export default function AddToCartButton({ product, disabled, selectedColor, sele
     if (selectedSize) sizeColorInfo.push(selectedSize)
     if (selectedColor) sizeColorInfo.push(selectedColor)
     
+    const qtyInfo = quantity > 1 ? ` x${quantity}` : ''
     const message = sizeColorInfo.length > 0
-      ? `${product.name} (${sizeColorInfo.join(' - ')}) adicionado ao carrinho!`
-      : `${product.name} adicionado ao carrinho!`
+      ? `${product.name} (${sizeColorInfo.join(' - ')})${qtyInfo} adicionado ao carrinho!`
+      : `${product.name}${qtyInfo} adicionado ao carrinho!`
     
     toast.success(message)
     
@@ -62,11 +75,11 @@ export default function AddToCartButton({ product, disabled, selectedColor, sele
       id: product.id,
       name: product.name,
       price: product.price,
-      quantity: 1
+      quantity: quantity
     })
   }
 
-  const isDisabled = disabled || product.stock === 0
+  const isDisabled = disabled || currentStock === 0
 
   return (
     <button
@@ -75,7 +88,7 @@ export default function AddToCartButton({ product, disabled, selectedColor, sele
       className="w-full bg-primary-600 text-white py-4 rounded-lg hover:bg-primary-700 transition flex items-center justify-center space-x-2 text-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
     >
       <FiShoppingCart size={24} />
-      <span>{product.stock === 0 ? 'Esgotado' : 'Adicionar ao Carrinho'}</span>
+      <span>{currentStock === 0 ? 'Esgotado' : 'Adicionar ao Carrinho'}</span>
     </button>
   )
 }

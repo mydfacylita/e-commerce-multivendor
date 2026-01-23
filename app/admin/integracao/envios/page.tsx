@@ -19,6 +19,8 @@ interface CorreiosConfig {
   cartaoPostagem: string
   cnpj: string
   cepOrigem: string
+  // Porcentagem extra para compensar embalagem
+  percentualExtra: number
   // Serviços habilitados
   servicoSedex: boolean
   servicoPac: boolean
@@ -42,6 +44,8 @@ export default function EnviosPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [testingApi, setTestingApi] = useState(false)
+  const [apiTestResult, setApiTestResult] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<'config' | 'test' | 'tracking'>('config')
   
   const [config, setConfig] = useState<CorreiosConfig>({
@@ -52,6 +56,7 @@ export default function EnviosPage() {
     cartaoPostagem: '',
     cnpj: '',
     cepOrigem: '',
+    percentualExtra: 2,
     servicoSedex: true,
     servicoPac: true,
     servicoSedex10: false,
@@ -115,6 +120,31 @@ export default function EnviosPage() {
       toast.error('Erro ao salvar configurações')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const testApiConnection = async () => {
+    try {
+      setTestingApi(true)
+      setApiTestResult(null)
+      
+      const response = await fetch('/api/admin/config/correios/test-api', {
+        method: 'POST'
+      })
+      
+      const data = await response.json()
+      setApiTestResult(data)
+      
+      if (data.success) {
+        toast.success('API dos Correios funcionando!')
+      } else {
+        toast.error(data.message || 'Erro ao testar API')
+      }
+    } catch (error) {
+      console.error('Erro ao testar API:', error)
+      toast.error('Erro ao testar conexão com API')
+    } finally {
+      setTestingApi(false)
     }
   }
 
@@ -355,6 +385,20 @@ export default function EnviosPage() {
                 />
                 <p className="text-xs text-gray-500 mt-1">CEP de onde saem as encomendas</p>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Percentual Extra (%)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="50"
+                  value={config.percentualExtra}
+                  onChange={(e) => setConfig({ ...config, percentualExtra: parseFloat(e.target.value) || 0 })}
+                  placeholder="2"
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+                <p className="text-xs text-gray-500 mt-1">Acréscimo no frete para compensar embalagem mais pesada</p>
+              </div>
             </div>
           </div>
 
@@ -470,7 +514,54 @@ export default function EnviosPage() {
                 </>
               )}
             </button>
+            
+            <button
+              onClick={testApiConnection}
+              disabled={testingApi || !config.enabled}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {testingApi ? (
+                <>
+                  <FiRefreshCw className="animate-spin" />
+                  Testando API...
+                </>
+              ) : (
+                <>
+                  <FiCheckCircle />
+                  Testar Conexão API
+                </>
+              )}
+            </button>
           </div>
+          
+          {/* Resultado do teste da API */}
+          {apiTestResult && (
+            <div className={`mt-4 p-4 rounded-lg ${apiTestResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <h4 className="font-bold mb-2 flex items-center gap-2">
+                {apiTestResult.success ? (
+                  <><FiCheckCircle className="text-green-600" /> API Funcionando</>
+                ) : (
+                  <><FiAlertCircle className="text-red-600" /> Erro na API</>
+                )}
+              </h4>
+              {apiTestResult.results && (
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className={apiTestResult.results.autenticacao?.status === 'sucesso' ? 'text-green-600' : 'text-red-600'}>
+                      {apiTestResult.results.autenticacao?.status === 'sucesso' ? '✅' : '❌'}
+                    </span>
+                    <span>Autenticação: {apiTestResult.results.autenticacao?.mensagem}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={apiTestResult.results.cotacao?.status === 'sucesso' ? 'text-green-600' : 'text-yellow-600'}>
+                      {apiTestResult.results.cotacao?.status === 'sucesso' ? '✅' : '⚠️'}
+                    </span>
+                    <span>Cotação: {apiTestResult.results.cotacao?.mensagem}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

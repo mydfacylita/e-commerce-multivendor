@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
         id: true,
         name: true,
         email: true,
+        phone: true,
+        image: true,
         role: true,
         createdAt: true,
       },
@@ -47,15 +49,23 @@ export async function PUT(request: NextRequest) {
       return auth.response;
     }
 
-    const { name } = await request.json()
+    const { name, phone, image } = await request.json()
+
+    // Montar objeto de atualização apenas com campos enviados
+    const updateData: { name?: string; phone?: string; image?: string } = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (image !== undefined) updateData.image = image;
 
     const user = await prisma.user.update({
       where: { id: auth.userId },
-      data: { name },
+      data: updateData,
       select: {
         id: true,
         name: true,
         email: true,
+        phone: true,
+        image: true,
         role: true,
       },
     })

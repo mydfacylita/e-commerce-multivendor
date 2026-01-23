@@ -1,5 +1,95 @@
 # 📋 Backlog - E-Commerce Moderno
 
+## 🚀 Em Andamento - 22/01/2026
+
+### 📱 App Android - Continuação
+- [ ] **Testar página de detalhes do pedido** após fix do token
+- [ ] **Testar fluxo completo** - Login → Carrinho → Checkout → Pedido → Detalhes
+- [ ] **Push Notifications** - Configurar Firebase Cloud Messaging (FCM)
+- [ ] **Deep Links** - Configurar links para abrir app direto em produto/pedido
+- [ ] **Build de produção** - Gerar APK/AAB assinado para Play Store
+- [ ] **Splash Screen** - Personalizar com logo da loja
+- [ ] **Ícone do App** - Gerar ícones em todas as resoluções
+
+### 🍎 App iOS - Início
+- [ ] **Configurar ambiente Xcode** - Abrir projeto iOS
+- [ ] **Certificados Apple Developer** - Provisioning profiles
+- [ ] **Capacitor iOS** - Sync e build inicial
+- [ ] **Testar no Simulador** - iPhone 14/15
+- [ ] **Ajustar Safe Areas** - Notch e Dynamic Island
+- [ ] **Permissões iOS** - Info.plist (câmera, notificações, etc)
+- [ ] **Push Notifications iOS** - APNs (Apple Push Notification service)
+- [ ] **Sign in with Apple** - Se necessário
+
+### ⚠️ Possíveis Perrengues (e soluções)
+- [ ] **CocoaPods** - `cd ios/App && pod install` se der erro de dependências
+- [ ] **Certificados expirados** - Renovar no Apple Developer Portal
+- [ ] **Capacitor plugins** - Alguns podem precisar de config específica no iOS
+- [ ] **Safe Area** - Testar em dispositivos com notch
+- [ ] **Keychain/Signing** - Configurar corretamente no Xcode
+- [ ] **Privacy Manifest** - Apple exige declaração de APIs usadas (iOS 17+)
+
+### 🔧 Melhorias Pendentes App
+- [ ] **Favoritos** - Salvar produtos favoritos
+- [ ] **Histórico de busca** - Armazenar buscas recentes
+- [ ] **Compartilhar produto** - Share nativo
+- [ ] **Avaliações no app** - Permitir avaliar produtos comprados
+- [ ] **Notificações de status** - Avisar quando pedido mudar de status
+
+---
+
+## ✅ Implementado - 22/01/2026
+
+### App Mobile (MYDSHOP) - Correções e Melhorias
+
+#### 🔐 Autenticação JWT no Backend
+- [x] **API `/orders` GET** - Adicionado suporte a autenticação JWT (antes só funcionava com NextAuth/sessão web)
+- [x] **API `/orders/[id]` GET** - Adicionado suporte a autenticação JWT para detalhes do pedido
+- [x] App mobile agora consegue listar e visualizar pedidos corretamente
+
+#### 📦 Integridade dos Dados de Pedidos
+- [x] **Corrigido campos size/color** - Alterado de `size`/`color` para `selectedSize`/`selectedColor` no checkout
+- [x] **Adicionado campo `costPrice`** na tabela `orderitem` - Salva o custo do produto no momento da venda
+- [x] **Análise financeira corrigida** - Usa `item.costPrice` salvo ao invés do preço atual do produto
+- [x] Schema Prisma atualizado e migração aplicada
+
+#### 📱 Identificação de Origem (APP vs Site)
+- [x] **Pedidos do app marcados como "APP"** - Campo `marketplaceName` preenchido automaticamente
+- [x] **Badge visual no admin** - Mostra "📱 APP" nos pedidos vindos do aplicativo
+- [x] Detecção automática via autenticação JWT (se veio por JWT = app mobile)
+
+#### 🖼️ Correção de Imagens no App
+- [x] **Lista de pedidos** - Imagens dos produtos agora carregam corretamente
+- [x] Função `mapOrder()` criada para transformar resposta da API
+- [x] Parse correto do campo `images` (JSON → primeira imagem)
+- [x] Uso do `ImageUrlPipe` para URLs absolutas
+
+#### 📄 Página de Detalhes do Pedido (NOVA)
+- [x] **Criado módulo `order-details`** - `order-details.module.ts`
+- [x] **Criado componente** - `order-details.page.ts` com toda lógica
+- [x] **Criado template** - `order-details.page.html` com layout completo
+- [x] **Criado estilos** - `order-details.page.scss` com design moderno
+- [x] **Rota adicionada** - `/order-details/:id` no `app-routing.module.ts`
+
+**Funcionalidades da página de detalhes:**
+- Timeline visual de status (colorida por estado)
+- Código de rastreamento com botão de copiar
+- Lista de itens com imagem, nome, tamanho/cor, quantidade e preço
+- Endereço de entrega formatado
+- Resumo de pagamento (subtotal, frete, descontos, total)
+- Botão de cancelar pedido (apenas para status inicial)
+
+#### 🛒 Carrinho Vazio - UI Melhorada
+- [x] Botão "Explorar Produtos" com design moderno
+- [x] Efeito gradiente e sombra
+- [x] Ícone com animação de rotação no hover
+
+#### 🐛 Correção de Erros de Hidratação
+- [x] Adicionado `suppressHydrationWarning` em elementos com formatação de data
+- [x] Corrigido erro de hidratação no SSR do Next.js
+
+---
+
 ## 🔥 Tarefas Prioritárias - 08/01/2026
 
 ### 1. Revisão e Ajustes Financeiros
@@ -184,3 +274,15 @@
 - ✅ Menu "🚀 Dropshipping" no admin
 - ✅ Página de seleção de nichos
 - ✅ Página de produto com múltiplas imagens (frontend pronto)
+
+### Sistema de Avaliações e Perguntas (Janeiro/2026)
+- ✅ Modelos Prisma: ProductReview, ProductQuestion, ReviewHelpful
+- ✅ API de avaliações: GET/POST /api/products/[id]/reviews
+- ✅ API de perguntas: GET/POST /api/products/[id]/questions
+- ✅ API de responder perguntas: POST /api/products/[id]/questions/[questionId]/answer
+- ✅ API de votar útil: POST /api/products/[id]/reviews/[reviewId]/helpful
+- ✅ Componentes: ProductReviews.tsx, ProductQuestions.tsx
+- ✅ Estatísticas: média, distribuição de notas, contagem respondidas
+- ✅ Verificação de compra para avaliações verificadas
+- ✅ Rate limiting: 10 perguntas/dia por usuário
+- ✅ Integração na página do produto (/produtos/[slug])

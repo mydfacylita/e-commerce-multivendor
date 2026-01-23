@@ -4,16 +4,40 @@ import { authOptions } from '@/lib/auth'
 import { PaymentService } from '@/lib/payment'
 import { prisma } from '@/lib/prisma'
 import { WhatsAppService } from '@/lib/whatsapp'
+import jwt from 'jsonwebtoken'
+
+const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key'
 
 /**
  * POST /api/payment/create
  * Cria um pagamento - endpoint unificado para todo o sistema
+ * Suporta autenticação via NextAuth (web) ou JWT (app mobile)
  */
 export async function POST(request: NextRequest) {
   try {
+    // Tenta autenticação via NextAuth (sessão web)
     const session = await getServerSession(authOptions)
+    let userId: string | null = session?.user?.id || null
+    let userEmail: string | null = session?.user?.email || null
+    let userName: string | null = session?.user?.name || null
     
-    if (!session?.user?.id) {
+    // Se não tem sessão, tenta autenticação via JWT (app mobile)
+    if (!userId) {
+      const authHeader = request.headers.get('authorization')
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7)
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; email?: string; name?: string }
+          userId = decoded.sub
+          userEmail = decoded.email || null
+          console.log('📱 [PAYMENT CREATE] Autenticação JWT:', { userId })
+        } catch (jwtError) {
+          console.error('❌ [PAYMENT CREATE] JWT inválido:', jwtError)
+        }
+      }
+    }
+    
+    if (!userId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     }
 
@@ -52,7 +76,7 @@ export async function POST(request: NextRequest) {
     // Para pedidos, buscar dados do comprador (CPF, telefone, endereço) para pagamento
     let payerDocument: string | undefined
     let payerPhone: string | undefined
-    let payerName = session.user.name || undefined
+    let payerName = userName || undefined
     let payerAddress: {
       street: string
       number: string
@@ -109,7 +133,7 @@ export async function POST(request: NextRequest) {
     const paymentData: any = {
       amount,
       description,
-      payerEmail: session.user.email!,
+      payerEmail: userEmail!,
       payerName,
       payerDocument, // CPF do comprador - ajuda a evitar rejected_high_risk
       payerPhone,    // Telefone do comprador - ajuda a evitar rejected_high_risk
@@ -119,7 +143,7 @@ export async function POST(request: NextRequest) {
       notificationUrl: `${process.env.WEBHOOK_URL || process.env.NEXTAUTH_URL}/api/payment/webhook`,
       paymentMethod, // Adicionar método de pagamento
       metadata: {
-        userId: session.user.id,
+        userId: userId,
         type,
         referenceId // Manter o referenceId original nos metadados
       }
@@ -235,7 +259,7 @@ export async function POST(request: NextRequest) {
 
     // Log
     console.log('💳 Pagamento criado:', {
-      userId: session.user.id,
+      userId: userId,
       type,
       amount,
       paymentId: result.paymentId,

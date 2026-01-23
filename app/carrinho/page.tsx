@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useCartStore } from '@/lib/store'
+import { useState, useEffect } from 'react'
+import { useCartStore, syncCartStock } from '@/lib/store'
 import Image from 'next/image'
 import Link from 'next/link'
 import { FiTrash2, FiMinus, FiPlus, FiTag, FiTruck, FiMapPin } from 'react-icons/fi'
@@ -40,7 +40,9 @@ function formatarMoeda(valor: number): string {
 export default function CarrinhoPage() {
   const { items, removeItem, updateQuantity, clearCart, total } = useCartStore()
   const [cupom, setCupom] = useState('')
+  const [cupomAplicado, setCupomAplicado] = useState<string | null>(null)
   const [desconto, setDesconto] = useState(0)
+  const [cupomCarregando, setCupomCarregando] = useState(false)
   const [cep, setCep] = useState('')
   const [frete, setFrete] = useState(0)
   const [prazoEntrega, setPrazoEntrega] = useState<number | null>(null)
@@ -57,6 +59,35 @@ export default function CarrinhoPage() {
   }>>([])
   const [freteCarregando, setFreteCarregando] = useState(false)
   const [freteSelecionado, setFreteSelecionado] = useState<string | null>(null)
+  const [stockSynced, setStockSynced] = useState(false)
+
+  // Sincronizar estoque ao carregar a página
+  useEffect(() => {
+    async function syncStock() {
+      if (items.length > 0 && !stockSynced) {
+        console.log('🔄 Sincronizando estoque do carrinho...')
+        const syncedItems = await syncCartStock(items)
+        
+        // Verificar se houve alterações
+        let hasChanges = false
+        syncedItems.forEach((syncedItem, index) => {
+          if (syncedItem.quantity !== items[index].quantity || syncedItem.stock !== items[index].stock) {
+            hasChanges = true
+            if (syncedItem.quantity < items[index].quantity) {
+              toast.error(`${syncedItem.name}: Quantidade ajustada para ${syncedItem.quantity} (estoque atual)`)
+            }
+            updateQuantity(syncedItem.id, syncedItem.quantity)
+          }
+        })
+        
+        if (hasChanges) {
+          console.log('✅ Estoque sincronizado com correções')
+        }
+        setStockSynced(true)
+      }
+    }
+    syncStock()
+  }, [items, stockSynced, updateQuantity])
 
   const calcularPesoTotal = async () => {
     try {
@@ -86,18 +117,57 @@ export default function CarrinhoPage() {
     }
   }
 
-  const aplicarCupom = () => {
-    // Simulação de cupom
-    if (cupom.toUpperCase() === 'PRIMEIRACOMPRA') {
-      setDesconto(total() * 0.1) // 10% de desconto
-      alert('Cupom aplicado! 10% de desconto')
-    } else if (cupom.toUpperCase() === 'FRETEGRATIS') {
-      setFreteGratis(true)
-      setFrete(0)
-      alert('Cupom aplicado! Frete grátis')
-    } else {
-      alert('Cupom inválido')
+  const aplicarCupom = async () => {
+    if (!cupom.trim()) {
+      toast.error('Digite um código de cupom')
+      return
     }
+
+    setCupomCarregando(true)
+    
+    try {
+      const response = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
+        },
+        body: JSON.stringify({
+          code: cupom.toUpperCase(),
+          subtotal: subtotal,
+          state: null // Pode ser obtido do CEP depois
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.valid) {
+        setDesconto(data.discountAmount)
+        setCupomAplicado(cupom.toUpperCase())
+        
+        // Verificar se é cupom de frete grátis (pode ser tratado no futuro)
+        if (data.discountType === 'FIXED' && data.discountAmount === 0) {
+          setFreteGratis(true)
+          setFrete(0)
+        }
+        
+        toast.success(`Cupom aplicado! Desconto de R$ ${formatarMoeda(data.discountAmount)}`)
+        setCupom('')
+      } else {
+        toast.error(data.message || 'Cupom inválido')
+      }
+    } catch (error) {
+      console.error('Erro ao validar cupom:', error)
+      toast.error('Erro ao validar cupom')
+    } finally {
+      setCupomCarregando(false)
+    }
+  }
+
+  const removerCupom = () => {
+    setCupomAplicado(null)
+    setDesconto(0)
+    toast.success('Cupom removido')
   }
 
   const calcularFrete = async () => {
@@ -274,8 +344,15 @@ export default function CarrinhoPage() {
                     </button>
                     <span className="px-4 py-2 border-x min-w-[60px] text-center font-semibold">{item.quantity}</span>
                     <button
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="p-2 hover:bg-gray-100 transition"
+                      onClick={() => {
+                        const maxStock = item.stock || 999
+                        if (item.quantity >= maxStock) {
+                          toast.error(`Estoque máximo: ${maxStock} unidades`)
+                          return
+                        }
+                        updateQuantity(item.id, item.quantity + 1)
+                      }}
+                      className="p-2 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!!item.stock && item.quantity >= item.stock}
                     >
                       <FiPlus />
@@ -323,24 +400,53 @@ export default function CarrinhoPage() {
             <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
               <FiTag className="text-primary-600" /> Cupom de Desconto
             </h3>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={cupom}
-                onChange={(e) => setCupom(e.target.value.toUpperCase())}
-                placeholder="Digite seu cupom"
-                className="flex-1 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-              />
-              <button
-                onClick={aplicarCupom}
-                className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-semibold"
-              >
-                Aplicar
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Cupons disponíveis: PRIMEIRACOMPRA (10% off), FRETEGRATIS
-            </p>
+            
+            {cupomAplicado ? (
+              <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <FiTag className="text-green-600" />
+                  <div>
+                    <span className="font-semibold text-green-700">{cupomAplicado}</span>
+                    <p className="text-sm text-green-600">
+                      Desconto de R$ {formatarMoeda(desconto)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={removerCupom}
+                  className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded transition"
+                  title="Remover cupom"
+                >
+                  <FiTrash2 size={18} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={cupom}
+                  onChange={(e) => setCupom(e.target.value.toUpperCase())}
+                  placeholder="Digite seu cupom"
+                  disabled={cupomCarregando}
+                  className="flex-1 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50"
+                />
+                <button
+                  onClick={aplicarCupom}
+                  disabled={cupomCarregando || !cupom.trim()}
+                  className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {cupomCarregando ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Validando...
+                    </>
+                  ) : 'Aplicar'}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Calcular Frete */}
@@ -513,11 +619,11 @@ export default function CarrinhoPage() {
               onClick={() => {
                 // Salvar dados do carrinho para o checkout
                 localStorage.setItem('checkoutData', JSON.stringify({
-                  cupom,
+                  cupom: cupomAplicado,
                   desconto,
                   frete,
                   freteGratis,
-                  prazoEntrega: 0 // Adicionar prazo se disponível
+                  prazoEntrega: prazoEntrega || 0
                 }))
               }}
               className="block w-full bg-primary-600 text-white py-4 rounded-md hover:bg-primary-700 text-center font-bold text-lg transition shadow-lg hover:shadow-xl"

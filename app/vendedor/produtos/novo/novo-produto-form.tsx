@@ -576,13 +576,42 @@ export default function NovoProductForm({ categories }: NovoProductFormProps) {
               <label className="block text-sm font-medium mb-2">
                 GTIN / EAN / Código de Barras
               </label>
-              <input
-                type="text"
-                value={formData.gtin}
-                onChange={(e) => setFormData({ ...formData, gtin: e.target.value })}
-                className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
-                placeholder="7891234567890"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={formData.gtin}
+                  onChange={(e) => setFormData({ ...formData, gtin: e.target.value })}
+                  className="flex-1 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  placeholder="7891234567890"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/vendedor/ean/generate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ quantity: 1, type: 'INTERNAL' })
+                      })
+                      const data = await res.json()
+                      if (data.success && data.eans[0]) {
+                        setFormData({ ...formData, gtin: data.eans[0] })
+                        toast.success('EAN gerado com sucesso!')
+                      } else {
+                        toast.error(data.message || 'Erro ao gerar EAN')
+                      }
+                    } catch (error) {
+                      toast.error('Erro ao gerar EAN')
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 whitespace-nowrap"
+                >
+                  Gerar EAN
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Clique em "Gerar EAN" para criar um código de barras gratuito
+              </p>
             </div>
 
             <div>

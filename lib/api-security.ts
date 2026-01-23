@@ -25,9 +25,20 @@ const API_KEY_HEADER = 'x-api-key';
 const AUTH_HEADER = 'authorization';
 const APP_SIGNATURE_HEADER = 'x-app-signature';
 
-// Interface do payload do JWT
+// Interface do payload do JWT (formato de saída padronizado)
 export interface JwtPayload {
   userId: string;
+  email: string;
+  role: string;
+  name?: string;
+  iat?: number;
+  exp?: number;
+}
+
+// Interface do payload decodificado do JWT (suporta ambos formatos)
+interface DecodedJwtPayload {
+  sub?: string;      // Formato padrão JWT (usado no login)
+  userId?: string;   // Formato alternativo
   email: string;
   role: string;
   name?: string;
@@ -328,11 +339,18 @@ export async function validateUserToken(authHeader: string | null): Promise<{
 
   try {
     // Verificar e decodificar o token
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    const decoded = jwt.verify(token, JWT_SECRET) as DecodedJwtPayload;
+
+    // Suportar ambos formatos: "sub" (padrão JWT) ou "userId"
+    const userId = decoded.sub || decoded.userId;
+    
+    if (!userId) {
+      return { valid: false, error: 'Token inválido: userId não encontrado' };
+    }
 
     // Verificar se o usuário ainda existe e está ativo
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: userId },
       select: { id: true, email: true, role: true, name: true }
     });
 

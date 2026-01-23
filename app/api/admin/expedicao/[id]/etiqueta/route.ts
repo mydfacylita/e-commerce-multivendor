@@ -33,11 +33,21 @@ export async function GET(
 
     // Se é uma URL, redirecionar
     if (result.type === 'url') {
-      return NextResponse.redirect(result.data)
+      return NextResponse.redirect(result.data as string)
     }
 
-    // Retornar conteúdo
-    return new NextResponse(result.data, {
+    // Se é PDF (Buffer), converter para Uint8Array
+    if (result.type === 'pdf' && Buffer.isBuffer(result.data)) {
+      return new NextResponse(new Uint8Array(result.data), {
+        headers: {
+          'Content-Type': result.contentType,
+          'Content-Disposition': 'inline; filename="etiqueta.pdf"'
+        }
+      })
+    }
+
+    // Retornar conteúdo HTML/ZPL
+    return new NextResponse(result.data as string, {
       headers: {
         'Content-Type': result.contentType
       }

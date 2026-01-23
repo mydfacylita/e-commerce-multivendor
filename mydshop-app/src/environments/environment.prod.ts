@@ -7,7 +7,7 @@ export const environment = {
 
   // 🔧 Ambiente Mobile: 'local' para desenvolvimento, 'production' para produção
   // Quando 'local', usa http://localhost:3000 (para testes)
-  MOBILE_ENV: 'local',
+  MOBILE_ENV: 'production',
 
   // API Backend
   apiUrl: 'https://www.mydshop.com.br/api',

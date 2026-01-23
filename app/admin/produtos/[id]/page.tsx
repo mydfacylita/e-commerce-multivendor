@@ -81,6 +81,22 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
     sizeCategory: '',
     colorType: 'Única' as 'Única' | 'Variada',
     variants: '',  // JSON array com tamanho x cor
+    // Campos de Tributação (NF-e)
+    ncm: '',
+    cest: '',
+    origem: '0',
+    cstIcms: '',
+    aliquotaIcms: '',
+    reducaoBcIcms: '',
+    cstPis: '',
+    aliquotaPis: '',
+    cstCofins: '',
+    aliquotaCofins: '',
+    cfopInterno: '',
+    cfopInterestadual: '',
+    unidadeComercial: 'UN',
+    unidadeTributavel: 'UN',
+    tributacaoEspecial: 'normal',
   })
 
   useEffect(() => {
@@ -251,6 +267,22 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           sizeCategory: product.sizeCategory || '',
           colorType: variantsString ? 'Variada' : 'Única',
           variants: variantsString,
+          // Campos de Tributação (NF-e)
+          ncm: product.ncm || '',
+          cest: product.cest || '',
+          origem: product.origem || '0',
+          cstIcms: product.cstIcms || '',
+          aliquotaIcms: product.aliquotaIcms?.toString() || '',
+          reducaoBcIcms: product.reducaoBcIcms?.toString() || '',
+          cstPis: product.cstPis || '',
+          aliquotaPis: product.aliquotaPis?.toString() || '',
+          cstCofins: product.cstCofins || '',
+          aliquotaCofins: product.aliquotaCofins?.toString() || '',
+          cfopInterno: product.cfopInterno || '',
+          cfopInterestadual: product.cfopInterestadual || '',
+          unidadeComercial: product.unidadeComercial || 'UN',
+          unidadeTributavel: product.unidadeTributavel || 'UN',
+          tributacaoEspecial: product.tributacaoEspecial || 'normal',
         })
       } catch (error) {
         toast.error('Erro ao carregar produto')
@@ -556,8 +588,9 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
                 value={formData.weight}
                 onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
                 className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
-                placeholder="0.500"
+                placeholder="1.200"
               />
+              <p className="text-xs text-gray-500 mt-1">Ex: 1.200 = 1kg 200g | 0.950 = 950g</p>
             </div>
 
             <div>
@@ -568,7 +601,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
                 value={formData.weightWithPackage}
                 onChange={(e) => setFormData({ ...formData, weightWithPackage: e.target.value })}
                 className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
-                placeholder="0.600"
+                placeholder="1.300"
               />
               <p className="text-xs text-blue-600 mt-1">Usado no cálculo de frete</p>
             </div>
@@ -989,6 +1022,260 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           </div>
         </div>
         )}
+
+        {/* Tributação Fiscal (NF-e) */}
+        <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200">
+          <h3 className="font-semibold text-lg mb-2">📋 Tributação Fiscal (NF-e)</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Campos para emissão de Nota Fiscal. Deixe em branco para usar as regras padrão.
+          </p>
+          
+          <div className="grid md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">NCM *</label>
+              <input
+                type="text"
+                value={formData.ncm}
+                onChange={(e) => setFormData({ ...formData, ncm: e.target.value.replace(/\D/g, '').slice(0, 8) })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                placeholder="00000000"
+                maxLength={8}
+              />
+              <p className="text-xs text-gray-500 mt-1">8 dígitos obrigatório para NF-e</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">CEST (opcional)</label>
+              <input
+                type="text"
+                value={formData.cest}
+                onChange={(e) => setFormData({ ...formData, cest: e.target.value.replace(/\D/g, '').slice(0, 7) })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                placeholder="0000000"
+                maxLength={7}
+              />
+              <p className="text-xs text-gray-500 mt-1">7 dígitos para ST</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Origem do Produto</label>
+              <select
+                value={formData.origem}
+                onChange={(e) => setFormData({ ...formData, origem: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+              >
+                <option value="0">0 - Nacional</option>
+                <option value="1">1 - Estrangeira - Importação direta</option>
+                <option value="2">2 - Estrangeira - Mercado interno</option>
+                <option value="3">3 - Nacional, conteúdo import. &gt; 40%</option>
+                <option value="4">4 - Nacional, conforme processos básicos</option>
+                <option value="5">5 - Nacional, conteúdo import. ≤ 40%</option>
+                <option value="6">6 - Estrangeira - Import. sem similar (CAMEX)</option>
+                <option value="7">7 - Estrangeira - Mercado sem similar (CAMEX)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Unidade Comercial</label>
+              <select
+                value={formData.unidadeComercial}
+                onChange={(e) => setFormData({ ...formData, unidadeComercial: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+              >
+                <option value="UN">UN - Unidade</option>
+                <option value="PC">PC - Peça</option>
+                <option value="CX">CX - Caixa</option>
+                <option value="KG">KG - Quilograma</option>
+                <option value="G">G - Grama</option>
+                <option value="L">L - Litro</option>
+                <option value="ML">ML - Mililitro</option>
+                <option value="M">M - Metro</option>
+                <option value="CM">CM - Centímetro</option>
+                <option value="M2">M2 - Metro Quadrado</option>
+                <option value="M3">M3 - Metro Cúbico</option>
+                <option value="PAR">PAR - Par</option>
+                <option value="DUZIA">DUZIA - Dúzia</option>
+                <option value="KIT">KIT - Kit</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Tributação Especial</label>
+              <select
+                value={formData.tributacaoEspecial}
+                onChange={(e) => setFormData({ ...formData, tributacaoEspecial: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+              >
+                <option value="normal">Normal - Usa regra padrão</option>
+                <option value="monofasico">Monofásico - PIS/COFINS já recolhido</option>
+                <option value="st">Substituição Tributária</option>
+                <option value="isento">Isento</option>
+                <option value="imune">Imune</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Para cosméticos, bebidas, combustíveis, etc.</p>
+            </div>
+          </div>
+
+          {/* Campos avançados - colapsáveis */}
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm font-medium text-primary-600 hover:text-primary-700">
+              ⚙️ Configurações Avançadas de Tributação (sobrescrevem regras padrão)
+            </summary>
+            <div className="mt-4 p-4 bg-white rounded border">
+              <p className="text-xs text-amber-600 mb-4">
+                ⚠️ Só preencha se este produto tiver tributação diferente das regras padrão configuradas em Nota Fiscal.
+              </p>
+              
+              <div className="grid md:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">CST/CSOSN ICMS</label>
+                  <select
+                    value={formData.cstIcms}
+                    onChange={(e) => setFormData({ ...formData, cstIcms: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  >
+                    <option value="">Usar regra padrão</option>
+                    <optgroup label="Regime Normal (CST)">
+                      <option value="00">00 - Tributada integralmente</option>
+                      <option value="10">10 - Tributada com ST</option>
+                      <option value="20">20 - Redução de base</option>
+                      <option value="30">30 - Isenta/não trib. com ST</option>
+                      <option value="40">40 - Isenta</option>
+                      <option value="41">41 - Não tributada</option>
+                      <option value="50">50 - Suspensão</option>
+                      <option value="51">51 - Diferimento</option>
+                      <option value="60">60 - ICMS cobrado por ST</option>
+                      <option value="70">70 - Redução + ST</option>
+                      <option value="90">90 - Outras</option>
+                    </optgroup>
+                    <optgroup label="Simples Nacional (CSOSN)">
+                      <option value="101">101 - Tributada com crédito</option>
+                      <option value="102">102 - Tributada sem crédito</option>
+                      <option value="103">103 - Isenção por faixa</option>
+                      <option value="201">201 - Com ST e crédito</option>
+                      <option value="202">202 - Com ST sem crédito</option>
+                      <option value="203">203 - Isenção + ST</option>
+                      <option value="300">300 - Imune</option>
+                      <option value="400">400 - Não tributada</option>
+                      <option value="500">500 - ICMS cobrado por ST</option>
+                      <option value="900">900 - Outros</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Alíquota ICMS (%)</label>
+                  <input
+                    type="text"
+                    value={formData.aliquotaIcms}
+                    onChange={(e) => setFormData({ ...formData, aliquotaIcms: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    placeholder="Ex: 18"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Redução BC (%)</label>
+                  <input
+                    type="text"
+                    value={formData.reducaoBcIcms}
+                    onChange={(e) => setFormData({ ...formData, reducaoBcIcms: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    placeholder="Ex: 33.33"
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">CST PIS</label>
+                  <select
+                    value={formData.cstPis}
+                    onChange={(e) => setFormData({ ...formData, cstPis: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  >
+                    <option value="">Usar padrão</option>
+                    <option value="01">01 - Tributável</option>
+                    <option value="04">04 - Monofásico</option>
+                    <option value="05">05 - ST</option>
+                    <option value="06">06 - Alíquota Zero</option>
+                    <option value="07">07 - Isenta</option>
+                    <option value="08">08 - Sem Incidência</option>
+                    <option value="09">09 - Suspensão</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Alíq. PIS (%)</label>
+                  <input
+                    type="text"
+                    value={formData.aliquotaPis}
+                    onChange={(e) => setFormData({ ...formData, aliquotaPis: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    placeholder="1.65"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">CST COFINS</label>
+                  <select
+                    value={formData.cstCofins}
+                    onChange={(e) => setFormData({ ...formData, cstCofins: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  >
+                    <option value="">Usar padrão</option>
+                    <option value="01">01 - Tributável</option>
+                    <option value="04">04 - Monofásico</option>
+                    <option value="05">05 - ST</option>
+                    <option value="06">06 - Alíquota Zero</option>
+                    <option value="07">07 - Isenta</option>
+                    <option value="08">08 - Sem Incidência</option>
+                    <option value="09">09 - Suspensão</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Alíq. COFINS (%)</label>
+                  <input
+                    type="text"
+                    value={formData.aliquotaCofins}
+                    onChange={(e) => setFormData({ ...formData, aliquotaCofins: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    placeholder="7.60"
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">CFOP Venda Interna</label>
+                  <input
+                    type="text"
+                    value={formData.cfopInterno}
+                    onChange={(e) => setFormData({ ...formData, cfopInterno: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    placeholder="5102"
+                    maxLength={4}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">CFOP Venda Interestadual</label>
+                  <input
+                    type="text"
+                    value={formData.cfopInterestadual}
+                    onChange={(e) => setFormData({ ...formData, cfopInterestadual: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    placeholder="6102"
+                    maxLength={4}
+                  />
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
 
         {/* Upload de Imagens */}
         <ImageUploader

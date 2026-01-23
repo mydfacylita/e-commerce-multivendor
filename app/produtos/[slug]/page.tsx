@@ -3,9 +3,10 @@ import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import ProductVariantSelector from '@/components/ProductVariantSelector'
-import ShippingCalculator from '@/components/ShippingCalculator'
 import Breadcrumb from '@/components/Breadcrumb'
 import ProductDetailClient from '@/components/ProductDetailClient'
+import ProductReviews from '@/components/ProductReviews'
+import ProductQuestions from '@/components/ProductQuestions'
 import { serializeProduct } from '@/lib/serialize'
 
 // Função para processar especificações baseado no fornecedor
@@ -164,6 +165,79 @@ export default async function ProductPage({ params }: { params: { slug: string }
 
   const relatedProducts = relatedProductsRaw.map(serializeProduct)
 
+  // Buscar avaliações do produto
+  const reviewsData = await prisma.productReview.findMany({
+    where: {
+      productId: product.id,
+      isApproved: true
+    },
+    include: {
+      user: {
+        select: { name: true, image: true }
+      }
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10
+  })
+
+  // Calcular estatísticas de avaliações
+  const reviewStats = await prisma.productReview.aggregate({
+    where: {
+      productId: product.id,
+      isApproved: true
+    },
+    _avg: { rating: true },
+    _count: { rating: true }
+  })
+
+  // Distribuição de notas
+  const ratingDistribution = await prisma.productReview.groupBy({
+    by: ['rating'],
+    where: {
+      productId: product.id,
+      isApproved: true
+    },
+    _count: { rating: true }
+  })
+
+  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+  ratingDistribution.forEach(r => {
+    distribution[r.rating as keyof typeof distribution] = r._count.rating
+  })
+
+  const reviewsStats = {
+    averageRating: reviewStats._avg.rating || 0,
+    totalReviews: reviewStats._count.rating,
+    distribution
+  }
+
+  // Buscar perguntas do produto
+  const questionsData = await prisma.productQuestion.findMany({
+    where: {
+      productId: product.id,
+      isPublic: true,
+      isApproved: true
+    },
+    include: {
+      user: {
+        select: { name: true, image: true }
+      }
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10
+  })
+
+  // Estatísticas de perguntas
+  const totalQuestions = questionsData.length
+  const answeredCount = questionsData.filter(q => q.answer).length
+  const unansweredCount = totalQuestions - answeredCount
+
+  const questionsStats = {
+    totalQuestions,
+    answeredCount,
+    unansweredCount
+  }
+
   // Log do que vem do banco
   console.log('📦 Produto do banco - ID:', product.id)
   console.log('📦 Campo images:', product.images)
@@ -210,12 +284,14 @@ export default async function ProductPage({ params }: { params: { slug: string }
         ]} 
       />
 
-      <ProductDetailClient
-        product={product}
-        variants={variants}
-        processedSpecs={processedSpecs}
-        processedAttrs={processedAttrs}
-      />
+      {/* Card único com sombra sutil */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
+        <ProductDetailClient
+          product={product}
+          variants={variants}
+          processedSpecs={processedSpecs}
+          processedAttrs={processedAttrs}
+        />
 
       {/* Seletor de Variantes (cores, tamanhos, etc) */}
       <ProductVariantSelector 
@@ -223,10 +299,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
         supplierName={product.supplier?.name}
       />
       
-      {/* Bloco de frete e garantias abaixo das infos do produto */}
-      <div className="space-y-6 mt-8">
-        <ShippingCalculator />
-        <div className="border-t pt-6">
+        {/* Bloco de garantias abaixo das infos do produto */}
+        <div className="mt-8 pt-8 border-t border-gray-100">
           <h3 className="font-semibold text-lg mb-4">🛡️ Garantias</h3>
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm text-gray-700">
@@ -246,6 +320,45 @@ export default async function ProductPage({ params }: { params: { slug: string }
               <span>Compra 100% segura e protegida</span>
             </div>
           </div>
+        </div>
+
+        {/* Seção de Avaliações */}
+        <div className="mt-8 pt-8 border-t border-gray-100">
+          <ProductReviews
+            productId={product.id}
+            initialReviews={reviewsData.map(r => ({
+              id: r.id,
+              rating: r.rating,
+              title: r.title || undefined,
+              comment: r.comment || undefined,
+              pros: r.pros || undefined,
+              cons: r.cons || undefined,
+              images: (r.images as string[]) || [],
+              isVerified: r.isVerified,
+              helpfulCount: r.helpfulCount,
+              sellerReply: r.sellerReply || undefined,
+              sellerReplyAt: r.sellerReplyAt?.toISOString(),
+              createdAt: r.createdAt.toISOString(),
+              user: r.user
+            }))}
+            initialStats={reviewsStats}
+          />
+        </div>
+
+        {/* Seção de Perguntas e Respostas */}
+        <div className="mt-8 pt-8 border-t border-gray-100">
+          <ProductQuestions
+            productId={product.id}
+            initialQuestions={questionsData.map(q => ({
+              id: q.id,
+              question: q.question,
+              answer: q.answer || undefined,
+              answeredAt: q.answeredAt?.toISOString(),
+              createdAt: q.createdAt.toISOString(),
+              user: q.user
+            }))}
+            initialStats={questionsStats}
+          />
         </div>
       </div>
 

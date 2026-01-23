@@ -38,6 +38,91 @@ function formatarMoeda(valor: number): string {
   return valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Função para formatar CPF com máscara
+function formatarCPF(valor: string): string {
+  // Remove tudo que não é número
+  const numeros = valor.replace(/\D/g, '')
+  
+  // Limita a 11 dígitos
+  const limitado = numeros.substring(0, 11)
+  
+  // Aplica a máscara
+  if (limitado.length <= 3) {
+    return limitado
+  } else if (limitado.length <= 6) {
+    return `${limitado.slice(0, 3)}.${limitado.slice(3)}`
+  } else if (limitado.length <= 9) {
+    return `${limitado.slice(0, 3)}.${limitado.slice(3, 6)}.${limitado.slice(6)}`
+  } else {
+    return `${limitado.slice(0, 3)}.${limitado.slice(3, 6)}.${limitado.slice(6, 9)}-${limitado.slice(9)}`
+  }
+}
+
+// Função para validar CPF (algoritmo oficial)
+function validarCPF(cpf: string): boolean {
+  // Remove caracteres não numéricos
+  const numeros = cpf.replace(/\D/g, '')
+  
+  // Deve ter 11 dígitos
+  if (numeros.length !== 11) {
+    return false
+  }
+  
+  // Verifica se todos os dígitos são iguais (CPFs inválidos como 111.111.111-11)
+  if (/^(\d)\1{10}$/.test(numeros)) {
+    return false
+  }
+  
+  // Validação do primeiro dígito verificador
+  let soma = 0
+  for (let i = 0; i < 9; i++) {
+    soma += parseInt(numeros[i]) * (10 - i)
+  }
+  let resto = (soma * 10) % 11
+  if (resto === 10 || resto === 11) resto = 0
+  if (resto !== parseInt(numeros[9])) {
+    return false
+  }
+  
+  // Validação do segundo dígito verificador
+  soma = 0
+  for (let i = 0; i < 10; i++) {
+    soma += parseInt(numeros[i]) * (11 - i)
+  }
+  resto = (soma * 10) % 11
+  if (resto === 10 || resto === 11) resto = 0
+  if (resto !== parseInt(numeros[10])) {
+    return false
+  }
+  
+  return true
+}
+
+// Função para formatar telefone com máscara (00) 00000-0000
+function formatarTelefone(valor: string): string {
+  // Remove tudo que não é número
+  const numeros = valor.replace(/\D/g, '')
+  
+  // Limita a 11 dígitos (DDD + 9 dígitos)
+  const limitado = numeros.substring(0, 11)
+  
+  // Aplica a máscara
+  if (limitado.length <= 2) {
+    return limitado.length > 0 ? `(${limitado}` : ''
+  } else if (limitado.length <= 7) {
+    return `(${limitado.slice(0, 2)}) ${limitado.slice(2)}`
+  } else {
+    return `(${limitado.slice(0, 2)}) ${limitado.slice(2, 7)}-${limitado.slice(7)}`
+  }
+}
+
+// Função para validar telefone (mínimo DDD + 8 dígitos)
+function validarTelefone(telefone: string): boolean {
+  const numeros = telefone.replace(/\D/g, '')
+  // Deve ter pelo menos 10 dígitos (DDD + 8) ou 11 (DDD + 9)
+  return numeros.length >= 10 && numeros.length <= 11
+}
+
 interface Gateway {
   gateway: string
   isActive: boolean
@@ -55,6 +140,8 @@ interface SavedAddress {
   zipCode: string
   phone?: string
   cpf?: string
+  reference?: string
+  notes?: string
   isDefault: boolean
 }
 
@@ -93,14 +180,24 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
   const [showNewAddressForm, setShowNewAddressForm] = useState(false)
   const [loadingAddresses, setLoadingAddresses] = useState(true)
+  // Estados e cidades
+  const [states, setStates] = useState<{id: number, name: string, uf: string}[]>([])
+  const [cities, setCities] = useState<{id: number, name: string}[]>([])
+  const [loadingCities, setLoadingCities] = useState(false)
+  const [cpfError, setCpfError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
   const [formData, setFormData] = useState({
     address: '',
+    number: '',
+    complement: '',
     neighborhood: '',
     city: '',
     state: '',
     zipCode: '',
     phone: '',
     cpf: '',
+    reference: '', // Ponto de referência
+    notes: '', // Observações
   })
 
   useEffect(() => {
@@ -134,13 +231,17 @@ export default function CheckoutPage() {
             
             // Preencher formulário com os dados do endereço selecionado
             setFormData({
-              address: defaultAddr.street + (defaultAddr.complement ? `, ${defaultAddr.complement}` : ''),
+              address: defaultAddr.street || '',
+              number: 'S/N',
+              complement: defaultAddr.complement || '',
               neighborhood: defaultAddr.neighborhood || '',
               city: defaultAddr.city,
               state: defaultAddr.state,
               zipCode: defaultAddr.zipCode,
-              phone: defaultAddr.phone || '',
-              cpf: defaultAddr.cpf || '',
+              phone: formatarTelefone(defaultAddr.phone || ''),
+              cpf: formatarCPF(defaultAddr.cpf || ''),
+              reference: defaultAddr.reference || '',
+              notes: defaultAddr.notes || '',
             })
             setShowNewAddressForm(false)
           } else {
@@ -160,6 +261,21 @@ export default function CheckoutPage() {
       loadSavedAddresses()
     }
   }, [session])
+
+  // Carregar lista de estados
+  useEffect(() => {
+    const loadStates = async () => {
+      try {
+        const res = await fetch('/api/location/states')
+        if (res.ok) {
+          setStates(await res.json())
+        }
+      } catch (error) {
+        console.error('Erro ao carregar estados:', error)
+      }
+    }
+    loadStates()
+  }, [])
 
   // Calcular peso total dos produtos
   const calcularPesoTotal = async (): Promise<number> => {
@@ -345,15 +461,23 @@ export default function CheckoutPage() {
   const handleSelectAddress = (address: SavedAddress) => {
     setSelectedAddressId(address.id)
     setFormData({
-      address: address.street + (address.complement ? `, ${address.complement}` : ''),
+      address: address.street || '',
+      number: 'S/N',
+      complement: address.complement || '',
       neighborhood: address.neighborhood || '',
       city: address.city,
       state: address.state,
       zipCode: address.zipCode,
-      phone: address.phone || '',
-      cpf: address.cpf || '',
+      phone: formatarTelefone(address.phone || ''),
+      cpf: formatarCPF(address.cpf || ''),
+      reference: address.reference || '',
+      notes: address.notes || '',
     })
     setShowNewAddressForm(false)
+    
+    // Limpar erros de validação
+    setPhoneError('')
+    setCpfError('')
     
     // Calcular frete automaticamente ao selecionar endereço
     const cepNumeros = address.zipCode.replace(/\D/g, '')
@@ -378,7 +502,7 @@ export default function CheckoutPage() {
         setSavedAddresses(prev => prev.filter(a => a.id !== addressId))
         if (selectedAddressId === addressId) {
           setSelectedAddressId(null)
-          setFormData({ address: '', neighborhood: '', city: '', state: '', zipCode: '', phone: '', cpf: '' })
+          setFormData({ address: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '', phone: '', cpf: '', reference: '', notes: '' })
           setShowNewAddressForm(true)
         }
         toast.success('Endereço removido')
@@ -438,6 +562,58 @@ export default function CheckoutPage() {
   const handleAddressSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // SEGURANÇA: Validar telefone antes de continuar
+    if (!formData.phone || formData.phone.length < 14) {
+      toast.error('Por favor, informe seu telefone completo com DDD')
+      setPhoneError('Telefone é obrigatório')
+      return
+    }
+    
+    if (!validarTelefone(formData.phone)) {
+      toast.error('Telefone inválido. Informe DDD + número.')
+      setPhoneError('Telefone inválido. Informe DDD + número.')
+      return
+    }
+    
+    // SEGURANÇA: Validar CPF antes de continuar
+    if (!formData.cpf || formData.cpf.length < 14) {
+      toast.error('Por favor, informe seu CPF completo')
+      setCpfError('CPF é obrigatório')
+      return
+    }
+    
+    if (!validarCPF(formData.cpf)) {
+      toast.error('CPF inválido. Verifique os números digitados.')
+      setCpfError('CPF inválido. Verifique os números digitados.')
+      return
+    }
+    
+    // VALIDAÇÃO: Campos obrigatórios para NF-e, Etiqueta e Expedição
+    if (!formData.address || formData.address.trim().length < 3) {
+      toast.error('Por favor, informe o endereço (Rua/Logradouro)')
+      return
+    }
+    
+    if (!formData.number || formData.number.trim().length === 0) {
+      toast.error('Por favor, informe o número do endereço')
+      return
+    }
+    
+    if (!formData.neighborhood || formData.neighborhood.trim().length < 2) {
+      toast.error('Por favor, informe o bairro')
+      return
+    }
+    
+    if (!formData.state || formData.state.length !== 2) {
+      toast.error('Por favor, selecione o estado')
+      return
+    }
+    
+    if (!formData.city || formData.city.trim().length < 2) {
+      toast.error('Por favor, selecione a cidade')
+      return
+    }
+    
     // SEGURANÇA: Verificar se o frete foi calculado para o CEP atual
     const cepNumeros = formData.zipCode.replace(/\D/g, '')
     if (cepNumeros.length !== 8) {
@@ -459,13 +635,16 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            street: formData.address,
+            street: formData.number ? `${formData.address}, ${formData.number}` : formData.address,
+            complement: formData.complement || '',
             neighborhood: formData.neighborhood,
             city: formData.city,
             state: formData.state,
             zipCode: cepNumeros,
-            phone: formData.phone,
-            cpf: formData.cpf,
+            phone: formData.phone.replace(/\D/g, ''), // Salvar apenas números
+            cpf: formData.cpf.replace(/\D/g, ''), // Salvar apenas números
+            reference: formData.reference || '', // Ponto de referência
+            notes: formData.notes || '', // Observações
             isDefault: savedAddresses.length === 0 // Primeiro endereço é padrão
           })
         })
@@ -486,15 +665,19 @@ export default function CheckoutPage() {
       
       // Montar endereço como JSON estruturado para boleto/cartão
       const shippingAddressData = {
-        street: selectedAddr?.street || formData.address.split(',')[0]?.trim() || formData.address,
-        number: selectedAddr?.street?.match(/\d+$/)?.[0] || formData.address.match(/\d+/)?.[0] || 'SN',
-        complement: selectedAddr?.complement || '',
+        street: selectedAddr?.street || formData.address,
+        number: selectedAddr?.street?.match(/\d+$/)?.[0] || formData.number || 'SN',
+        complement: selectedAddr?.complement || formData.complement || '',
         neighborhood: selectedAddr?.neighborhood || formData.neighborhood || 'Centro',
         city: formData.city,
-        state: formData.state,
+        state: formData.state, // Já é a UF de 2 caracteres
         zipCode: formData.zipCode.replace(/\D/g, ''),
+        reference: formData.reference || '', // Ponto de referência
+        notes: formData.notes || '', // Observações para entrega
+        phone: formData.phone.replace(/\D/g, ''), // Telefone só números
+        cpf: formData.cpf.replace(/\D/g, ''), // CPF só números
         // Texto legível para exibição
-        formatted: `${formData.address}, ${formData.neighborhood ? formData.neighborhood + ', ' : ''}${formData.city}, ${formData.state} - ${formData.zipCode}`
+        formatted: `${formData.address}, ${formData.number}${formData.complement ? ` - ${formData.complement}` : ''}, ${formData.neighborhood}, ${formData.city} - ${formData.state}, CEP ${formData.zipCode}`
       }
       
       const itemsSubtotal = total()
@@ -516,7 +699,7 @@ export default function CheckoutPage() {
         shippingAddress: JSON.stringify(shippingAddressData),
         deliveryDays: prazoEntrega || null,
         buyerPhone: formData.phone,
-        buyerCpf: formData.cpf,
+        buyerCpf: formData.cpf.replace(/\D/g, ''),
         // Campos de transportadora
         shippingMethod: shippingMethod || 'propria',
         shippingService: shippingService || null,
@@ -719,7 +902,7 @@ export default function CheckoutPage() {
                     onClick={() => {
                       setShowNewAddressForm(true)
                       setSelectedAddressId(null)
-                      setFormData({ address: '', neighborhood: '', city: '', state: '', zipCode: '', phone: '', cpf: '' })
+                      setFormData({ address: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '', phone: '', cpf: '', reference: '', notes: '' })
                     }}
                     className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-primary-400 hover:text-primary-600 flex items-center justify-center gap-2"
                   >
@@ -749,57 +932,128 @@ export default function CheckoutPage() {
                     </div>
                   )}
                   
-                <div>
-                  <label className="block text-sm font-medium mb-2">Endereço</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    placeholder="Rua, número, complemento"
-                  />
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium mb-2">
+                      Rua / Logradouro <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      placeholder="Rua, Avenida, etc."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Número <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.number}
+                      onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      placeholder="Nº"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Complemento</label>
+                    <input
+                      type="text"
+                      value={formData.complement}
+                      onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      placeholder="Apto, Bloco, etc. (opcional)"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Bairro <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.neighborhood}
+                      onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      placeholder="Bairro"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Bairro</label>
+                  <label className="block text-sm font-medium mb-2">Ponto de Referência</label>
                   <input
                     type="text"
-                    required
-                    value={formData.neighborhood}
-                    onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+                    value={formData.reference}
+                    onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
                     className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    placeholder="Bairro"
+                    placeholder="Próximo ao mercado, em frente à farmácia, etc. (opcional)"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Cidade</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-medium mb-2">
+                      Estado <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={formData.state}
+                      onChange={async (e) => {
+                        const uf = e.target.value
+                        setFormData({ ...formData, state: uf, city: '' })
+                        setCities([])
+                        if (uf) {
+                          setLoadingCities(true)
+                          try {
+                            const res = await fetch(`/api/location/cities/${uf}`)
+                            if (res.ok) setCities(await res.json())
+                          } catch (err) {
+                            console.error('Erro ao buscar cidades:', err)
+                          }
+                          setLoadingCities(false)
+                        }
+                      }}
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    >
+                      <option value="">Selecione o estado</option>
+                      {states.map((s) => (
+                        <option key={s.id} value={s.uf}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Cidade <span className="text-red-500">*</span>
+                    </label>
+                    <select
                       required
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Estado</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.state}
-                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    />
+                      disabled={!formData.state || loadingCities}
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:bg-gray-100"
+                    >
+                      <option value="">{loadingCities ? 'Carregando...' : 'Selecione a cidade'}</option>
+                      {cities.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">CEP</label>
+                    <label className="block text-sm font-medium mb-2">
+                      CEP <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
                       required
@@ -822,27 +1076,108 @@ export default function CheckoutPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">Telefone</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Telefone <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="tel"
                       required
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      onChange={(e) => {
+                        const formatted = formatarTelefone(e.target.value)
+                        setFormData({ ...formData, phone: formatted })
+                        
+                        // Validar quando tiver pelo menos 14 caracteres (telefone completo com máscara)
+                        if (formatted.length >= 14) {
+                          if (!validarTelefone(formatted)) {
+                            setPhoneError('Telefone inválido. Informe DDD + número.')
+                          } else {
+                            setPhoneError('')
+                          }
+                        } else {
+                          setPhoneError('')
+                        }
+                      }}
+                      onBlur={() => {
+                        if (formData.phone && formData.phone.length > 0) {
+                          if (!validarTelefone(formData.phone)) {
+                            setPhoneError('Telefone inválido. Informe DDD + número.')
+                          }
+                        }
+                      }}
+                      className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        phoneError 
+                          ? 'border-red-500 focus:ring-red-500 bg-red-50' 
+                          : 'border-gray-300 focus:ring-primary-600'
+                      }`}
                       placeholder="(00) 00000-0000"
+                      maxLength={15}
                     />
+                    {phoneError && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                        <FiAlertCircle className="w-4 h-4" />
+                        {phoneError}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">CPF</label>
+                  <label className="block text-sm font-medium mb-2">
+                    CPF <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
                     value={formData.cpf}
-                    onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    onChange={(e) => {
+                      const formatted = formatarCPF(e.target.value)
+                      setFormData({ ...formData, cpf: formatted })
+                      
+                      // Validar quando tiver 14 caracteres (CPF completo com máscara)
+                      if (formatted.length === 14) {
+                        if (!validarCPF(formatted)) {
+                          setCpfError('CPF inválido. Verifique os números digitados.')
+                        } else {
+                          setCpfError('')
+                        }
+                      } else {
+                        setCpfError('')
+                      }
+                    }}
+                    onBlur={() => {
+                      // Validar ao sair do campo
+                      if (formData.cpf && formData.cpf.length > 0) {
+                        if (!validarCPF(formData.cpf)) {
+                          setCpfError('CPF inválido. Verifique os números digitados.')
+                        }
+                      }
+                    }}
+                    className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      cpfError 
+                        ? 'border-red-500 focus:ring-red-500 bg-red-50' 
+                        : 'border-gray-300 focus:ring-primary-600'
+                    }`}
                     placeholder="000.000.000-00"
+                    maxLength={14}
+                  />
+                  {cpfError && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                      <FiAlertCircle className="w-4 h-4" />
+                      {cpfError}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Observações para Entrega</label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    placeholder="Instruções especiais para o entregador, horário preferido, etc. (opcional)"
+                    rows={2}
+                    maxLength={200}
                   />
                 </div>
                 </div>

@@ -6,6 +6,7 @@ import SendToSupplierButton from '@/components/admin/SendToSupplierButton'
 import UpdateOrderStatusButton from '@/components/admin/UpdateOrderStatusButton'
 import ResetSupplierStatusButton from '@/components/admin/ResetSupplierStatusButton'
 import AliExpressOrderStatus from '@/components/admin/AliExpressOrderStatus'
+import { formatOrderNumber } from '@/lib/order'
 
 export default async function AdminOrderDetailPage({
   params,
@@ -140,12 +141,20 @@ export default async function AdminOrderDetailPage({
   const combinedTotal = allOrders.reduce((sum, o) => sum + o.total, 0)
   const combinedShippingCost = allOrders.reduce((sum, o) => sum + (o.shippingCost || 0), 0)
   
+  // Buscar embalagem se houver packagingBoxId
+  const packagingBox = mainOrder.packagingBoxId 
+    ? await prisma.packagingBox.findUnique({
+        where: { id: mainOrder.packagingBoxId }
+      })
+    : null
+  
   // Usar o primeiro pedido como referência principal
   const order = {
     ...mainOrder,
     items: allItems,
     total: combinedTotal,
     shippingCost: combinedShippingCost,
+    packagingBox,
     // Adicionar informações híbridas
     isHybrid: isHybridOrder,
     subOrders: allOrders,
@@ -240,20 +249,42 @@ export default async function AdminOrderDetailPage({
       return acc
     }, {} as Record<string, any>)
 
-  // Calcular custos e receitas
-  const itemsCost = order.items.reduce((sum, item) => {
-    // Para DROP, o custo é o preço do produto original
-    if (item.itemType === 'DROPSHIPPING') {
-      // Assumindo que o custo está no produto ou é 70% do preço de venda (padrão)
-      const cost = item.price * 0.7 // Placeholder - ideal seria ter um campo de custo
-      return sum + (cost * item.quantity)
+  // Calcular custos e receitas (usando costPrice salvo no pedido)
+  const itemsCostDetails = order.items.map(item => {
+    // Prioridade: supplierCost > costPrice salvo no item > 70% do preço de venda
+    const unitCost = item.supplierCost || item.costPrice || (item.price * 0.7)
+    const totalCost = unitCost * item.quantity
+    const hasRealCost = !!(item.supplierCost || item.costPrice)
+    
+    return {
+      productId: item.productId,
+      productName: item.product.name,
+      unitCost,
+      totalCost,
+      hasRealCost,
+      quantity: item.quantity,
+      salePrice: item.price, // Preço de venda salvo no pedido
+      // Dados da embalagem
+      weight: item.product.weightWithPackage || item.product.weight,
+      length: item.product.lengthWithPackage || item.product.length,
+      width: item.product.widthWithPackage || item.product.width,
+      height: item.product.heightWithPackage || item.product.height,
     }
-    // Para STOCK, usar custo do produto se disponível
-    return sum + (item.price * item.quantity * 0.7) // Placeholder
-  }, 0)
+  })
+  
+  const itemsCost = itemsCostDetails.reduce((sum, item) => sum + item.totalCost, 0)
+  const hasAllRealCosts = itemsCostDetails.every(item => item.hasRealCost)
+  
+  // Custo da embalagem
+  const packagingCost = order.packagingBox?.cost || 0
 
   const totalCommissions = Object.values(sellers).reduce((sum: number, s: any) => sum + s.totalCommission, 0)
-  const platformRevenue = order.total - itemsCost - totalCommissions - (order.shippingCost || 0)
+  
+  // Cálculo correto da receita líquida:
+  // Total do pedido - Custo dos produtos - Custo da embalagem - Comissões DROP
+  // Nota: O frete é receita (cobrado do cliente), não é descontado
+  const totalCosts = itemsCost + packagingCost + totalCommissions
+  const platformRevenue = order.total - totalCosts
 
   return (
     <div>
@@ -268,7 +299,7 @@ export default async function AdminOrderDetailPage({
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold">
-                Pedido #{order.parentOrderId ? order.parentOrderId.slice(0, 14) : (order.marketplaceOrderId || order.id.slice(0, 8))}
+                Pedido {formatOrderNumber(order.parentOrderId || order.marketplaceOrderId || order.id)}
               </h1>
               {order.isHybrid && (
                 <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-semibold">
@@ -276,7 +307,7 @@ export default async function AdminOrderDetailPage({
                 </span>
               )}
             </div>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-600 mt-1" suppressHydrationWarning>
               {order.marketplaceName && `Via ${order.marketplaceName} • `}
               Criado em {new Date(order.createdAt).toLocaleString('pt-BR')}
             </p>
@@ -290,7 +321,7 @@ export default async function AdminOrderDetailPage({
                   const cor = hasADM ? 'bg-green-100 text-green-700' : hasVendedor ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
                   return (
                     <span key={subOrder.id} className={`px-2 py-0.5 rounded text-xs font-medium ${cor}`}>
-                      #{subOrder.id.slice(-6)} ({tipo})
+                      {formatOrderNumber(subOrder.id)} ({tipo})
                     </span>
                   )
                 })}
@@ -391,7 +422,7 @@ export default async function AdminOrderDetailPage({
             {order.sentToSupplier && order.sentToSupplierAt && (
               <div>
                 <p className="text-sm text-gray-600 mb-1">Enviado ao fornecedor</p>
-                <p className="text-sm">
+                <p className="text-sm" suppressHydrationWarning>
                   {new Date(order.sentToSupplierAt).toLocaleString('pt-BR')}
                 </p>
               </div>
@@ -534,6 +565,16 @@ export default async function AdminOrderDetailPage({
             </div>
           )}
 
+          {/* Desconto sem cupom (PIX, Boleto, etc) */}
+          {!order.couponCode && (order.discountAmount || 0) > 0 && (
+            <div className="flex justify-between items-center text-green-600">
+              <span>💸 Desconto ({order.paymentType === 'pix' ? 'PIX' : order.paymentType === 'boleto' ? 'Boleto' : 'Pagamento'})</span>
+              <span className="font-semibold">
+                - R$ {(order.discountAmount || 0).toFixed(2)}
+              </span>
+            </div>
+          )}
+
           {/* Comissões DROP */}
           {totalCommissions > 0 && (
             <div className="flex justify-between items-center text-orange-600">
@@ -544,11 +585,60 @@ export default async function AdminOrderDetailPage({
             </div>
           )}
 
-          {/* Custo dos Produtos */}
-          <div className="flex justify-between items-center text-red-600">
-            <span>🏭 Custo dos Produtos (estimado)</span>
+          {/* Custo dos Produtos - Detalhado */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-red-600">
+              <span>🏭 Custo dos Produtos {hasAllRealCosts ? '' : '(estimado)'}</span>
+              <span className="font-semibold">
+                - R$ {itemsCost.toFixed(2)}
+              </span>
+            </div>
+            
+            {/* Detalhamento por produto */}
+            <div className="ml-4 space-y-1 text-xs text-gray-600">
+              {itemsCostDetails.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-start border-l-2 border-gray-200 pl-2">
+                  <div>
+                    <span className="font-medium">{item.productName.substring(0, 30)}{item.productName.length > 30 ? '...' : ''}</span>
+                    <span className="text-gray-400 ml-1">x{item.quantity}</span>
+                    {!item.hasRealCost && <span className="text-orange-500 ml-1">(~)</span>}
+                    {/* Dimensões do produto */}
+                    {(item.weight || item.length || item.width || item.height) && (
+                      <div className="text-gray-400 flex gap-2">
+                        {item.weight && <span>⚖️ {item.weight}kg</span>}
+                        {item.length && item.width && item.height && (
+                          <span>📐 {item.length}x{item.width}x{item.height}cm</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <span className="whitespace-nowrap">
+                    R$ {item.unitCost.toFixed(2)} = R$ {item.totalCost.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Embalagem utilizada */}
+          {order.packagingBox && (
+            <div className="flex justify-between items-center text-red-600">
+              <div className="flex items-center gap-2">
+                <span>📦 Embalagem:</span>
+                <span className="font-bold">{order.packagingBox.code}</span>
+                <span className="text-sm text-gray-500">({order.packagingBox.name} - {order.packagingBox.outerLength}x{order.packagingBox.outerWidth}x{order.packagingBox.outerHeight}cm)</span>
+              </div>
+              <span className="font-semibold">
+                - R$ {packagingCost.toFixed(2)}
+              </span>
+            </div>
+          )}
+
+          {/* Total de Custos */}
+          <div className="flex justify-between items-center text-gray-700 pt-2 border-t border-gray-200">
+            <span className="font-medium">📊 Total de Custos</span>
             <span className="font-semibold">
-              - R$ {itemsCost.toFixed(2)}
+              - R$ {totalCosts.toFixed(2)}
             </span>
           </div>
 
@@ -570,10 +660,12 @@ export default async function AdminOrderDetailPage({
         </div>
 
         {/* Observação */}
-        <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
-          💡 <strong>Nota:</strong> Os custos estimados são baseados em cálculo aproximado. 
-          Para valores precisos, configure os custos reais no cadastro de cada produto.
-        </div>
+        {!hasAllRealCosts && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            💡 <strong>Nota:</strong> Produtos marcados com (~) têm custo estimado em 70% do preço de venda. 
+            Para valores precisos, configure o custo real no cadastro de cada produto.
+          </div>
+        )}
       </div>
 
       {/* Itens por Fornecedor */}

@@ -5,6 +5,11 @@ import ProductImageGallery from './ProductImageGallery'
 import ProductSelectionWrapper from './ProductSelectionWrapper'
 import ProductInfoTabs from './ProductInfoTabs'
 
+// Formatar moeda brasileira
+const formatCurrency = (value: number) => {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
 interface ProductDetailClientProps {
   product: any
   variants: any
@@ -42,11 +47,11 @@ export default function ProductDetailClient({
         <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
         <div className="flex items-center space-x-4 mb-6">
           <span className="text-4xl font-bold text-primary-600">
-            R$ {product.price.toFixed(2)}
+            {formatCurrency(product.price)}
           </span>
           {product.comparePrice && (
             <span className="text-2xl text-gray-400 line-through">
-              R$ {product.comparePrice.toFixed(2)}
+              {formatCurrency(product.comparePrice)}
             </span>
           )}
         </div>

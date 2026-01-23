@@ -1,0 +1,32 @@
+{
+  "name": "mydshop-print-agent",
+  "version": "1.0.0",
+  "description": "Agente de impressão local para MydShop",
+  "main": "index.js",
+  "bin": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "build": "pkg . --targets node18-win-x64 --output dist/mydshop-print-agent.exe",
+    "build:all": "pkg . --targets node18-win-x64,node18-linux-x64,node18-macos-x64 --out-path dist"
+  },
+  "pkg": {
+    "assets": [
+      "icon.ico",
+      "views/**/*"
+    ],
+    "outputPath": "dist"
+  },
+  "keywords": ["print", "agent", "mydshop"],
+  "author": "MydShop",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "open": "^9.1.0",
+    "pdf-to-printer": "^5.3.0",
+    "systray2": "^2.0.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

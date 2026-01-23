@@ -48,7 +48,9 @@ export default function PedidosPage() {
       const response = await fetch('/api/orders')
       if (response.ok) {
         const data = await response.json()
-        setOrders(data)
+        // API pode retornar { orders: [...] } ou [...] diretamente
+        const ordersArray = Array.isArray(data) ? data : (data.orders || [])
+        setOrders(ordersArray)
       }
     } catch (error) {
       console.error('Erro ao buscar pedidos:', error)

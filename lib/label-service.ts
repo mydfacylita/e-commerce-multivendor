@@ -9,6 +9,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { formatOrderNumber } from '@/lib/order'
 
 export interface OrderData {
   id: string
@@ -55,7 +56,7 @@ export interface CorreiosCredentials {
 export interface LabelResult {
   success: boolean
   type: 'html' | 'pdf' | 'url' | 'zpl'
-  data: string
+  data: string | Buffer
   contentType: string
   trackingCode?: string
   error?: string
@@ -157,26 +158,43 @@ export class LabelService {
 
   /**
    * Gera etiqueta via API dos Correios
+   * Se tem pré-postagem, usa o PDF oficial. Senão, gera etiqueta visual.
    */
   static async generateCorreiosLabel(order: OrderData): Promise<LabelResult> {
     try {
+      // Verificar se tem ID da pré-postagem (etiqueta já foi gerada na API)
+      if ((order as any).correiosIdPrePostagem) {
+        console.log('[LabelService] Usando PDF oficial dos Correios')
+        
+        // Importar correiosCWS dinamicamente para evitar dependência circular
+        const { correiosCWS } = await import('@/lib/correios-cws')
+        
+        const resultado = await correiosCWS.gerarEtiqueta(
+          (order as any).correiosIdPrePostagem, 
+          order.trackingCode || undefined
+        )
+        
+        if (resultado.success && resultado.pdfBuffer) {
+          return {
+            success: true,
+            type: 'pdf',
+            data: resultado.pdfBuffer,
+            contentType: 'application/pdf'
+          }
+        }
+        
+        console.log('[LabelService] Falha ao gerar PDF oficial, usando etiqueta visual:', resultado.error)
+      }
+      
       // Buscar credenciais Correios
       const correiosConfig = await this.getCorreiosCredentials()
       
+      // Fallback: gera etiqueta visual HTML
       if (!correiosConfig.enabled) {
-        console.log('[LabelService] Correios desabilitado, usando etiqueta própria')
-        return await this.generateOwnLabel(order)
+        console.log('[LabelService] Correios API desabilitada, usando etiqueta visual Correios')
       }
 
-      // Se não tem código de rastreio, precisa gerar um range
-      if (!order.trackingCode) {
-        // Em produção: solicitar range de etiquetas via API Correios
-        // Por ora, retorna erro para que o usuário gere manualmente
-        console.log('[LabelService] Pedido sem código de rastreio, gerando etiqueta própria')
-        return await this.generateCorreiosStyleLabel(order)
-      }
-
-      // Gera etiqueta no padrão Correios
+      // Gera etiqueta no padrão Correios (com ou sem código de rastreio)
       return await this.generateCorreiosStyleLabel(order)
       
     } catch (error) {
@@ -192,7 +210,7 @@ export class LabelService {
   }
 
   /**
-   * Gera etiqueta no padrão visual dos Correios
+   * Gera etiqueta no padrão visual oficial dos Correios (100x125mm)
    */
   static async generateCorreiosStyleLabel(order: OrderData): Promise<LabelResult> {
     const company = await this.getCompanyConfig()
@@ -216,218 +234,380 @@ export class LabelService {
       })
     }
 
-    // Determinar serviço
-    const servico = order.shippingService || 'PAC'
-    const servicoCode = this.getCorreiosServiceCode(servico)
+    // Buscar logo da empresa
+    const logoConfig = await prisma.systemConfig.findFirst({
+      where: { key: { in: ['app.logo', 'appearance.logo'] } }
+    })
+    const logoUrl = logoConfig?.value || '/logo.png'
+
+    // Determinar serviço e cores
+    const servico = (order.shippingService || 'PAC').toUpperCase()
+    const isSedex = servico.includes('SEDEX')
+    const servicoColor = isSedex ? '#7B1FA2' : '#1565C0' // Roxo para SEDEX, Azul para PAC
+
+    // Formatar CEP
+    const formatCep = (cep: string) => {
+      if (!cep) return ''
+      const clean = cep.replace(/\D/g, '')
+      return clean.length === 8 ? `${clean.slice(0,5)}-${clean.slice(5)}` : cep
+    }
 
     const html = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Etiqueta Correios - #${order.id.slice(-8).toUpperCase()}</title>
+  <title>Etiqueta Correios - ${order.trackingCode || formatOrderNumber(order.id)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
-      font-family: Arial, sans-serif; 
-      padding: 5mm;
-      background: #f5f5f5;
+      font-family: Arial, Helvetica, sans-serif; 
+      padding: 10mm;
+      background: #f0f0f0;
     }
     .label {
       width: 100mm;
-      height: 140mm;
+      height: 125mm;
       background: #fff;
-      border: 2px solid #000;
+      border: 1px solid #000;
       position: relative;
-      page-break-after: always;
+      overflow: hidden;
     }
-    .correios-header {
-      background: #ffd700;
-      padding: 3mm;
+    
+    /* Header - 20mm altura */
+    .header {
+      height: 20mm;
+      border-bottom: 1px solid #000;
       display: flex;
-      justify-content: space-between;
+    }
+    .header-left {
+      width: 20mm;
+      padding: 2mm;
+      display: flex;
       align-items: center;
-      border-bottom: 2px solid #000;
+      justify-content: center;
+      border-right: 1px solid #ccc;
     }
-    .correios-logo {
-      font-size: 18pt;
-      font-weight: bold;
-      color: #003a70;
+    .header-left img {
+      max-width: 16mm;
+      max-height: 16mm;
+      object-fit: contain;
     }
-    .servico-badge {
-      background: #003a70;
-      color: #fff;
-      padding: 2mm 4mm;
-      font-size: 12pt;
-      font-weight: bold;
-      border-radius: 3px;
+    .header-center {
+      width: 32mm;
+      padding: 2mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-right: 1px solid #ccc;
     }
-    .section {
-      padding: 3mm;
-      border-bottom: 1px solid #ccc;
+    .qr-placeholder {
+      width: 16mm;
+      height: 16mm;
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 6pt;
+      color: #999;
     }
-    .section-title {
+    .header-right {
+      flex: 1;
+      padding: 2mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .correios-badge {
+      background: linear-gradient(135deg, #FFCC00 0%, #FFB300 100%);
+      border-radius: 50%;
+      width: 14mm;
+      height: 14mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .correios-badge::before {
+      content: "📮";
+      font-size: 20pt;
+    }
+    .header-info {
+      font-size: 7pt;
+      line-height: 1.3;
+    }
+    .header-info .contrato {
+      font-size: 6pt;
+      color: #666;
+    }
+    .volume-info {
+      position: absolute;
+      right: 2mm;
+      top: 2mm;
       font-size: 8pt;
       font-weight: bold;
-      color: #666;
-      margin-bottom: 1mm;
     }
-    .address {
-      font-size: 10pt;
-      line-height: 1.4;
-    }
-    .address .name {
-      font-weight: bold;
-      font-size: 12pt;
-    }
-    .address .cep {
-      font-size: 16pt;
-      font-weight: bold;
-      color: #003a70;
-      margin-top: 2mm;
-    }
-    .destinatario {
-      background: #fffef0;
-      min-height: 50mm;
-    }
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 2mm 3mm;
-      border-bottom: 1px solid #eee;
-    }
-    .info-item {
-      text-align: center;
-    }
-    .info-item .label {
-      font-size: 7pt;
-      color: #666;
-      width: auto;
-      border: none;
-      height: auto;
-      background: none;
-    }
-    .info-item .value {
-      font-size: 11pt;
-      font-weight: bold;
-    }
+
+    /* Código de rastreio - 50mm */
     .tracking-section {
-      text-align: center;
+      height: 50mm;
+      border-bottom: 1px solid #000;
       padding: 3mm;
-      background: #f5f5f5;
+      text-align: center;
     }
     .tracking-code {
-      font-family: monospace;
-      font-size: 14pt;
+      font-family: 'Courier New', monospace;
+      font-size: 16pt;
       font-weight: bold;
-      letter-spacing: 3px;
+      letter-spacing: 2px;
+      margin-bottom: 2mm;
+    }
+    .barcode {
+      height: 20mm;
+      margin: 2mm auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .barcode-img {
+      height: 100%;
     }
     .barcode-placeholder {
-      height: 15mm;
-      background: linear-gradient(90deg, #000 2px, transparent 2px);
-      background-size: 4px 100%;
-      margin: 2mm 0;
+      width: 80mm;
+      height: 18mm;
+      background: repeating-linear-gradient(
+        90deg,
+        #000 0px, #000 2px,
+        #fff 2px, #fff 4px,
+        #000 4px, #000 5px,
+        #fff 5px, #fff 8px,
+        #000 8px, #000 10px,
+        #fff 10px, #fff 11px
+      );
     }
-    .footer-info {
+    .receiver-line {
+      display: flex;
+      justify-content: space-between;
       font-size: 7pt;
-      color: #666;
-      text-align: center;
-      padding: 2mm;
+      margin-top: 2mm;
+      padding-top: 2mm;
+      border-top: 1px dotted #ccc;
     }
-    .nf-info {
-      background: #e8f4e8;
+    .receiver-field {
+      flex: 1;
+      border-bottom: 1px solid #999;
+      margin: 0 2mm;
+      min-width: 20mm;
+    }
+
+    /* Destinatário - 40mm */
+    .destinatario {
+      height: 40mm;
+      border-bottom: 1px solid #000;
+      display: flex;
+    }
+    .dest-address {
+      flex: 1;
       padding: 2mm 3mm;
+    }
+    .dest-title {
+      background: #333;
+      color: #fff;
+      font-size: 8pt;
+      font-weight: bold;
+      padding: 1mm 2mm;
+      margin-bottom: 1mm;
+    }
+    .dest-name {
+      font-size: 10pt;
+      font-weight: bold;
+      margin-bottom: 1mm;
+    }
+    .dest-line {
+      font-size: 8pt;
+      line-height: 1.4;
+    }
+    .dest-cep {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-top: 1mm;
+    }
+    .dest-cep-barcode {
+      height: 10mm;
+      margin-top: 1mm;
+    }
+    .dest-cep-barcode svg {
+      height: 100%;
+      width: auto;
+    }
+    .dest-city {
+      font-size: 9pt;
+      font-weight: bold;
+      margin-top: 1mm;
+    }
+    .dest-datamatrix {
+      width: 18mm;
+      padding: 2mm;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .datamatrix-box {
+      width: 14mm;
+      height: 14mm;
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 5pt;
+      color: #999;
+    }
+
+    /* Remetente - 15mm */
+    .remetente {
+      height: 15mm;
+      padding: 2mm 3mm;
+      font-size: 7pt;
+      line-height: 1.3;
+      background: #fafafa;
+    }
+    .rem-title {
+      font-weight: bold;
       font-size: 8pt;
     }
+    .rem-cep {
+      font-weight: bold;
+    }
+
+    /* Serviço badge */
+    .servico-badge {
+      position: absolute;
+      top: 22mm;
+      right: 3mm;
+      background: ${servicoColor};
+      color: #fff;
+      padding: 1mm 3mm;
+      font-size: 10pt;
+      font-weight: bold;
+      border-radius: 2px;
+    }
+
     @media print {
-      body { padding: 0; background: #fff; }
-      .no-print { display: none; }
+      body { 
+        padding: 0; 
+        background: #fff; 
+        margin: 0;
+      }
+      .no-print { display: none !important; }
+      .label {
+        border: none;
+        margin: 0;
+      }
     }
   </style>
 </head>
 <body>
-  <button class="no-print" onclick="window.print()" style="margin-bottom: 10px; padding: 10px 20px; font-size: 16px; cursor: pointer; background: #ffd700; border: 2px solid #003a70; border-radius: 5px;">
-    🖨️ Imprimir Etiqueta Correios
-  </button>
+  <div class="no-print" style="margin-bottom: 10px;">
+    <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer; background: #FFCC00; border: 2px solid #333; border-radius: 5px; font-weight: bold;">
+      🖨️ Imprimir Etiqueta
+    </button>
+    <span style="margin-left: 10px; color: #666; font-size: 12px;">Tamanho: 100x125mm</span>
+  </div>
 
   <div class="label">
-    <!-- Header Correios -->
-    <div class="correios-header">
-      <div class="correios-logo">📮 CORREIOS</div>
-      <div class="servico-badge">${servico}</div>
+    <!-- Serviço Badge -->
+    <div class="servico-badge">${servico}</div>
+    
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <img src="${logoUrl}" alt="MYDSHOP" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'font-size:8pt;font-weight:bold;color:#333;\\'>MYDSHOP</div>'">
+      </div>
+      <div class="header-center">
+        <div class="qr-placeholder">QR Code</div>
+      </div>
+      <div class="header-right">
+        <div class="correios-badge"></div>
+      </div>
+      <div class="volume-info">Volume: 1/1</div>
     </div>
 
-    <!-- Remetente -->
-    <div class="section">
-      <div class="section-title">REMETENTE</div>
-      <div class="address">
-        <div>${company.nome}</div>
-        <div>${company.endereco}</div>
-        <div>${company.cidade} - ${company.estado}</div>
-        <div>CEP: ${company.cep}</div>
+    <!-- Tracking Section -->
+    <div class="tracking-section">
+      <div class="tracking-code">${order.trackingCode || 'AGUARDANDO POSTAGEM'}</div>
+      <div class="barcode">
+        ${order.trackingCode 
+          ? `<div class="barcode-placeholder"></div>`
+          : `<div style="color: #999; font-size: 10pt;">Código de barras será gerado na postagem</div>`
+        }
+      </div>
+      <div class="receiver-line">
+        <span>Recebedor:</span><span class="receiver-field"></span>
+        <span>Assinatura:</span><span class="receiver-field"></span>
+        <span>Doc:</span><span class="receiver-field" style="width: 15mm;"></span>
       </div>
     </div>
 
     <!-- Destinatário -->
-    <div class="section destinatario">
-      <div class="section-title">DESTINATÁRIO</div>
-      <div class="address">
-        <div class="name">${order.buyerName || 'Cliente'}</div>
-        <div>${destino.street || '-'}${destino.number ? ', ' + destino.number : ''}</div>
-        ${destino.complement ? `<div>${destino.complement}</div>` : ''}
-        <div>${destino.neighborhood || '-'}</div>
-        <div>${destino.city || '-'} / ${destino.state || '-'}</div>
-        <div class="cep">CEP: ${destino.zipCode || '-'}</div>
-        ${order.buyerPhone ? `<div style="font-size: 9pt; color: #666;">Tel: ${order.buyerPhone}</div>` : ''}
+    <div class="destinatario">
+      <div class="dest-address">
+        <div class="dest-title">DESTINATÁRIO</div>
+        <div class="dest-name">${order.buyerName || 'Cliente'}</div>
+        <div class="dest-line">${destino.street || ''}${destino.number ? ', ' + destino.number : ''}</div>
+        <div class="dest-line">${destino.neighborhood || ''}</div>
+        ${destino.complement ? `<div class="dest-line">${destino.complement}</div>` : ''}
+        <div class="dest-cep">${formatCep(destino.zipCode)}</div>
+        <div class="dest-cep-barcode">
+          <svg id="barcode-cep"></svg>
+        </div>
+        <div class="dest-city">${destino.city || ''} / ${destino.state || ''}</div>
+      </div>
+      <div class="dest-datamatrix">
+        <svg id="barcode-cep-vertical"></svg>
       </div>
     </div>
 
-    <!-- Info do pedido -->
-    <div class="info-row">
-      <div class="info-item">
-        <div class="label">PEDIDO</div>
-        <div class="value">#${order.id.slice(-8).toUpperCase()}</div>
-      </div>
-      <div class="info-item">
-        <div class="label">PESO</div>
-        <div class="value">${pesoTotal.toFixed(2)} kg</div>
-      </div>
-      ${packaging ? `
-      <div class="info-item">
-        <div class="label">CAIXA</div>
-        <div class="value">${packaging.code}</div>
-      </div>
-      ` : ''}
-      <div class="info-item">
-        <div class="label">VOLUMES</div>
-        <div class="value">1/1</div>
-      </div>
-    </div>
-
-    <!-- Código de rastreio -->
-    ${order.trackingCode ? `
-    <div class="tracking-section">
-      <div style="font-size: 8pt; color: #666;">CÓDIGO DE RASTREIO</div>
-      <div class="barcode-placeholder"></div>
-      <div class="tracking-code">${order.trackingCode}</div>
-    </div>
-    ` : `
-    <div class="tracking-section">
-      <div style="color: #999; font-style: italic;">Código de rastreio será gerado na postagem</div>
-    </div>
-    `}
-
-    <!-- NF info -->
-    <div class="nf-info">
-      <strong>Conteúdo:</strong> ${order.items.length} item(s) - 
-      ${order.items.map(i => `${i.product.name.substring(0, 20)} x${i.quantity}`).join(', ').substring(0, 80)}...
-    </div>
-
-    <!-- Footer -->
-    <div class="footer-info">
-      Impresso em ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}
+    <!-- Remetente -->
+    <div class="remetente">
+      <span class="rem-title">Remetente:</span> ${company.nome}<br>
+      ${company.endereco}<br>
+      <span class="rem-cep">${formatCep(company.cep)}</span> ${company.cidade}/${company.estado}
     </div>
   </div>
+
+  <div class="no-print" style="margin-top: 10px; font-size: 11px; color: #666;">
+    <strong>Pedido:</strong> ${formatOrderNumber(order.id)} | 
+    <strong>Peso:</strong> ${pesoTotal.toFixed(2)} kg |
+    ${packaging ? `<strong>Embalagem:</strong> ${packaging.code} |` : ''}
+    <strong>Itens:</strong> ${order.items.reduce((acc, i) => acc + i.quantity, 0)}
+  </div>
+
+  <!-- JsBarcode CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.12.3/dist/JsBarcode.all.min.js"></script>
+  <script>
+    // Gerar código de barras do CEP (horizontal)
+    try {
+      JsBarcode("#barcode-cep", "${(destino.zipCode || '').replace(/\D/g, '')}", {
+        format: "CODE128",
+        width: 1.5,
+        height: 30,
+        displayValue: false,
+        margin: 0
+      });
+    } catch(e) { console.log('Erro barcode CEP:', e); }
+
+    // Gerar código de barras do CEP (vertical/datamatrix area)
+    try {
+      JsBarcode("#barcode-cep-vertical", "${(destino.zipCode || '').replace(/\D/g, '')}", {
+        format: "CODE128",
+        width: 1,
+        height: 50,
+        displayValue: false,
+        margin: 0
+      });
+    } catch(e) { console.log('Erro barcode vertical:', e); }
+  </script>
 </body>
 </html>
     `
@@ -472,7 +652,7 @@ export class LabelService {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Etiqueta Jadlog - #${order.id.slice(-8).toUpperCase()}</title>
+  <title>Etiqueta Jadlog - ${formatOrderNumber(order.id)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
@@ -628,7 +808,7 @@ export class LabelService {
     <div class="info-row">
       <div class="info-item">
         <div class="label">PEDIDO</div>
-        <div class="value">#${order.id.slice(-8).toUpperCase()}</div>
+        <div class="value">${formatOrderNumber(order.id)}</div>
       </div>
       <div class="info-item">
         <div class="label">PESO</div>
@@ -735,7 +915,7 @@ export class LabelService {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Etiqueta - Pedido #${order.id.slice(-8).toUpperCase()}</title>
+  <title>Etiqueta - Pedido ${formatOrderNumber(order.id)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; padding: 10mm; }
@@ -850,7 +1030,7 @@ export class LabelService {
     <div class="info-grid">
       <div class="info-box">
         <div class="label">PEDIDO</div>
-        <div class="value">#${order.id.slice(-8).toUpperCase()}</div>
+        <div class="value">${formatOrderNumber(order.id)}</div>
       </div>
       <div class="info-box">
         <div class="label">PESO</div>
@@ -904,6 +1084,27 @@ export class LabelService {
    * Buscar configurações da empresa
    */
   static async getCompanyConfig(): Promise<CompanyConfig> {
+    // Primeiro tentar buscar de companySettings (tabela principal)
+    const companySettings = await prisma.companySettings.findFirst()
+    
+    if (companySettings) {
+      // Buscar CEP de origem dos Correios se disponível (sobrescreve o da empresa)
+      const cepConfig = await prisma.systemConfig.findFirst({
+        where: { key: 'correios.cepOrigem' }
+      })
+      
+      return {
+        nome: companySettings.name || 'E-Commerce',
+        cnpj: companySettings.cnpj || '',
+        endereco: companySettings.address || '',
+        cidade: companySettings.city || 'São Luís',
+        estado: companySettings.state || 'MA',
+        cep: cepConfig?.value || companySettings.zipCode || '65067-380',
+        telefone: companySettings.phone || ''
+      }
+    }
+    
+    // Fallback para systemConfig (modo antigo)
     const configs = await prisma.systemConfig.findMany({
       where: {
         key: {

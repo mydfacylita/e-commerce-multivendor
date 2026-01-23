@@ -2,15 +2,39 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import jwt from 'jsonwebtoken'
+
+const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key'
 
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Tenta autenticação via NextAuth (sessão web)
     const session = await getServerSession(authOptions)
+    let userId: string | null = session?.user?.id || null
+    let userRole: string | null = session?.user?.role || null
+    
+    // Se não tem sessão, tenta autenticação via JWT (app mobile)
+    if (!userId) {
+      const authHeader = req.headers.get('authorization')
+      console.log('🔑 [ORDER DETAILS] Authorization header:', authHeader ? 'Presente' : 'Ausente')
+      
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7)
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; role?: string }
+          userId = decoded.sub
+          userRole = decoded.role || null
+          console.log('📱 [ORDER DETAILS] Autenticação JWT:', { userId, userRole, tokenPayload: decoded })
+        } catch (jwtError) {
+          console.error('❌ [ORDER DETAILS] JWT inválido:', jwtError)
+        }
+      }
+    }
 
-    if (!session?.user?.id) {
+    if (!userId) {
       return NextResponse.json(
         { message: 'Não autorizado' },
         { status: 401 }
@@ -32,6 +56,16 @@ export async function GET(
             },
           },
         },
+        invoices: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            status: true,
+            accessKey: true,
+            pdfUrl: true,
+            xmlUrl: true,
+          },
+        },
       },
     })
 
@@ -42,7 +76,14 @@ export async function GET(
       )
     }
 
-    if (order.userId !== session.user.id && session.user.role !== 'ADMIN') {
+    console.log('🔍 [ORDER DETAILS] Verificação de permissão:', {
+      orderUserId: order.userId,
+      requestUserId: userId,
+      userRole,
+      match: order.userId === userId
+    })
+
+    if (order.userId !== userId && userRole !== 'ADMIN') {
       return NextResponse.json(
         { message: 'Não autorizado' },
         { status: 403 }
@@ -56,6 +97,11 @@ export async function GET(
       shippingCost: order.shippingCost,
       couponCode: order.couponCode,
       discountAmount: order.discountAmount,
+      paymentMethod: order.paymentMethod,
+      paymentType: order.paymentType,
+      deliveryDays: order.deliveryDays,
+      shippingMethod: order.shippingMethod,
+      shippingCarrier: order.shippingCarrier,
       itemsCount: order.items?.length,
       items: order.items?.map(item => ({
         id: item.id,

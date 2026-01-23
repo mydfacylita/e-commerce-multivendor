@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
       configMap[c.key.replace('correios.', '')] = c.value
     })
 
+    // Percentual extra para compensar embalagem (padrão 2%)
+    const percentualExtra = parseFloat(configMap['percentualExtra'] || '2')
+
     // Determinar quais serviços consultar
     const servicosParaConsultar: { nome: string; codigo: string }[] = []
     
@@ -103,10 +106,15 @@ export async function POST(request: NextRequest) {
             codigoServico: servico.codigo
           })
 
+          // Aplicar percentual extra ao valor do frete
+          const valorComExtra = resultado.valor > 0 
+            ? Math.round(resultado.valor * (1 + percentualExtra / 100) * 100) / 100
+            : 0
+
           return {
             servico: servico.nome,
             codigo: servico.codigo,
-            valor: resultado.valor,
+            valor: valorComExtra,
             prazo: resultado.prazo,
             erro: resultado.erro
           }

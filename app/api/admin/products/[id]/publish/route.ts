@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { formatMLErrors } from '@/lib/mercadolivre'
 import { withAuth } from '@/lib/api-middleware'
-import { isValidUUID, sanitizeHtml } from '@/lib/validation'
+import { sanitizeHtml } from '@/lib/validation'
+
+// Valida CUID (formato usado pelo Prisma)
+function isValidProductId(id: string): boolean {
+  if (!id || typeof id !== 'string') return false
+  // CUID: começa com 'c' e tem 24-32 caracteres alfanuméricos
+  return /^c[a-z0-9]{20,31}$/i.test(id)
+}
 
 export const POST = withAuth(
   async (request: NextRequest, { session }) => {
@@ -11,7 +18,7 @@ export const POST = withAuth(
       const productId = params.id
       
       // ===== VALIDAÇÃO DE PRODUCT ID =====
-      if (!isValidUUID(productId)) {
+      if (!isValidProductId(productId)) {
         return NextResponse.json(
           { message: 'ID de produto inválido' },
           { status: 400 }

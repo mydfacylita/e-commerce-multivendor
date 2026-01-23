@@ -208,6 +208,24 @@ export function isValidUUID(uuid: string): boolean {
 }
 
 /**
+ * Valida CUID (gerado pelo Prisma)
+ */
+export function isValidCUID(cuid: string): boolean {
+  if (!cuid || typeof cuid !== 'string') return false
+  // CUID v1: começa com 'c' e tem 25 caracteres alfanuméricos
+  // CUID v2: começa com 'c' e tem 24-32 caracteres alfanuméricos
+  const cuidRegex = /^c[a-z0-9]{20,31}$/i
+  return cuidRegex.test(cuid)
+}
+
+/**
+ * Valida ID genérico (UUID ou CUID)
+ */
+export function isValidId(id: string): boolean {
+  return isValidUUID(id) || isValidCUID(id)
+}
+
+/**
  * Valida slug (URL-friendly)
  */
 export function isValidSlug(slug: string): boolean {

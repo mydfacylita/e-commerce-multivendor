@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logApi } from '@/lib/api-logger'
 import { syncDropshippingProducts, checkAndReactivateDropProduct } from '@/lib/dropshipping-sync'
-
+import { updateEANAssignment, releaseEANFromProduct } from '@/lib/ean-utils'
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
@@ -167,6 +167,13 @@ export async function DELETE(
     }
 
     console.log('✅ Produto pode ser excluído')
+
+    // 🔗 LIBERAR EAN ANTES DE EXCLUIR
+    if (product.gtin) {
+      console.log(`\n🔗 Liberando EAN: ${product.gtin}`)
+      const eanResult = await releaseEANFromProduct(product.gtin, product.id)
+      console.log('✅ EAN liberado:', eanResult.message)
+    }
 
     await prisma.product.delete({
       where: { id: params.id },
@@ -354,6 +361,19 @@ export async function PUT(
 
     console.log('\n📝 Atualizando produto...')
 
+    // 🔗 PROCESSAR MUDANÇA DE EAN ANTES DA ATUALIZAÇÃO
+    const oldGTIN = existingProduct.gtin
+    const newGTIN = data.gtin
+    if (oldGTIN !== newGTIN) {
+      console.log(`\n🔗 Processando mudança de EAN: ${oldGTIN || 'nenhum'} → ${newGTIN || 'nenhum'}`)
+      const eanResult = await updateEANAssignment(oldGTIN, newGTIN, params.id)
+      if (!eanResult.success) {
+        console.log('❌ Erro no EAN:', eanResult.message)
+        return NextResponse.json({ message: eanResult.message }, { status: 400 })
+      }
+      console.log('✅ EAN atualizado:', eanResult.message)
+    }
+
     const product = await prisma.product.update({
       where: { id: params.id },
       data: {
@@ -386,6 +406,22 @@ export async function PUT(
         variants: data.variants,
         sizeType: data.sizeType,
         sizeCategory: data.sizeCategory,
+        // Campos de Tributação (NF-e)
+        ncm: data.ncm,
+        cest: data.cest,
+        origem: data.origem,
+        cstIcms: data.cstIcms,
+        aliquotaIcms: data.aliquotaIcms !== undefined ? (data.aliquotaIcms ? parseFloat(data.aliquotaIcms) : null) : undefined,
+        reducaoBcIcms: data.reducaoBcIcms !== undefined ? (data.reducaoBcIcms ? parseFloat(data.reducaoBcIcms) : null) : undefined,
+        cstPis: data.cstPis,
+        aliquotaPis: data.aliquotaPis !== undefined ? (data.aliquotaPis ? parseFloat(data.aliquotaPis) : null) : undefined,
+        cstCofins: data.cstCofins,
+        aliquotaCofins: data.aliquotaCofins !== undefined ? (data.aliquotaCofins ? parseFloat(data.aliquotaCofins) : null) : undefined,
+        cfopInterno: data.cfopInterno,
+        cfopInterestadual: data.cfopInterestadual,
+        unidadeComercial: data.unidadeComercial,
+        unidadeTributavel: data.unidadeTributavel,
+        tributacaoEspecial: data.tributacaoEspecial,
         // Dropshipping
         isDropshipping: data.isDropshipping,
         dropshippingCommission: data.dropshippingCommission,

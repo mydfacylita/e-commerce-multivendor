@@ -56,6 +56,10 @@
     <circle cx="29" cy="33" r="2.5" fill="#3B82F6">
       <animateTransform attributeName="transform" type="translate" values="0,0; 0,-2; 0,0" dur="3s" repeatCount="indefinite"/>
     </circle>
+    <!-- Boquinha sorrindo -->
+    <path d="M22 40 Q26 44 30 40" stroke="#3B82F6" stroke-width="2" fill="none" stroke-linecap="round">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 0,-2; 0,0" dur="3s" repeatCount="indefinite"/>
+    </path>
     <ellipse cx="22" cy="27" rx="4" ry="5" fill="#F3F4F6" opacity="0.6">
       <animateTransform attributeName="transform" type="translate" values="0,0; 0,-2; 0,0" dur="3s" repeatCount="indefinite"/>
     </ellipse>

@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { FiArrowLeft, FiPackage, FiMapPin, FiClock, FiAlertCircle, FiCreditCard } from 'react-icons/fi'
+import { FiArrowLeft, FiPackage, FiMapPin, FiClock, FiAlertCircle, FiCreditCard, FiFileText, FiPrinter, FiDownload, FiXCircle, FiRotateCcw } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { formatOrderNumber } from '@/lib/order'
 import { formatCurrency, formatDateTime } from '@/lib/format'
@@ -24,6 +24,10 @@ interface Order {
   paymentStatus?: string
   paymentId?: string
   paymentApprovedAt?: string
+  separatedAt?: string
+  packedAt?: string
+  shippedAt?: string
+  trackingCode?: string
   items: {
     id: string
     quantity: number
@@ -37,6 +41,12 @@ interface Order {
       images: string[]
     }
   }[]
+  invoices?: {
+    id: string
+    invoiceNumber?: string
+    status: string
+    pdfUrl?: string
+  }[]
 }
 
 export default function OrderDetailPage({ params }: { params: { id: string } }) {
@@ -47,6 +57,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [primaryOrderId, setPrimaryOrderId] = useState<string | null>(null) // ID real para pagamento
   const [isLoading, setIsLoading] = useState(true)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -163,6 +175,43 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     router.push(`/checkout/pagamento/${primaryOrderId}`)
   }
 
+  const handleCancelOrder = async () => {
+    if (!order) return
+    
+    setIsCancelling(true)
+    try {
+      const response = await fetch(`/api/orders/${params.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (response.ok) {
+        toast.success('Pedido cancelado com sucesso!')
+        setShowCancelModal(false)
+        fetchOrder() // Recarregar pedido
+      } else {
+        const data = await response.json()
+        toast.error(data.message || 'Erro ao cancelar pedido')
+      }
+    } catch (error) {
+      console.error('Erro ao cancelar pedido:', error)
+      toast.error('Erro ao cancelar pedido')
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
+  // Verificar se pode cancelar (antes do envio)
+  const canCancel = order?.status === 'PENDING' || order?.status === 'PROCESSING'
+  
+  // Verificar se pode solicitar devolução (após entrega, até 7 dias)
+  const canRequestReturn = (() => {
+    if (!order || order.status !== 'DELIVERED' || !order.shippedAt) return false
+    const shippedDate = new Date(order.shippedAt)
+    const daysSinceShipped = Math.floor((Date.now() - shippedDate.getTime()) / (1000 * 60 * 60 * 24))
+    return daysSinceShipped <= 7
+  })()
+
   if (status === 'loading' || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -200,13 +249,70 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
               <p className="text-yellow-800 mb-4 leading-relaxed">
                 Seu pedido foi criado mas ainda não foi pago. Complete o pagamento para que possamos processar seu pedido.
               </p>
-              <button
-                onClick={handlePayment}
-                className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-8 py-4 rounded-lg font-bold hover:from-yellow-600 hover:to-orange-600 flex items-center gap-3 shadow-md hover:shadow-lg transition-all transform hover:scale-105"
-              >
-                <FiCreditCard size={20} />
-                Pagar Agora
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handlePayment}
+                  className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-8 py-4 rounded-lg font-bold hover:from-yellow-600 hover:to-orange-600 flex items-center gap-3 shadow-md hover:shadow-lg transition-all transform hover:scale-105"
+                >
+                  <FiCreditCard size={20} />
+                  Pagar Agora
+                </button>
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  className="bg-white text-red-600 border-2 border-red-300 px-6 py-4 rounded-lg font-semibold hover:bg-red-50 flex items-center gap-2 transition-all"
+                >
+                  <FiXCircle size={20} />
+                  Cancelar Pedido
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Cancelamento */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FiXCircle className="text-red-600" size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Cancelar Pedido?</h3>
+              <p className="text-gray-600 mb-6">
+                Tem certeza que deseja cancelar este pedido? 
+                {order.paymentStatus === 'approved' && (
+                  <span className="block mt-2 text-sm text-blue-600">
+                    O reembolso será processado automaticamente.
+                  </span>
+                )}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={isCancelling}
+                  className="flex-1 bg-gray-100 text-gray-700 px-4 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
+                >
+                  Voltar
+                </button>
+                <button
+                  onClick={handleCancelOrder}
+                  disabled={isCancelling}
+                  className="flex-1 bg-red-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-red-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  {isCancelling ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Cancelando...
+                    </>
+                  ) : (
+                    <>
+                      <FiXCircle size={16} />
+                      Sim, Cancelar
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -227,13 +333,35 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 )}
               </div>
             </div>
-            <span
-              className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(
-                order.status
-              )}`}
-            >
-              {getStatusText(order.status)}
-            </span>
+            <div className="flex items-center gap-3">
+              <span
+                className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(
+                  order.status
+                )}`}
+              >
+                {getStatusText(order.status)}
+              </span>
+              {/* Botão Cancelar - visível para PENDING e PROCESSING (antes do envio) */}
+              {(order.status === 'PENDING' || (order.status === 'PROCESSING' && !order.shippedAt)) && (
+                <button
+                  onClick={() => setShowCancelModal(true)}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-full text-sm font-semibold flex items-center gap-2 transition-all"
+                >
+                  <FiXCircle size={14} />
+                  Cancelar
+                </button>
+              )}
+              {/* Botão Devolução - visível para DELIVERED dentro do prazo */}
+              {order.status === 'DELIVERED' && canRequestReturn && (
+                <Link
+                  href={`/pedidos/${params.id}/devolucao`}
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full text-sm font-semibold flex items-center gap-2 transition-all"
+                >
+                  <FiRotateCcw size={14} />
+                  Devolução
+                </Link>
+              )}
+            </div>
           </div>
         </div>
 
@@ -407,14 +535,20 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
       <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
         <h3 className="font-semibold text-lg mb-2">Status do Pedido</h3>
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* Pedido realizado */}
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500">
               <span className="text-white">✓</span>
             </div>
-            <p className="ml-3 font-medium">Pedido realizado</p>
+            <div className="ml-4">
+              <p className="font-medium">Pedido realizado</p>
+              <p className="text-sm text-gray-500">{formatDateTime(order.createdAt)}</p>
+            </div>
           </div>
-          <div className="flex items-center">
+
+          {/* Processando - com sub-etapas se estiver PROCESSING */}
+          <div className="flex items-start">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 order.status === 'PROCESSING' ||
@@ -428,8 +562,74 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 order.status === 'SHIPPED' ||
                 order.status === 'DELIVERED') && <span className="text-white">✓</span>}
             </div>
-            <p className="ml-3">Processando</p>
+            <div className="ml-4 flex-1">
+              <p className="font-medium">Processando</p>
+              {order.paymentApprovedAt && (
+                <p className="text-sm text-gray-500">Iniciado em {formatDateTime(order.paymentApprovedAt)}</p>
+              )}
+              
+              {/* Sub-etapas quando está processando */}
+              {order.status === 'PROCESSING' && (
+                <div className="mt-3 ml-4 space-y-3 border-l-2 border-gray-200 pl-4">
+                  {/* Separação */}
+                  <div className="flex items-center text-sm">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                      order.separatedAt ? 'bg-green-400' : 'bg-gray-300'
+                    }`}>
+                      {order.separatedAt && <span className="text-white text-xs">✓</span>}
+                    </div>
+                    <div className="ml-3">
+                      <span className={order.separatedAt ? 'text-green-700 font-medium' : 'text-gray-600'}>
+                        Separação
+                      </span>
+                      {order.separatedAt && (
+                        <p className="text-xs text-gray-500">{formatDateTime(order.separatedAt)}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Nota Fiscal */}
+                  <div className="flex items-center text-sm">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                      order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? 'bg-green-400' : 'bg-gray-300'
+                    }`}>
+                      {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && <span className="text-white text-xs">✓</span>}
+                    </div>
+                    <div className="ml-3">
+                      <span className={order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? 'text-green-700 font-medium' : 'text-gray-600'}>
+                        Nota Fiscal
+                      </span>
+                      {order.invoices && order.invoices.length > 0 && order.invoices[0].status === 'ERROR' && (
+                        <p className="text-xs text-red-500">Erro na emissão</p>
+                      )}
+                      {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && order.invoices[0].invoiceNumber && (
+                        <p className="text-xs text-gray-500">Nº {order.invoices[0].invoiceNumber}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Embalagem */}
+                  <div className="flex items-center text-sm">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                      order.packedAt ? 'bg-green-400' : 'bg-gray-300'
+                    }`}>
+                      {order.packedAt && <span className="text-white text-xs">✓</span>}
+                    </div>
+                    <div className="ml-3">
+                      <span className={order.packedAt ? 'text-green-700 font-medium' : 'text-gray-600'}>
+                        Embalagem
+                      </span>
+                      {order.packedAt && (
+                        <p className="text-xs text-gray-500">{formatDateTime(order.packedAt)}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Despachado/Enviado */}
           <div className="flex items-center">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -442,8 +642,18 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 <span className="text-white">✓</span>
               )}
             </div>
-            <p className="ml-3">Enviado</p>
+            <div className="ml-4">
+              <p className="font-medium">Despachado</p>
+              {order.shippedAt && (
+                <p className="text-sm text-gray-500">{formatDateTime(order.shippedAt)}</p>
+              )}
+              {order.trackingCode && (
+                <p className="text-sm text-blue-600 font-mono">Rastreio: {order.trackingCode}</p>
+              )}
+            </div>
           </div>
+
+          {/* Entregue */}
           <div className="flex items-center">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -452,10 +662,136 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             >
               {order.status === 'DELIVERED' && <span className="text-white">✓</span>}
             </div>
-            <p className="ml-3">Entregue</p>
+            <div className="ml-4">
+              <p className="font-medium">Entregue</p>
+              {order.status === 'DELIVERED' && (
+                <p className="text-sm text-gray-500">Pedido finalizado</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Seção de Nota Fiscal - só aparece quando NF-e está emitida */}
+      {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && (
+        <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-6">
+          <h3 className="font-semibold text-lg mb-4 flex items-center">
+            <FiFileText className="mr-2 text-green-600" />
+            Nota Fiscal Eletrônica
+          </h3>
+          
+          <div className="bg-white rounded-lg p-4 border border-green-200">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm text-gray-600">Número da NF-e</p>
+                <p className="font-semibold text-lg text-green-700">
+                  {order.invoices[0].invoiceNumber || 'Processando...'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-green-600">
+                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                  <span className="text-sm">✓</span>
+                </div>
+                <span className="text-sm font-medium">Emitida</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              {/* Botão para imprimir DANFE */}
+              <button
+                onClick={() => window.open(`/api/admin/invoices/${order.invoices![0].id}/danfe`, '_blank')}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <FiPrinter className="w-4 h-4" />
+                Imprimir DANFE
+              </button>
+
+              {/* Botão para baixar XML */}
+              <button
+                onClick={() => window.open(`/api/admin/invoices/${order.invoices![0].id}/xml`, '_blank')}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+              >
+                <FiDownload className="w-4 h-4" />
+                Baixar XML
+              </button>
+            </div>
+
+            <div className="mt-3 text-xs text-gray-500 text-center">
+              <p>A DANFE é o documento auxiliar da nota fiscal eletrônica para impressão.</p>
+              <p>O XML contém todos os dados fiscais da operação.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Seção de Devolução - só aparece para pedidos entregues */}
+      {order.status === 'DELIVERED' && order.shippedAt && (() => {
+        const shippedDate = new Date(order.shippedAt)
+        const daysSinceShipped = Math.floor((Date.now() - shippedDate.getTime()) / (1000 * 60 * 60 * 24))
+        const canReturn = daysSinceShipped <= 7
+        
+        return (
+          <div className={`mt-6 border rounded-lg p-6 ${canReturn ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+            <h3 className="font-semibold text-lg mb-4 flex items-center">
+              <FiPackage className={`mr-2 ${canReturn ? 'text-blue-600' : 'text-gray-600'}`} />
+              Devolução do Produto
+            </h3>
+            
+            <div className={`bg-white rounded-lg p-4 border ${canReturn ? 'border-blue-200' : 'border-gray-200'}`}>
+              {canReturn ? (
+                <>
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600 mb-2">
+                      Você tem até <strong>7 dias</strong> após a entrega para solicitar a devolução.
+                    </p>
+                    <p className="text-sm text-green-600 font-medium">
+                      ✓ Ainda é possível solicitar devolução (entregue há {daysSinceShipped} dia{daysSinceShipped !== 1 ? 's' : ''})
+                    </p>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Link 
+                      href={`/pedidos/${order.id}/devolucao`}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <FiArrowLeft className="w-4 h-4" />
+                      Solicitar Devolução
+                    </Link>
+                    
+                    <Link 
+                      href="/politica-devolucao"
+                      target="_blank"
+                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <FiFileText className="w-4 h-4" />
+                      Ver Política
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center">
+                  <div className="mb-3">
+                    <FiClock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-600 font-medium">Prazo para devolução expirado</p>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-3">
+                    O prazo de 7 dias para solicitar devolução já foi superado.
+                    (Produto entregue há {daysSinceShipped} dias)
+                  </p>
+                  <Link 
+                    href="/politica-devolucao"
+                    target="_blank"
+                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm"
+                  >
+                    <FiFileText className="w-4 h-4" />
+                    Consultar política de devolução
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

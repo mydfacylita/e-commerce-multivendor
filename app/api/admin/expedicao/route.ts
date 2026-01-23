@@ -79,6 +79,15 @@ export async function GET(request: NextRequest) {
               }
             }
           }
+        },
+        invoices: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            status: true,
+            pdfUrl: true,
+            errorMessage: true
+          }
         }
       },
       orderBy: [

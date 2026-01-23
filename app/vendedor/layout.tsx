@@ -141,6 +141,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   const menuItems = [
     { label: 'Dashboard', href: '/vendedor/dashboard', icon: FiHome, requiresPermission: null },
     { label: 'Produtos', href: '/vendedor/produtos', icon: FiPackage, requiresPermission: 'canManageProducts' },
+    { label: 'Códigos EAN', href: '/vendedor/ean', icon: FiPackage, requiresPermission: 'canManageProducts' },
     { label: 'Pedidos', href: '/vendedor/pedidos', icon: FiShoppingBag, requiresPermission: 'canManageOrders' },
     { label: 'Dropshipping', href: '/vendedor/dropshipping', icon: FiTruck, requiresPermission: 'canManageDropshipping' },
     { label: 'Integração', href: '/vendedor/integracao', icon: FiSettings, requiresPermission: 'canManageIntegrations' },

@@ -319,23 +319,6 @@ export default function Hero() {
         ))}
       </div>
 
-      {/* Barra de Categorias com Scroll */}
-      <div className="bg-white border-b overflow-x-auto">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex gap-6 whitespace-nowrap">
-            {['🔥 Mais Vendidos', '⚡ Ofertas', '📱 Eletrônicos', '👕 Moda', '🏠 Casa', '⚽ Esportes', '📚 Livros'].map((cat) => (
-              <Link
-                key={cat}
-                href="/categorias"
-                className="px-4 py-2 rounded-full bg-gray-100 hover:bg-accent-500 hover:text-white transition font-semibold"
-              >
-                {cat}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-
       <style jsx>{`
         @keyframes fade-in {
           from { opacity: 0; transform: translateY(20px); }

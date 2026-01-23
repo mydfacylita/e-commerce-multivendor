@@ -119,9 +119,14 @@ export default function Navbar() {
   }, [])
 
   const handleProductClick = (slug: string) => {
+    console.log('🔍 Clicou no produto:', slug)
+    if (!slug) {
+      console.error('❌ Slug vazio!')
+      return
+    }
     setShowResults(false)
     setSearchQuery('')
-    router.push(`/produtos/${slug}`)
+    window.location.href = `/produtos/${slug}`
   }
 
   useEffect(() => {
@@ -207,10 +212,14 @@ export default function Navbar() {
                           }
                           
                           return (
-                            <button
+                            <Link
                               key={product.id}
-                              onClick={() => handleProductClick(product.slug)}
-                              className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors text-left"
+                              href={`/produtos/${product.slug}`}
+                              onClick={() => {
+                                setShowResults(false)
+                                setSearchQuery('')
+                              }}
+                              className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors"
                             >
                               <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded">
                                 <Image
@@ -238,7 +247,7 @@ export default function Navbar() {
                                   )}
                                 </div>
                               </div>
-                            </button>
+                            </Link>
                           )
                         })}
                       </div>
@@ -378,10 +387,15 @@ export default function Navbar() {
                         }
                         
                         return (
-                          <button
+                          <Link
                             key={product.id}
-                            onClick={() => handleProductClick(product.slug)}
-                            className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors text-left"
+                            href={`/produtos/${product.slug}`}
+                            onClick={() => {
+                              setShowResults(false)
+                              setSearchQuery('')
+                              setIsMenuOpen(false)
+                            }}
+                            className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors"
                           >
                             <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded">
                               <Image
@@ -409,7 +423,7 @@ export default function Navbar() {
                                 )}
                               </div>
                             </div>
-                          </button>
+                          </Link>
                         )
                       })}
                     </div>

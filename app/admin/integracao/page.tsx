@@ -15,6 +15,24 @@ export default async function IntegracaoPage() {
     <div>
       <h1 className="text-3xl font-bold mb-8">Integrações</h1>
 
+      {/* Configuração Global */}
+      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-blue-800">⚙️ Configuração de Credenciais</h3>
+            <p className="text-sm text-blue-600">
+              Configure as credenciais globais para que os vendedores possam conectar suas contas com apenas um clique.
+            </p>
+          </div>
+          <Link
+            href="/admin/integracao/marketplaces"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+          >
+            Configurar Apps
+          </Link>
+        </div>
+      </div>
+
       {/* Marketplaces */}
       <div className="mb-12">
         <h2 className="text-2xl font-bold mb-6">🛒 Marketplaces</h2>

@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { 
   Package, Truck, CheckCircle, Clock, Search, 
   Printer, Box, AlertCircle, ChevronDown, ChevronUp,
-  User, MapPin, Phone, Mail, RefreshCw, Filter
+  User, MapPin, Phone, Mail, RefreshCw, Filter, FileText, XCircle, Tag
 } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
+import { formatOrderNumber } from '@/lib/order'
 
 interface OrderItem {
   id: string
@@ -47,6 +49,13 @@ interface Order {
   packagingBoxId?: string
   expeditionNotes?: string
   items: OrderItem[]
+  invoices?: {
+    id: string
+    invoiceNumber?: string
+    status: string
+    pdfUrl?: string
+    errorMessage?: string
+  }[]
   packagingBox?: {
     id: string
     code: string
@@ -78,6 +87,7 @@ interface Embalagem {
 type ExpeditionStatus = 'all' | 'pending' | 'separated' | 'packed' | 'shipped'
 
 export default function ExpedicaoPage() {
+  const [mounted, setMounted] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
   const [embalagens, setEmbalagens] = useState<Embalagem[]>([])
   const [loading, setLoading] = useState(true)
@@ -86,6 +96,8 @@ export default function ExpedicaoPage() {
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
   const [processingOrder, setProcessingOrder] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [selectedCarrier, setSelectedCarrier] = useState<string>('')
+  const [showCarrierDropdown, setShowCarrierDropdown] = useState(false)
 
   const loadOrders = useCallback(async () => {
     try {
@@ -160,16 +172,22 @@ export default function ExpedicaoPage() {
   }
 
   useEffect(() => {
-    loadOrders()
-    loadEmbalagens()
-  }, [loadOrders])
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
+    if (!mounted) return
+    loadOrders()
+    loadEmbalagens()
+  }, [loadOrders, mounted])
+
+  useEffect(() => {
+    if (!mounted) return
     const timer = setTimeout(() => {
       loadOrders()
     }, 500)
     return () => clearTimeout(timer)
-  }, [search, loadOrders])
+  }, [search, loadOrders, mounted])
 
   const getStatusBadge = (order: Order) => {
     if (order.shippedAt) {
@@ -246,7 +264,36 @@ export default function ExpedicaoPage() {
     }
   }
 
+  // Selecionar embalagem sem marcar como embalado
+  const handleSelecionarEmbalagem = async (orderId: string, packagingBoxId: string) => {
+    if (!packagingBoxId) return
+    setProcessingOrder(orderId)
+    try {
+      const res = await fetch(`/api/admin/expedicao/${orderId}/selecionar-embalagem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packagingBoxId })
+      })
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Embalagem selecionada!' })
+        loadOrders()
+      } else {
+        const error = await res.json()
+        setMessage({ type: 'error', text: error.message || 'Erro ao selecionar embalagem' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Erro ao processar' })
+    } finally {
+      setProcessingOrder(null)
+    }
+  }
+
+  // Confirmar embalagem (marcar como embalado)
   const handleEmbalar = async (orderId: string, packagingBoxId: string) => {
+    if (!packagingBoxId) {
+      setMessage({ type: 'error', text: 'Selecione uma embalagem primeiro' })
+      return
+    }
     setProcessingOrder(orderId)
     try {
       const res = await fetch(`/api/admin/expedicao/${orderId}/embalar`, {
@@ -294,16 +341,114 @@ export default function ExpedicaoPage() {
     }
   }
 
+  const handleEmitirNFe = async (orderId: string) => {
+    setProcessingOrder(orderId)
+    try {
+      const res = await fetch(`/api/admin/expedicao/${orderId}/emitir-nfe`, { 
+        method: 'POST' 
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setMessage({ 
+          type: 'success', 
+          text: `NF-e emitida com sucesso! Nº ${data.invoice?.number || ''}` 
+        })
+        loadOrders()
+      } else {
+        const error = await res.json()
+        setMessage({ 
+          type: 'error', 
+          text: error.error || 'Erro ao emitir NF-e' 
+        })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Erro ao processar emissão de NF-e' })
+    } finally {
+      setProcessingOrder(null)
+    }
+  }
+
   const handlePrintLabel = async (orderId: string) => {
     window.open(`/api/admin/expedicao/${orderId}/etiqueta`, '_blank')
+  }
+
+  const handleGerarEtiquetaCorreios = async (orderId: string) => {
+    setProcessingOrder(orderId)
+    try {
+      const res = await fetch(`/api/admin/expedicao/${orderId}/gerar-etiqueta-correios`, {
+        method: 'POST'
+      })
+      const data = await res.json()
+      
+      if (res.ok && data.success) {
+        setMessage({ 
+          type: 'success', 
+          text: `Etiqueta gerada! Código: ${data.codigoRastreio}` 
+        })
+        loadOrders()
+        // Abrir etiqueta para impressão
+        setTimeout(() => {
+          window.open(`/api/admin/expedicao/${orderId}/etiqueta`, '_blank')
+        }, 500)
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Erro ao gerar etiqueta' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Erro ao gerar etiqueta dos Correios' })
+    } finally {
+      setProcessingOrder(null)
+    }
+  }
+
+  const handleGerarEtiquetaPropria = async (orderId: string, packagingBoxId: string) => {
+    setProcessingOrder(orderId)
+    try {
+      // Primeiro confirmar embalagem
+      const embalarRes = await fetch(`/api/admin/expedicao/${orderId}/embalar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packagingBoxId })
+      })
+      
+      if (!embalarRes.ok) {
+        const errData = await embalarRes.json()
+        throw new Error(errData.error || 'Erro ao embalar')
+      }
+
+      // Abrir etiqueta para impressão (usa LabelService que detecta entrega própria)
+      window.open(`/api/admin/expedicao/${orderId}/etiqueta`, '_blank')
+      
+      setMessage({ type: 'success', text: 'Etiqueta gerada! Pedido movido para Embalados.' })
+      loadOrders()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Erro ao gerar etiqueta própria' })
+    } finally {
+      setProcessingOrder(null)
+    }
   }
 
   const handlePrintSeparationGuide = () => {
     window.open(`/api/admin/expedicao/guia-separacao?status=${filter}`, '_blank')
   }
 
-  const handlePrintCollectionGuide = () => {
-    window.open(`/api/admin/expedicao/guia-coleta?status=packed`, '_blank')
+  const handlePrintCollectionGuide = (carrier?: string) => {
+    const params = new URLSearchParams({ status: 'packed' })
+    if (carrier) {
+      params.set('carrier', carrier)
+    }
+    window.open(`/api/admin/expedicao/guia-coleta?${params.toString()}`, '_blank')
+    setShowCarrierDropdown(false)
+  }
+
+  // Obter lista de transportadoras únicas dos pedidos embalados
+  const getAvailableCarriers = () => {
+    const carriers = new Set<string>()
+    orders.forEach(order => {
+      if (order.shippingCarrier || order.shippingMethod) {
+        carriers.add(order.shippingCarrier || order.shippingMethod || '')
+      }
+    })
+    return Array.from(carriers).filter(c => c).sort()
   }
 
   const totalItems = (items: OrderItem[]) => items.reduce((acc, item) => acc + item.quantity, 0)
@@ -316,15 +461,34 @@ export default function ExpedicaoPage() {
     { id: 'all' as ExpeditionStatus, label: 'Todos', icon: Filter, color: 'gray' },
   ]
 
+  if (!mounted || loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Carregando...</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="p-6">
+    <div className="p-6" suppressHydrationWarning>
       {/* Cabeçalho */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Truck className="w-8 h-8" />
-          Expedição e Separação
-        </h1>
-        <p className="text-gray-600 mt-1">Gerencie a separação e envio dos pedidos</p>
+      <div className="mb-6 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Truck className="w-8 h-8" />
+            Expedição e Separação
+          </h1>
+          <p className="text-gray-600 mt-1">Gerencie a separação e envio dos pedidos</p>
+        </div>
+        <Link 
+          href="/admin/expedicao/etiquetas"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
+        >
+          <Tag className="w-4 h-4" />
+          Gestão de Etiquetas
+        </Link>
       </div>
 
       {/* Mensagem */}
@@ -414,14 +578,46 @@ export default function ExpedicaoPage() {
                 </button>
               )}
               {filter === 'packed' && (
-                <button
-                  onClick={handlePrintCollectionGuide}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-sm transition-colors text-sm font-medium"
-                  title="Imprimir guia de coleta"
-                >
-                  <Truck className="w-4 h-4" />
-                  <span>Imprimir Guia de Coleta</span>
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCarrierDropdown(!showCarrierDropdown)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-sm transition-colors text-sm font-medium"
+                    title="Imprimir guia de coleta"
+                  >
+                    <Truck className="w-4 h-4" />
+                    <span>Imprimir Guia de Coleta</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  {showCarrierDropdown && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                      <div className="py-1">
+                        <button
+                          onClick={() => handlePrintCollectionGuide()}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          <Truck className="w-4 h-4 text-gray-500" />
+                          Todas as Transportadoras
+                        </button>
+                        <div className="border-t border-gray-100 my-1"></div>
+                        {getAvailableCarriers().map(carrier => (
+                          <button
+                            key={carrier}
+                            onClick={() => handlePrintCollectionGuide(carrier)}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <Box className="w-4 h-4 text-green-500" />
+                            {carrier}
+                          </button>
+                        ))}
+                        {getAvailableCarriers().length === 0 && (
+                          <div className="px-4 py-2 text-sm text-gray-400 italic">
+                            Nenhuma transportadora encontrada
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -472,7 +668,7 @@ export default function ExpedicaoPage() {
                         <div className="flex items-center gap-4">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-lg">#{order.id.slice(-8).toUpperCase()}</span>
+                              <span className="font-bold text-lg">{formatOrderNumber(order.id)}</span>
                               {getStatusBadge(order)}
                               {getShippingBadge(order)}
                             </div>
@@ -625,15 +821,89 @@ export default function ExpedicaoPage() {
                                 </button>
                               )}
 
-                              {/* Embalar */}
+                              {/* NF-e - Entre Separado e Embalado */}
                               {order.separatedAt && !order.packedAt && (
+                                <>
+                                  {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? (
+                                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <CheckCircle className="w-5 h-5 text-green-600" />
+                                          <div>
+                                            <div className="font-semibold text-green-800">NF-e Emitida</div>
+                                            {order.invoices[0].invoiceNumber && (
+                                              <div className="text-sm text-green-600">
+                                                Nº {order.invoices[0].invoiceNumber}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          {order.invoices[0].pdfUrl && (
+                                            <a
+                                              href={order.invoices[0].pdfUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-sm text-green-600 hover:text-green-700 underline"
+                                            >
+                                              Ver PDF
+                                            </a>
+                                          )}
+                                          <button
+                                            onClick={() => window.open(`/api/admin/invoices/${order.invoices?.[0]?.id}/danfe`, '_blank')}
+                                            className="text-sm px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded flex items-center gap-1"
+                                          >
+                                            <Printer className="w-4 h-4" />
+                                            DANFE
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : order.invoices && order.invoices.length > 0 && order.invoices[0].status === 'ERROR' ? (
+                                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                                      <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2">
+                                          <XCircle className="w-5 h-5 text-red-600" />
+                                          <div>
+                                            <div className="font-semibold text-red-800">Erro na NF-e</div>
+                                            <div className="text-sm text-red-600">
+                                              {order.invoices[0].errorMessage?.substring(0, 100) || 'Erro na emissão'}...
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <button
+                                        onClick={() => handleEmitirNFe(order.id)}
+                                        disabled={processingOrder === order.id}
+                                        className="w-full py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                                      >
+                                        <FileText className="w-4 h-4" />
+                                        Tentar Novamente
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleEmitirNFe(order.id)}
+                                      disabled={processingOrder === order.id}
+                                      className="w-full py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                      <FileText className="w-5 h-5" />
+                                      Emitir NF-e
+                                    </button>
+                                  )}
+                                </>
+                              )}
+
+                              {/* Embalar - Só habilitar se tiver NF-e EMITIDA com sucesso */}
+                              {order.separatedAt && !order.packedAt && order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && (
                                 <div className="space-y-2">
-                                  <label className="block text-sm font-medium">Selecionar Embalagem:</label>
+                                  <label className="block text-sm font-medium">1. Selecionar Embalagem:</label>
                                   <select
+                                    id={`embalagem-${order.id}`}
                                     className="w-full p-2 border rounded-lg"
-                                    onChange={(e) => handleEmbalar(order.id, e.target.value)}
+                                    onChange={(e) => handleSelecionarEmbalagem(order.id, e.target.value)}
                                     disabled={processingOrder === order.id}
-                                    defaultValue=""
+                                    defaultValue={order.packagingBoxId || ''}
                                   >
                                     <option value="" disabled>Escolha a embalagem...</option>
                                     {embalagens.map((emb) => (
@@ -647,6 +917,102 @@ export default function ExpedicaoPage() {
                                       </option>
                                     ))}
                                   </select>
+
+                                  {/* Se embalagem selecionada, mostrar próximo passo baseado no método de envio */}
+                                  {order.packagingBoxId && (
+                                    <>
+                                      {/* CORREIOS - Gerar etiqueta */}
+                                      {(order.shippingMethod === 'correios' || order.shippingCarrier === 'correios') && !order.trackingCode && (
+                                        <>
+                                          <label className="block text-sm font-medium mt-3">2. Gerar Etiqueta:</label>
+                                          <button
+                                            onClick={() => handleGerarEtiquetaCorreios(order.id)}
+                                            disabled={processingOrder === order.id}
+                                            className="w-full py-2 px-4 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
+                                          >
+                                            {processingOrder === order.id ? (
+                                              <><RefreshCw className="w-5 h-5 animate-spin" /> Gerando...</>
+                                            ) : (
+                                              <><Printer className="w-5 h-5" /> 📮 Gerar Etiqueta Correios</>
+                                            )}
+                                          </button>
+                                        </>
+                                      )}
+
+                                      {/* OUTROS (Entrega Própria, etc) - Gerar etiqueta própria e embalar */}
+                                      {!(order.shippingMethod === 'correios' || order.shippingCarrier === 'correios') &&
+                                       !(order.shippingMethod === 'jadlog' || order.shippingCarrier === 'jadlog') &&
+                                       !(order.shippingMethod === 'melhorenvio' || order.shippingCarrier === 'melhorenvio') && (
+                                        <>
+                                          <label className="block text-sm font-medium mt-3">2. Gerar Etiqueta:</label>
+                                          <button
+                                            onClick={() => handleGerarEtiquetaPropria(order.id, order.packagingBoxId!)}
+                                            disabled={processingOrder === order.id}
+                                            className="w-full py-2 px-4 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                                          >
+                                            {processingOrder === order.id ? (
+                                              <><RefreshCw className="w-5 h-5 animate-spin" /> Gerando...</>
+                                            ) : (
+                                              <><Printer className="w-5 h-5" /> 🚗 Gerar Etiqueta Própria</>
+                                            )}
+                                          </button>
+                                        </>
+                                      )}
+
+                                      {/* JADLOG - Gerar etiqueta Jadlog */}
+                                      {(order.shippingMethod === 'jadlog' || order.shippingCarrier === 'jadlog') && !order.trackingCode && (
+                                        <>
+                                          <label className="block text-sm font-medium mt-3">2. Gerar Etiqueta:</label>
+                                          <button
+                                            onClick={() => handleGerarEtiquetaJadlog && handleGerarEtiquetaJadlog(order.id)}
+                                            disabled={processingOrder === order.id}
+                                            className="w-full py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
+                                          >
+                                            {processingOrder === order.id ? (
+                                              <><RefreshCw className="w-5 h-5 animate-spin" /> Gerando...</>
+                                            ) : (
+                                              <><Printer className="w-5 h-5" /> 🚚 Gerar Etiqueta Jadlog</>
+                                            )}
+                                          </button>
+                                        </>
+                                      )}
+
+                                      {/* MELHOR ENVIO - Gerar etiqueta Melhor Envio */}
+                                      {(order.shippingMethod === 'melhorenvio' || order.shippingCarrier === 'melhorenvio') && !order.trackingCode && (
+                                        <>
+                                          <label className="block text-sm font-medium mt-3">2. Gerar Etiqueta:</label>
+                                          <button
+                                            onClick={() => handleGerarEtiquetaMelhorEnvio && handleGerarEtiquetaMelhorEnvio(order.id)}
+                                            disabled={processingOrder === order.id}
+                                            className="w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
+                                          >
+                                            {processingOrder === order.id ? (
+                                              <><RefreshCw className="w-5 h-5 animate-spin" /> Gerando...</>
+                                            ) : (
+                                              <><Printer className="w-5 h-5" /> 📦 Gerar Etiqueta Melhor Envio</>
+                                            )}
+                                          </button>
+                                        </>
+                                      )}
+
+                                      {/* Confirmar Embalagem - Só para Correios/Jadlog/ME que já tem código de rastreio */}
+                                      {order.trackingCode && (order.shippingMethod === 'correios' || order.shippingCarrier === 'correios' ||
+                                        order.shippingMethod === 'jadlog' || order.shippingCarrier === 'jadlog' ||
+                                        order.shippingMethod === 'melhorenvio' || order.shippingCarrier === 'melhorenvio') && (
+                                        <>
+                                          <label className="block text-sm font-medium mt-3">3. Concluir:</label>
+                                          <button
+                                            onClick={() => handleEmbalar(order.id, order.packagingBoxId!)}
+                                            disabled={processingOrder === order.id}
+                                            className="w-full py-2 px-4 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                                          >
+                                            <Package className="w-4 h-4" />
+                                            Confirmar Embalagem
+                                          </button>
+                                        </>
+                                      )}
+                                    </>
+                                  )}
                                 </div>
                               )}
 
@@ -658,6 +1024,7 @@ export default function ExpedicaoPage() {
                                     placeholder="Código de rastreio..."
                                     id={`tracking-${order.id}`}
                                     className="w-full p-2 border rounded-lg"
+                                    defaultValue={order.trackingCode || ''}
                                   />
                                   <button
                                     onClick={() => {
@@ -673,24 +1040,29 @@ export default function ExpedicaoPage() {
                                 </div>
                               )}
 
-                              {/* Imprimir Etiqueta */}
-                              {order.separatedAt && (
-                                <button
-                                  onClick={() => handlePrintLabel(order.id)}
-                                  className={`w-full py-2 px-4 rounded-lg flex items-center justify-center gap-2 ${
-                                    order.shippingMethod === 'correios' 
-                                      ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' 
-                                      : order.shippingMethod === 'jadlog'
-                                      ? 'bg-red-100 hover:bg-red-200 text-red-800'
-                                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                                  }`}
-                                >
-                                  <Printer className="w-5 h-5" />
-                                  {order.shippingMethod === 'correios' ? '📮 Etiqueta Correios' : 
-                                   order.shippingMethod === 'jadlog' ? '🚚 Etiqueta Jadlog' :
-                                   order.shippingMethod === 'melhorenvio' ? '📦 Etiqueta Melhor Envio' :
-                                   '🖨️ Imprimir Etiqueta'}
-                                </button>
+                              {/* Imprimir Etiqueta - Só para pedidos já embalados */}
+                              {order.packedAt && (
+                                <>
+                                  {/* Se já tem código ou não é Correios, mostrar botão de imprimir */}
+                                  {(order.trackingCode || (order.shippingMethod !== 'correios' && order.shippingCarrier !== 'correios')) && (
+                                    <button
+                                      onClick={() => handlePrintLabel(order.id)}
+                                      className={`w-full py-2 px-4 rounded-lg flex items-center justify-center gap-2 ${
+                                        order.shippingMethod === 'correios' || order.shippingCarrier === 'correios'
+                                          ? 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' 
+                                          : order.shippingMethod === 'jadlog'
+                                          ? 'bg-red-100 hover:bg-red-200 text-red-800'
+                                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                      }`}
+                                    >
+                                      <Printer className="w-5 h-5" />
+                                      {order.shippingMethod === 'correios' || order.shippingCarrier === 'correios' ? '📮 Imprimir Etiqueta' : 
+                                       order.shippingMethod === 'jadlog' ? '🚚 Etiqueta Jadlog' :
+                                       order.shippingMethod === 'melhorenvio' ? '📦 Etiqueta Melhor Envio' :
+                                       '🖨️ Imprimir Etiqueta'}
+                                    </button>
+                                  )}
+                                </>
                               )}
 
                               {/* Status de Despachado */}

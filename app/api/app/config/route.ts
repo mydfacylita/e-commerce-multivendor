@@ -13,6 +13,13 @@ import { validateApiKey } from '@/lib/api-security'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// CORS é tratado pelo middleware global - não adicionar headers duplicados
+
+// OPTIONS - Preflight para CORS (tratado pelo middleware)
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204 })
+}
+
 /**
  * Resolve URL de imagem para URL completa
  * Se a URL começa com /, adiciona o baseUrl do servidor

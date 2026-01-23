@@ -19,7 +19,8 @@ const nextConfig = {
 
   // Otimizações de performance
   experimental: {
-    optimizeCss: true
+    optimizeCss: true,
+    instrumentationHook: true, // Habilita instrumentation.ts para crons de background
   },
   
   // Comprimir respostas
@@ -84,6 +85,17 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, x-api-key' },
           { key: 'Cache-Control', value: 'no-store' }, // Prevent caching of API routes
+        ],
+      },
+      // CORS para uploads (imagens estáticas)
+      {
+        source: '/uploads/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, HEAD, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: '*' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'cross-origin' },
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
       // Headers de segurança para todas as rotas

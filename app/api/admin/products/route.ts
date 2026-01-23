@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logApi } from '@/lib/api-logger'
+import { markEANAsUsed } from '@/lib/ean-utils'
 
 export async function POST(req: Request) {
   const startTime = Date.now()
@@ -249,6 +250,22 @@ export async function POST(req: Request) {
         bookGenre: data.bookGenre,
         bookPublisher: data.bookPublisher,
         bookIsbn: data.bookIsbn,
+        // Campos de Tributação (NF-e)
+        ncm: data.ncm,
+        cest: data.cest,
+        origem: data.origem || '0',
+        cstIcms: data.cstIcms,
+        aliquotaIcms: data.aliquotaIcms ? parseFloat(data.aliquotaIcms) : null,
+        reducaoBcIcms: data.reducaoBcIcms ? parseFloat(data.reducaoBcIcms) : null,
+        cstPis: data.cstPis,
+        aliquotaPis: data.aliquotaPis ? parseFloat(data.aliquotaPis) : null,
+        cstCofins: data.cstCofins,
+        aliquotaCofins: data.aliquotaCofins ? parseFloat(data.aliquotaCofins) : null,
+        cfopInterno: data.cfopInterno,
+        cfopInterestadual: data.cfopInterestadual,
+        unidadeComercial: data.unidadeComercial || 'UN',
+        unidadeTributavel: data.unidadeTributavel || 'UN',
+        tributacaoEspecial: data.tributacaoEspecial || 'normal',
         supplierStoreName: data.supplierStoreName,
         supplierStoreId: data.supplierStoreId,
         supplierStock: data.supplierStock,
@@ -261,6 +278,18 @@ export async function POST(req: Request) {
     })
 
     console.log('✅ Produto criado:', product.name)
+
+    // 🔗 MARCAR EAN COMO USADO SE FORNECIDO
+    if (data.gtin) {
+      console.log(`\n🔗 Processando EAN: ${data.gtin}`)
+      const eanResult = await markEANAsUsed(data.gtin, product.id)
+      if (eanResult.success) {
+        console.log('✅ EAN processado:', eanResult.message)
+      } else {
+        console.log('⚠️ EAN:', eanResult.message)
+      }
+    }
+
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
     statusCode = 201

@@ -300,7 +300,8 @@ Substitua o texto "E-Shop" no componente `Navbar.tsx` pelo seu logo.
 - [ ] Integrar Stripe para pagamentos reais
 - [ ] Adicionar busca avançada de produtos
 - [ ] Implementar filtros e ordenação
-- [ ] Adicionar avaliações de produtos
+- [x] Adicionar avaliações de produtos ✅
+- [x] Sistema de perguntas e respostas ✅
 - [ ] Sistema de cupons de desconto
 - [ ] Rastreamento de pedidos
 - [ ] Email de confirmação

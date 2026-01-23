@@ -521,6 +521,189 @@ export async function checkOrderPayment(orderId: string): Promise<{
 }
 
 /**
+ * SISTEMA DE CONSISTÊNCIA DE REEMBOLSOS
+ * Processa reembolsos que falharam e estão com status PENDING
+ */
+async function syncPendingRefunds(): Promise<void> {
+  try {
+    const token = await getAccessToken()
+    if (!token) {
+      console.error('[REFUND-SYNC] ❌ Token não disponível')
+      return
+    }
+
+    // Buscar reembolsos pendentes (criados há mais de 1 minuto para evitar duplicatas)
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
+    
+    const pendingRefunds = await prisma.refund.findMany({
+      where: {
+        status: 'PENDING',
+        gateway: 'MERCADOPAGO',
+        createdAt: { lt: oneMinuteAgo }
+      },
+      include: {
+        order: {
+          select: { id: true, status: true, paymentId: true }
+        }
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 20 // Processar 20 por vez
+    })
+
+    if (pendingRefunds.length === 0) {
+      return
+    }
+
+    console.log(`[REFUND-SYNC] 🔄 Processando ${pendingRefunds.length} reembolsos pendentes...`)
+
+    let processed = 0
+    let failed = 0
+
+    for (const refund of pendingRefunds) {
+      try {
+        // Usar o paymentId do refund (já está correto)
+        const paymentId = refund.paymentId
+
+        if (!paymentId || !/^\d+$/.test(paymentId)) {
+          console.error(`[REFUND-SYNC] ⚠️ PaymentId inválido para refund ${refund.id.slice(0, 8)}`)
+          // Marcar como FAILED se não tem paymentId válido
+          await prisma.refund.update({
+            where: { id: refund.id },
+            data: { 
+              status: 'FAILED',
+              reason: (refund.reason || '') + ' | PaymentId inválido'
+            }
+          })
+          failed++
+          continue
+        }
+
+        // Tentar processar o reembolso
+        const response = await fetchWithRetry(
+          `https://api.mercadopago.com/v1/payments/${paymentId}/refunds`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'X-Idempotency-Key': `refund-${refund.id}` // Evita duplicatas
+            },
+            body: JSON.stringify({
+              amount: refund.amount
+            })
+          }
+        )
+
+        if (!response) {
+          console.warn(`[REFUND-SYNC] ⚠️ Não foi possível conectar à API para refund ${refund.id.slice(0, 8)}`)
+          continue // Tentar novamente na próxima execução
+        }
+
+        const responseData = await response.json()
+
+        if (response.ok) {
+          // Reembolso processado com sucesso
+          await prisma.refund.update({
+            where: { id: refund.id },
+            data: { 
+              status: 'APPROVED',
+              refundId: String(responseData.id)
+            }
+          })
+          
+          // Atualizar paymentStatus do pedido
+          await prisma.order.update({
+            where: { id: refund.orderId },
+            data: { paymentStatus: 'refunded' }
+          })
+          
+          console.log(`[REFUND-SYNC] ✅ Reembolso ${refund.id.slice(0, 8)} processado! R$ ${refund.amount}`)
+          processed++
+        } else if (response.status === 400 || response.status === 404) {
+          // Erro permanente - marcar como falho
+          const errorMsg = responseData.message || responseData.error || 'Erro desconhecido'
+          
+          // Verificar se já foi reembolsado
+          if (errorMsg.includes('already refunded') || errorMsg.includes('Payment already refunded')) {
+            await prisma.refund.update({
+              where: { id: refund.id },
+              data: { 
+                status: 'APPROVED',
+                reason: (refund.reason || '') + ' | Já reembolsado anteriormente'
+              }
+            })
+            console.log(`[REFUND-SYNC] ✅ Refund ${refund.id.slice(0, 8)} já estava reembolsado`)
+            processed++
+          } else {
+            await prisma.refund.update({
+              where: { id: refund.id },
+              data: { 
+                status: 'FAILED',
+                reason: (refund.reason || '') + ` | Erro: ${errorMsg}`
+              }
+            })
+            console.error(`[REFUND-SYNC] ❌ Refund ${refund.id.slice(0, 8)} falhou: ${errorMsg}`)
+            failed++
+          }
+        } else {
+          // Erro temporário (5xx, etc) - tentar novamente depois
+          console.warn(`[REFUND-SYNC] ⚠️ Erro ${response.status} para refund ${refund.id.slice(0, 8)}, tentando depois`)
+        }
+
+        // Aguardar 500ms entre cada requisição para não sobrecarregar a API
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+      } catch (refundError) {
+        console.error(`[REFUND-SYNC] ❌ Erro ao processar refund ${refund.id.slice(0, 8)}:`, refundError)
+      }
+    }
+
+    if (processed > 0 || failed > 0) {
+      console.log(`[REFUND-SYNC] 📊 ${processed} processados | ${failed} falharam`)
+    }
+
+  } catch (error) {
+    console.error('[REFUND-SYNC] ❌ Erro na sincronização de reembolsos:', error)
+  }
+}
+
+// Interval para sincronização de reembolsos
+let refundIntervalId: NodeJS.Timeout | null = null
+
+/**
+ * Inicia o sistema de consistência de reembolsos
+ */
+export function startRefundSync(): void {
+  if (refundIntervalId) {
+    console.log('[REFUND-SYNC] ⚠️ Sistema já está rodando')
+    return
+  }
+
+  console.log('[REFUND-SYNC] 🚀 Iniciando sistema de consistência de reembolsos (a cada 2min)')
+
+  // Executar a primeira vez após 30 segundos
+  setTimeout(() => {
+    syncPendingRefunds()
+  }, 30 * 1000)
+
+  // Executar a cada 2 minutos
+  refundIntervalId = setInterval(() => {
+    syncPendingRefunds()
+  }, 2 * 60 * 1000)
+}
+
+/**
+ * Para o sistema de consistência de reembolsos
+ */
+export function stopRefundSync(): void {
+  if (refundIntervalId) {
+    clearInterval(refundIntervalId)
+    refundIntervalId = null
+    console.log('[REFUND-SYNC] 🛑 Sistema parado')
+  }
+}
+
+/**
  * Cancela automaticamente pedidos PENDING muito antigos
  * Roda uma vez por hora para limpar pedidos abandonados
  */

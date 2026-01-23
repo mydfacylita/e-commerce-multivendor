@@ -123,81 +123,95 @@ export async function syncDropshippingProducts(
       return result
     }
 
-    // Campos que devem ser sincronizados (exceto nome e preço - vendedor pode customizar)
-    const syncData: Record<string, any> = {}
+    // Dados que SEMPRE são sincronizados do produto original (dados fiscais)
+    const syncData: Record<string, any> = {
+      // Dados fiscais - SEMPRE copiados do original
+      gtin: sourceProduct.gtin,
+      ncm: sourceProduct.ncm,
+      cest: sourceProduct.cest,
+      origem: sourceProduct.origem,
+      cfopInterno: sourceProduct.cfopInterno,
+      cfopInterestadual: sourceProduct.cfopInterestadual,
+      unidadeComercial: sourceProduct.unidadeComercial,
+      unidadeTributavel: sourceProduct.unidadeTributavel,
+      // Estoque - SEMPRE sincronizado
+      stock: sourceProduct.stock,
+      supplierStock: sourceProduct.stock,
+      // Se mudou o preço base, atualizar costPrice
+      costPrice: sourceProduct.price,
+      // Timestamp
+      lastSyncAt: new Date()
+    }
 
-    // Sincronizar descrição
+    // Campos opcionais - só sincroniza se foram alterados no request
     if (updatedFields.description !== undefined) {
       syncData.description = updatedFields.description
     }
 
-    // Sincronizar imagens
     if (updatedFields.images !== undefined) {
-      syncData.images = updatedFields.images
+      // Converter para JSON string se for array
+      syncData.images = Array.isArray(updatedFields.images) 
+        ? JSON.stringify(updatedFields.images) 
+        : updatedFields.images
     }
 
-    // Sincronizar variantes (tamanhos e cores)
     if (updatedFields.variants !== undefined) {
-      syncData.variants = updatedFields.variants
+      // Converter para JSON string se for array/objeto
+      syncData.variants = typeof updatedFields.variants === 'object'
+        ? JSON.stringify(updatedFields.variants)
+        : updatedFields.variants
     }
 
-    // Sincronizar sizes
     if (updatedFields.sizes !== undefined) {
-      syncData.sizes = updatedFields.sizes
+      // Converter para JSON string se for array/objeto
+      syncData.sizes = typeof updatedFields.sizes === 'object'
+        ? JSON.stringify(updatedFields.sizes)
+        : updatedFields.sizes
     }
 
-    // Sincronizar sizeType
     if (updatedFields.sizeType !== undefined) {
       syncData.sizeType = updatedFields.sizeType
     }
 
-    // Sincronizar sizeCategory
     if (updatedFields.sizeCategory !== undefined) {
       syncData.sizeCategory = updatedFields.sizeCategory
     }
 
-    // Sincronizar stock
-    if (updatedFields.stock !== undefined) {
-      syncData.stock = updatedFields.stock
-      syncData.supplierStock = updatedFields.stock
-    }
-
-    // Sincronizar categoria
     if (updatedFields.categoryId !== undefined) {
       syncData.categoryId = updatedFields.categoryId
     }
 
-    // Sincronizar comissão dropshipping
     if (updatedFields.dropshippingCommission !== undefined) {
       syncData.dropshippingCommission = updatedFields.dropshippingCommission
     }
 
-    // Sincronizar especificações
     if (updatedFields.specifications !== undefined) {
-      syncData.specifications = updatedFields.specifications
+      syncData.specifications = typeof updatedFields.specifications === 'object'
+        ? JSON.stringify(updatedFields.specifications)
+        : updatedFields.specifications
     }
 
-    // Sincronizar atributos
     if (updatedFields.attributes !== undefined) {
-      syncData.attributes = updatedFields.attributes
+      syncData.attributes = typeof updatedFields.attributes === 'object'
+        ? JSON.stringify(updatedFields.attributes)
+        : updatedFields.attributes
     }
 
-    // Sincronizar dados técnicos
     if (updatedFields.technicalSpecs !== undefined) {
-      syncData.technicalSpecs = updatedFields.technicalSpecs
+      syncData.technicalSpecs = typeof updatedFields.technicalSpecs === 'object'
+        ? JSON.stringify(updatedFields.technicalSpecs)
+        : updatedFields.technicalSpecs
     }
 
-    // Sincronizar marca
     if (updatedFields.brand !== undefined) {
       syncData.brand = updatedFields.brand
     }
 
-    // Sincronizar cor
     if (updatedFields.color !== undefined) {
       syncData.color = updatedFields.color
     }
 
-    // Sincronizar peso e dimensões
+    // Peso e dimensões
     if (updatedFields.weight !== undefined) syncData.weight = updatedFields.weight
     if (updatedFields.weightWithPackage !== undefined) syncData.weightWithPackage = updatedFields.weightWithPackage
     if (updatedFields.length !== undefined) syncData.length = updatedFields.length
@@ -206,14 +220,6 @@ export async function syncDropshippingProducts(
     if (updatedFields.lengthWithPackage !== undefined) syncData.lengthWithPackage = updatedFields.lengthWithPackage
     if (updatedFields.widthWithPackage !== undefined) syncData.widthWithPackage = updatedFields.widthWithPackage
     if (updatedFields.heightWithPackage !== undefined) syncData.heightWithPackage = updatedFields.heightWithPackage
-
-    // Se mudou o preço base, atualizar costPrice de todos
-    if (updatedFields.price !== undefined) {
-      syncData.costPrice = updatedFields.price
-    }
-
-    // Atualizar lastSyncAt
-    syncData.lastSyncAt = new Date()
 
     console.log(`   📝 Campos a sincronizar: ${Object.keys(syncData).join(', ')}`)
 

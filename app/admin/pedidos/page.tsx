@@ -23,6 +23,7 @@ interface GroupedOrder {
   buyerEmail: string | null
   user: { name: string | null; email: string | null } | null
   marketplaceOrderId: string | null
+  marketplaceName: string | null
   items: any[]
   hasDropshipping: boolean
   hasStock: boolean
@@ -147,6 +148,7 @@ export default async function AdminPedidosPage() {
           buyerEmail: order.buyerEmail,
           user: order.user,
           marketplaceOrderId: order.marketplaceOrderId,
+          marketplaceName: order.marketplaceName,
           items: order.items,
           hasDropshipping,
           hasStock,
@@ -172,6 +174,7 @@ export default async function AdminPedidosPage() {
         buyerEmail: order.buyerEmail,
         user: order.user,
         marketplaceOrderId: order.marketplaceOrderId,
+        marketplaceName: order.marketplaceName,
         items: order.items,
         hasDropshipping,
         hasStock,
@@ -268,7 +271,7 @@ export default async function AdminPedidosPage() {
                   <td className="py-4 px-6">
                     <div className="flex flex-col gap-1">
                       <p className="font-mono text-sm font-semibold text-primary-600">
-                        {order.isHybrid ? order.displayId.slice(0, 14) + '...' : formatOrderNumber(order.id)}
+                        {formatOrderNumber(order.isHybrid ? order.displayId : order.id)}
                       </p>
                       {order.isHybrid && (
                         <div className="flex items-center gap-1">
@@ -282,6 +285,10 @@ export default async function AdminPedidosPage() {
                     {order.marketplaceOrderId ? (
                       <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
                         ML
+                      </span>
+                    ) : order.marketplaceName === 'APP' ? (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                        📱 APP
                       </span>
                     ) : (
                       <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
