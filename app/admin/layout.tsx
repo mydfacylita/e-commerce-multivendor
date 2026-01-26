@@ -55,15 +55,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }))
   }
 
+  // Páginas públicas que não precisam de autenticação
+  const isPublicPage = pathname === '/admin/login'
+
   useEffect(() => {
+    // Não redireciona em páginas públicas
+    if (isPublicPage) return
+    
     if (status === 'loading') return // Aguarda carregar antes de redirecionar
     
     if (status === 'unauthenticated') {
-      router.push('/login')
+      router.push('/admin/login')
     } else if (session?.user?.role !== 'ADMIN') {
       router.push('/')
     }
-  }, [session, status, router])
+  }, [session, status, router, isPublicPage])
+
+  // Páginas públicas renderizam diretamente sem verificação
+  if (isPublicPage) {
+    return <>{children}</>
+  }
 
   if (status === 'loading') {
     return <LoadingSpinner message="Carregando painel..." />
