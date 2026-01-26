@@ -44,7 +44,7 @@ const nextConfig = {
     pagesBufferLength: 2,
   },
   
-  // � SEGURANÇA: Rewrites baseado em host para subdomínio admin
+  // 🔒 SEGURANÇA: Rewrites baseado em host para subdomínio admin
   async rewrites() {
     return {
       beforeFiles: [
@@ -59,9 +59,10 @@ const nextConfig = {
           ],
           destination: '/admin',
         },
-        // Mapeia todas as rotas do subdomínio para /admin/*
+        // Mapeia todas as rotas do subdomínio para /admin/* 
+        // EXCETO: _next, api, static, favicon, logo (arquivos estáticos/recursos)
         {
-          source: '/:path((?!admin).*)',
+          source: '/:path((?!admin|_next|api|static|favicon|logo|uploads).*)',
           has: [
             {
               type: 'host',
