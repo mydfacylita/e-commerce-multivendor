@@ -111,12 +111,11 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const origin = request.headers.get('origin')
   const host = request.headers.get('host') || ''
+  const isAdminSubdomain = host.startsWith('gerencial-sys.')
 
   // 🔒 SEGURANÇA: Bloquear /admin no domínio principal
   // Apenas permite acesso via subdomínio gerencial-sys.mydshop.com.br
   if (pathname.startsWith('/admin')) {
-    const isAdminSubdomain = host.startsWith('gerencial-sys.')
-    
     if (!isAdminSubdomain) {
       // Retorna 404 para esconder que a rota existe
       return new NextResponse(null, { status: 404 })
@@ -129,8 +128,9 @@ export async function middleware(request: NextRequest) {
     return setCorsHeaders(response, origin)
   }
 
-  // 🔧 MODO MANUTENÇÃO (não verifica em rotas especiais)
-  const skipMaintenance = [
+  // 🔧 MODO MANUTENÇÃO (não verifica em rotas especiais ou no subdomínio admin)
+  // Subdomínio admin nunca entra em manutenção para permitir gerenciamento
+  const skipMaintenance = isAdminSubdomain || [
     '/manutencao',
     '/_next',
     '/favicon.ico',
