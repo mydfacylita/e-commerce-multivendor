@@ -109,6 +109,30 @@ function setCorsHeaders(response: NextResponse, origin: string | null) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  
+  // 🚀 BYPASS: Arquivos estáticos NUNCA passam pelo middleware
+  // Isso garante que _next/static, imagens, etc funcionem em qualquer domínio
+  if (
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/static/') ||
+    pathname.includes('.') && (
+      pathname.endsWith('.js') ||
+      pathname.endsWith('.css') ||
+      pathname.endsWith('.woff') ||
+      pathname.endsWith('.woff2') ||
+      pathname.endsWith('.png') ||
+      pathname.endsWith('.jpg') ||
+      pathname.endsWith('.jpeg') ||
+      pathname.endsWith('.gif') ||
+      pathname.endsWith('.svg') ||
+      pathname.endsWith('.ico') ||
+      pathname.endsWith('.webp') ||
+      pathname.endsWith('.map')
+    )
+  ) {
+    return NextResponse.next()
+  }
+  
   const origin = request.headers.get('origin')
   const host = request.headers.get('host') || ''
   const isAdminSubdomain = host.startsWith('gerencial-sys.')
