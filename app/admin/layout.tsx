@@ -1,6 +1,6 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -34,7 +34,8 @@ import {
   FiMapPin,
   FiShield,
   FiLink,
-  FiPrinter
+  FiPrinter,
+  FiLogOut
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -511,6 +512,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </Link>
               </div>
             )}
+          </div>
+
+          {/* Botão de Sair */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <button
+              onClick={() => signOut({ redirect: true, callbackUrl: `${window.location.origin}/admin/login` })}
+              className="w-full flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-red-50 hover:text-red-600 text-gray-700"
+            >
+              <FiLogOut className="text-lg" />
+              <span>Sair</span>
+            </button>
           </div>
         </nav>
       </aside>

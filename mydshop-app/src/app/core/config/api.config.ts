@@ -17,7 +17,7 @@
 export const MOBILE_ENV: 'local' | 'production' = 'local';
 
 /** IP da máquina de desenvolvimento (para testes locais) */
-export const LOCAL_IP = '192.168.3.20';
+export const LOCAL_IP = '192.168.15.10';
 
 /** Porta do Next.js local */
 export const LOCAL_PORT = 3000;

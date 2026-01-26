@@ -18,7 +18,7 @@
 - ✅ **Android Build**: APK gerado via Capacitor/Android Studio
 
 ### 🌐 **URLs de Desenvolvimento Funcionais:**
-- **Ionic App**: `http://localhost:8100` / `http://192.168.3.20:8100`
+- **Ionic App**: `http://localhost:8100` / `http://192.168.15.10:8100`
 - **Next.js API**: `http://localhost:3000`
 - **Configurações**: `GET /api/app/config` (com API key)
 

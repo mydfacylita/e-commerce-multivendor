@@ -27,7 +27,7 @@ export class ImageUrlPipe implements PipeTransform {
     if (mobileEnv === 'local') {
       // Check if we're in Capacitor (Android/iOS) - use IP address
       if (Capacitor.isNativePlatform() || this.isWebViewAndroid()) {
-        this.baseUrl = 'http://192.168.3.20:3000';
+        this.baseUrl = 'http://192.168.15.10:3000';
       } else {
         // Browser development - use localhost
         this.baseUrl = 'http://localhost:3000';
