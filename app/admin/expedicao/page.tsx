@@ -959,12 +959,12 @@ export default function ExpedicaoPage() {
                                         </>
                                       )}
 
-                                      {/* JADLOG - Gerar etiqueta Jadlog */}
-                                      {(order.shippingMethod === 'jadlog' || order.shippingCarrier === 'jadlog') && !order.trackingCode && (
+                                      {/* JADLOG - Gerar etiqueta Jadlog - TODO: Implementar */}
+                                      {/* (order.shippingMethod === 'jadlog' || order.shippingCarrier === 'jadlog') && !order.trackingCode && (
                                         <>
                                           <label className="block text-sm font-medium mt-3">2. Gerar Etiqueta:</label>
                                           <button
-                                            onClick={() => handleGerarEtiquetaJadlog && handleGerarEtiquetaJadlog(order.id)}
+                                            onClick={() => console.log('Jadlog não implementado')}
                                             disabled={processingOrder === order.id}
                                             className="w-full py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
                                           >
@@ -975,14 +975,14 @@ export default function ExpedicaoPage() {
                                             )}
                                           </button>
                                         </>
-                                      )}
+                                      ) */}
 
-                                      {/* MELHOR ENVIO - Gerar etiqueta Melhor Envio */}
-                                      {(order.shippingMethod === 'melhorenvio' || order.shippingCarrier === 'melhorenvio') && !order.trackingCode && (
+                                      {/* MELHOR ENVIO - Gerar etiqueta Melhor Envio - TODO: Implementar */}
+                                      {/* (order.shippingMethod === 'melhorenvio' || order.shippingCarrier === 'melhorenvio') && !order.trackingCode && (
                                         <>
                                           <label className="block text-sm font-medium mt-3">2. Gerar Etiqueta:</label>
                                           <button
-                                            onClick={() => handleGerarEtiquetaMelhorEnvio && handleGerarEtiquetaMelhorEnvio(order.id)}
+                                            onClick={() => console.log('Melhor Envio não implementado')}
                                             disabled={processingOrder === order.id}
                                             className="w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
                                           >
@@ -993,7 +993,7 @@ export default function ExpedicaoPage() {
                                             )}
                                           </button>
                                         </>
-                                      )}
+                                      ) */}
 
                                       {/* Confirmar Embalagem - Só para Correios/Jadlog/ME que já tem código de rastreio */}
                                       {order.trackingCode && (order.shippingMethod === 'correios' || order.shippingCarrier === 'correios' ||

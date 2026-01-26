@@ -105,11 +105,20 @@ async function fetchImapEmails(config: {
                 const isRead = flags.includes('\\Seen')
                 const isStarred = flags.includes('\\Flagged')
                 
+                // Helper para extrair texto de AddressObject ou AddressObject[]
+                const getAddressText = (addr: any): string => {
+                  if (!addr) return ''
+                  if (Array.isArray(addr)) {
+                    return addr.map(a => a.text || '').join(', ')
+                  }
+                  return addr.text || ''
+                }
+                
                 emails.push({
                   id: msgAttrs?.uid?.toString() || uid,
-                  from: parsed.from?.text || '',
-                  fromName: parsed.from?.value?.[0]?.name || parsed.from?.text || '',
-                  to: parsed.to?.text || '',
+                  from: getAddressText(parsed.from),
+                  fromName: parsed.from?.value?.[0]?.name || getAddressText(parsed.from),
+                  to: getAddressText(parsed.to),
                   subject: parsed.subject || '(Sem assunto)',
                   body: parsed.text || '',
                   html: parsed.html || undefined,

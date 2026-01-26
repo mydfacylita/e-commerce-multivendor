@@ -36,7 +36,7 @@ export async function GET(
     // Gerar DANFE (Documento Auxiliar da NFe) a partir do XML
     const pdfBuffer = await gerarDanfePDF(invoice.xmlAssinado)
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="danfe-nfe-${invoice.invoiceNumber}.pdf"`

@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       where: {
         sellerId: seller.id,
         stock: { gt: 0 },
-        isActive: true,
+        active: true,
       },
       include: {
         category: true,
@@ -209,12 +209,26 @@ export async function POST(req: Request) {
             permalink: mlProduct.permalink,
           })
           
-          // Salvar o ID do ML no produto para rastreamento
-          await prisma.product.update({
-            where: { id: product.id },
-            data: { 
-              externalId: mlProduct.id,
-              externalUrl: mlProduct.permalink 
+          // Salvar no MarketplaceListing para rastreamento
+          await prisma.marketplaceListing.upsert({
+            where: {
+              productId_marketplace: {
+                productId: product.id,
+                marketplace: 'mercadolivre'
+              }
+            },
+            create: {
+              productId: product.id,
+              marketplace: 'mercadolivre',
+              listingId: mlProduct.id,
+              status: 'active',
+              listingUrl: mlProduct.permalink
+            },
+            update: {
+              listingId: mlProduct.id,
+              status: 'active',
+              listingUrl: mlProduct.permalink,
+              lastSyncAt: new Date()
             }
           })
         } else {

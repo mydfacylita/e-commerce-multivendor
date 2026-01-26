@@ -195,9 +195,11 @@ export async function gerarDanfePDF(xmlNfe: string): Promise<Buffer> {
   y += 8
 
   // Linha pontilhada de separação
-  doc.setLineDash([2, 2])
+  // @ts-ignore - setLineDash existe no jsPDF mas não está tipado
+  if (doc.setLineDash) doc.setLineDash([2, 2])
   doc.line(10, y, 200, y)
-  doc.setLineDash([])
+  // @ts-ignore
+  if (doc.setLineDash) doc.setLineDash([])
 
   y += 2
 

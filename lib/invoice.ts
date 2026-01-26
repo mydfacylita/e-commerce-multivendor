@@ -389,7 +389,8 @@ export async function emitirNotaFiscal(invoiceId: string): Promise<InvoiceResult
                   id: true,
                   name: true,
                   gtin: true,
-                  price: true
+                  price: true,
+                  ncm: true
                 }
               }
             }
@@ -415,7 +416,7 @@ export async function emitirNotaFiscal(invoiceId: string): Promise<InvoiceResult
       total: invoice.valorTotal,
       shippingCost: invoice.valorFrete || 0,
       discountAmount: invoice.valorDesconto || 0,
-      buyerName: invoice.destinatarioNome,
+      buyerName: invoice.destinatarioNome || '',
       buyerCpf: invoice.destinatarioCpf || '',
       buyerEmail: invoice.order.buyerEmail || '',
       buyerPhone: invoice.order.buyerPhone || '',
@@ -423,7 +424,7 @@ export async function emitirNotaFiscal(invoiceId: string): Promise<InvoiceResult
       items: invoice.order.items.map(item => ({
         productId: item.product.id,
         name: item.product.name,
-        sku: item.product.sku || '',
+        sku: '',
         gtin: item.product.gtin || '',
         ncm: item.product.ncm || '',
         quantity: item.quantity,

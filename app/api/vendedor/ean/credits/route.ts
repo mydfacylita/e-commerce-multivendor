@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar créditos (por enquanto mock - adicionar tabela depois)
-    const credits = []
+    const credits: { id: string; amount: number; createdAt: Date }[] = []
 
     // TODO: Implementar tabela EANCredit no banco
     // const credits = await prisma.eANCredit.findMany({

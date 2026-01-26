@@ -322,7 +322,7 @@ export async function POST(req: NextRequest) {
                 couponId: coupon.id,
                 orderId: order.id,
                 userId: userId,
-                discountApplied: normalizedDiscountAmount || 0
+                discount: normalizedDiscountAmount || 0
               }
             })
             console.log('   ✅ Uso do cupom registrado:', couponCode)
@@ -404,7 +404,7 @@ export async function POST(req: NextRequest) {
                 couponId: coupon.id,
                 orderId: createdOrders[0],
                 userId: userId,
-                discountApplied: normalizedDiscountAmount || 0
+                discount: normalizedDiscountAmount || 0
               }
             })
             console.log('   ✅ Uso do cupom registrado:', couponCode)

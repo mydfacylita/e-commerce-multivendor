@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { correiosSIGEP } from '@/lib/correios-cws'
+import { correiosCWS } from '@/lib/correios-cws'
 
 /**
  * POST /api/admin/config/correios/test-api
- * Testa se as credenciais estão funcionando com a API SIGEP Web dos Correios
+ * Testa se as credenciais estão funcionando com a API CWS dos Correios
  */
 export async function POST(request: NextRequest) {
   try {
@@ -15,9 +15,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    console.log('[TesteAPI] Testando credenciais SIGEP Web...')
+    console.log('[TesteAPI] Testando credenciais CWS...')
     
-    const result = await correiosSIGEP.testarCredenciais()
+    const result = await correiosCWS.testarConexao()
 
     return NextResponse.json({
       success: result.success,

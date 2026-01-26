@@ -333,13 +333,16 @@ export default async function ProductPage({ params }: { params: { slug: string }
               comment: r.comment || undefined,
               pros: r.pros || undefined,
               cons: r.cons || undefined,
-              images: (r.images as string[]) || [],
+              images: r.images ? (typeof r.images === 'string' ? JSON.parse(r.images) : r.images) : [],
               isVerified: r.isVerified,
               helpfulCount: r.helpfulCount,
               sellerReply: r.sellerReply || undefined,
               sellerReplyAt: r.sellerReplyAt?.toISOString(),
               createdAt: r.createdAt.toISOString(),
-              user: r.user
+              user: {
+                name: r.user.name || 'Anônimo',
+                image: r.user.image || undefined
+              }
             }))}
             initialStats={reviewsStats}
           />
@@ -355,7 +358,10 @@ export default async function ProductPage({ params }: { params: { slug: string }
               answer: q.answer || undefined,
               answeredAt: q.answeredAt?.toISOString(),
               createdAt: q.createdAt.toISOString(),
-              user: q.user
+              user: {
+                name: q.user.name || 'Anônimo',
+                image: q.user.image || undefined
+              }
             }))}
             initialStats={questionsStats}
           />
