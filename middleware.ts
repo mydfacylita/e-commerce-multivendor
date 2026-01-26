@@ -110,26 +110,17 @@ function setCorsHeaders(response: NextResponse, origin: string | null) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // 🚀 BYPASS: Arquivos estáticos NUNCA passam pelo middleware
-  // Isso garante que _next/static, imagens, etc funcionem em qualquer domínio
-  if (
-    pathname.startsWith('/_next/') ||
-    pathname.startsWith('/static/') ||
-    pathname.includes('.') && (
-      pathname.endsWith('.js') ||
-      pathname.endsWith('.css') ||
-      pathname.endsWith('.woff') ||
-      pathname.endsWith('.woff2') ||
-      pathname.endsWith('.png') ||
-      pathname.endsWith('.jpg') ||
-      pathname.endsWith('.jpeg') ||
-      pathname.endsWith('.gif') ||
-      pathname.endsWith('.svg') ||
-      pathname.endsWith('.ico') ||
-      pathname.endsWith('.webp') ||
-      pathname.endsWith('.map')
-    )
-  ) {
+  // 🚀 BYPASS ABSOLUTO: Arquivos estáticos NUNCA passam pelo middleware
+  // Isso garante que _next/static, imagens, etc funcionem em qualquer domínio/subdomínio
+  if (pathname.startsWith('/_next/')) {
+    return NextResponse.next()
+  }
+  if (pathname.startsWith('/static/')) {
+    return NextResponse.next()
+  }
+  // Arquivos com extensão comum
+  const staticExtensions = ['.js', '.css', '.woff', '.woff2', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.map', '.txt', '.json']
+  if (staticExtensions.some(ext => pathname.endsWith(ext))) {
     return NextResponse.next()
   }
   
