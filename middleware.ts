@@ -122,6 +122,17 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // 🔒 SEGURANÇA: Subdomínio admin só pode acessar rotas /admin, /api e recursos estáticos
+  // Bloqueia acesso a outras rotas (loja, carrinho, etc) pelo subdomínio admin
+  if (isAdminSubdomain) {
+    const allowedPaths = ['/admin', '/api/', '/_next/', '/favicon', '/logo', '/login']
+    const isAllowed = allowedPaths.some(p => pathname.startsWith(p)) || pathname === '/'
+    if (!isAllowed) {
+      // Redireciona para /admin se tentar acessar outra rota no subdomínio admin
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
+  }
+
   // 🔒 Tratar preflight OPTIONS para CORS
   if (request.method === 'OPTIONS') {
     const response = new NextResponse(null, { status: 200 })
