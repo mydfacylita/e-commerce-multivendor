@@ -183,6 +183,12 @@ export async function POST(req: Request) {
       const newSlug = `${originalProduct.slug}-${seller!.id.substring(0, 6)}-${randomSuffix}`
 
       console.log('✅ Criando cópia do produto...')
+      console.log('   📦 Campos AliExpress do original:')
+      console.log('   - supplierSku (productId):', originalProduct.supplierSku)
+      console.log('   - selectedSkus:', originalProduct.selectedSkus)
+      console.log('   - shipFromCountry:', originalProduct.shipFromCountry)
+      console.log('   - supplierCountryCode:', originalProduct.supplierCountryCode)
+      console.log('   - deliveryDays:', originalProduct.deliveryDays)
 
       const product = await prisma.product.create({
         data: {
@@ -198,11 +204,18 @@ export async function POST(req: Request) {
           categoryId: originalProduct.categoryId,
           sellerId: seller!.id,
           supplierId: originalProduct.supplierId,
-          supplierSku: data.sourceProductId,
-          supplierUrl: `/produtos/${originalProduct.slug}`,
+          // ✅ COPIAR supplierSku do ORIGINAL (ID do produto no AliExpress)
+          supplierSku: originalProduct.supplierSku,
+          supplierUrl: originalProduct.supplierUrl || `/produtos/${originalProduct.slug}`,
           specifications: originalProduct.specifications,
           variants: originalProduct.variants,
           attributes: originalProduct.attributes,
+          // ✅ COPIAR selectedSkus do ORIGINAL (SKUs habilitados no AliExpress)
+          selectedSkus: originalProduct.selectedSkus,
+          // ✅ COPIAR campos de origem/entrega
+          shipFromCountry: originalProduct.shipFromCountry,
+          supplierCountryCode: originalProduct.supplierCountryCode,
+          deliveryDays: originalProduct.deliveryDays,
           isDropshipping: true, // ✅ SEMPRE TRUE para produtos clonados
           dropshippingCommission: originalProduct.dropshippingCommission,
           availableForDropship: false,
