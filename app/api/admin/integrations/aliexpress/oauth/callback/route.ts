@@ -5,9 +5,9 @@ import crypto from 'crypto';
 // Força renderização dinâmica para evitar erro de pre-render
 export const dynamic = 'force-dynamic';
 
-// URL base para redirects
+// URL base para redirects - SEMPRE usa gerencial-sys para admin
 const getBaseUrl = () => {
-  return process.env.ALIEXPRESS_CALLBACK_URL || process.env.NEXTAUTH_URL || 'https://gerencial-sys.mydshop.com.br';
+  return 'https://gerencial-sys.mydshop.com.br';
 };
 
 // Callback OAuth - recebe o código e troca por access token
