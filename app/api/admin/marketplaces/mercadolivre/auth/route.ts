@@ -3,14 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-// Helper para obter URL base
-function getBaseUrl(req: NextRequest): string {
-  if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL.replace(/\/$/, '');
-  }
-  const host = req.headers.get('host') || 'gerencial-sys.mydshop.com.br';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  return `${protocol}://${host}`;
+// Helper para obter URL base - SEMPRE usa gerencial-sys para rotas admin
+function getBaseUrl(): string {
+  return 'https://gerencial-sys.mydshop.com.br';
 }
 
 export async function POST(req: NextRequest) {
@@ -52,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const clientId = credentials.clientId
     const clientSecret = credentials.clientSecret
-    const baseUrl = getBaseUrl(req);
+    const baseUrl = getBaseUrl();
     const redirectUri = `${baseUrl}/admin/integracao/mercadolivre/callback`
 
     // Trocar código por token de acesso

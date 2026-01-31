@@ -6,14 +6,9 @@ import crypto from 'crypto';
 
 const SHOPEE_API_BASE_URL = 'https://partner.shopeemobile.com';
 
-// Helper para obter URL base
-function getBaseUrl(req: NextRequest): string {
-  if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL.replace(/\/$/, '');
-  }
-  const host = req.headers.get('host') || 'gerencial-sys.mydshop.com.br';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  return `${protocol}://${host}`;
+// Helper para obter URL base - SEMPRE usa gerencial-sys para rotas admin
+function getBaseUrl(): string {
+  return 'https://gerencial-sys.mydshop.com.br';
 }
 
 // Função para gerar assinatura HMAC-SHA256 da Shopee
@@ -43,7 +38,7 @@ export async function GET(request: NextRequest) {
     const { partnerId, partnerKey } = user.shopeeAuth;
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/api/v2/shop/auth_partner';
-    const baseUrl = getBaseUrl(request);
+    const baseUrl = getBaseUrl();
     const redirectUri = `${baseUrl}/admin/integracao/shopee/callback`;
     const redirectUrl = encodeURIComponent(redirectUri);
     

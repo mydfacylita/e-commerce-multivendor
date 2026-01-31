@@ -3,18 +3,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// Helper para obter URL base
-function getBaseUrl(req: NextRequest): string {
-  // Prioridade: variável de ambiente > header host > fallback
-  if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL.replace(/\/$/, '');
-  }
-  if (process.env.ALIEXPRESS_CALLBACK_URL) {
-    return process.env.ALIEXPRESS_CALLBACK_URL.replace(/\/$/, '');
-  }
-  const host = req.headers.get('host') || 'gerencial-sys.mydshop.com.br';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  return `${protocol}://${host}`;
+// Helper para obter URL base - SEMPRE usa gerencial-sys para rotas admin
+function getBaseUrl(): string {
+  // Para rotas de admin, SEMPRE usar o domínio gerencial-sys
+  // Isso garante consistência com as configurações do OAuth no AliExpress
+  return 'https://gerencial-sys.mydshop.com.br';
 }
 
 // Rota para iniciar o fluxo OAuth
@@ -37,7 +30,7 @@ export async function GET(req: NextRequest) {
     }
 
     // URL de autorização do AliExpress (formato correto conforme documentação)
-    const baseUrl = getBaseUrl(req);
+    const baseUrl = getBaseUrl();
     const redirectUri = `${baseUrl}/api/admin/integrations/aliexpress/oauth/callback`;
     
     // URL correta baseada na documentação OAuth 2.0 do AliExpress
