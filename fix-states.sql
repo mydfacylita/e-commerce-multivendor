@@ -1,0 +1,12 @@
+SET NAMES utf8mb4;
+UPDATE states SET name='Amapá' WHERE uf='AP';
+UPDATE states SET name='Ceará' WHERE uf='CE';
+UPDATE states SET name='Espírito Santo' WHERE uf='ES';
+UPDATE states SET name='Goiás' WHERE uf='GO';
+UPDATE states SET name='Maranhão' WHERE uf='MA';
+UPDATE states SET name='Pará' WHERE uf='PA';
+UPDATE states SET name='Paraíba' WHERE uf='PB';
+UPDATE states SET name='Paraná' WHERE uf='PR';
+UPDATE states SET name='Piauí' WHERE uf='PI';
+UPDATE states SET name='Rondônia' WHERE uf='RO';
+UPDATE states SET name='São Paulo' WHERE uf='SP';

@@ -48,6 +48,41 @@ export function serializeProduct(product: any) {
     itemType = 'DROP'
   }
   
+  // Verificar se o produto tem variantes (cores/modelos)
+  let hasVariants = false
+  if (product.variants) {
+    try {
+      const parsedVariants = typeof product.variants === 'string' 
+        ? safeJsonParse(product.variants) 
+        : product.variants
+      
+      // Novo formato: { skus: [...] }
+      if (parsedVariants?.skus && Array.isArray(parsedVariants.skus) && parsedVariants.skus.length > 1) {
+        hasVariants = true
+      }
+      // Formato legado: array de variantes
+      else if (Array.isArray(parsedVariants) && parsedVariants.length > 1) {
+        hasVariants = true
+      }
+    } catch (e) {
+      // Ignorar erro
+    }
+  }
+  
+  // Se tem selectedSkus, também considera que tem variantes
+  if (product.selectedSkus) {
+    try {
+      const parsedSkus = typeof product.selectedSkus === 'string' 
+        ? safeJsonParse(product.selectedSkus) 
+        : product.selectedSkus
+      if (Array.isArray(parsedSkus) && parsedSkus.length > 1) {
+        hasVariants = true
+      }
+    } catch (e) {
+      // Ignorar erro
+    }
+  }
+  
   return {
     ...product,
     images: typeof product.images === 'string' 
@@ -71,6 +106,7 @@ export function serializeProduct(product: any) {
     sellerId: product.sellerId || null,
     sellerCep: product.seller?.cep || null, // CEP do vendedor para cálculo de frete
     shipFromCountry, // País de origem do envio
+    hasVariants, // Indica se tem variantes (cores/modelos)
   }
 }
 

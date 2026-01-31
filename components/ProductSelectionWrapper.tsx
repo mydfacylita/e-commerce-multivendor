@@ -124,6 +124,23 @@ export default function ProductSelectionWrapper({
       }
     })
     availableColors = Array.from(uniqueColorMap.values())
+  } else if (hasVariants && !effectiveSelectedSize) {
+    // Produto só com cores (sem tamanho definido) - pegar todas as cores únicas
+    const colorsWithStock = variants
+      .filter(v => v.stock > 0)
+      .map(v => ({
+        name: v.color,
+        hex: v.colorHex || '#808080',
+        stock: v.stock
+      }))
+    
+    const uniqueColorMap = new Map<string, { name: string, hex: string, stock: number }>()
+    colorsWithStock.forEach(c => {
+      if (!uniqueColorMap.has(c.name)) {
+        uniqueColorMap.set(c.name, c)
+      }
+    })
+    availableColors = Array.from(uniqueColorMap.values())
   }
   
   console.log('📦 availableSizes:', availableSizes)
@@ -139,8 +156,23 @@ export default function ProductSelectionWrapper({
   let selectedVariant: Variant | null = null
   
   if (hasVariants && effectiveSelectedSize && selectedColor) {
+    // Buscar variante por size + color
     selectedVariant = variants.find(v => v.size === effectiveSelectedSize && v.color === selectedColor) || null
+    
+    // Se não encontrou e só tem cor (size = "Único"), buscar apenas por cor
+    if (!selectedVariant && effectiveSelectedSize === 'Único') {
+      selectedVariant = variants.find(v => v.color === selectedColor) || null
+    }
+    
     currentStock = selectedVariant?.stock || 0
+    
+    console.log('🔍 Buscando variante:', { size: effectiveSelectedSize, color: selectedColor })
+    console.log('✅ selectedVariant encontrado:', selectedVariant ? { skuId: selectedVariant.skuId, color: selectedVariant.color } : null)
+  } else if (hasVariants && selectedColor && !effectiveSelectedSize) {
+    // Produto só com cor, sem tamanho - buscar apenas por cor
+    selectedVariant = variants.find(v => v.color === selectedColor) || null
+    currentStock = selectedVariant?.stock || 0
+    console.log('🎨 Produto só com cor - selectedVariant:', selectedVariant ? { skuId: selectedVariant.skuId } : null)
   } else if (hasSizes && effectiveSelectedSize && !hasVariants && sizes) {
     const sizeItem = sizes.find(s => s.size === effectiveSelectedSize)
     currentStock = sizeItem?.stock || product.stock || 0
@@ -200,11 +232,23 @@ export default function ProductSelectionWrapper({
   
   // Desabilita o botão se faltar seleção OU não tiver estoque OU quantidade > estoque
   // Para tamanho: só precisa selecionar se tiver mais de uma opção
+  // Para cor: precisa selecionar se tiver cores disponíveis
+  const needsColorSelection = hasVariants && availableColors.length > 0 && !selectedColor
+  const needsVariantButNotSelected = hasVariants && !selectedVariant // Tem variantes mas nenhuma selecionada
+  
   const isDisabled = currentStock === 0 || 
     (needsSizeSelection && !selectedSize) ||
-    (hasVariants && availableColors.length > 0 && !selectedColor) ||
+    needsColorSelection ||
+    needsVariantButNotSelected ||
     !hasStock ||
     quantity > currentStock
+  
+  console.log('🚫 isDisabled:', isDisabled, { 
+    needsSizeSelection, selectedSize, 
+    needsColorSelection, 
+    needsVariantButNotSelected,
+    hasStock, currentStock 
+  })
 
   // Função Comprar Agora
   const handleBuyNow = () => {
@@ -213,8 +257,10 @@ export default function ProductSelectionWrapper({
         toast.error('Produto esgotado!')
       } else if (needsSizeSelection && !selectedSize) {
         toast.error('Por favor, selecione um tamanho!')
-      } else if (hasVariants && availableColors.length > 0 && !selectedColor) {
+      } else if (needsColorSelection) {
         toast.error('Por favor, selecione uma cor!')
+      } else if (needsVariantButNotSelected) {
+        toast.error('Por favor, selecione cor e modelo!')
       } else {
         toast.error('Por favor, selecione as opções!')
       }
@@ -238,6 +284,12 @@ export default function ProductSelectionWrapper({
     }
     
     // Adicionar ao carrinho com quantidade selecionada
+    console.log('🛒 ADICIONANDO AO CARRINHO:')
+    console.log('   selectedColor:', selectedColor)
+    console.log('   effectiveSelectedSize:', effectiveSelectedSize)
+    console.log('   selectedVariant:', selectedVariant)
+    console.log('   skuId:', selectedVariant?.skuId)
+    
     addItem({
       id: product.id,
       productId: product.id,
@@ -417,6 +469,7 @@ export default function ProductSelectionWrapper({
           selectedSize={selectedSize}
           quantity={quantity}
           variantStock={currentStock}
+          skuId={selectedVariant?.skuId || null}
         />
       </div>
     </>

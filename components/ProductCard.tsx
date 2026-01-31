@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { FiShoppingCart, FiHeart, FiEye } from 'react-icons/fi'
 import { useCartStore } from '@/lib/store'
 import toast from 'react-hot-toast'
@@ -28,6 +29,7 @@ interface Product {
   itemType?: 'ADM' | 'DROP' | 'SELLER'  // Tipo do item para roteamento
   shipFromCountry?: string | null  // País de origem do envio
   description?: string | null  // Descrição para modo lista
+  hasVariants?: boolean  // Indica se o produto tem variantes (cores/modelos)
 }
 
 interface ProductCardProps {
@@ -37,9 +39,17 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, layout = 'vertical' }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem)
+  const router = useRouter()
   const [isHovered, setIsHovered] = useState(false)
 
   const handleAddToCart = () => {
+    // Se o produto tem variantes, redirecionar para a página do produto
+    if (product.hasVariants) {
+      toast('Selecione cor/modelo primeiro!', { icon: '👆' })
+      router.push(`/produtos/${product.slug}`)
+      return
+    }
+    
     addItem({
       id: product.id,
       productId: product.id,

@@ -28,6 +28,7 @@ interface AddToCartButtonProps {
   selectedSize?: string | null
   quantity?: number
   variantStock?: number // Estoque específico da variante
+  skuId?: string | null // SUB-SKU do fornecedor
 }
 
 export default function AddToCartButton({ 
@@ -36,7 +37,8 @@ export default function AddToCartButton({
   selectedColor, 
   selectedSize, 
   quantity = 1,
-  variantStock 
+  variantStock,
+  skuId 
 }: AddToCartButtonProps) {
   const addItem = useCartStore((state) => state.addItem)
   
@@ -62,6 +64,7 @@ export default function AddToCartButton({
       quantity: quantity,
       selectedColor: selectedColor || null,
       selectedSize: selectedSize || null,
+      skuId: skuId || null, // SUB-SKU do fornecedor
       stock: currentStock,
       slug: product.slug,
       isImported: product.isImported || false,

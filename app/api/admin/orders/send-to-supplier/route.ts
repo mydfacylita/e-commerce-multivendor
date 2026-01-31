@@ -228,21 +228,40 @@ async function sendToAliExpress(order: any, items: any[]): Promise<string> {
     // Mas para criar pedido, precisamos do sku_attr (ex: 200001176:200004889#40 color 01)
     const skuId = item.supplierSkuId || ''
     
-    // Tentar extrair sku_attr do produto (selectedSkus pode ter essa info)
+    console.log('[AliExpress] Buscando sku_attr para skuId:', skuId)
+    
+    // Tentar extrair sku_attr do produto
+    // Prioridade: 1) variants.skus 2) selectedSkus
     let skuAttr = ''
+    
+    // 1) Buscar em variants (novo formato padronizado)
     try {
-      const selectedSkus = item.product.selectedSkus ? JSON.parse(item.product.selectedSkus) : null
-      if (selectedSkus && Array.isArray(selectedSkus)) {
-        // Buscar o SKU correspondente
-        const matchedSku = selectedSkus.find((s: any) => s.sku_id === skuId || s.id === skuId)
-        if (matchedSku?.sku_attr) {
-          skuAttr = matchedSku.sku_attr
-        } else if (matchedSku?.id) {
-          skuAttr = matchedSku.id // id geralmente é o sku_attr
+      const variants = item.product.variants ? JSON.parse(item.product.variants) : null
+      if (variants?.skus && Array.isArray(variants.skus)) {
+        const matchedSku = variants.skus.find((s: any) => s.skuId === skuId)
+        if (matchedSku?.skuAttr) {
+          skuAttr = matchedSku.skuAttr
+          console.log('[AliExpress] sku_attr encontrado em variants:', skuAttr)
         }
       }
     } catch (e) {
-      // Ignorar erro de parse
+      console.log('[AliExpress] Erro ao parsear variants:', e)
+    }
+    
+    // 2) Se não encontrou, buscar em selectedSkus (fallback)
+    if (!skuAttr) {
+      try {
+        const selectedSkus = item.product.selectedSkus ? JSON.parse(item.product.selectedSkus) : null
+        if (selectedSkus && Array.isArray(selectedSkus)) {
+          const matchedSku = selectedSkus.find((s: any) => s.skuId === skuId || s.sku_id === skuId || s.id === skuId)
+          if (matchedSku?.skuAttr || matchedSku?.sku_attr) {
+            skuAttr = matchedSku.skuAttr || matchedSku.sku_attr
+            console.log('[AliExpress] sku_attr encontrado em selectedSkus:', skuAttr)
+          }
+        }
+      } catch (e) {
+        // Ignorar erro de parse
+      }
     }
     
     if (!productId) {
