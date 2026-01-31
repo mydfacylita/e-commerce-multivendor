@@ -1,16 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
+import { Package, Plus, Edit, Trash2, Save, X, 
+  AlertCircle, CheckCircle, Box, Ruler 
+} from 'lucide-react'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-  Package, Plus, Edit, Trash2, Save, X, 
-  AlertCircle, CheckCircle, Box, Ruler 
-} from 'lucide-react'
 
 interface Embalagem {
   id: string

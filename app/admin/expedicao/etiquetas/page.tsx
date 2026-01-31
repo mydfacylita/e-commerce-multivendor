@@ -1,19 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { 
+import { Tag, Search, RefreshCw, Edit, Trash2, Printer, 
+  Eye, AlertCircle, CheckCircle, Clock, XCircle,
+  Package, MapPin, Phone, Mail, FileText, Download,
+  ChevronDown, ChevronUp, Save, X, Truck
+} from 'lucide-react'
+import Link from 'next/link'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-  Tag, Search, RefreshCw, Edit, Trash2, Printer, 
-  Eye, AlertCircle, CheckCircle, Clock, XCircle,
-  Package, MapPin, Phone, Mail, FileText, Download,
-  ChevronDown, ChevronUp, Save, X, Truck
-} from 'lucide-react'
-import Link from 'next/link'
 
 interface Etiqueta {
   id: string

@@ -2,14 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-  FiArrowLeft, 
+import { FiArrowLeft, 
   FiRefreshCw, 
   FiPlay, 
   FiCheck, 
@@ -24,6 +17,12 @@ export const fetchCache = 'force-no-store';
   FiZap
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 
 // Intervalo de sincronização automática (1 hora em ms)
 const AUTO_SYNC_INTERVAL = 60 * 60 * 1000 // 1 hora

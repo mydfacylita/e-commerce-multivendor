@@ -1,14 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-  Smartphone, 
+import { Smartphone, 
   Palette, 
   Image, 
   Type, 
@@ -23,6 +16,12 @@ export const fetchCache = 'force-no-store';
   Minus,
   Camera
 } from 'lucide-react'
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 
 interface BannerConfig {
   id: string

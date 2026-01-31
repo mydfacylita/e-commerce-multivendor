@@ -3,14 +3,7 @@
 import { useState, useEffect } from 'react'
 import { FiDollarSign, FiShoppingCart, FiUsers, FiTrendingUp, FiPackage, FiRefreshCw, FiMaximize, FiMinimize } from 'react-icons/fi'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
-import {
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-  Chart as ChartJS,
+import { Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
@@ -22,6 +15,12 @@ export const fetchCache = 'force-no-store';
   Legend,
   Filler
 } from 'chart.js'
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 
 ChartJS.register(
   CategoryScale,

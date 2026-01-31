@@ -6,18 +6,17 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { 
+import { FiPackage, FiRefreshCw, FiExternalLink, FiTruck, FiCheck, 
+  FiClock, FiAlertCircle, FiSearch, FiFilter, FiChevronLeft,
+  FiCopy, FiEye, FiSend, FiX, FiRepeat, FiArrowRight
+} from 'react-icons/fi'
+import { formatOrderNumber } from '@/lib/order'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-  FiPackage, FiRefreshCw, FiExternalLink, FiTruck, FiCheck, 
-  FiClock, FiAlertCircle, FiSearch, FiFilter, FiChevronLeft,
-  FiCopy, FiEye, FiSend, FiX, FiRepeat, FiArrowRight
-} from 'react-icons/fi'
-import { formatOrderNumber } from '@/lib/order'
 
 interface SimilarProduct {
   id: string

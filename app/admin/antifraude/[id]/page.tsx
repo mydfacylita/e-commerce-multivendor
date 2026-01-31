@@ -3,14 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import {
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-  FiArrowLeft,
+import { FiArrowLeft,
   FiAlertTriangle,
   FiCheckCircle,
   FiXCircle,
@@ -27,6 +20,12 @@ export const fetchCache = 'force-no-store';
 } from 'react-icons/fi'
 import { formatCurrency, formatDateTime } from '@/lib/format'
 import toast from 'react-hot-toast'
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 
 interface OrderDetails {
   order: any

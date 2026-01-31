@@ -4,18 +4,17 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { 
+import { FiSearch, FiPackage, FiShoppingCart, FiCheck, FiX, 
+  FiExternalLink, FiRefreshCw, FiChevronLeft, FiPlus,
+  FiTrash2, FiStar, FiTruck, FiDollarSign, FiCopy,
+  FiCheckSquare, FiSquare, FiDownload, FiLink
+} from 'react-icons/fi';
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-  FiSearch, FiPackage, FiShoppingCart, FiCheck, FiX, 
-  FiExternalLink, FiRefreshCw, FiChevronLeft, FiPlus,
-  FiTrash2, FiStar, FiTruck, FiDollarSign, FiCopy,
-  FiCheckSquare, FiSquare, FiDownload, FiLink
-} from 'react-icons/fi';
 
 interface AliProduct {
   productId: string;

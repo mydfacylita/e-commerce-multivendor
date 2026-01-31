@@ -1,14 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-  FiImage, 
+import { FiImage, 
   FiDownload, 
   FiCopy, 
   FiCheck, 
@@ -24,6 +17,12 @@ export const fetchCache = 'force-no-store';
 } from 'react-icons/fi'
 import Image from 'next/image'
 import { toast } from 'react-hot-toast'
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 
 interface Product {
   id: string

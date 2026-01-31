@@ -1,14 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-  FiDownload, 
+import { FiDownload, 
   FiBarChart2, 
   FiTrendingUp, 
   FiDollarSign, 
@@ -18,6 +11,12 @@ export const fetchCache = 'force-no-store';
   FiShoppingBag,
   FiCreditCard
 } from 'react-icons/fi'
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 
 interface Resumo {
   totalVendas: number
