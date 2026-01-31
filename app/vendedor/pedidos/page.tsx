@@ -7,6 +7,10 @@ import { formatOrderNumber } from '@/lib/order'
 import Link from 'next/link'
 import { FiEye, FiPackage, FiTruck, FiCheckCircle, FiXCircle } from 'react-icons/fi'
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export default async function VendedorPedidosPage() {
   const session = await getServerSession(authOptions);
 

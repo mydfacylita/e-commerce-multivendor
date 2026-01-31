@@ -6,6 +6,10 @@ import { getUserPermissions } from '@/lib/seller'
 import Link from 'next/link'
 import { FiShoppingBag, FiPackage, FiRefreshCw, FiShoppingCart } from 'react-icons/fi'
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export default async function VendedorIntegracaoPage() {
   const session = await getServerSession(authOptions);
 

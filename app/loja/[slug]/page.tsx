@@ -5,6 +5,11 @@ import ProductCard from '@/components/ProductCard';
 import { FiMapPin, FiStar, FiClock, FiPackage } from 'react-icons/fi';
 import { serializeProducts } from '@/lib/serialize';
 
+// Desabilitar cache para sempre buscar produtos atualizados
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 interface Props {
   params: {
     slug: string;

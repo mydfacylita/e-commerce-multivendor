@@ -4,6 +4,10 @@ import { redirect, notFound } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import EditarProductForm from './editar-produto-form'
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export default async function EditarProdutoVendedorPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
 
