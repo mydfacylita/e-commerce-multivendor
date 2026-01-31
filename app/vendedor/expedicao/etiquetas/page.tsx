@@ -15,7 +15,7 @@ interface Order {
   createdAt: string
   packedAt?: string
   shippedAt?: string
-  shippingLabelUrl?: string
+  shippingLabel?: string
   shippingLabelCost?: number
   items: {
     id: string
@@ -186,9 +186,9 @@ export default function VendedorEtiquetasPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        {order.shippingLabelUrl ? (
+                        {order.shippingLabel ? (
                           <a
-                            href={order.shippingLabelUrl}
+                            href={order.shippingLabel}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700 flex items-center gap-1"

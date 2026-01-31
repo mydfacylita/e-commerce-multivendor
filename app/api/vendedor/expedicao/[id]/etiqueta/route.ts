@@ -53,10 +53,10 @@ export async function POST(
     // Por enquanto, apenas atualiza o status
 
     // Se já tem etiqueta, retornar
-    if (order.shippingLabelUrl) {
+    if (order.shippingLabel) {
       return NextResponse.json({ 
         success: true, 
-        labelUrl: order.shippingLabelUrl,
+        labelUrl: order.shippingLabel,
         message: 'Etiqueta já gerada anteriormente'
       })
     }
