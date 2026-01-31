@@ -6,13 +6,6 @@ import Link from 'next/link';
 import { FiArrowLeft, FiDollarSign, FiUsers, FiCheckCircle, FiXCircle, 
   FiClock, FiSearch, FiEye, FiFilter, FiAlertTriangle, FiShield
 } from 'react-icons/fi';
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-
 interface SellerAccount {
   id: string;
   accountNumber: string;

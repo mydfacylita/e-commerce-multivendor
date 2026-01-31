@@ -4,12 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { FiPrinter, FiSearch, FiPlus, FiMinus, FiTrash2, FiSettings, FiDownload } from 'react-icons/fi'
 import JsBarcode from 'jsbarcode'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface Product {
   id: string
   name: string

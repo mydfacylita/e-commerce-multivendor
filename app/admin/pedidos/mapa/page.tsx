@@ -5,12 +5,6 @@ import dynamic from 'next/dynamic'
 import { FiMapPin, FiPackage, FiDollarSign, FiX } from 'react-icons/fi'
 import 'leaflet/dist/leaflet.css'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 // Importar componente do mapa dinamicamente (só no cliente)
 const MapComponent = dynamic(
   () => import('./MapComponent'),

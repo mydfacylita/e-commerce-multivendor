@@ -5,12 +5,6 @@ import { useRouter } from 'next/navigation'
 import { FiSave, FiArrowLeft, FiPlus, FiX } from 'react-icons/fi'
 import Link from 'next/link'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 const ESTADOS_BRASIL = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
   'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',

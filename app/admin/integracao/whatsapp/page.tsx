@@ -5,12 +5,6 @@ import { FiMessageCircle, FiCheck, FiX, FiSend, FiInfo, FiExternalLink, FiSave, 
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface WhatsAppConfig {
   provider: 'cloud' | 'evolution' | 'zapi' | 'disabled'
   phoneNumberId: string

@@ -4,12 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FiAlertCircle, FiRefreshCw, FiFileText, FiBarChart2, FiDollarSign, FiCreditCard } from 'react-icons/fi'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface Stats {
   totalApproved: number
   totalPending: number

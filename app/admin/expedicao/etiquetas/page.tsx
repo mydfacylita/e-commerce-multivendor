@@ -7,13 +7,6 @@ import { Tag, Search, RefreshCw, Edit, Trash2, Printer,
   ChevronDown, ChevronUp, Save, X, Truck
 } from 'lucide-react'
 import Link from 'next/link'
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-
 interface Etiqueta {
   id: string
   orderId: string

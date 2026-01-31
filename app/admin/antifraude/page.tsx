@@ -6,12 +6,6 @@ import Link from 'next/link'
 import { FiAlertTriangle, FiCheckCircle, FiXCircle, FiEye, FiSearch, FiShield } from 'react-icons/fi'
 import { formatCurrency, formatDateTime } from '@/lib/format'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface SuspiciousOrder {
   id: string
   buyerName: string

@@ -5,12 +5,6 @@ import { FiPlus, FiEdit2, FiTrash2, FiTruck, FiToggleLeft, FiToggleRight } from 
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface ShippingRule {
   id: string
   name: string

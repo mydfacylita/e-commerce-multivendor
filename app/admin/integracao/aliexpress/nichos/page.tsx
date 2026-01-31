@@ -9,13 +9,6 @@ import { FiSearch, FiPackage, FiShoppingCart, FiCheck, FiX,
   FiTrash2, FiStar, FiTruck, FiDollarSign, FiCopy,
   FiCheckSquare, FiSquare, FiDownload, FiLink
 } from 'react-icons/fi';
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-
 interface AliProduct {
   productId: string;
   title: string;

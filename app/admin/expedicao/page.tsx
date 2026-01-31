@@ -8,13 +8,6 @@ import { Package, Truck, CheckCircle, Clock, Search,
 import Image from 'next/image'
 import Link from 'next/link'
 import { formatOrderNumber } from '@/lib/order'
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-
 interface OrderItem {
   id: string
   productId: string

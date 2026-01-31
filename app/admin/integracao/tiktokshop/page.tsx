@@ -5,12 +5,6 @@ import { FiVideo, FiShoppingBag, FiRefreshCw, FiSettings, FiExternalLink, FiChec
 import { SiTiktok } from 'react-icons/si';
 import Link from 'next/link';
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface TikTokAuthData {
   isConnected: boolean;
   shopName?: string;

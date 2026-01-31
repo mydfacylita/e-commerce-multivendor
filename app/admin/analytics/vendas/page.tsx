@@ -15,13 +15,6 @@ import { Chart as ChartJS,
   Legend,
   Filler
 } from 'chart.js'
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-
 ChartJS.register(
   CategoryScale,
   LinearScale,

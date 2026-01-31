@@ -3,12 +3,6 @@
 import { useState, useEffect } from 'react'
 import { FiFileText, FiSave, FiAlertCircle, FiCheckCircle, FiUpload, FiPlus, FiTrash2, FiEdit2 } from 'react-icons/fi'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 // Regra de tributação por tipo de operação
 interface TaxRule {
   id: string

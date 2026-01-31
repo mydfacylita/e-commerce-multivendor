@@ -4,12 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { FiPlus, FiEdit2, FiTrash2, FiCopy, FiCheck, FiX, FiSearch, FiFilter } from 'react-icons/fi'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface Coupon {
   id: string
   code: string

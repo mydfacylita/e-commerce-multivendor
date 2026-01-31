@@ -7,13 +7,6 @@ import { FiChevronLeft, FiCheck, FiX, FiRefreshCw, FiPlay,
   FiSearch, FiTruck, FiShoppingCart, FiAlertCircle,
   FiCopy, FiExternalLink
 } from 'react-icons/fi'
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-
 interface TestResult {
   success: boolean
   message: string

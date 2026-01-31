@@ -7,12 +7,6 @@ import Image from 'next/image';
 import { FiArrowLeft, FiSearch, FiCheckCircle, FiCircle, FiShoppingCart, FiExternalLink, FiDownload, FiFilter, FiTruck, FiClock, FiDollarSign } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface FreightOption {
   serviceName: string;
   deliveryDayMin: number;

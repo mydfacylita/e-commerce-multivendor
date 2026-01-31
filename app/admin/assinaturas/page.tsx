@@ -4,12 +4,6 @@ import { useState, useEffect } from 'react'
 import { FiCheckCircle, FiXCircle, FiClock, FiAlertCircle, FiSearch, FiCalendar, FiDollarSign, FiFileText } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 interface Subscription {
   id: string
   status: string

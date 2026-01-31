@@ -5,12 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { FiCheck, FiX, FiLoader } from 'react-icons/fi'
 import Link from 'next/link'
 
-
-// Force dynamic - disable all caching
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
 export default function MercadoLivreCallbackPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
