@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 /**
  * GET /api/webmail/session
  * Verifica se usuário está autenticado

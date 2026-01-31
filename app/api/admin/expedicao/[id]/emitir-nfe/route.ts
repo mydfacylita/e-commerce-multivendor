@@ -6,6 +6,12 @@ import { emitirNotaFiscal } from '@/lib/invoice'
 import { InvoiceType } from '@prisma/client'
 import { buscarCodigoIBGEPorCEP, codigosIBGECapitais } from '@/lib/ibge'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // Mapa para normalizar UF (corrigir problemas de encoding/nomes incorretos)
 const UF_MAP: Record<string, string> = {
   // Siglas corretas

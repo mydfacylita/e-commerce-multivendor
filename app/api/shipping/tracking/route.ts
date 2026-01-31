@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 /**
  * GET /api/shipping/tracking?codigo=XX123456789BR
  * Rastreia encomenda nos Correios

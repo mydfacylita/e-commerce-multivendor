@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 import { logApi } from '@/lib/api-logger'
 import { cancelarNotaFiscal } from '@/lib/invoice'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 /**
  * POST /api/orders/[id]/cancel
  * Cancela um pedido completo:

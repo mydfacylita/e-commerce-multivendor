@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 import { parseAliExpressVariants, stringifyVariants, generateSelectedSkus, stringifySelectedSkus } from '@/lib/product-variants';
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 interface AliExpressProduct {
   product_id: string;
   product_title: string;

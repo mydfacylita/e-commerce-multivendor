@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parseVariantsJson, findSkuBySelections, getCheapestAvailableSku, hasVariations } from '@/lib/product-variants'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 /**
  * GET /api/products/[id]/variants
  * Retorna as variações disponíveis de um produto

@@ -2,6 +2,12 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { FiCheck, FiX, FiClock, FiEye } from 'react-icons/fi';
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export default async function AdminSellersPage() {
   const sellers = await prisma.seller.findMany({
     include: {

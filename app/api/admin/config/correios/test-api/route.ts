@@ -3,6 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { correiosCWS } from '@/lib/correios-cws'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 /**
  * POST /api/admin/config/correios/test-api
  * Testa se as credenciais estão funcionando com a API CWS dos Correios

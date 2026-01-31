@@ -7,6 +7,12 @@ import ToggleDropshippingButton from '@/components/admin/ToggleDropshippingButto
 import PublishToMarketplaceButton from '@/components/admin/PublishToMarketplaceButton'
 import SyncAllMarketplacesButton from '@/components/admin/SyncAllMarketplacesButton'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export default async function AdminProdutosPage() {
   const products = await prisma.product.findMany({
     where: {

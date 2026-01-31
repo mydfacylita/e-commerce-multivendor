@@ -4,6 +4,12 @@ import { formatMLErrors } from '@/lib/mercadolivre'
 import { withAuth } from '@/lib/api-middleware'
 import { sanitizeHtml } from '@/lib/validation'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // Valida CUID (formato usado pelo Prisma)
 function isValidProductId(id: string): boolean {
   if (!id || typeof id !== 'string') return false

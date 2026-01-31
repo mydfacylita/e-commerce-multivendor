@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 import { validateApiKey, validateUserToken } from '@/lib/api-security'
 import { analyzeFraud } from '@/lib/fraud-detection'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // Função para extrair número de dias da string de prazo de entrega
 // Exemplos: "05 - 22 de Fev." -> 22, "5 dias úteis" -> 5, "10-15 dias" -> 15
 function parseDeliveryDays(value: any): number | null {

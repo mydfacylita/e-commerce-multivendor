@@ -2,6 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
   Package, Truck, CheckCircle, Clock, Search, 
   Printer, Box, AlertCircle, ChevronDown, ChevronUp,
   User, MapPin, Phone, Mail, RefreshCw, Filter, FileText, XCircle, Tag

@@ -5,6 +5,12 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
   FiMail, FiSend, FiInbox, FiTrash2, FiStar, FiPaperclip,
   FiRefreshCw, FiSearch, FiPlus, FiX, FiChevronLeft,
   FiDownload, FiFile, FiImage, FiFileText, FiArchive,

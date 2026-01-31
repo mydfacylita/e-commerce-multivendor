@@ -4,6 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
   FiChevronLeft, FiCheck, FiX, FiRefreshCw, FiPlay, 
   FiSearch, FiTruck, FiShoppingCart, FiAlertCircle,
   FiCopy, FiExternalLink

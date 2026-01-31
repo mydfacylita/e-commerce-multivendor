@@ -10,6 +10,12 @@ import crypto from 'crypto'
  * Exemplo: curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/sync-aliexpress-stock
  */
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 interface SyncResult {
   productId: string
   productName: string

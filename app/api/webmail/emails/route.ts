@@ -4,6 +4,12 @@ import { readFile } from 'fs/promises'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 const execAsync = promisify(exec)
 
 /**

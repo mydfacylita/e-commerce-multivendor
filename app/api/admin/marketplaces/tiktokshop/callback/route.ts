@@ -4,6 +4,12 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getAccessToken, getAuthorizedShops } from '@/lib/tiktokshop';
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // GET - Callback do OAuth após autorização do usuário
 export async function GET(request: NextRequest) {
   try {

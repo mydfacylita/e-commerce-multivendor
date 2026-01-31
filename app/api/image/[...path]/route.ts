@@ -3,6 +3,12 @@ import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // Mapeamento de extensões para MIME types
 const mimeTypes: Record<string, string> = {
   '.jpg': 'image/jpeg',

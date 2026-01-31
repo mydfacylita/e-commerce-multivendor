@@ -4,6 +4,12 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // Schema de validação seguindo as diretrizes do API Governance
 const returnRequestSchema = z.object({
   orderId: z.string().min(1, 'ID do pedido é obrigatório'),

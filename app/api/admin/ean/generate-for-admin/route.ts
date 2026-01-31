@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 import { generateEANBatch } from '@/lib/ean-generator'
 import { createId } from '@paralleldrive/cuid2'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 /**
  * POST /api/admin/ean/generate-for-admin
  * Admin gera códigos EAN diretamente para si mesmo (sem aprovação)

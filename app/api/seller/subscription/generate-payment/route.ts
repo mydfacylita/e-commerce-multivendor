@@ -4,6 +4,12 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getActiveSubscription } from '@/lib/subscription';
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 import { generateEANBatch } from '@/lib/ean-generator'
 import { PaymentService } from '@/lib/payment'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 /**
  * POST /api/vendedor/ean/request
  * Vendedor solicita códigos EAN

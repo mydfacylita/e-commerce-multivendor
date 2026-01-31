@@ -4,6 +4,12 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { correiosCWS } from '@/lib/correios-cws'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 /**
  * POST /api/admin/expedicao/[id]/gerar-etiqueta-correios
  * Gera etiqueta oficial dos Correios com código de rastreio via API REST CWS

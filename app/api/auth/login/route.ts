@@ -4,6 +4,12 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { validateApiKey } from '@/lib/api-security'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key'
 
 // 🔒 Rate limiting simples em memória (em produção usar Redis)

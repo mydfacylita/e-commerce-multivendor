@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { parseAliExpressVariants, stringifyVariants } from '@/lib/product-variants'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // Função para gerar assinatura AliExpress
 function generateSign(params: Record<string, any>, appSecret: string): string {
   const sortedKeys = Object.keys(params).filter(key => key !== 'sign').sort()

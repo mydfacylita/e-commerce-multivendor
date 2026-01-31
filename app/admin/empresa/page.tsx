@@ -5,6 +5,12 @@ import { useSession } from "next-auth/react"
 import { redirect } from "next/navigation"
 import { FiSave, FiPackage, FiUsers, FiDollarSign } from "react-icons/fi"
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export default function EmpresaPage() {
   const { data: session, status } = useSession()
   const [loading, setLoading] = useState(false)

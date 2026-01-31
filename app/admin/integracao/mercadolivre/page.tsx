@@ -5,6 +5,12 @@ import Link from 'next/link'
 import { FiArrowLeft, FiExternalLink, FiCheck } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 interface MLStatus {
   connected: boolean
   message: string

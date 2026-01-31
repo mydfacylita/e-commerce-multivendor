@@ -4,6 +4,12 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { refreshAccessToken } from '@/lib/tiktokshop';
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // POST - Renovar access token usando refresh token
 export async function POST(request: NextRequest) {
   try {

@@ -3,6 +3,12 @@ import Link from 'next/link'
 import { FiEdit, FiTrash2, FiPlus } from 'react-icons/fi'
 import DeleteCategoryButton from '@/components/admin/DeleteCategoryButton'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export default async function AdminCategoriasPage() {
   const categories = await prisma.category.findMany({
     include: {

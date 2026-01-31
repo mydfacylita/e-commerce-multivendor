@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import crypto from 'crypto-js';
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export default function AliExpressTestPage() {
   const [appKey, setAppKey] = useState('524396');
   const [appSecret, setAppSecret] = useState('RMz60S4TWtjk3TapvbJNsLStsiuZ351R');

@@ -3,6 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // Coordenadas das capitais como fallback
 const estadosCoordenadas: Record<string, { lat: number; lng: number; nome: string }> = {
   AC: { lat: -9.0238, lng: -70.8120, nome: 'Acre' },

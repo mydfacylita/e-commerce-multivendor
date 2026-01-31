@@ -4,6 +4,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import jwt from 'jsonwebtoken'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key'
 
 /**

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+
+// Force dynamic - disable all caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 // API Key do remove.bg - Você pode obter uma gratuita em https://www.remove.bg/api
 const REMOVE_BG_API_KEY = process.env.REMOVE_BG_API_KEY || ''
 
