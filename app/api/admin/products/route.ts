@@ -66,27 +66,42 @@ export async function POST(req: Request) {
         where: { id: session.user.id },
         include: {
           seller: {
-            include: { subscription: true }
+            include: {
+              subscriptions: {
+                where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+                include: { plan: true },
+                orderBy: { createdAt: 'desc' },
+                take: 1
+              }
+            }
           },
           workForSeller: {
-            include: { subscription: true }
+            include: {
+              subscriptions: {
+                where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+                include: { plan: true },
+                orderBy: { createdAt: 'desc' },
+                take: 1
+              }
+            }
           }
         }
       })
 
       seller = user?.seller || user?.workForSeller
+      const activeSubscription = seller?.subscriptions?.[0]
 
       if (!seller || seller.status !== 'ACTIVE') {
         console.log('❌ Vendedor inválido')
         return NextResponse.json({ message: 'Vendedor inválido' }, { status: 403 })
       }
 
-      if (!seller.subscription || !['ACTIVE', 'TRIAL'].includes(seller.subscription.status)) {
+      if (!activeSubscription || !['ACTIVE', 'TRIAL'].includes(activeSubscription.status)) {
         console.log('❌ Plano inválido')
         return NextResponse.json({ message: 'Plano inválido' }, { status: 403 })
       }
 
-      if (seller.subscription.endDate < new Date()) {
+      if (activeSubscription.endDate < new Date()) {
         console.log('❌ Plano expirado')
         return NextResponse.json({ message: 'Plano expirado' }, { status: 403 })
       }
@@ -269,11 +284,19 @@ export async function POST(req: Request) {
         supplierStoreName: data.supplierStoreName,
         supplierStoreId: data.supplierStoreId,
         supplierStock: data.supplierStock,
+        supplierCountryCode: data.supplierCountryCode,
+        shipFromCountry: data.shipFromCountry,
+        deliveryDays: data.deliveryDays,
+        isDropshipping: data.isDropshipping || false,
         isChoiceProduct: data.isChoiceProduct || false,
         availableForDropship: data.availableForDropship !== false,
         supplierRating: data.supplierRating,
         supplierShippingSpeed: data.supplierShippingSpeed,
         dropshippingCommission: data.dropshippingCommission,
+        // Status do produto (default: true, mas pode vir false na importação)
+        active: data.active !== undefined ? data.active : true,
+        // SKUs selecionados para produtos importados (variantes com preços)
+        selectedSkus: data.selectedSkus ? (typeof data.selectedSkus === 'string' ? data.selectedSkus : JSON.stringify(data.selectedSkus)) : null,
       },
     })
 
@@ -395,13 +418,16 @@ export async function GET(req: Request) {
       const seller = await prisma.seller.findUnique({
         where: { userId: session.user.id },
         include: {
-          subscription: {
-            include: {
-              plan: true
-            }
+          subscriptions: {
+            where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+            include: { plan: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1
           }
         }
       })
+      
+      const activeSubscription = seller?.subscriptions?.[0]
       
       if (!seller) {
         console.log('❌ [FALHA] Vendedor não encontrado no banco de dados')
@@ -438,7 +464,7 @@ export async function GET(req: Request) {
       // Verificar plano
       console.log('\n   🔍 Verificando ASSINATURA...')
       
-      if (!seller.subscription) {
+      if (!activeSubscription) {
         console.log('❌ [FALHA] Nenhuma assinatura encontrada!')
         console.log('   ℹ️  O vendedor precisa ter um plano ativo')
         return NextResponse.json(
@@ -448,27 +474,27 @@ export async function GET(req: Request) {
       }
       
       console.log('✅ Assinatura encontrada!')
-      console.log('   🆔 Subscription ID:', seller.subscription.id)
-      console.log('   📋 Plano:', seller.subscription.plan.name)
-      console.log('   💰 Preço:', seller.subscription.price)
-      console.log('   🔄 Ciclo:', seller.subscription.billingCycle)
-      console.log('   📊 Status:', seller.subscription.status)
-      console.log('   📅 Início:', seller.subscription.startDate)
-      console.log('   📅 Fim:', seller.subscription.endDate)
-      console.log('   🔄 Auto-renovação:', seller.subscription.autoRenew)
+      console.log('   🆔 Subscription ID:', activeSubscription.id)
+      console.log('   📋 Plano:', activeSubscription.plan.name)
+      console.log('   💰 Preço:', activeSubscription.price)
+      console.log('   🔄 Ciclo:', activeSubscription.billingCycle)
+      console.log('   📊 Status:', activeSubscription.status)
+      console.log('   📅 Início:', activeSubscription.startDate)
+      console.log('   📅 Fim:', activeSubscription.endDate)
+      console.log('   🔄 Auto-renovação:', activeSubscription.autoRenew)
       
       // Verificar se o plano está ativo
       console.log('\n   🔍 Verificando STATUS DA ASSINATURA...')
       const validStatuses = ['ACTIVE', 'TRIAL']
-      console.log('   📊 Status atual:', seller.subscription.status)
+      console.log('   📊 Status atual:', activeSubscription.status)
       console.log('   ✅ Status válidos:', validStatuses.join(', '))
       
-      if (!validStatuses.includes(seller.subscription.status)) {
+      if (!validStatuses.includes(activeSubscription.status)) {
         console.log('❌ [FALHA] Status da assinatura inválido!')
-        console.log('   📊 Status atual:', seller.subscription.status)
+        console.log('   📊 Status atual:', activeSubscription.status)
         console.log('   ✅ Status aceitos:', validStatuses.join(', '))
         return NextResponse.json(
-          { message: `Seu plano está ${seller.subscription.status}. Renove sua assinatura para continuar.` },
+          { message: `Seu plano está ${activeSubscription.status}. Renove sua assinatura para continuar.` },
           { status: 403 }
         )
       }
@@ -478,16 +504,16 @@ export async function GET(req: Request) {
       // Verificar se o plano não expirou
       console.log('\n   🔍 Verificando VALIDADE DA ASSINATURA...')
       const now = new Date()
-      const endDate = new Date(seller.subscription.endDate)
+      const endDate = new Date(activeSubscription.endDate)
       console.log('   📅 Data atual:', now.toISOString())
       console.log('   📅 Data de expiração:', endDate.toISOString())
       
       const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       console.log('   ⏰ Dias restantes:', daysRemaining)
       
-      if (seller.subscription.endDate < now) {
+      if (activeSubscription.endDate < now) {
         console.log('❌ [FALHA] Plano expirado!')
-        console.log('   📅 Expirou em:', seller.subscription.endDate)
+        console.log('   📅 Expirou em:', activeSubscription.endDate)
         console.log('   📅 Data atual:', now)
         return NextResponse.json(
           { message: 'Seu plano expirou. Renove sua assinatura para continuar.' },

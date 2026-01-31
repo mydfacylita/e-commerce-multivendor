@@ -11,6 +11,10 @@ import ProductVariantsManager from '@/components/admin/ProductVariantsManager'
 interface Category {
   id: string
   name: string
+  parent?: {
+    id: string
+    name: string
+  } | null
 }
 
 interface Supplier {
@@ -281,7 +285,7 @@ export default function NovoProductForm({ categories, suppliers }: NovoProductFo
               <option value="">Selecione uma categoria</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
-                  {category.name}
+                  {category.parent ? `${category.parent.name} > ${category.name}` : category.name}
                 </option>
               ))}
             </select>

@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/sync-payments",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-drop-orders",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/sync-aliexpress-stock",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/check-drop-prices",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

@@ -7,10 +7,15 @@ import { FiArrowLeft } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import ImageUploader from '@/components/admin/ImageUploader'
 import ProductVariantsManager from '@/components/admin/ProductVariantsManager'
+import ImportedProductVariantsManager, { type SelectedSku } from '@/components/admin/ImportedProductVariantsManager'
 
 interface Category {
   id: string
   name: string
+  parent?: {
+    id: string
+    name: string
+  } | null
 }
 
 interface Supplier {
@@ -80,7 +85,9 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
     sizeType: '',
     sizeCategory: '',
     colorType: 'Única' as 'Única' | 'Variada',
-    variants: '',  // JSON array com tamanho x cor
+    variants: '',  // JSON array com tamanho x cor (para produtos nacionais) ou estrutura importada
+    selectedSkus: '' as string,  // SKUs selecionados para venda (produtos importados)
+    supplierName: '' as string,  // Nome do fornecedor para identificar produto importado
     // Campos de Tributação (NF-e)
     ncm: '',
     cest: '',
@@ -129,7 +136,8 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
 
         // Garantir que categories é sempre um array
         setCategories(Array.isArray(categoriesData) ? categoriesData : [])
-        setSuppliers(Array.isArray(suppliersData) ? suppliersData : [])
+        // A API retorna { suppliers: [...] }
+        setSuppliers(suppliersData?.suppliers || (Array.isArray(suppliersData) ? suppliersData : []))
         setProductTypes(Array.isArray(productTypesData) ? productTypesData : [])
 
         // Parse technical specs se existir
@@ -267,6 +275,8 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           sizeCategory: product.sizeCategory || '',
           colorType: variantsString ? 'Variada' : 'Única',
           variants: variantsString,
+          selectedSkus: product.selectedSkus || '',
+          supplierName: product.supplier?.name || '',
           // Campos de Tributação (NF-e)
           ncm: product.ncm || '',
           cest: product.cest || '',
@@ -367,6 +377,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           bookPublisher: formData.bookPublisher || null,
           bookIsbn: formData.bookIsbn || null,
           variants: formData.variants ? formData.variants : null,
+          selectedSkus: formData.selectedSkus ? formData.selectedSkus : null,
           sizeType: formData.sizeType || null,
           sizeCategory: formData.sizeCategory || null,
         }),
@@ -452,7 +463,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
               <option value="">Selecione uma categoria</option>
               {Array.isArray(categories) && categories.map((category) => (
                 <option key={category.id} value={category.id}>
-                  {category.name}
+                  {category.parent ? `${category.parent.name} > ${category.name}` : category.name}
                 </option>
               ))}
             </select>
@@ -826,40 +837,60 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
         </div>
 
         {/* Sistema Integrado de Variações (Tamanho × Cor) */}
-        <ProductVariantsManager
-          sizeType={formData.sizeType}
-          sizeCategory={formData.sizeCategory}
-          colorType={formData.colorType}
-          singleColor={formData.color}
-          productImages={formData.images}
-          variants={(() => {
-            try {
-              if (!formData.variants || formData.variants === '') return []
-              // Parse recursivo para JSON aninhado
-              let parsed = formData.variants
-              while (typeof parsed === 'string') {
-                parsed = JSON.parse(parsed)
+        {/* Se produto importado de fornecedor, usa o gerenciador de SKUs importados */}
+        {formData.supplierName || formData.supplierId ? (
+          <ImportedProductVariantsManager
+            productId={params.id}
+            variantsJson={formData.variants}
+            selectedSkus={(() => {
+              try {
+                if (!formData.selectedSkus) return []
+                return JSON.parse(formData.selectedSkus)
+              } catch {
+                return []
               }
-              return Array.isArray(parsed) ? parsed : []
-            } catch (e) {
-              console.error('Erro ao parsear variants no componente:', e, formData.variants)
-              return []
-            }
-          })()}
-          onVariantsChange={(variants) => {
-            setFormData(prev => ({ ...prev, variants: JSON.stringify(variants) }))
-          }}
-          onSizeTypeChange={(type) => {
-            setFormData(prev => ({ ...prev, sizeType: type }))
-          }}
-          onSizeCategoryChange={(category) => {
-            setFormData(prev => ({ ...prev, sizeCategory: category }))
-          }}
-          onTotalStockChange={(totalStock) => {
-            setFormData(prev => ({ ...prev, stock: totalStock.toString() }))
-          }}
-          basePrice={formData.price ? parseFloat(formData.price) : undefined}
-        />
+            })()}
+            supplierName={formData.supplierName || 'AliExpress'}
+            onVariantsChange={(selectedSkus) => {
+              setFormData(prev => ({ ...prev, selectedSkus: JSON.stringify(selectedSkus) }))
+            }}
+          />
+        ) : (
+          <ProductVariantsManager
+            sizeType={formData.sizeType}
+            sizeCategory={formData.sizeCategory}
+            colorType={formData.colorType}
+            singleColor={formData.color}
+            productImages={formData.images}
+            variants={(() => {
+              try {
+                if (!formData.variants || formData.variants === '') return []
+                // Parse recursivo para JSON aninhado
+                let parsed = formData.variants
+                while (typeof parsed === 'string') {
+                  parsed = JSON.parse(parsed)
+                }
+                return Array.isArray(parsed) ? parsed : []
+              } catch (e) {
+                console.error('Erro ao parsear variants no componente:', e, formData.variants)
+                return []
+              }
+            })()}
+            onVariantsChange={(variants) => {
+              setFormData(prev => ({ ...prev, variants: JSON.stringify(variants) }))
+            }}
+            onSizeTypeChange={(type) => {
+              setFormData(prev => ({ ...prev, sizeType: type }))
+            }}
+            onSizeCategoryChange={(category) => {
+              setFormData(prev => ({ ...prev, sizeCategory: category }))
+            }}
+            onTotalStockChange={(totalStock) => {
+              setFormData(prev => ({ ...prev, stock: totalStock.toString() }))
+            }}
+            basePrice={formData.price ? parseFloat(formData.price) : undefined}
+          />
+        )}
         
 
         {/* Campos específicos para Celulares - Mercado Livre */}

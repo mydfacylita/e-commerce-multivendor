@@ -52,6 +52,10 @@ export async function GET(
                 name: true,
                 slug: true,
                 images: true,
+                isDropshipping: true,
+                supplierSku: true,
+                shipFromCountry: true,
+                deliveryDays: true,
               },
             },
           },
@@ -113,7 +117,39 @@ export async function GET(
       }))
     })
 
-    return NextResponse.json(order)
+    // Verificar se é pedido internacional (tem produtos dropshipping/importados)
+    const isInternational = order.shippingMethod === 'international' || 
+      order.shippingCarrier === 'Importação Direta' ||
+      order.items?.some(item => 
+        item.product?.isDropshipping || 
+        item.product?.shipFromCountry === 'CN' ||
+        item.product?.supplierSku
+      )
+
+    // Buscar status do fornecedor dos items
+    const itemsWithSupplierStatus = await prisma.orderItem.findMany({
+      where: { orderId: order.id },
+      select: {
+        id: true,
+        supplierStatus: true,
+        supplierOrderId: true,
+        trackingCode: true
+      }
+    })
+
+    // Retornar dados enriquecidos
+    return NextResponse.json({
+      ...order,
+      isInternational,
+      supplierOrderId: order.supplierOrderId,
+      // Status do fornecedor (do primeiro item)
+      supplierStatus: itemsWithSupplierStatus[0]?.supplierStatus || null,
+      itemTrackingCode: itemsWithSupplierStatus[0]?.trackingCode || order.trackingCode,
+      // Prazo estimado para pedidos internacionais
+      estimatedDeliveryDays: isInternational 
+        ? (order.deliveryDays || order.items?.[0]?.product?.deliveryDays || 30)
+        : order.deliveryDays
+    })
   } catch (error) {
     console.error('Erro ao buscar pedido:', error)
     return NextResponse.json(

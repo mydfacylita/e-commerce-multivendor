@@ -53,7 +53,7 @@ export async function PATCH(
       
       const sourceProduct = await prisma.product.findUnique({
         where: { id: product.supplierSku },
-        select: { price: true, active: true, availableForDropship: true }
+        select: { price: true, active: true, isDropshipping: true }
       })
 
       // Produto original não existe mais
@@ -64,8 +64,8 @@ export async function PATCH(
         }, { status: 400 })
       }
 
-      // Produto original inativo
-      if (!sourceProduct.active || !sourceProduct.availableForDropship) {
+      // Produto original inativo ou não é mais dropshipping
+      if (!sourceProduct.active || !sourceProduct.isDropshipping) {
         console.log('[Toggle Active] ❌ Produto original está inativo')
         return NextResponse.json({
           message: 'Não é possível ativar este produto. O produto original foi desativado pelo administrador.'

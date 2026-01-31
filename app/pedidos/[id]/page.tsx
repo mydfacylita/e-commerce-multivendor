@@ -28,6 +28,13 @@ interface Order {
   packedAt?: string
   shippedAt?: string
   trackingCode?: string
+  shippingCarrier?: string
+  // Campos para pedidos internacionais
+  isInternational?: boolean
+  supplierOrderId?: string
+  supplierStatus?: string
+  itemTrackingCode?: string
+  estimatedDeliveryDays?: number
   items: {
     id: string
     quantity: number
@@ -39,6 +46,8 @@ interface Order {
       name: string
       slug: string
       images: string[]
+      isDropshipping?: boolean
+      shipFromCountry?: string
     }
   }[]
   invoices?: {
@@ -47,6 +56,61 @@ interface Order {
     status: string
     pdfUrl?: string
   }[]
+}
+
+// Mapa de status do AliExpress para exibição amigável
+const SUPPLIER_STATUS_MAP: Record<string, { label: string; description: string; icon: string }> = {
+  'PLACE_ORDER_SUCCESS': { 
+    label: 'Pedido Confirmado', 
+    description: 'Aguardando processamento pelo fornecedor',
+    icon: '📋'
+  },
+  'WAIT_SELLER_SEND_GOODS': { 
+    label: 'Em Preparação', 
+    description: 'O fornecedor está preparando seu pedido',
+    icon: '📦'
+  },
+  'SELLER_PART_SEND_GOODS': { 
+    label: 'Parcialmente Enviado', 
+    description: 'Parte do pedido já foi despachada',
+    icon: '✈️'
+  },
+  'WAIT_BUYER_ACCEPT_GOODS': { 
+    label: 'Em Trânsito Internacional', 
+    description: 'Seu pedido está a caminho do Brasil',
+    icon: '🌍'
+  },
+  'FUND_PROCESSING': { 
+    label: 'Processando', 
+    description: 'Processando pagamento com fornecedor',
+    icon: '⏳'
+  },
+  'FINISH': { 
+    label: 'Entregue', 
+    description: 'Pedido finalizado',
+    icon: '✅'
+  },
+  'IN_CANCEL': { 
+    label: 'Cancelamento Solicitado', 
+    description: 'Cancelamento em processamento',
+    icon: '❌'
+  },
+}
+
+// Interface para eventos de tracking
+interface TrackingEvent {
+  eventTime: string
+  eventDescription: string
+  eventLocation?: string
+  status: string
+}
+
+interface TrackingInfo {
+  trackingNumber: string
+  carrier: string
+  estimatedDelivery?: string
+  currentStatus: string
+  events: TrackingEvent[]
 }
 
 export default function OrderDetailPage({ params }: { params: { id: string } }) {
@@ -59,6 +123,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [trackingInfo, setTrackingInfo] = useState<TrackingInfo | null>(null)
+  const [isLoadingTracking, setIsLoadingTracking] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -117,6 +183,38 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       setIsLoading(false)
     }
   }
+
+  // Buscar eventos de rastreamento
+  const fetchTrackingInfo = async (supplierOrderId: string) => {
+    if (!supplierOrderId) return
+    
+    setIsLoadingTracking(true)
+    try {
+      const response = await fetch('/api/orders/tracking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: supplierOrderId })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.hasTracking && data.tracking) {
+          setTrackingInfo(data.tracking)
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao buscar rastreamento:', error)
+    } finally {
+      setIsLoadingTracking(false)
+    }
+  }
+
+  // Buscar tracking quando tiver supplierOrderId
+  useEffect(() => {
+    if (order?.supplierOrderId) {
+      fetchTrackingInfo(order.supplierOrderId)
+    }
+  }, [order?.supplierOrderId])
 
   const getStatusText = (status: string) => {
     const statusMap: { [key: string]: string } = {
@@ -441,6 +539,298 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             </div>
           </div>
 
+          {/* Status do Pedido - Timeline */}
+          <div className="border-t pt-6 mb-6">
+            <h2 className="font-semibold text-lg mb-4">Status do Pedido</h2>
+            
+            {/* PEDIDO INTERNACIONAL - Status específico */}
+            {order.isInternational ? (
+              <div className="space-y-4">
+                {/* Pedido realizado */}
+                <div className="flex items-center">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500">
+                    <span className="text-white">✓</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="font-medium">Pedido Realizado</p>
+                    <p className="text-sm text-gray-500">{formatDateTime(order.createdAt)}</p>
+                  </div>
+                </div>
+
+                {/* Pagamento confirmado */}
+                <div className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    order.paymentApprovedAt ? 'bg-green-500' : 'bg-gray-300'
+                  }`}>
+                    {order.paymentApprovedAt && <span className="text-white">✓</span>}
+                  </div>
+                  <div className="ml-4">
+                    <p className="font-medium">Pagamento Confirmado</p>
+                    {order.paymentApprovedAt && (
+                      <p className="text-sm text-gray-500">{formatDateTime(order.paymentApprovedAt)}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Processando */}
+                <div className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    order.supplierOrderId ? 'bg-green-500' : 'bg-gray-300'
+                  }`}>
+                    {order.supplierOrderId && <span className="text-white">✓</span>}
+                  </div>
+                  <div className="ml-4">
+                    <p className="font-medium">Processando</p>
+                  </div>
+                </div>
+
+                {/* Despachado */}
+                <div className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    order.status === 'SHIPPED' || order.status === 'DELIVERED'
+                      ? 'bg-green-500'
+                      : 'bg-gray-300'
+                  }`}>
+                    {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+                      <span className="text-white">✓</span>
+                    )}
+                  </div>
+                  <div className="ml-4">
+                    <p className="font-medium">Despachado</p>
+                    {order.shippedAt && (
+                      <p className="text-sm text-gray-500">{formatDateTime(order.shippedAt)}</p>
+                    )}
+                    {(order.trackingCode || order.itemTrackingCode) && (
+                      <p className="text-sm text-blue-600 font-mono">Rastreio: {order.trackingCode || order.itemTrackingCode}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Entregue */}
+                <div className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    order.status === 'DELIVERED' ? 'bg-green-500' : 'bg-gray-300'
+                  }`}>
+                    {order.status === 'DELIVERED' && <span className="text-white">✓</span>}
+                  </div>
+                  <div className="ml-4">
+                    <p className="font-medium">Entregue</p>
+                    {order.status === 'DELIVERED' && (
+                      <p className="text-sm text-gray-500">Pedido finalizado</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Eventos de Rastreamento */}
+                {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                      <FiMapPin className="text-blue-500" />
+                      Rastreamento Detalhado
+                    </h4>
+                    
+                    {isLoadingTracking ? (
+                      <div className="flex items-center gap-2 text-gray-500 py-2">
+                        <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                        <span>Carregando eventos...</span>
+                      </div>
+                    ) : trackingInfo ? (
+                      <div className="space-y-3">
+                        {/* Info do rastreamento */}
+                        <div className="bg-blue-50 rounded-lg p-3 mb-4">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">Transportadora:</span>
+                            <span className="font-medium text-gray-800">{trackingInfo.carrier}</span>
+                          </div>
+                          {trackingInfo.estimatedDelivery && (
+                            <div className="flex items-center justify-between text-sm mt-1">
+                              <span className="text-gray-600">Previsão de entrega:</span>
+                              <span className="font-medium text-green-600">{trackingInfo.estimatedDelivery}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Lista de eventos */}
+                        {trackingInfo.events.length > 0 ? (
+                          <div className="space-y-3">
+                            {trackingInfo.events.map((event, index) => (
+                              <div key={index} className="flex gap-3">
+                                <div className="flex flex-col items-center">
+                                  <div className={`w-3 h-3 rounded-full ${
+                                    index === 0 ? 'bg-blue-500' : 'bg-gray-300'
+                                  }`}></div>
+                                  {index < trackingInfo.events.length - 1 && (
+                                    <div className="w-0.5 h-full bg-gray-200 mt-1"></div>
+                                  )}
+                                </div>
+                                <div className="flex-1 pb-3">
+                                  <p className={`text-sm ${index === 0 ? 'font-medium text-gray-800' : 'text-gray-600'}`}>
+                                    {event.eventDescription}
+                                  </p>
+                                  {event.eventLocation && (
+                                    <p className="text-xs text-gray-500 mt-0.5">{event.eventLocation}</p>
+                                  )}
+                                  <p className="text-xs text-gray-400 mt-0.5">
+                                    {new Date(event.eventTime).toLocaleString('pt-BR')}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 py-2">
+                            Aguardando atualizações de rastreamento...
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 py-2">
+                        Informações de rastreamento ainda não disponíveis.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* PEDIDO NACIONAL - Status padrão */
+              <div className="space-y-4">
+                {/* Pedido realizado */}
+                <div className="flex items-center">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500">
+                    <span className="text-white">✓</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="font-medium">Pedido realizado</p>
+                    <p className="text-sm text-gray-500">{formatDateTime(order.createdAt)}</p>
+                  </div>
+                </div>
+
+                {/* Processando */}
+                <div className="flex items-start">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      order.status === 'PROCESSING' ||
+                      order.status === 'SHIPPED' ||
+                      order.status === 'DELIVERED'
+                        ? 'bg-green-500'
+                        : 'bg-gray-300'
+                    }`}
+                  >
+                    {(order.status === 'PROCESSING' ||
+                      order.status === 'SHIPPED' ||
+                      order.status === 'DELIVERED') && <span className="text-white">✓</span>}
+                  </div>
+                  <div className="ml-4 flex-1">
+                    <p className="font-medium">Processando</p>
+                    {order.paymentApprovedAt && (
+                      <p className="text-sm text-gray-500">Iniciado em {formatDateTime(order.paymentApprovedAt)}</p>
+                    )}
+                    
+                    {/* Sub-etapas quando está processando */}
+                    {order.status === 'PROCESSING' && (
+                      <div className="mt-3 ml-4 space-y-3 border-l-2 border-gray-200 pl-4">
+                        {/* Separação */}
+                        <div className="flex items-center text-sm">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                            order.separatedAt ? 'bg-green-400' : 'bg-gray-300'
+                          }`}>
+                            {order.separatedAt && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <div className="ml-3">
+                            <span className={order.separatedAt ? 'text-green-700 font-medium' : 'text-gray-600'}>
+                              Separação
+                            </span>
+                            {order.separatedAt && (
+                              <p className="text-xs text-gray-500">{formatDateTime(order.separatedAt)}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Nota Fiscal */}
+                        <div className="flex items-center text-sm">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                            order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? 'bg-green-400' : 'bg-gray-300'
+                          }`}>
+                            {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <div className="ml-3">
+                            <span className={order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? 'text-green-700 font-medium' : 'text-gray-600'}>
+                              Nota Fiscal
+                            </span>
+                            {order.invoices && order.invoices.length > 0 && order.invoices[0].status === 'ERROR' && (
+                              <p className="text-xs text-red-500">Erro na emissão</p>
+                            )}
+                            {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && order.invoices[0].invoiceNumber && (
+                              <p className="text-xs text-gray-500">Nº {order.invoices[0].invoiceNumber}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Embalagem */}
+                        <div className="flex items-center text-sm">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                            order.packedAt ? 'bg-green-400' : 'bg-gray-300'
+                          }`}>
+                            {order.packedAt && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <div className="ml-3">
+                            <span className={order.packedAt ? 'text-green-700 font-medium' : 'text-gray-600'}>
+                              Embalagem
+                            </span>
+                            {order.packedAt && (
+                              <p className="text-xs text-gray-500">{formatDateTime(order.packedAt)}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Despachado/Enviado */}
+                <div className="flex items-center">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      order.status === 'SHIPPED' || order.status === 'DELIVERED'
+                        ? 'bg-green-500'
+                        : 'bg-gray-300'
+                    }`}
+                  >
+                    {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
+                      <span className="text-white">✓</span>
+                    )}
+                  </div>
+                  <div className="ml-4">
+                    <p className="font-medium">Despachado</p>
+                    {order.shippedAt && (
+                      <p className="text-sm text-gray-500">{formatDateTime(order.shippedAt)}</p>
+                    )}
+                    {order.trackingCode && (
+                      <p className="text-sm text-blue-600 font-mono">Rastreio: {order.trackingCode}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Entregue */}
+                <div className="flex items-center">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      order.status === 'DELIVERED' ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    {order.status === 'DELIVERED' && <span className="text-white">✓</span>}
+                  </div>
+                  <div className="ml-4">
+                    <p className="font-medium">Entregue</p>
+                    {order.status === 'DELIVERED' && (
+                      <p className="text-sm text-gray-500">Pedido finalizado</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Informações de Pagamento */}
           {order.status !== 'PENDING' && order.paymentType && (
             <div className="border-t pt-6 mb-6">
@@ -533,147 +923,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-semibold text-lg mb-2">Status do Pedido</h3>
-        <div className="space-y-4">
-          {/* Pedido realizado */}
-          <div className="flex items-center">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-500">
-              <span className="text-white">✓</span>
-            </div>
-            <div className="ml-4">
-              <p className="font-medium">Pedido realizado</p>
-              <p className="text-sm text-gray-500">{formatDateTime(order.createdAt)}</p>
-            </div>
-          </div>
-
-          {/* Processando - com sub-etapas se estiver PROCESSING */}
-          <div className="flex items-start">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                order.status === 'PROCESSING' ||
-                order.status === 'SHIPPED' ||
-                order.status === 'DELIVERED'
-                  ? 'bg-green-500'
-                  : 'bg-gray-300'
-              }`}
-            >
-              {(order.status === 'PROCESSING' ||
-                order.status === 'SHIPPED' ||
-                order.status === 'DELIVERED') && <span className="text-white">✓</span>}
-            </div>
-            <div className="ml-4 flex-1">
-              <p className="font-medium">Processando</p>
-              {order.paymentApprovedAt && (
-                <p className="text-sm text-gray-500">Iniciado em {formatDateTime(order.paymentApprovedAt)}</p>
-              )}
-              
-              {/* Sub-etapas quando está processando */}
-              {order.status === 'PROCESSING' && (
-                <div className="mt-3 ml-4 space-y-3 border-l-2 border-gray-200 pl-4">
-                  {/* Separação */}
-                  <div className="flex items-center text-sm">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                      order.separatedAt ? 'bg-green-400' : 'bg-gray-300'
-                    }`}>
-                      {order.separatedAt && <span className="text-white text-xs">✓</span>}
-                    </div>
-                    <div className="ml-3">
-                      <span className={order.separatedAt ? 'text-green-700 font-medium' : 'text-gray-600'}>
-                        Separação
-                      </span>
-                      {order.separatedAt && (
-                        <p className="text-xs text-gray-500">{formatDateTime(order.separatedAt)}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Nota Fiscal */}
-                  <div className="flex items-center text-sm">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                      order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? 'bg-green-400' : 'bg-gray-300'
-                    }`}>
-                      {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && <span className="text-white text-xs">✓</span>}
-                    </div>
-                    <div className="ml-3">
-                      <span className={order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? 'text-green-700 font-medium' : 'text-gray-600'}>
-                        Nota Fiscal
-                      </span>
-                      {order.invoices && order.invoices.length > 0 && order.invoices[0].status === 'ERROR' && (
-                        <p className="text-xs text-red-500">Erro na emissão</p>
-                      )}
-                      {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && order.invoices[0].invoiceNumber && (
-                        <p className="text-xs text-gray-500">Nº {order.invoices[0].invoiceNumber}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Embalagem */}
-                  <div className="flex items-center text-sm">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                      order.packedAt ? 'bg-green-400' : 'bg-gray-300'
-                    }`}>
-                      {order.packedAt && <span className="text-white text-xs">✓</span>}
-                    </div>
-                    <div className="ml-3">
-                      <span className={order.packedAt ? 'text-green-700 font-medium' : 'text-gray-600'}>
-                        Embalagem
-                      </span>
-                      {order.packedAt && (
-                        <p className="text-xs text-gray-500">{formatDateTime(order.packedAt)}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Despachado/Enviado */}
-          <div className="flex items-center">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                order.status === 'SHIPPED' || order.status === 'DELIVERED'
-                  ? 'bg-green-500'
-                  : 'bg-gray-300'
-              }`}
-            >
-              {(order.status === 'SHIPPED' || order.status === 'DELIVERED') && (
-                <span className="text-white">✓</span>
-              )}
-            </div>
-            <div className="ml-4">
-              <p className="font-medium">Despachado</p>
-              {order.shippedAt && (
-                <p className="text-sm text-gray-500">{formatDateTime(order.shippedAt)}</p>
-              )}
-              {order.trackingCode && (
-                <p className="text-sm text-blue-600 font-mono">Rastreio: {order.trackingCode}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Entregue */}
-          <div className="flex items-center">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                order.status === 'DELIVERED' ? 'bg-green-500' : 'bg-gray-300'
-              }`}
-            >
-              {order.status === 'DELIVERED' && <span className="text-white">✓</span>}
-            </div>
-            <div className="ml-4">
-              <p className="font-medium">Entregue</p>
-              {order.status === 'DELIVERED' && (
-                <p className="text-sm text-gray-500">Pedido finalizado</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Seção de Nota Fiscal - só aparece quando NF-e está emitida */}
-      {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && (
+      {/* Seção de Nota Fiscal - só aparece quando NF-e está emitida e não é pedido internacional */}
+      {!order.isInternational && order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && (
         <div className="mt-6 bg-green-50 border border-green-200 rounded-lg p-6">
           <h3 className="font-semibold text-lg mb-4 flex items-center">
             <FiFileText className="mr-2 text-green-600" />

@@ -19,10 +19,11 @@ export async function GET(request: NextRequest) {
     const seller = await prisma.seller.findUnique({
       where: { userId: session.user.id },
       include: {
-        subscription: {
-          include: {
-            plan: true
-          }
+        subscriptions: {
+          where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+          include: { plan: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1
         }
       }
     })
@@ -31,7 +32,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Vendedor não encontrado' }, { status: 404 })
     }
 
-    const planId = seller.subscription?.planId
+    const activeSubscription = seller.subscriptions?.[0]
+    const planId = activeSubscription?.planId
 
     // Buscar pacotes: sem planId (todos) OU específicos do plano do vendedor
     const packages = await prisma.$queryRaw`

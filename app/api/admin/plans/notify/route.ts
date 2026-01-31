@@ -36,17 +36,22 @@ export async function POST(req: Request) {
         // Apenas assinantes deste plano específico
         sellers = await prisma.seller.findMany({
           where: {
-            subscription: {
-              planId: planId,
-              status: { in: ['TRIAL', 'ACTIVE'] }
+            subscriptions: {
+              some: {
+                planId: planId,
+                status: { in: ['TRIAL', 'ACTIVE'] }
+              }
             }
           },
           include: {
             user: {
               select: { email: true, name: true }
             },
-            subscription: {
-              include: { plan: true }
+            subscriptions: {
+              where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+              include: { plan: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
             }
           }
         })
@@ -59,8 +64,11 @@ export async function POST(req: Request) {
             user: {
               select: { email: true, name: true }
             },
-            subscription: {
-              include: { plan: true }
+            subscriptions: {
+              where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+              include: { plan: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
             }
           }
         })
@@ -70,16 +78,19 @@ export async function POST(req: Request) {
         // Apenas vendedores com assinaturas ativas
         sellers = await prisma.seller.findMany({
           where: {
-            subscription: {
-              status: 'ACTIVE'
+            subscriptions: {
+              some: { status: 'ACTIVE' }
             }
           },
           include: {
             user: {
               select: { email: true, name: true }
             },
-            subscription: {
-              include: { plan: true }
+            subscriptions: {
+              where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+              include: { plan: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
             }
           }
         })
@@ -126,7 +137,7 @@ Para mais detalhes ou dúvidas, acesse seu painel de vendedor ou entre em contat
       sellerId: seller.id,
       sellerName: seller.user.name,
       sellerEmail: seller.user.email,
-      planName: seller.subscription?.plan?.name || 'Sem plano',
+      planName: seller.subscriptions?.[0]?.plan?.name || 'Sem plano',
       subject,
       message: finalMessage,
       sentAt: new Date()

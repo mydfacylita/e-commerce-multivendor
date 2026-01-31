@@ -9,9 +9,34 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import { 
   FiPackage, FiRefreshCw, FiExternalLink, FiTruck, FiCheck, 
   FiClock, FiAlertCircle, FiSearch, FiFilter, FiChevronLeft,
-  FiCopy, FiEye, FiSend, FiX
+  FiCopy, FiEye, FiSend, FiX, FiRepeat, FiArrowRight
 } from 'react-icons/fi'
 import { formatOrderNumber } from '@/lib/order'
+
+interface SimilarProduct {
+  id: string
+  name: string
+  price: number
+  costPrice: number | null
+  image: string
+  stock: number
+  supplierSku: string | null
+  supplierId: string | null
+  supplierName: string
+  isChoiceProduct: boolean
+}
+
+interface SwapItem {
+  orderItemId: string
+  orderId: string
+  product: {
+    id: string
+    name: string
+    images: string
+    supplierId: string | null
+    supplierName: string
+  }
+}
 
 interface DropOrder {
   id: string
@@ -38,6 +63,7 @@ interface DropOrder {
       supplier: {
         id: string
         name: string
+        type: string
       } | null
     }
   }[]
@@ -73,6 +99,14 @@ export default function DropshippingOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<DropOrder | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [sendingOrder, setSendingOrder] = useState<string | null>(null)
+  
+  // Estados para troca de produto
+  const [showSwapModal, setShowSwapModal] = useState(false)
+  const [swapItem, setSwapItem] = useState<SwapItem | null>(null)
+  const [similarProducts, setSimilarProducts] = useState<SimilarProduct[]>([])
+  const [loadingSimilar, setLoadingSimilar] = useState(false)
+  const [swapping, setSwapping] = useState(false)
+  const [swapSearchQuery, setSwapSearchQuery] = useState('')
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -164,6 +198,114 @@ export default function DropshippingOrdersPage() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     toast.success('Copiado!')
+  }
+
+  // Funções para troca de produto
+  const openSwapModal = async (item: any, order: DropOrder) => {
+    const swapData: SwapItem = {
+      orderItemId: item.id,
+      orderId: order.id,
+      product: {
+        id: item.product.id,
+        name: item.product.name,
+        images: item.product.images,
+        supplierId: item.product.supplier?.id || null,
+        supplierName: item.product.supplier?.name || 'Sem fornecedor',
+      }
+    }
+    setSwapItem(swapData)
+    setShowSwapModal(true)
+    setSwapSearchQuery('')
+    await loadSimilarProducts(item.product.id, item.product.supplier?.id)
+  }
+
+  const loadSimilarProducts = async (productId: string, excludeSupplierId?: string | null) => {
+    try {
+      setLoadingSimilar(true)
+      setSimilarProducts([])
+      
+      const params = new URLSearchParams({ productId })
+      if (excludeSupplierId) {
+        params.append('excludeSupplierId', excludeSupplierId)
+      }
+      
+      const res = await fetch(`/api/admin/orders/find-similar-products?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setSimilarProducts(data.products || [])
+      } else {
+        toast.error('Erro ao buscar produtos similares')
+      }
+    } catch (error) {
+      console.error('Erro:', error)
+      toast.error('Erro ao buscar produtos')
+    } finally {
+      setLoadingSimilar(false)
+    }
+  }
+
+  const searchSimilarProducts = async () => {
+    if (!swapSearchQuery.trim()) {
+      if (swapItem) {
+        await loadSimilarProducts(swapItem.product.id, swapItem.product.supplierId)
+      }
+      return
+    }
+    
+    try {
+      setLoadingSimilar(true)
+      const params = new URLSearchParams({ q: swapSearchQuery })
+      if (swapItem?.product.supplierId) {
+        params.append('excludeSupplierId', swapItem.product.supplierId)
+      }
+      
+      const res = await fetch(`/api/admin/orders/find-similar-products?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setSimilarProducts(data.products || [])
+      }
+    } catch (error) {
+      toast.error('Erro na busca')
+    } finally {
+      setLoadingSimilar(false)
+    }
+  }
+
+  const executeSwap = async (newProductId: string) => {
+    if (!swapItem) return
+    
+    try {
+      setSwapping(true)
+      const res = await fetch('/api/admin/orders/swap-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderItemId: swapItem.orderItemId,
+          newProductId,
+          keepPrice: true
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        toast.success(`Produto trocado! Novo fornecedor: ${data.swap.new.supplierName}`)
+        setShowSwapModal(false)
+        setSwapItem(null)
+        loadOrders() // Recarregar pedidos
+        // Se o modal do pedido estiver aberto, fechar também
+        if (showModal) {
+          setShowModal(false)
+          setSelectedOrder(null)
+        }
+      } else {
+        toast.error(data.error || 'Erro ao trocar produto')
+      }
+    } catch (error) {
+      toast.error('Erro ao trocar produto')
+    } finally {
+      setSwapping(false)
+    }
   }
 
   const getStatusInfo = (order: DropOrder) => {
@@ -358,7 +500,7 @@ export default function DropshippingOrdersPage() {
                 {filteredOrders.map((order) => {
                   const statusInfo = getStatusInfo(order)
                   const StatusIcon = statusInfo.icon
-                  const dropItems = order.items.filter(i => i.product.isDropshipping)
+                  const dropItems = order.items.filter(i => i.product.supplier?.type === 'aliexpress')
                   
                   return (
                     <tr key={order.id} className="hover:bg-gray-50">
@@ -564,7 +706,7 @@ export default function DropshippingOrdersPage() {
                 <h3 className="font-semibold text-gray-900 mb-3">Produtos Dropshipping</h3>
                 <div className="space-y-3">
                   {selectedOrder.items
-                    .filter(i => i.product.isDropshipping)
+                    .filter(i => i.product.supplier?.type === 'aliexpress')
                     .map((item) => (
                       <div key={item.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
                         <img
@@ -588,9 +730,22 @@ export default function DropshippingOrdersPage() {
                             </p>
                           )}
                         </div>
-                        <p className="font-semibold">
-                          {formatCurrency(item.quantity * item.price)}
-                        </p>
+                        <div className="flex flex-col items-end gap-2">
+                          <p className="font-semibold">
+                            {formatCurrency(item.quantity * item.price)}
+                          </p>
+                          {/* Botão de trocar produto - só aparece se não foi enviado ao fornecedor */}
+                          {!selectedOrder.aliexpressOrderId && (
+                            <button
+                              onClick={() => openSwapModal(item, selectedOrder)}
+                              className="flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
+                              title="Trocar por produto de outro fornecedor"
+                            >
+                              <FiRepeat size={12} />
+                              Trocar Fornecedor
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                 </div>
@@ -620,6 +775,160 @@ export default function DropshippingOrdersPage() {
               >
                 Ver Pedido Completo
               </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Troca de Produto */}
+      {showSwapModal && swapItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b flex items-center justify-between bg-gradient-to-r from-orange-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <FiRepeat className="text-orange-600" size={24} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Trocar Produto</h2>
+                  <p className="text-sm text-gray-600">Selecione um produto equivalente de outro fornecedor</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSwapModal(false)
+                  setSwapItem(null)
+                  setSimilarProducts([])
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+
+            {/* Produto atual */}
+            <div className="p-4 bg-orange-50 border-b">
+              <p className="text-sm text-orange-700 font-medium mb-2">Produto Atual:</p>
+              <div className="flex items-center gap-3">
+                <img
+                  src={getProductImage(swapItem.product.images)}
+                  alt={swapItem.product.name}
+                  className="w-12 h-12 object-cover rounded"
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">{swapItem.product.name}</p>
+                  <p className="text-sm text-orange-600">
+                    Fornecedor: {swapItem.product.supplierName}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Busca */}
+            <div className="p-4 border-b">
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={swapSearchQuery}
+                    onChange={(e) => setSwapSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && searchSimilarProducts()}
+                    placeholder="Buscar produto por nome..."
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                <button
+                  onClick={searchSimilarProducts}
+                  disabled={loadingSimilar}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                >
+                  Buscar
+                </button>
+              </div>
+            </div>
+
+            {/* Lista de produtos similares */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingSimilar ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                  <span className="ml-3 text-gray-600">Buscando produtos...</span>
+                </div>
+              ) : similarProducts.length === 0 ? (
+                <div className="text-center py-12">
+                  <FiPackage className="mx-auto text-gray-300 mb-4" size={48} />
+                  <p className="text-gray-500">Nenhum produto similar encontrado</p>
+                  <p className="text-sm text-gray-400 mt-1">Tente buscar por outro termo</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-500 mb-3">
+                    {similarProducts.length} produto(s) encontrado(s) de outros fornecedores:
+                  </p>
+                  {similarProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className="flex items-center gap-4 p-4 border rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-colors"
+                    >
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{product.name}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-sm text-blue-600">
+                            {product.supplierName}
+                          </span>
+                          {product.isChoiceProduct && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                              Choice
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                          <span>Custo: {formatCurrency(product.costPrice || product.price)}</span>
+                          <span>Estoque: {product.stock}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => executeSwap(product.id)}
+                        disabled={swapping || product.stock < 1}
+                        className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {swapping ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Trocando...
+                          </>
+                        ) : (
+                          <>
+                            <FiArrowRight size={16} />
+                            Selecionar
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowSwapModal(false)
+                  setSwapItem(null)
+                  setSimilarProducts([])
+                }}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

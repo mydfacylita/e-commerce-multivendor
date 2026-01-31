@@ -749,3 +749,298 @@ export function startOrderCleanup(): void {
   
   console.log('[PAYMENT-SYNC] 🧹 Limpeza automática de pedidos ativada (a cada 1h)')
 }
+
+// ============================================================
+// SUBSCRIPTION PAYMENT SYNC - Sincronização de Pagamentos de Planos
+// ============================================================
+
+let subscriptionSyncRunning = false
+let subscriptionIntervalId: NodeJS.Timeout | null = null
+
+/**
+ * Verifica pagamentos pendentes de assinaturas no Mercado Pago
+ */
+async function syncSubscriptionPayments(): Promise<void> {
+  if (subscriptionSyncRunning) return
+  subscriptionSyncRunning = true
+
+  try {
+    const token = await getAccessToken()
+    if (!token) {
+      return
+    }
+
+    // Buscar assinaturas PENDING_PAYMENT dos últimos 7 dias
+    const pendingSubscriptions = await prisma.subscription.findMany({
+      where: {
+        status: 'PENDING_PAYMENT',
+        createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+      },
+      include: {
+        seller: {
+          select: { id: true, userId: true }
+        },
+        plan: {
+          select: { id: true, name: true }
+        }
+      },
+      take: 50
+    })
+
+    if (pendingSubscriptions.length === 0) {
+      return
+    }
+
+    console.log(`[SUBSCRIPTION-SYNC] 🔍 Verificando ${pendingSubscriptions.length} assinaturas pendentes...`)
+
+    let activated = 0
+    let pending = 0
+
+    for (const subscription of pendingSubscriptions) {
+      try {
+        // Buscar pagamento por external_reference (subscription.id)
+        const response = await fetchWithRetry(
+          `https://api.mercadopago.com/v1/payments/search?external_reference=${subscription.id}&sort=date_created&criteria=desc`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        )
+
+        if (!response || !response.ok) {
+          pending++
+          continue
+        }
+
+        const data = await response.json()
+        const payments = data.results || []
+
+        // Verificar se tem pagamento aprovado
+        const approvedPayment = payments.find((p: any) => p.status === 'approved')
+
+        if (approvedPayment) {
+          // Ativar assinatura
+          const now = new Date()
+          const endDate = new Date(now)
+          
+          // Calcular data de término baseado no ciclo
+          const billingCycle = subscription.billingCycle
+          if (billingCycle === 'MONTHLY') {
+            endDate.setMonth(endDate.getMonth() + 1)
+          } else if (billingCycle === 'QUARTERLY') {
+            endDate.setMonth(endDate.getMonth() + 3)
+          } else if (billingCycle === 'SEMIANNUAL') {
+            endDate.setMonth(endDate.getMonth() + 6)
+          } else if (billingCycle === 'ANNUAL') {
+            endDate.setFullYear(endDate.getFullYear() + 1)
+          } else {
+            endDate.setMonth(endDate.getMonth() + 1) // Default mensal
+          }
+
+          await prisma.subscription.update({
+            where: { id: subscription.id },
+            data: {
+              status: 'ACTIVE',
+              startDate: now,
+              endDate: endDate,
+              nextBillingDate: endDate
+            }
+          })
+
+          console.log(`[SUBSCRIPTION-SYNC] ✅ Assinatura ${subscription.id.slice(0, 8)} ATIVADA! (${subscription.plan.name})`)
+          activated++
+        } else {
+          pending++
+        }
+      } catch (error) {
+        console.error(`[SUBSCRIPTION-SYNC] Erro na assinatura ${subscription.id.slice(0, 8)}:`, error)
+        pending++
+      }
+    }
+
+    if (activated > 0) {
+      console.log(`[SUBSCRIPTION-SYNC] 📊 ${activated} ativadas | ${pending} pendentes`)
+    }
+
+  } catch (error) {
+    console.error('[SUBSCRIPTION-SYNC] ❌ Erro na sincronização:', error)
+  } finally {
+    subscriptionSyncRunning = false
+  }
+}
+
+/**
+ * Expira assinaturas vencidas
+ */
+async function expireOldSubscriptions(): Promise<void> {
+  try {
+    const now = new Date()
+
+    // Expirar assinaturas ACTIVE/TRIAL com endDate no passado
+    const result = await prisma.subscription.updateMany({
+      where: {
+        status: { in: ['ACTIVE', 'TRIAL'] },
+        endDate: { lt: now }
+      },
+      data: {
+        status: 'EXPIRED'
+      }
+    })
+
+    if (result.count > 0) {
+      console.log(`[SUBSCRIPTION-SYNC] ⏰ ${result.count} assinaturas expiradas`)
+    }
+
+    // Cancelar assinaturas PENDING_PAYMENT com mais de 7 dias
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    
+    const cancelledResult = await prisma.subscription.updateMany({
+      where: {
+        status: 'PENDING_PAYMENT',
+        createdAt: { lt: sevenDaysAgo }
+      },
+      data: {
+        status: 'CANCELLED'
+      }
+    })
+
+    if (cancelledResult.count > 0) {
+      console.log(`[SUBSCRIPTION-SYNC] 🗑️ ${cancelledResult.count} assinaturas pendentes canceladas (timeout)`)
+    }
+
+  } catch (error) {
+    console.error('[SUBSCRIPTION-SYNC] Erro ao expirar assinaturas:', error)
+  }
+}
+
+/**
+ * Verifica uma assinatura específica (para uso da API check-payment)
+ */
+export async function checkSubscriptionPayment(subscriptionId: string): Promise<{
+  paid: boolean
+  status: string
+  message?: string
+}> {
+  try {
+    const token = await getAccessToken()
+    if (!token) {
+      return { paid: false, status: 'error', message: 'Token não disponível' }
+    }
+
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId }
+    })
+
+    if (!subscription) {
+      return { paid: false, status: 'error', message: 'Assinatura não encontrada' }
+    }
+
+    // Se já está ativo, retornar
+    if (subscription.status === 'ACTIVE' || subscription.status === 'TRIAL') {
+      return { paid: true, status: subscription.status, message: 'Assinatura já está ativa' }
+    }
+
+    // Buscar pagamento no Mercado Pago
+    const response = await fetchWithRetry(
+      `https://api.mercadopago.com/v1/payments/search?external_reference=${subscriptionId}&sort=date_created&criteria=desc`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    if (!response || !response.ok) {
+      return { paid: false, status: 'PENDING_PAYMENT', message: 'Não foi possível verificar pagamento' }
+    }
+
+    const data = await response.json()
+    const payments = data.results || []
+    const approvedPayment = payments.find((p: any) => p.status === 'approved')
+
+    if (approvedPayment) {
+      // Ativar assinatura
+      const now = new Date()
+      const endDate = new Date(now)
+      
+      const billingCycle = subscription.billingCycle
+      if (billingCycle === 'MONTHLY') {
+        endDate.setMonth(endDate.getMonth() + 1)
+      } else if (billingCycle === 'QUARTERLY') {
+        endDate.setMonth(endDate.getMonth() + 3)
+      } else if (billingCycle === 'SEMIANNUAL') {
+        endDate.setMonth(endDate.getMonth() + 6)
+      } else if (billingCycle === 'ANNUAL') {
+        endDate.setFullYear(endDate.getFullYear() + 1)
+      } else {
+        endDate.setMonth(endDate.getMonth() + 1)
+      }
+
+      await prisma.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          status: 'ACTIVE',
+          startDate: now,
+          endDate: endDate,
+          nextBillingDate: endDate
+        }
+      })
+
+      return { paid: true, status: 'ACTIVE', message: 'Pagamento aprovado! Assinatura ativada.' }
+    }
+
+    // Verificar se tem pendente
+    const pendingPayment = payments.find((p: any) => p.status === 'pending')
+    if (pendingPayment) {
+      return { paid: false, status: 'PENDING_PAYMENT', message: 'Pagamento ainda em processamento' }
+    }
+
+    return { paid: false, status: 'PENDING_PAYMENT', message: 'Pagamento não identificado ainda' }
+
+  } catch (error) {
+    console.error('[SUBSCRIPTION-SYNC] Erro ao verificar assinatura:', error)
+    return { paid: false, status: 'error', message: 'Erro ao verificar pagamento' }
+  }
+}
+
+/**
+ * Inicia o sistema de sincronização de assinaturas
+ */
+export function startSubscriptionSync(): void {
+  if (subscriptionIntervalId) {
+    console.log('[SUBSCRIPTION-SYNC] ⚠️ Sistema já está rodando')
+    return
+  }
+
+  console.log('[SUBSCRIPTION-SYNC] 🚀 Iniciando sincronização de assinaturas (a cada 60s)')
+
+  // Executar a primeira vez após 10 segundos
+  setTimeout(() => {
+    syncSubscriptionPayments()
+    expireOldSubscriptions()
+  }, 10000)
+
+  // Executar a cada 60 segundos
+  subscriptionIntervalId = setInterval(() => {
+    syncSubscriptionPayments()
+  }, 60 * 1000)
+
+  // Verificar expiração a cada 1 hora
+  setInterval(() => {
+    expireOldSubscriptions()
+  }, 60 * 60 * 1000)
+}
+
+/**
+ * Para o sistema de sincronização de assinaturas
+ */
+export function stopSubscriptionSync(): void {
+  if (subscriptionIntervalId) {
+    clearInterval(subscriptionIntervalId)
+    subscriptionIntervalId = null
+    console.log('[SUBSCRIPTION-SYNC] 🛑 Sistema parado')
+  }
+}

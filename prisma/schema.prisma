@@ -33,6 +33,7 @@ model User {
   reviewHelpfuls   ReviewHelpful[]
   seller           Seller?           @relation("SellerOwner")
   shopeeAuth       ShopeeAuth?
+  cashback         CustomerCashback?
   tiktokShopAuth   TikTokShopAuth?
   workForSeller    Seller?           @relation("SellerEmployees", fields: [workForSellerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
@@ -108,9 +109,11 @@ model Seller {
   products               Product[]
   user                   User                          @relation("SellerOwner", fields: [userId], references: [id], onDelete: Cascade)
   marketplaceCredentials SellerMarketplaceCredential[]
-  subscription           Subscription?
+  subscriptions          Subscription[]
   employees              User[]                        @relation("SellerEmployees")
   withdrawals            Withdrawal[]
+  account                SellerAccount?
+  nomeCompleto           String?
 
   @@index([status])
   @@index([storeSlug])
@@ -191,6 +194,7 @@ model Product {
   supplierUrl              String?              @db.Text
   specifications           String?              @db.Text
   variants                 String?              @db.Text
+  selectedSkus             String?              @db.Text  // SKUs selecionados para venda (para produtos importados)
   attributes               String?              @db.Text
   sizes                    String?              @db.Text
   sizeType                 String?
@@ -211,6 +215,9 @@ model Product {
   supplierStock            Int?
   supplierStoreId          String?
   supplierStoreName        String?
+  supplierCountryCode      String?              // País do fornecedor (BR, CN, US)
+  shipFromCountry          String?              // País de onde o produto é enviado
+  deliveryDays             Int?                 // Prazo de entrega em dias (da API)
   active                   Boolean              @default(true)
   bookAuthor               String?
   bookGenre                String?
@@ -362,6 +369,8 @@ model Order {
   fraudNotes            String?         @db.Text
   ipAddress             String?         @db.VarChar(100)
   userAgent             String?         @db.Text
+  importTax             Float?          // Imposto de Importação (20%)
+  icmsTax               Float?          // ICMS estadual para produtos importados
   invoices              Invoice[]
   seller                Seller?         @relation("SellerOrders", fields: [sellerId], references: [id])
   soldBySeller          Seller?         @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
@@ -404,6 +413,7 @@ model OrderItem {
   supplierStatus   String?
   supplierCost     Float?
   costPrice        Float?            // Preço de custo no momento da venda
+  supplierSkuId    String?           // SUB-SKU da variação selecionada (ex: AliExpress sku_id)
   trackingCode     String?
   selectedSize     String?
   selectedColor    String?
@@ -573,7 +583,7 @@ model Plan {
 
 model Subscription {
   id              String             @id @default(cuid())
-  sellerId        String             @unique
+  sellerId        String
   planId          String
   status          SubscriptionStatus @default(TRIAL)
   startDate       DateTime           @default(now())
@@ -584,11 +594,22 @@ model Subscription {
   billingCycle    BillingCycle
   nextBillingDate DateTime?
   autoRenew       Boolean            @default(true)
+  
+  // Campos para histórico e renovação
+  contractNumber  String?            // Número do contrato para referência
+  previousId      String?            // Referência à assinatura anterior (renovação)
+  renewedToId     String?            // Referência à nova assinatura (quando renovada)
+  paymentId       String?            // ID do pagamento que ativou esta assinatura
+  invoiceUrl      String?            // URL da fatura/recibo
+  notes           String?            @db.Text // Observações do contrato
+  
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+  
   plan            Plan               @relation(fields: [planId], references: [id])
   seller          Seller             @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
+  @@index([sellerId])
   @@index([status])
   @@index([endDate])
   @@index([nextBillingDate])
@@ -707,6 +728,21 @@ model ApiLog {
   @@index([statusCode])
   @@index([createdAt])
   @@map("api_log")
+}
+
+model SyncLog {
+  id         String   @id @default(cuid())
+  type       String   // ALIEXPRESS_STOCK, MARKETPLACE_ORDERS, etc
+  totalItems Int      @default(0)
+  synced     Int      @default(0)
+  errors     Int      @default(0)
+  details    Json?
+  duration   Int      @default(0) // Duração em milissegundos
+  createdAt  DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("sync_log")
 }
 
 model prisma_migrations_itemtype {
@@ -1331,3 +1367,271 @@ enum DiscountType {
   PERCENTAGE
   FIXED
 }
+
+// ========================================
+// CONTA DIGITAL DO VENDEDOR
+// ========================================
+
+model SellerAccount {
+  id                  String                 @id @default(cuid())
+  sellerId            String                 @unique
+  accountNumber       String                 @unique // Número da conta digital (gerado automaticamente)
+  status              SellerAccountStatus    @default(PENDING)
+  balance             Float                  @default(0) // Saldo disponível
+  blockedBalance      Float                  @default(0) // Saldo bloqueado (em liberação)
+  totalReceived       Float                  @default(0) // Total já recebido
+  totalWithdrawn      Float                  @default(0) // Total já sacado
+  // Dados bancários para saque
+  pixKeyType          String?                // CPF, CNPJ, EMAIL, PHONE, RANDOM
+  pixKey              String?
+  bankCode            String?
+  bankName            String?
+  agencia             String?
+  conta               String?
+  contaTipo           String?                // CORRENTE, POUPANCA
+  // Configurações
+  autoWithdrawal      Boolean                @default(false) // Saque automático
+  autoWithdrawalDay   Int?                   // Dia do mês para saque automático
+  minWithdrawalAmount Float                  @default(50) // Valor mínimo para saque
+  // Verificação e segurança
+  verifiedAt          DateTime?
+  verifiedBy          String?
+  kycStatus           KYCStatus              @default(PENDING)
+  kycDocuments        String?                @db.Text // JSON com documentos enviados
+  // Segurança de transações
+  transactionPin      String?                // Hash do PIN de transação
+  transactionPinSalt  String?                // Salt do PIN
+  lastPinChange       DateTime?              // Última alteração do PIN
+  failedPinAttempts   Int                    @default(0)
+  lockedUntil         DateTime?              // Conta bloqueada até
+  metadata            String?                @db.Text // JSON com dados adicionais
+  // Auditoria
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  
+  seller              Seller                 @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  transactions        SellerAccountTransaction[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([accountNumber])
+  @@map("seller_account")
+}
+
+model SellerAccountTransaction {
+  id               String                       @id @default(cuid())
+  accountId        String
+  type             SellerTransactionType
+  amount           Float
+  balanceBefore    Float
+  balanceAfter     Float
+  description      String
+  reference        String?                      // ID do pedido, saque, etc
+  referenceType    String?                      // ORDER, WITHDRAWAL, REFUND, ADJUSTMENT, BONUS
+  orderId          String?                      // Pedido relacionado (se aplicável)
+  withdrawalId     String?                      // Saque relacionado (se aplicável)
+  status           TransactionStatus            @default(COMPLETED)
+  metadata         String?                      @db.Text // Dados extras em JSON
+  createdAt        DateTime                     @default(now())
+  processedAt      DateTime?
+  processedBy      String?
+
+  account          SellerAccount                @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderId])
+  @@index([withdrawalId])
+  @@map("seller_account_transaction")
+}
+
+enum SellerAccountStatus {
+  PENDING           // Aguardando ativação
+  ACTIVE            // Ativa e operacional
+  BLOCKED           // Bloqueada temporariamente
+  SUSPENDED         // Suspensa por violação
+  CLOSED            // Encerrada
+}
+
+enum KYCStatus {
+  PENDING           // Aguardando documentos
+  SUBMITTED         // Documentos enviados
+  REVIEWING         // Em análise
+  APPROVED          // Aprovado
+  REJECTED          // Rejeitado
+  NEEDS_UPDATE      // Precisa atualizar documentos
+}
+
+enum SellerTransactionType {
+  SALE              // Venda (crédito)
+  WITHDRAWAL        // Saque (débito)
+  REFUND            // Reembolso (débito)
+  COMMISSION        // Comissão da plataforma (débito)
+  BONUS             // Bônus (crédito)
+  ADJUSTMENT_CREDIT // Ajuste manual (crédito)
+  ADJUSTMENT_DEBIT  // Ajuste manual (débito)
+  CHARGEBACK        // Estorno por disputa (débito)
+  FEE               // Taxa (débito)
+  TRANSFER_IN       // Transferência recebida (crédito)
+  TRANSFER_OUT      // Transferência enviada (débito)
+  MIGRATION         // Migração de saldo anterior (crédito)
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ========================================
+// SISTEMA DE CASHBACK PARA CLIENTES
+// ========================================
+
+model CashbackRule {
+  id                String           @id @default(cuid())
+  name              String
+  description       String?          @db.Text
+  type              CashbackType     @default(PERCENTAGE)
+  value             Float            // Porcentagem ou valor fixo
+  minOrderValue     Float?           // Valor mínimo do pedido
+  maxCashback       Float?           // Cashback máximo por pedido
+  // Restrições
+  categoryIds       String?          @db.Text // JSON array de IDs de categorias (null = todas)
+  productIds        String?          @db.Text // JSON array de IDs de produtos específicos
+  sellerIds         String?          @db.Text // JSON array de IDs de vendedores
+  excludedProducts  String?          @db.Text // Produtos excluídos
+  // Validade
+  validFrom         DateTime         @default(now())
+  validUntil        DateTime?
+  // Status
+  isActive          Boolean          @default(true)
+  priority          Int              @default(0) // Maior prioridade = aplicado primeiro
+  // Condições especiais
+  firstPurchaseOnly Boolean          @default(false)
+  forNewCustomers   Boolean          @default(false) // Clientes novos (30 dias)
+  // Auditoria
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  createdBy         String?
+
+  @@index([isActive])
+  @@index([validFrom, validUntil])
+  @@index([priority])
+  @@map("cashback_rule")
+}
+
+model CustomerCashback {
+  id               String                     @id @default(cuid())
+  userId           String                     @unique
+  balance          Float                      @default(0) // Saldo disponível
+  pendingBalance   Float                      @default(0) // Saldo pendente (aguardando liberação)
+  totalEarned      Float                      @default(0) // Total já ganho
+  totalUsed        Float                      @default(0) // Total já utilizado
+  // Configurações
+  expirationDays   Int                        @default(90) // Dias para expirar o cashback
+  // Auditoria
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  user             User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions     CashbackTransaction[]
+
+  @@index([userId])
+  @@map("customer_cashback")
+}
+
+model CashbackTransaction {
+  id               String                     @id @default(cuid())
+  cashbackId       String
+  type             CashbackTransactionType
+  amount           Float
+  balanceBefore    Float
+  balanceAfter     Float
+  description      String
+  orderId          String?                    // Pedido que gerou ou usou o cashback
+  ruleId           String?                    // Regra que gerou o cashback
+  expiresAt        DateTime?                  // Data de expiração (para créditos)
+  status           CashbackTransactionStatus  @default(PENDING)
+  // Liberação
+  availableAt      DateTime?                  // Data que ficará disponível
+  releasedAt       DateTime?                  // Data que foi liberado
+  // Auditoria
+  createdAt        DateTime                   @default(now())
+  processedAt      DateTime?
+
+  cashback         CustomerCashback           @relation(fields: [cashbackId], references: [id], onDelete: Cascade)
+
+  @@index([cashbackId])
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@map("cashback_transaction")
+}
+
+enum CashbackType {
+  PERCENTAGE        // Porcentagem do valor do pedido
+  FIXED             // Valor fixo
+}
+
+enum CashbackTransactionType {
+  CREDIT            // Ganho de cashback
+  DEBIT             // Uso de cashback
+  EXPIRED           // Cashback expirado
+  ADJUSTMENT_CREDIT // Ajuste manual (crédito)
+  ADJUSTMENT_DEBIT  // Ajuste manual (débito)
+  REFUND            // Devolução de cashback usado
+}
+
+enum CashbackTransactionStatus {
+  PENDING           // Aguardando liberação (pedido não entregue)
+  AVAILABLE         // Disponível para uso
+  USED              // Utilizado
+  EXPIRED           // Expirado
+  CANCELLED         // Cancelado (pedido cancelado)
+}
+
+// ========================================
+// AUDITORIA E SEGURANÇA
+// ========================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   // FINANCIAL_TRANSFER, FINANCIAL_WITHDRAWAL, etc
+  resource    String?  // SellerAccount, Order, etc
+  resourceId  String?  // ID do recurso afetado
+  ipAddress   String?
+  userAgent   String?  @db.Text
+  status      String   // SUCCESS, FAILED, BLOCKED, SUSPICIOUS
+  details     String?  @db.Text // JSON com detalhes da operação
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, action, createdAt])
+  @@map("audit_log")
+}
+
+model TransactionToken {
+  id            String   @id @default(cuid())
+  accountId     String
+  token         String   @unique
+  amount        Decimal  @db.Decimal(10, 2)
+  destination   String   // Conta destino ou tipo de operação
+  used          Boolean  @default(false)
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([token])
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("transaction_token")
+}
+

@@ -15,7 +15,7 @@ import AnalyticsTracker from '@/components/AnalyticsTracker'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'E-Commerce Moderno',
+  title: 'MYDSHOP - Marketplace Online',
   description: 'Sua loja online completa e moderna',
   icons: {
     icon: '/favicon.svg',

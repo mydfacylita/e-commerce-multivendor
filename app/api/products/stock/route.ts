@@ -37,7 +37,21 @@ export async function POST(request: NextRequest) {
     }> = {}
 
     for (const product of products) {
-      const variants = product.variants as Array<{ size: string; color: string; stock: number }> | null
+      // Parse variants - pode ser array, string JSON, ou null
+      let variants: Array<{ size?: string; color?: string; stock?: number }> | null = null
+      
+      if (product.variants) {
+        if (Array.isArray(product.variants)) {
+          variants = product.variants
+        } else if (typeof product.variants === 'string') {
+          try {
+            const parsed = JSON.parse(product.variants)
+            variants = Array.isArray(parsed) ? parsed : null
+          } catch {
+            variants = null
+          }
+        }
+      }
       
       stockData[product.id] = {
         stock: product.stock,

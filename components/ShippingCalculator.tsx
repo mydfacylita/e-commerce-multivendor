@@ -75,7 +75,27 @@ export default function ShippingCalculator({
       // Construir opções de frete
       const options: ShippingOption[] = [];
       
-      if (data.isFree || data.shippingCost === 0) {
+      // Se houver opções de frete internacional (AliExpress)
+      if (data.allOptions && Array.isArray(data.allOptions)) {
+        data.allOptions.forEach((opt: any) => {
+          options.push({
+            name: opt.name || 'Envio Internacional',
+            price: opt.price || 0,
+            days: opt.days || '15-30 dias',
+            icon: opt.isInternational ? "🌍" : "📦",
+            isFree: opt.isFree
+          });
+        });
+      } else if (data.isInternational) {
+        // Frete internacional único
+        options.push({
+          name: data.shippingService || 'Envio Internacional',
+          price: data.shippingCost || 0,
+          days: data.deliveryDays || '15-30 dias',
+          icon: "🌍",
+          isFree: data.isFree
+        });
+      } else if (data.isFree || data.shippingCost === 0) {
         options.push({
           name: data.shippingService || 'Frete Grátis',
           price: 0,

@@ -79,10 +79,10 @@ export async function syncDropshippingProducts(
     // Preço base do produto original (preço mínimo que vendedor deve praticar)
     const precoBase = sourceProduct.price
     console.log(`   💰 Preço base do admin: R$ ${precoBase.toFixed(2)}`)
-    console.log(`   📌 Status ADM: active=${sourceProduct.active}, availableForDropship=${sourceProduct.availableForDropship}`)
+    console.log(`   📌 Status ADM: active=${sourceProduct.active}, isDropshipping=${sourceProduct.isDropshipping}`)
 
-    // REGRA: Se produto ADM está inativo ou não disponível para drop, desativar TODOS os drops
-    if (!sourceProduct.active || !sourceProduct.availableForDropship) {
+    // REGRA: Se produto ADM está inativo ou não é mais dropshipping, desativar TODOS os drops
+    if (!sourceProduct.active || !sourceProduct.isDropshipping) {
       console.log(`   ⛔ Produto ADM indisponível - desativando TODOS os drops...`)
       
       for (const droppedProduct of droppedProducts) {

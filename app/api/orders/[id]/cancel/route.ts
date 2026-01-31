@@ -239,7 +239,15 @@ export async function POST(
       }
     })
     
-    console.log('   ✅ Pedido marcado como cancelado')
+    // Atualizar também os OrderItems para marcar como cancelados
+    await prisma.orderItem.updateMany({
+      where: { orderId: orderId },
+      data: {
+        supplierStatus: 'CANCELLED'
+      }
+    })
+    
+    console.log('   ✅ Pedido e itens marcados como cancelados')
 
     // ═══════════════════════════════════════════════════════════════
     // 5️⃣ LOG E RESPOSTA

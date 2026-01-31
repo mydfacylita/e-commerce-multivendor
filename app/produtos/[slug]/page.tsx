@@ -2,12 +2,12 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import ProductVariantSelector from '@/components/ProductVariantSelector'
 import Breadcrumb from '@/components/Breadcrumb'
 import ProductDetailClient from '@/components/ProductDetailClient'
 import ProductReviews from '@/components/ProductReviews'
 import ProductQuestions from '@/components/ProductQuestions'
 import { serializeProduct } from '@/lib/serialize'
+import { parseVariantsJson, convertToLegacyFormat, type LegacyVariant } from '@/lib/product-variants'
 
 // Função para processar especificações baseado no fornecedor
 function processSpecifications(specs: any, supplierName?: string): Record<string, string> {
@@ -126,15 +126,26 @@ function processAttributes(attrs: any, supplierName?: string): Record<string, st
   return {}
 }
 
-export default async function ProductPage({ params }: { params: { slug: string } }) {
+export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  
   const productRaw = await prisma.product.findUnique({
     where: { 
-      slug: params.slug,
+      slug: slug,
       active: true  // Apenas produtos ativos
     },
     include: { 
-      category: true,
-      supplier: true  // Incluir informações do fornecedor
+      category: {
+        include: {
+          parent: {
+            include: {
+              parent: true  // Até 3 níveis de hierarquia
+            }
+          }
+        }
+      },
+      supplier: true,  // Incluir informações do fornecedor
+      seller: true  // Para identificação de origem (frete)
     },
   })
 
@@ -249,17 +260,36 @@ export default async function ProductPage({ params }: { params: { slug: string }
   const processedSpecs = processSpecifications(product.specifications, product.supplier?.name)
   const processedAttrs = processAttributes(product.attributes, product.supplier?.name)
   
-  // Parse de variants com suporte a JSON aninhado
-  let variants = null
+  // Parse de variants com suporte ao novo formato padronizado e formato legado
+  let variants: LegacyVariant[] | null = null
+  
   if (product.variants) {
     try {
-      let parsed = product.variants
-      // Parse recursivo para JSON duplo/triplo
-      while (typeof parsed === 'string') {
-        parsed = JSON.parse(parsed)
+      // Tentar novo formato padronizado primeiro
+      const standardVariants = parseVariantsJson(
+        typeof product.variants === 'string' ? product.variants : JSON.stringify(product.variants)
+      )
+      
+      if (standardVariants) {
+        // Converter para formato legado usado pelo ProductSelectionWrapper
+        variants = convertToLegacyFormat(standardVariants)
+        console.log('✅ Variants (novo formato) convertidos:', variants)
+      } else {
+        // Fallback para formato legado antigo
+        let parsed = product.variants
+        // Parse recursivo para JSON duplo/triplo
+        while (typeof parsed === 'string') {
+          parsed = JSON.parse(parsed)
+        }
+        
+        // Verificar se já está no formato legado
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (parsed[0].size !== undefined || parsed[0].color !== undefined) {
+            variants = parsed as LegacyVariant[]
+            console.log('✅ Variants (formato legado) parseados:', variants)
+          }
+        }
       }
-      variants = Array.isArray(parsed) ? parsed : null
-      console.log('✅ Variants parseados:', variants)
     } catch (e) {
       console.error('❌ Erro ao parsear variants:', e)
       variants = null
@@ -267,12 +297,53 @@ export default async function ProductPage({ params }: { params: { slug: string }
   } else {
     console.log('⚠️ Produto sem campo variants')
   }
+  
+  // Parse de selectedSkus (SKUs com preços personalizados)
+  let selectedSkus: any[] = []
+  if (productRaw.selectedSkus) {
+    try {
+      let parsed: any = productRaw.selectedSkus
+      while (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed)
+      }
+      if (Array.isArray(parsed)) {
+        selectedSkus = parsed.filter((s: any) => s.enabled) // Apenas SKUs habilitados
+        console.log('✅ SelectedSkus parseados:', selectedSkus.length, 'ativos')
+      }
+    } catch (e) {
+      console.error('❌ Erro ao parsear selectedSkus:', e)
+    }
+  }
+  
+  // Filtrar variants baseado nos selectedSkus habilitados
+  // Se tem selectedSkus configurados, só mostrar SKUs que estão enabled
+  if (variants && selectedSkus.length > 0) {
+    const enabledSkuIds = new Set(selectedSkus.map((s: any) => s.skuId))
+    variants = variants.filter((v: any) => {
+      // Se a variante tem skuId, verificar se está habilitada
+      if (v.skuId) {
+        return enabledSkuIds.has(v.skuId)
+      }
+      // Se não tem skuId (formato legado), manter
+      return true
+    })
+    console.log('✅ Variants filtradas:', variants.length, 'disponíveis')
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Breadcrumb de navegação */}
+      {/* Breadcrumb de navegação com hierarquia completa */}
       <Breadcrumb 
         items={[
+          // Montar hierarquia de categorias (do nível mais alto para o mais baixo)
+          ...(product.category.parent?.parent ? [{
+            label: product.category.parent.parent.name,
+            href: `/categorias/${product.category.parent.parent.slug}`
+          }] : []),
+          ...(product.category.parent ? [{
+            label: product.category.parent.name,
+            href: `/categorias/${product.category.parent.slug}`
+          }] : []),
           { 
             label: product.category.name, 
             href: `/categorias/${product.category.slug}` 
@@ -291,13 +362,8 @@ export default async function ProductPage({ params }: { params: { slug: string }
           variants={variants}
           processedSpecs={processedSpecs}
           processedAttrs={processedAttrs}
+          selectedSkus={selectedSkus}
         />
-
-      {/* Seletor de Variantes (cores, tamanhos, etc) */}
-      <ProductVariantSelector 
-        variants={variants} 
-        supplierName={product.supplier?.name}
-      />
       
         {/* Bloco de garantias abaixo das infos do produto */}
         <div className="mt-8 pt-8 border-t border-gray-100">

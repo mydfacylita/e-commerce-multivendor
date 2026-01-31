@@ -9,27 +9,54 @@ export default function SellerSignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
-  const isPending = searchParams?.get('pendente') === 'true';
-  const isRejected = searchParams?.get('rejeitado') === 'true';
-  const isSuspended = searchParams?.get('suspenso') === 'true';
+  const [sellerStatus, setSellerStatus] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const isPending = searchParams?.get('pendente') === 'true' || sellerStatus === 'PENDING';
+  const isRejected = searchParams?.get('rejeitado') === 'true' || sellerStatus === 'REJECTED';
+  const isSuspended = searchParams?.get('suspenso') === 'true' || sellerStatus === 'SUSPENDED';
 
-  // Verificar autenticação ANTES de mostrar a página
+  // Verificar autenticação e status do vendedor
   useEffect(() => {
     if (status === 'loading') return; // Aguarda carregar
     
     if (status === 'unauthenticated') {
       // NÃO está logado - redireciona para login com callback
       router.push('/login?callbackUrl=/vendedor/cadastro');
+      return;
     }
+    
+    // Se está autenticado, verificar se já tem cadastro de vendedor
+    checkSellerStatus();
   }, [status, router]);
 
-  // Mostrar loading enquanto verifica autenticação
-  if (status === 'loading') {
+  const checkSellerStatus = async () => {
+    try {
+      const response = await fetch('/api/seller/register');
+      if (response.ok) {
+        const data = await response.json();
+        setSellerStatus(data.seller?.status || data.status);
+        
+        // Se está ativo, redireciona para dashboard
+        if (data.seller?.status === 'ACTIVE' || data.status === 'ACTIVE') {
+          router.push('/vendedor/dashboard');
+          return;
+        }
+      }
+    } catch (error) {
+      // Não tem cadastro ainda, pode continuar
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Mostrar loading enquanto verifica autenticação e status
+  if (status === 'loading' || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verificando autenticação...</p>
+          <p className="text-gray-600">Verificando seu cadastro...</p>
         </div>
       </div>
     );

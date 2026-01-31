@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveSubscription, getSubscriptionHistory } from '@/lib/subscription'
 
 export async function GET() {
   try {
@@ -16,14 +17,7 @@ export async function GET() {
 
     // Buscar vendedor
     const seller = await prisma.seller.findUnique({
-      where: { userId: session.user.id },
-      include: {
-        subscription: {
-          include: {
-            plan: true
-          }
-        }
-      }
+      where: { userId: session.user.id }
     })
 
     if (!seller) {
@@ -33,12 +27,21 @@ export async function GET() {
       )
     }
 
+    // Buscar assinatura ativa
+    const subscription = await getActiveSubscription(seller.id)
+
     // Se não tem assinatura, retornar null
-    if (!seller.subscription) {
+    if (!subscription) {
       return NextResponse.json(null)
     }
 
-    return NextResponse.json(seller.subscription)
+    // Buscar histórico para retornar junto
+    const history = await getSubscriptionHistory(seller.id)
+
+    return NextResponse.json({
+      ...subscription,
+      history: history.length > 1 ? history : undefined
+    })
   } catch (error) {
     console.error('Erro ao buscar assinatura:', error)
     return NextResponse.json(

@@ -7,7 +7,7 @@ export default async function NovoProdutoPage() {
       orderBy: { name: 'asc' },
     }),
     prisma.supplier.findMany({
-      where: { active: true },
+      where: { isActive: true },
       orderBy: { name: 'asc' },
     }),
   ])

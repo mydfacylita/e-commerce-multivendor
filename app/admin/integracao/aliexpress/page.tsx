@@ -737,6 +737,36 @@ export default function AliExpressIntegrationPage() {
               </div>
             )}
 
+            {/* Sincronização de Estoque */}
+            {status?.configured && status.authorized && (
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-md p-6 border-2 border-green-200 mt-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2 text-green-900 flex items-center gap-2">
+                      🔄 Sincronização de Estoque
+                    </h2>
+                    <p className="text-gray-700 mb-4">
+                      Monitore e atualize automaticamente o estoque dos produtos importados
+                    </p>
+                    <ul className="text-sm text-gray-600 space-y-1 mb-4">
+                      <li>📊 Verificação diária do estoque no AliExpress</li>
+                      <li>⚠️ Desativação automática de produtos sem estoque</li>
+                      <li>💰 Alerta de alterações de preço significativas</li>
+                      <li>🕐 Configurável via cron job para execução automática</li>
+                    </ul>
+                  </div>
+                </div>
+                <a
+                  href="/admin/integracao/aliexpress/sync-estoque"
+                  className="inline-flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-8 py-4 rounded-lg hover:from-green-700 hover:to-emerald-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+                >
+                  <span>🔄</span>
+                  <span>Gerenciar Sincronização</span>
+                  <span>→</span>
+                </a>
+              </div>
+            )}
+
             {/* Importar Produtos */}
             {status?.configured && !status.error && (
               <div className="bg-white rounded-lg shadow-md p-6">

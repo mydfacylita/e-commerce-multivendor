@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSession, signOut } from 'next-auth/react'
 import { useState, useEffect, useRef } from 'react'
-import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiTruck, FiLock, FiAward, FiPackage, FiHeart, FiMail } from 'react-icons/fi'
+import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiTruck, FiLock, FiAward, FiPackage, FiHeart, FiMail, FiGrid, FiHome, FiUsers } from 'react-icons/fi'
 import { FaFacebook, FaTwitter, FaYoutube, FaWhatsapp } from 'react-icons/fa'
 import { useCartStore } from '@/lib/store'
 import { useRouter } from 'next/navigation'
@@ -17,6 +17,15 @@ interface SearchProduct {
   price: number
   images: string[]
   stock: number
+}
+
+interface Category {
+  id: string
+  name: string
+  slug: string
+  description?: string
+  parentId?: string | null
+  children?: Category[]
 }
 
 interface SocialLinks {
@@ -47,10 +56,35 @@ export default function Navbar() {
     tiktok: ''
   })
   const [freeShippingMin, setFreeShippingMin] = useState(299)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isDepartmentsOpen, setIsDepartmentsOpen] = useState(false)
+  const departmentsRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const items = useCartStore((state) => state.items)
   const cartItemsCount = items.reduce((sum, item) => sum + item.quantity, 0)
+
+  // Buscar categorias
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/public/categories')
+        if (response.ok) {
+          const data = await response.json()
+          // Organizar categorias em hierarquia
+          const parentCategories = data.filter((c: Category) => !c.parentId)
+          const organizedCategories = parentCategories.map((parent: Category) => ({
+            ...parent,
+            children: data.filter((c: Category) => c.parentId === parent.id)
+          }))
+          setCategories(organizedCategories)
+        }
+      } catch (error) {
+        console.error('Erro ao buscar categorias:', error)
+      }
+    }
+    fetchCategories()
+  }, [])
 
   // Buscar configurações
   useEffect(() => {
@@ -112,6 +146,9 @@ export default function Navbar() {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowResults(false)
       }
+      if (departmentsRef.current && !departmentsRef.current.contains(event.target as Node)) {
+        setIsDepartmentsOpen(false)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
@@ -161,7 +198,7 @@ export default function Navbar() {
       </div>
 
       {/* Header Principal */}
-      <nav className="bg-white shadow-md sticky top-0 z-50">
+      <nav className="bg-white shadow-md z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center gap-4">
             {/* Logo */}
@@ -444,36 +481,104 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="hidden md:flex items-center justify-between py-3">
             <div className="flex items-center gap-8">
+              {/* Mega Menu de Departamentos - Primeiro item */}
+              <div ref={departmentsRef} className="relative">
+                <button 
+                  onClick={() => setIsDepartmentsOpen(!isDepartmentsOpen)}
+                  onMouseEnter={() => setIsDepartmentsOpen(true)}
+                  className="flex items-center gap-2 hover:text-accent-500 font-semibold"
+                >
+                  <FiGrid size={20} />
+                  <span>Departamentos</span>
+                  <span className={`transition-transform ${isDepartmentsOpen ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+                
+                {/* Mega Menu Dropdown */}
+                {isDepartmentsOpen && (
+                  <div 
+                    className="fixed left-4 right-4 mt-3 bg-white text-gray-800 rounded-lg shadow-2xl border border-gray-200 z-50"
+                    style={{ maxWidth: '1200px', marginLeft: 'auto', marginRight: 'auto' }}
+                    onMouseLeave={() => setIsDepartmentsOpen(false)}
+                  >
+                    {/* Header do Mega Menu */}
+                    <div className="bg-primary-500 text-white px-6 py-3 rounded-t-lg flex justify-between items-center">
+                      <h3 className="font-bold text-lg">Todos os Departamentos</h3>
+                      <button 
+                        onClick={() => setIsDepartmentsOpen(false)}
+                        className="hover:text-accent-300"
+                      >
+                        <FiX size={20} />
+                      </button>
+                    </div>
+                    
+                    {/* Grid de Categorias */}
+                    <div className="p-6 max-h-[70vh] overflow-y-auto">
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                        {categories.map((category) => (
+                          <div key={category.id} className="space-y-2">
+                            {/* Categoria Pai */}
+                            <Link 
+                              href={`/categorias/${category.slug}`}
+                              onClick={() => setIsDepartmentsOpen(false)}
+                              className="block font-bold text-gray-900 hover:text-primary-600 border-b border-gray-200 pb-2"
+                            >
+                              {category.name}
+                            </Link>
+                            
+                            {/* Subcategorias */}
+                            {category.children && category.children.length > 0 && (
+                              <ul className="space-y-1">
+                                {category.children.slice(0, 8).map((child) => (
+                                  <li key={child.id}>
+                                    <Link 
+                                      href={`/categorias/${child.slug}`}
+                                      onClick={() => setIsDepartmentsOpen(false)}
+                                      className="text-sm text-gray-600 hover:text-primary-600 hover:underline block py-0.5"
+                                    >
+                                      {child.name}
+                                    </Link>
+                                  </li>
+                                ))}
+                                {category.children.length > 8 && (
+                                  <li>
+                                    <Link 
+                                      href={`/categorias/${category.slug}`}
+                                      onClick={() => setIsDepartmentsOpen(false)}
+                                      className="text-sm text-primary-600 font-medium hover:underline"
+                                    >
+                                      ver mais +
+                                    </Link>
+                                  </li>
+                                )}
+                              </ul>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Ver Todas as Categorias */}
+                      <div className="mt-6 pt-4 border-t border-gray-200 text-center">
+                        <Link 
+                          href="/categorias"
+                          onClick={() => setIsDepartmentsOpen(false)}
+                          className="inline-flex items-center gap-2 px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium"
+                        >
+                          Ver Todas as Categorias
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               <Link href="/rastrear" className="flex items-center gap-2 hover:text-accent-500">
                 <FiPackage size={20} />
                 <span>Rastrear Pedido</span>
               </Link>
               <Link href="/" className="flex items-center gap-2 hover:text-accent-500">
-                <span>🏠 Home</span>
+                <FiHome size={20} />
+                <span>Home</span>
               </Link>
-              <div className="relative group">
-                <button className="flex items-center gap-2 hover:text-accent-500">
-                  <span>🏷️ Departamentos</span>
-                  <span>▼</span>
-                </button>
-                <div className="absolute left-0 mt-2 w-64 bg-white text-gray-800 rounded-md shadow-lg py-2 hidden group-hover:block">
-                  <Link href="/categorias/eletronicos" className="block px-4 py-2 hover:bg-gray-100">
-                    Eletrônicos
-                  </Link>
-                  <Link href="/categorias/moda" className="block px-4 py-2 hover:bg-gray-100">
-                    Moda
-                  </Link>
-                  <Link href="/categorias/casa-decoracao" className="block px-4 py-2 hover:bg-gray-100">
-                    Casa e Decoração
-                  </Link>
-                  <Link href="/categorias/esportes" className="block px-4 py-2 hover:bg-gray-100">
-                    Esportes
-                  </Link>
-                  <Link href="/categorias/livros" className="block px-4 py-2 hover:bg-gray-100">
-                    Livros
-                  </Link>
-                </div>
-              </div>
               <Link href="/desejos" className="flex items-center gap-2 hover:text-accent-500">
                 <FiHeart size={20} />
                 <span>Desejos</span>
@@ -483,7 +588,8 @@ export default function Navbar() {
                 <span>Contato</span>
               </Link>
               <Link href="/vendedor/cadastro" className="flex items-center gap-2 hover:text-accent-500 font-semibold px-4 py-2">
-                <span>🤝 Seja um Parceiro</span>
+                <FiUsers size={20} />
+                <span>Seja um Parceiro</span>
               </Link>
             </div>
 
@@ -503,11 +609,9 @@ export default function Navbar() {
                   <FaYoutube size={24} />
                 </a>
               )}
-              {socialLinks.whatsapp && (
-                <a href={`https://wa.me/${socialLinks.whatsapp}`} target="_blank" rel="noopener noreferrer" className="hover:text-accent-500">
-                  <FaWhatsapp size={24} />
-                </a>
-              )}
+              <a href="https://wa.me/5598988489512" target="_blank" rel="noopener noreferrer" className="hover:text-accent-500" title="WhatsApp">
+                <FaWhatsapp size={24} />
+              </a>
             </div>
           </div>
         </div>
@@ -517,27 +621,73 @@ export default function Navbar() {
       {isMenuOpen && (
         <div className="md:hidden bg-white border-t">
           <div className="px-4 py-2 space-y-1">
-            <Link href="/" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
-              🏠 Home
+            <Link href="/" className="flex items-center gap-2 py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              <FiHome size={18} /> Home
             </Link>
-            <Link href="/rastrear" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
-              Rastrear Pedido
+            <Link href="/rastrear" className="flex items-center gap-2 py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              <FiPackage size={18} /> Rastrear Pedido
             </Link>
-            <Link href="/categorias" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
-              🏷️ Departamentos
+            
+            {/* Departamentos Mobile */}
+            <div className="py-2">
+              <button 
+                onClick={() => setIsDepartmentsOpen(!isDepartmentsOpen)}
+                className="flex items-center justify-between w-full font-semibold text-primary-600"
+              >
+                <span className="flex items-center gap-2"><FiGrid size={18} /> Departamentos</span>
+                <span className={`transition-transform ${isDepartmentsOpen ? 'rotate-180' : ''}`}>▼</span>
+              </button>
+              
+              {isDepartmentsOpen && (
+                <div className="mt-2 pl-4 space-y-2 max-h-64 overflow-y-auto">
+                  {categories.map((category) => (
+                    <div key={category.id}>
+                      <Link 
+                        href={`/categorias/${category.slug}`}
+                        onClick={() => { setIsMenuOpen(false); setIsDepartmentsOpen(false); }}
+                        className="block py-1 font-medium text-gray-800 hover:text-primary-600"
+                      >
+                        {category.name}
+                      </Link>
+                      {category.children && category.children.length > 0 && (
+                        <div className="pl-3 mt-1 space-y-1">
+                          {category.children.slice(0, 4).map((child) => (
+                            <Link 
+                              key={child.id}
+                              href={`/categorias/${child.slug}`}
+                              onClick={() => { setIsMenuOpen(false); setIsDepartmentsOpen(false); }}
+                              className="block py-0.5 text-sm text-gray-600 hover:text-primary-600"
+                            >
+                              {child.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <Link 
+                    href="/categorias"
+                    onClick={() => { setIsMenuOpen(false); setIsDepartmentsOpen(false); }}
+                    className="block py-2 text-primary-600 font-medium"
+                  >
+                    Ver Todas →
+                  </Link>
+                </div>
+              )}
+            </div>
+            
+            <Link href="/desejos" className="flex items-center gap-2 py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              <FiHeart size={18} /> Desejos
             </Link>
-            <Link href="/desejos" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
-              ❤️ Desejos
-            </Link>
-            <Link href="/contato" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
-              ✉️ Contato
+            <Link href="/contato" className="flex items-center gap-2 py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              <FiMail size={18} /> Contato
             </Link>
             <Link 
               href="/vendedor/cadastro" 
-              className="block bg-accent-500 text-white px-4 py-3 rounded-md hover:bg-accent-600 text-center mt-4 font-semibold"
+              className="flex items-center justify-center gap-2 bg-accent-500 text-white px-4 py-3 rounded-md hover:bg-accent-600 text-center mt-4 font-semibold"
               onClick={() => setIsMenuOpen(false)}
             >
-              🤝 Seja um Parceiro
+              <FiUsers size={18} /> Seja um Parceiro
             </Link>
             {!session && (
               <Link

@@ -12,6 +12,9 @@ interface Subscription {
   price: number
   billingCycle: string
   autoRenew: boolean
+  contractNumber?: string
+  previousId?: string
+  renewedToId?: string
   seller: {
     id: string
     businessName: string
@@ -232,6 +235,9 @@ export default function AdminAssinaturasPage() {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Contrato
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
@@ -239,7 +245,7 @@ export default function AdminAssinaturasPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredSubscriptions.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     Nenhuma assinatura encontrada
                   </td>
                 </tr>
@@ -249,25 +255,26 @@ export default function AdminAssinaturasPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {subscription.seller.businessName}
+                          {subscription.seller?.businessName || subscription.seller?.user?.name || '-'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {subscription.seller.user.email}
+                          {subscription.seller?.user?.email || '-'}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">
-                        {subscription.plan.name}
+                        {subscription.plan?.name || '-'}
                       </div>
                       <div className="text-xs text-gray-500">
                         {subscription.billingCycle === 'MONTHLY' ? 'Mensal' :
-                         subscription.billingCycle === 'QUARTERLY' ? 'Trimestral' : 'Anual'}
+                         subscription.billingCycle === 'QUARTERLY' ? 'Trimestral' :
+                         subscription.billingCycle === 'SEMIANNUAL' ? 'Semestral' : 'Anual'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        R$ {subscription.price.toFixed(2)}
+                        R$ {subscription.price?.toFixed(2) || '0.00'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -278,6 +285,18 @@ export default function AdminAssinaturasPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(subscription.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col gap-1">
+                        {subscription.contractNumber ? (
+                          <span className="text-xs font-mono text-gray-700">{subscription.contractNumber}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                        {subscription.previousId && (
+                          <span className="text-xs text-blue-600">↺ Renovação</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <select

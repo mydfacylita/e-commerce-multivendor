@@ -2,8 +2,178 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateApiKey } from '@/lib/api-security'
 import { PackagingService, PackagingResult } from '@/lib/packaging-service'
+import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
+
+// Função para gerar assinatura AliExpress
+function generateAliExpressSign(params: Record<string, any>, appSecret: string): string {
+  const sortedKeys = Object.keys(params).filter(key => key !== 'sign').sort()
+  const signString = sortedKeys.map(key => `${key}${params[key]}`).join('')
+  return crypto.createHmac('sha256', appSecret).update(signString).digest('hex').toUpperCase()
+}
+
+// Mapeamento de estados para nome válido do AliExpress (sem acentos)
+const STATE_CODES: Record<string, string> = {
+  'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapa', 'AM': 'Amazonas',
+  'BA': 'Bahia', 'CE': 'Ceara', 'DF': 'Distrito Federal', 'ES': 'Espirito Santo',
+  'GO': 'Goias', 'MA': 'Maranhao', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul',
+  'MG': 'Minas Gerais', 'PA': 'Para', 'PB': 'Paraiba', 'PR': 'Parana',
+  'PE': 'Pernambuco', 'PI': 'Piaui', 'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte',
+  'RS': 'Rio Grande do Sul', 'RO': 'Rondonia', 'RR': 'Roraima', 'SC': 'Santa Catarina',
+  'SP': 'Sao Paulo', 'SE': 'Sergipe', 'TO': 'Tocantins'
+}
+
+// Função para buscar frete do AliExpress para produtos dropshipping
+async function getAliExpressShipping(
+  product: any, 
+  cep: string, 
+  quantity: number,
+  auth: any
+): Promise<{ success: boolean; options: any[]; error?: string }> {
+  try {
+    // Precisamos do SKU ID do produto
+    // O supplierSku armazena o productId do AliExpress
+    const productId = product.supplierSku
+    if (!productId) {
+      return { success: false, options: [], error: 'Product ID não encontrado' }
+    }
+
+    // Buscar primeiro SKU disponível do produto
+    const testProductRes = await fetch('https://api-sg.aliexpress.com/sync?' + new URLSearchParams({
+      app_key: auth.appKey,
+      method: 'aliexpress.ds.product.get',
+      session: auth.accessToken,
+      timestamp: Date.now().toString(),
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+      product_id: productId,
+      ship_to_country: 'BR',
+      target_currency: 'BRL',
+      target_language: 'pt',
+    }).toString())
+
+    // Preciso gerar a assinatura correta
+    const timestamp = Date.now().toString()
+    const productParams: Record<string, any> = {
+      app_key: auth.appKey,
+      method: 'aliexpress.ds.product.get',
+      session: auth.accessToken,
+      timestamp,
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+      product_id: productId,
+      ship_to_country: 'BR',
+      target_currency: 'BRL',
+      target_language: 'pt',
+    }
+    productParams.sign = generateAliExpressSign(productParams, auth.appSecret)
+
+    const productRes = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(productParams).toString()}`)
+    const productData = await productRes.json()
+
+    let skuId = ''
+    if (productData.aliexpress_ds_product_get_response?.result) {
+      const result = productData.aliexpress_ds_product_get_response.result
+      const skuList = result.ae_item_sku_info_dtos?.ae_item_sku_info_d_t_o || []
+      const skus = Array.isArray(skuList) ? skuList : [skuList]
+      // Pegar primeiro SKU com estoque
+      const availableSku = skus.find((s: any) => s.sku_available_stock > 0 || s.sku_stock)
+      skuId = availableSku?.sku_id || skus[0]?.sku_id || ''
+    }
+
+    if (!skuId) {
+      return { success: false, options: [], error: 'SKU não encontrado' }
+    }
+
+    // Buscar info do CEP para obter estado
+    const viaCepRes = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+    const viaCepData = await viaCepRes.json()
+    
+    const stateCode = viaCepData.uf?.toUpperCase() || 'SP'
+    const provinceName = STATE_CODES[stateCode] || 'Sao Paulo'
+    const cityName = viaCepData.localidade || 'Sao Paulo'
+    const district = viaCepData.bairro || ''
+
+    console.log('🌍 [Frete Internacional] CEP Info:', { cep, stateCode, provinceName, cityName, district })
+
+    // Montar endereço para consulta de frete
+    const addressObj = {
+      country: 'BR',
+      province: provinceName,
+      city: cityName,
+      district: district,
+      zipCode: cep.replace(/\D/g, ''),
+      addressLine1: 'Endereço',
+      recipientName: 'Cliente'
+    }
+
+    const queryDeliveryReq = {
+      productId: productId,
+      quantity: quantity,
+      shipToCountry: 'BR',
+      address: JSON.stringify(addressObj),
+      selectedSkuId: skuId,
+      locale: 'pt_BR',
+      language: 'pt_BR',
+      currency: 'BRL',
+    }
+
+    console.log('🌍 [Frete Internacional] Request:', {
+      productId,
+      skuId,
+      quantity,
+      address: addressObj
+    })
+
+    const freightParams: Record<string, any> = {
+      app_key: auth.appKey,
+      method: 'aliexpress.ds.freight.query',
+      session: auth.accessToken,
+      timestamp: Date.now().toString(),
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+      queryDeliveryReq: JSON.stringify(queryDeliveryReq),
+    }
+    freightParams.sign = generateAliExpressSign(freightParams, auth.appSecret)
+
+    const freightRes = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(freightParams).toString()}`)
+    const freightData = await freightRes.json()
+
+    console.log('🌍 [Frete Internacional] Resposta API:', JSON.stringify(freightData, null, 2))
+
+    const freightResult = freightData.aliexpress_ds_freight_query_response?.result
+    if (!freightResult?.success) {
+      console.error('[Frete Internacional] Erro:', freightResult?.msg || 'Erro desconhecido')
+      return { success: false, options: [], error: freightResult?.msg || 'Erro ao consultar frete' }
+    }
+
+    const deliveryOptions = freightResult.delivery_options?.delivery_option_d_t_o || []
+    
+    console.log('🌍 [Frete Internacional] Opções encontradas:', deliveryOptions.length)
+    
+    const options = deliveryOptions.map((opt: any) => ({
+      name: opt.company || opt.code,
+      price: parseFloat(opt.shipping_fee_cent || '0'),
+      days: opt.delivery_date_desc || `${opt.min_delivery_days || 10}-${opt.max_delivery_days || 30} dias`,
+      icon: '🌍',
+      isFree: opt.free_shipping === true || parseFloat(opt.shipping_fee_cent || '0') === 0,
+      isInternational: true,
+      shipFrom: opt.ship_from_country || 'CN'
+    }))
+
+    console.log('🌍 [Frete Internacional] Opções processadas:', options)
+
+    return { success: true, options }
+
+  } catch (error: any) {
+    console.error('[AliExpress Frete] Erro:', error)
+    return { success: false, options: [], error: error.message }
+  }
+}
 
 // Função para identificar estado pelo CEP
 function getCepState(cep: string): string | null {
@@ -64,7 +234,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { cep, cartValue, weight: bodyWeight, products } = body
+    const { cep, cartValue, weight: bodyWeight, products, items } = body
 
     if (!cep) {
       return NextResponse.json(
@@ -73,6 +243,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Limpar CEP
+    const cleanCep = cep.replace(/\D/g, '')
+
     // Calcular peso e dimensões dos produtos usando o serviço de empacotamento
     let packagingResult: PackagingResult | null = null
     let totalWeight = bodyWeight || 0.3
@@ -80,11 +253,21 @@ export async function POST(req: NextRequest) {
     let totalWidth = 15
     let totalHeight = 10
 
-    if (products && Array.isArray(products) && products.length > 0) {
+    // ========================================
+    // 🌍 VERIFICAR SE É PRODUTO IMPORTADO DO ALIEXPRESS
+    // ========================================
+    // Condição: Fornecedor é AliExpress E categoria é "Importados"
+    let isImportedProduct = false
+    let importedProduct: any = null
+
+    // Usar products OU items (checkout envia items)
+    const productList = products || items || []
+
+    if (productList && Array.isArray(productList) && productList.length > 0) {
       // Buscar dados completos dos produtos no banco
       const cartProducts = []
       
-      for (const item of products) {
+      for (const item of productList) {
         const productId = item.id || item.productId
         if (!productId) continue
 
@@ -92,10 +275,72 @@ export async function POST(req: NextRequest) {
         const quantity = item.quantity || 1
 
         const product = await prisma.product.findUnique({
-          where: { id: cleanProductId }
+          where: { id: cleanProductId },
+          include: { 
+            supplier: true,
+            category: {
+              include: {
+                parent: {
+                  include: {
+                    parent: true  // Até 3 níveis de hierarquia
+                  }
+                }
+              }
+            },
+            seller: true  // Incluir vendedor para CEP de origem
+          }
         })
 
         if (product) {
+          // Verificar se é produto IMPORTADO:
+          // 1. Categoria direta, pai ou avô é "Importados"
+          // 2. Fornecedor internacional (AliExpress, Shopee, Amazon, etc.)
+          
+          // Verificar hierarquia de categorias (até 3 níveis)
+          const isImportedCategory = (
+            product.category?.slug === 'importados' ||
+            product.category?.name?.toLowerCase() === 'importados' ||
+            product.category?.parent?.slug === 'importados' ||
+            product.category?.parent?.name?.toLowerCase() === 'importados' ||
+            product.category?.parent?.parent?.slug === 'importados' ||
+            product.category?.parent?.parent?.name?.toLowerCase() === 'importados'
+          )
+          
+          // Verificar se fornecedor é internacional
+          const supplierName = product.supplier?.name?.toLowerCase() || ''
+          const supplierUrl = product.supplierUrl?.toLowerCase() || ''
+          const isInternationalSupplier = (
+            supplierName.includes('aliexpress') || supplierUrl.includes('aliexpress.com') ||
+            supplierName.includes('shopee') || supplierUrl.includes('shopee.com') ||
+            supplierName.includes('amazon') || supplierUrl.includes('amazon.com') ||
+            supplierName.includes('alibaba') || supplierUrl.includes('alibaba.com') ||
+            supplierName.includes('temu') || supplierUrl.includes('temu.com') ||
+            supplierName.includes('shein') || supplierUrl.includes('shein.com') ||
+            supplierName.includes('wish') || supplierUrl.includes('wish.com')
+          )
+          
+          // É importado se está na categoria Importados e tem fornecedor internacional
+          if (isImportedCategory && isInternationalSupplier) {
+            isImportedProduct = true
+            importedProduct = { ...product, quantity }
+            console.log('🌍 [Frete] Produto importado detectado:', product.name)
+            console.log('   - Fornecedor:', product.supplier?.name || supplierUrl)
+            console.log('   - Categoria:', product.category?.name)
+            console.log('   - Categoria Pai:', product.category?.parent?.name)
+            console.log('   - SKU:', product.supplierSku)
+          }
+
+          // Determinar origem do produto para cálculo de frete
+          let origemId = 'ADM' // Padrão: origem da ADM
+          let cepOrigem: string | null = null
+          
+          if (product.sellerId && product.seller?.cep) {
+            // Produto de vendedor - usar CEP do vendedor
+            origemId = `SELLER_${product.sellerId}`
+            cepOrigem = product.seller.cep
+          }
+          // DROP e ADM usam o CEP da ADM (configuração do sistema)
+
           cartProducts.push({
             id: product.id,
             name: product.name,
@@ -103,7 +348,11 @@ export async function POST(req: NextRequest) {
             weight: product.weight || 0.3,
             length: product.length || 16,
             width: product.width || 11,
-            height: product.height || 5
+            height: product.height || 5,
+            origemId,
+            cepOrigem,
+            sellerId: product.sellerId || null,
+            isDropshipping: product.isDropshipping || false,
           })
         } else {
           // Produto não encontrado, usar valores padrão
@@ -119,8 +368,138 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // ========================================
+      // 🌍 SE FOR PRODUTO IMPORTADO, BUSCAR FRETE DO ALIEXPRESS
+      // ========================================
+      if (isImportedProduct && importedProduct) {
+        console.log('🌍 [Frete] Buscando opções de frete internacional...')
+        
+        // Buscar credenciais do AliExpress
+        const auth = await prisma.aliExpressAuth.findFirst()
+        
+        if (auth?.accessToken) {
+          const aliShipping = await getAliExpressShipping(
+            importedProduct,
+            cleanCep,
+            importedProduct.quantity || 1,
+            auth
+          )
+
+          if (aliShipping.success && aliShipping.options.length > 0) {
+            // Ordenar opções por preço
+            aliShipping.options.sort((a: any, b: any) => a.price - b.price)
+            const cheapest = aliShipping.options[0]
+
+            console.log('✅ [Frete Internacional] Opções encontradas:', aliShipping.options.length)
+
+            // Mapear nomes para não expor plataforma
+            const mapShippingName = (name: string): string => {
+              const nameLower = name.toLowerCase()
+              if (nameLower.includes('express') || nameLower.includes('fast')) {
+                return 'Envio Expresso Internacional'
+              } else if (nameLower.includes('standard') || nameLower.includes('selection')) {
+                return 'Envio Padrão Internacional'
+              } else if (nameLower.includes('economy') || nameLower.includes('econom')) {
+                return 'Envio Econômico Internacional'
+              } else if (nameLower.includes('priority')) {
+                return 'Envio Prioritário Internacional'
+              }
+              return 'Envio Internacional'
+            }
+
+            return NextResponse.json({
+              shippingCost: cheapest.price,
+              deliveryDays: cheapest.days,
+              isFree: cheapest.isFree,
+              message: cheapest.isFree ? 'Frete Grátis' : undefined,
+              shippingMethod: 'international',
+              shippingService: mapShippingName(cheapest.name),
+              shippingCarrier: 'Importação Direta',
+              isInternational: true,
+              shipFrom: cheapest.shipFrom || 'CN',
+              // Todas as opções disponíveis (sem expor nome da plataforma)
+              allOptions: aliShipping.options.map((opt: any) => ({
+                name: mapShippingName(opt.name),
+                price: opt.price,
+                days: opt.days,
+                icon: '🌍',
+                isFree: opt.isFree,
+                isInternational: true
+              }))
+            })
+          } else {
+            console.log('⚠️ [Frete AliExpress] Sem opções, usando fallback internacional')
+          }
+        }
+        
+        // ========================================
+        // 🌍 FALLBACK PARA FRETE INTERNACIONAL
+        // ========================================
+        // Se é produto importado mas não conseguiu frete via API,
+        // usar estimativa baseada no peso e valor do produto
+        console.log('🌍 [Frete Internacional] Usando estimativa para produto importado')
+        
+        const productPrice = importedProduct.price || 50
+        const productWeight = importedProduct.weight || 0.3
+        const quantity = importedProduct.quantity || 1
+        
+        // Calcular frete internacional estimado
+        // Base: R$ 10-15 + R$ 5 por kg + taxa por valor
+        let estimatedShipping = 12 + (productWeight * quantity * 8)
+        
+        // Produtos mais caros geralmente têm frete mais caro
+        if (productPrice > 100) estimatedShipping += 5
+        if (productPrice > 200) estimatedShipping += 8
+        if (productPrice > 500) estimatedShipping += 15
+        
+        // Frete grátis se produto > R$ 150 (promoção comum)
+        const isFreeShipping = productPrice >= 150
+        
+        // Prazo estimado: 15-45 dias úteis
+        const deliveryDays = productPrice > 200 ? '15-30 dias úteis' : '20-45 dias úteis'
+        
+        return NextResponse.json({
+          shippingCost: isFreeShipping ? 0 : Math.round(estimatedShipping * 100) / 100,
+          deliveryDays,
+          isFree: isFreeShipping,
+          message: isFreeShipping ? 'Frete Grátis' : undefined,
+          shippingMethod: 'international',
+          shippingService: 'Envio Internacional',
+          shippingCarrier: 'Importação Direta',
+          isInternational: true,
+          shipFrom: 'CN',
+          allOptions: [{
+            name: 'Envio Internacional',
+            price: isFreeShipping ? 0 : Math.round(estimatedShipping * 100) / 100,
+            days: deliveryDays,
+            icon: '🌍',
+            isFree: isFreeShipping,
+            isInternational: true
+          }]
+        })
+      }
+
       // Usar serviço de empacotamento inteligente
       if (cartProducts.length > 0) {
+        // ========================================
+        // 📦 AGRUPAR PRODUTOS POR ORIGEM DE ENVIO
+        // ========================================
+        const gruposPorOrigem = new Map<string, typeof cartProducts>()
+        
+        for (const prod of cartProducts) {
+          const origemId = prod.origemId || 'ADM'
+          if (!gruposPorOrigem.has(origemId)) {
+            gruposPorOrigem.set(origemId, [])
+          }
+          gruposPorOrigem.get(origemId)!.push(prod)
+        }
+        
+        console.log(`📦 [Frete] ${gruposPorOrigem.size} origem(s) de envio detectada(s):`)
+        for (const [origemId, prods] of gruposPorOrigem.entries()) {
+          const cepOrigem = prods[0]?.cepOrigem || 'ADM'
+          console.log(`   - ${origemId}: ${prods.length} produto(s) | CEP origem: ${cepOrigem}`)
+        }
+        
         packagingResult = await PackagingService.selectBestPackaging(cartProducts)
         
         if (packagingResult.packaging) {
@@ -164,8 +543,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Limpar CEP
-    const cleanCep = cep.replace(/\D/g, '')
+    // cleanCep já foi definido acima
     console.log('🔍 Calculando frete para CEP:', cleanCep, '| Carrinho:', cartValue, '| Peso:', totalWeight)
 
     // Coletar informações sobre promoções/requisitos mínimos

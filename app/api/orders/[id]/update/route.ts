@@ -99,10 +99,11 @@ export async function PUT(
       include: { 
         seller: {
           include: {
-            subscription: {
-              include: {
-                plan: true
-              }
+            subscriptions: {
+              where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+              include: { plan: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
             }
           }
         }
@@ -134,7 +135,8 @@ export async function PUT(
         sellerRevenue = (item.price * item.quantity) - (vendorCost * item.quantity)
         commissionAmount = discount * item.quantity
       } else {
-        const planCommission = product.seller?.subscription?.plan?.platformCommission || product.seller?.commission || 10
+        const activeSubscription = product.seller?.subscriptions?.[0]
+        const planCommission = activeSubscription?.plan?.platformCommission || product.seller?.commission || 10
         commissionRate = planCommission
         commissionAmount = (itemTotal * commissionRate) / 100
         sellerRevenue = itemTotal - commissionAmount

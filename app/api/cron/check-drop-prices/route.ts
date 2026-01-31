@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       // Buscar produto original
       const sourceProduct = await prisma.product.findUnique({
         where: { id: product.supplierSku! },
-        select: { price: true, active: true, availableForDropship: true }
+        select: { price: true, active: true, isDropshipping: true }
       });
 
       // Produto original não existe mais
@@ -68,8 +68,8 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Produto original inativo ou não disponível para drop
-      if (!sourceProduct.active || !sourceProduct.availableForDropship) {
+      // Produto original inativo ou não é mais dropshipping
+      if (!sourceProduct.active || !sourceProduct.isDropshipping) {
         console.log(`[DROP-PRICE-CRON] ⚠️ Produto original inativo: ${product.name}`);
         await prisma.product.update({
           where: { id: product.id },

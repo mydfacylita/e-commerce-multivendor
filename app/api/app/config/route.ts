@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
         {
           id: '2',
           title: 'Frete Grátis',
-          subtitle: 'Em compras acima de R$ 99',
+          subtitle: `Em compras acima de R$ ${configMap['ecommerce.freeShippingMin'] || 99}`,
           icon: '🚚',
           gradient: 'linear-gradient(135deg, #16a34a, #15803d)',
           buttonText: 'Aproveitar',

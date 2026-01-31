@@ -1,5 +1,51 @@
 # 📋 Backlog - E-Commerce Moderno
 
+## ✅ Implementado - 28/01/2026
+
+### 📦 Sistema de Variações Padronizado (Multi-Integração)
+- [x] **Estrutura JSON universal** - `lib/product-variants.ts` com tipos e parsers
+- [x] **Parser AliExpress** - Converte `ae_item_sku_info_dtos` para formato padronizado
+- [x] **Parser Mercado Livre** - Preparado para `variations` do ML API
+- [x] **Parser Manual** - Criação de variações manualmente
+- [x] **Componente VariantSelector** - Seletor de variações no frontend
+- [x] **API /products/[id]/variants** - Endpoint para consultar variações
+- [x] **Atualizado import AliExpress** - Agora salva variants no formato padronizado
+- [x] **Helpers úteis** - `findSkuBySelections`, `getCheapestAvailableSku`, etc.
+
+### 🔄 Sincronização Automática de Estoque (Polling)
+- [x] **Auto-sync a cada 1 hora** - Verifica estoque automaticamente
+- [x] **Toggle ON/OFF** - Ativar/desativar na página
+- [x] **Countdown visual** - Mostra tempo restante para próxima sync
+- [x] **Persistência localStorage** - Configuração salva
+- [x] **Card de status colorido** - Verde ativo, cinza pausado
+
+---
+
+## 🚀 Próximo - 28/01/2026
+
+### 💰 Impostos de Importação no Checkout
+- [ ] **Calcular imposto de importação** - Taxa de 20% para produtos importados acima de $50
+- [ ] **Exibir no checkout** - Mostrar linha "Imposto de Importação: R$ X,XX" antes do total
+- [ ] **Identificar produtos importados** - Verificar se produto é de fornecedor AliExpress/internacional
+- [ ] **Regras de isenção** - Produtos até $50 USD podem ser isentos (verificar legislação atual)
+- [ ] **Conversão de moeda** - Usar cotação do dólar para calcular base de cálculo
+- [ ] **Informar ao cliente** - Mensagem explicativa sobre por que o imposto é cobrado
+- [ ] **Salvar no pedido** - Campo `importTax` na tabela `order` para registro
+- [ ] **Relatório fiscal** - Incluir impostos nos relatórios de vendas
+
+### 🌍 Identificação de Origem dos Produtos (Nacional vs Internacional)
+- [ ] **Campo `origin` no produto** - Adicionar campo para indicar origem (BR, CN, US, etc.)
+- [ ] **Detecção automática por fornecedor** - Se supplier.type = 'aliexpress' → origem internacional
+- [ ] **Badge visual no produto** - Exibir "🇧🇷 Nacional" ou "🌍 Importado" na vitrine
+- [ ] **Prazo de entrega diferenciado** - Nacional: 3-7 dias | Importado: 15-45 dias
+- [ ] **Cálculo de frete separado** - Correios para nacional, frete internacional para importados
+- [ ] **Carrinho misto** - Suportar produtos nacionais e importados no mesmo pedido
+- [ ] **Split de envio** - Notificar cliente que receberá em entregas separadas
+- [ ] **Filtro na vitrine** - Cliente pode filtrar "Entrega rápida (Brasil)" vs "Importados"
+- [ ] **Estoque em território nacional** - Identificar se produto importado tem estoque BR (fulfillment)
+
+---
+
 ## 🚀 Em Andamento - 22/01/2026
 
 ### 📱 App Android - Continuação

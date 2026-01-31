@@ -100,11 +100,19 @@ export default function PlanosPage() {
 
       if (response.ok) {
         const data = await response.json()
-        toast.success('Assinatura realizada com sucesso!')
-        router.push('/vendedor/dashboard')
+        
+        // Se a assinatura requer pagamento (não tem trial ou trial expirou)
+        if (data.requiresPayment || data.status === 'PENDING_PAYMENT') {
+          toast.success('Plano selecionado! Redirecionando para pagamento...')
+          router.push('/vendedor/planos/pagamento')
+        } else {
+          // Trial ou plano gratuito - vai direto para dashboard
+          toast.success('Assinatura realizada com sucesso!')
+          router.push('/vendedor/dashboard')
+        }
       } else {
-        const error = await response.text()
-        toast.error(error || 'Erro ao assinar plano')
+        const error = await response.json()
+        toast.error(error.error || 'Erro ao assinar plano')
       }
     } catch (error) {
       toast.error('Erro ao assinar plano')

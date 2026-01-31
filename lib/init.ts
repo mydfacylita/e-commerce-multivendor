@@ -1,4 +1,4 @@
-import { startPaymentSync, startOrderCleanup, startRefundSync } from '@/lib/payment-sync'
+import { startPaymentSync, startOrderCleanup, startRefundSync, startSubscriptionSync } from '@/lib/payment-sync'
 import { startConsistencyCron } from '@/lib/order-consistency-cron'
 
 // Iniciar o verificador UNIFICADO de pagamentos quando o servidor iniciar
@@ -7,6 +7,7 @@ if (process.env.NODE_ENV !== 'test') {
   startPaymentSync()
   startOrderCleanup() // Cancela pedidos PENDING com mais de 7 dias
   startRefundSync() // Processa reembolsos pendentes a cada 2 minutos
+  startSubscriptionSync() // Verifica pagamentos de assinaturas a cada 60s
   startConsistencyCron() // Verifica e corrige inconsistências a cada 10 minutos
 }
 

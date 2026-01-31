@@ -26,7 +26,14 @@ export async function GET(request: NextRequest) {
     // Construir filtro baseado no status de expedição
     let whereClause: any = {
       // Apenas pedidos confirmados (PROCESSING = pago, aguardando envio)
-      status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] }
+      status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] },
+      // Excluir pedidos de importação direta (AliExpress) - esses são enviados pelo fornecedor
+      NOT: {
+        OR: [
+          { shippingMethod: 'international' },
+          { shippingCarrier: 'Importação Direta' }
+        ]
+      }
     }
 
     // Filtro por status de expedição

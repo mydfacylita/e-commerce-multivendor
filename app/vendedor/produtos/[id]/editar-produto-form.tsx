@@ -3,12 +3,17 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { FiArrowLeft, FiUpload, FiX, FiAlertCircle } from 'react-icons/fi'
+import { FiArrowLeft, FiUpload, FiX, FiAlertCircle, FiEdit2 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
+import ImageBackgroundEditor from '@/components/ImageBackgroundEditor'
 
 interface Category {
   id: string
   name: string
+  parent?: {
+    id: string
+    name: string
+  } | null
 }
 
 interface Product {
@@ -67,6 +72,8 @@ export default function EditarProductForm({ product, categories, minPrice = 0 }:
   }
   const [imageUrl, setImageUrl] = useState('')
   const [images, setImages] = useState<string[]>([])
+  const [showImageEditor, setShowImageEditor] = useState(false)
+  const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     name: product.name,
     slug: product.slug,
@@ -110,6 +117,24 @@ export default function EditarProductForm({ product, categories, minPrice = 0 }:
 
   const handleRemoveImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index))
+  }
+
+  const handleEditImage = (index: number) => {
+    setEditingImageIndex(index)
+    setShowImageEditor(true)
+  }
+
+  const handleImageProcessed = (imageUrl: string) => {
+    if (editingImageIndex !== null) {
+      // Substituir imagem existente
+      const newImages = [...images]
+      newImages[editingImageIndex] = imageUrl
+      setImages(newImages)
+      setEditingImageIndex(null)
+    } else {
+      // Adicionar nova imagem
+      setImages([...images, imageUrl])
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -256,7 +281,7 @@ export default function EditarProductForm({ product, categories, minPrice = 0 }:
                 <option value="">Selecione uma categoria</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
-                    {category.name}
+                    {category.parent ? `${category.parent.name} > ${category.name}` : category.name}
                   </option>
                 ))}
               </select>
@@ -366,6 +391,27 @@ export default function EditarProductForm({ product, categories, minPrice = 0 }:
           <div className="border-t pt-6">
             <h3 className="font-semibold text-lg mb-4">📷 Imagens do Produto</h3>
             
+            {/* Botão para abrir editor de imagem */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-medium text-blue-800">✨ Editor de Imagem com Fundo Branco</h4>
+                  <p className="text-sm text-blue-600">Remova o fundo da imagem e deixe branco profissional</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingImageIndex(null)
+                    setShowImageEditor(true)
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition flex items-center gap-2 shadow-md"
+                >
+                  <FiEdit2 />
+                  Abrir Editor
+                </button>
+              </div>
+            </div>
+
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">
                 <FiUpload className="inline mr-1" />
@@ -402,13 +448,24 @@ export default function EditarProductForm({ product, categories, minPrice = 0 }:
                         e.currentTarget.src = '/placeholder-image.png'
                       }}
                     />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveImage(index)}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
-                    >
-                      <FiX size={16} />
-                    </button>
+                    <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                      <button
+                        type="button"
+                        onClick={() => handleEditImage(index)}
+                        className="bg-blue-500 text-white rounded-full p-1"
+                        title="Editar fundo"
+                      >
+                        <FiEdit2 size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        className="bg-red-500 text-white rounded-full p-1"
+                        title="Remover"
+                      >
+                        <FiX size={14} />
+                      </button>
+                    </div>
                     {index === 0 && (
                       <span className="absolute bottom-1 left-1 bg-blue-600 text-white text-xs px-2 py-1 rounded">
                         Principal
@@ -417,6 +474,18 @@ export default function EditarProductForm({ product, categories, minPrice = 0 }:
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* Editor de Imagem Modal */}
+            {showImageEditor && (
+              <ImageBackgroundEditor
+                onImageProcessed={handleImageProcessed}
+                onClose={() => {
+                  setShowImageEditor(false)
+                  setEditingImageIndex(null)
+                }}
+                initialImage={editingImageIndex !== null ? images[editingImageIndex] : undefined}
+              />
             )}
           </div>
         )}

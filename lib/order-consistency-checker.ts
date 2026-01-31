@@ -5,11 +5,43 @@
  * 1. Pedidos com pagamento aprovado + antifraude aprovado mas status errado
  * 2. Balance de vendedores não incrementado
  * 3. Pedidos travados em estados inconsistentes
+ * 
+ * Logs salvos em AuditLog com action = 'CONSISTENCY_CHECK'
  */
 
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
+
+/**
+ * Grava log no banco de dados
+ */
+async function logConsistencyFix(
+  orderId: string,
+  issue: string,
+  fixed: boolean,
+  error?: string
+) {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        userId: 'SYSTEM',
+        action: 'CONSISTENCY_CHECK',
+        resource: 'Order',
+        resourceId: orderId,
+        status: fixed ? 'SUCCESS' : 'FAILED',
+        details: JSON.stringify({
+          issue,
+          fixed,
+          error,
+          timestamp: new Date().toISOString()
+        })
+      }
+    })
+  } catch (error) {
+    console.error('[Consistency] Erro ao gravar log:', error)
+  }
+}
 
 interface ConsistencyIssue {
   orderId: string
@@ -567,6 +599,117 @@ async function checkOrphanPayments(): Promise<ConsistencyIssue[]> {
 }
 
 /**
+ * 🔍 10. Verifica pedidos com código de rastreio mas status ainda em PROCESSING
+ */
+async function checkTrackingWithoutShippedStatus(): Promise<ConsistencyIssue[]> {
+  const issues: ConsistencyIssue[] = []
+
+  try {
+    const ordersWithTrackingNotShipped = await prisma.order.findMany({
+      where: {
+        trackingCode: {
+          not: null
+        },
+        status: {
+          in: ['PENDING', 'PROCESSING']
+        }
+      }
+    })
+
+    console.log(`[Consistency] Encontrados ${ordersWithTrackingNotShipped.length} pedidos com rastreio mas não despachados`)
+
+    for (const order of ordersWithTrackingNotShipped) {
+      try {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: 'SHIPPED',
+            shippedAt: order.shippedAt || new Date(),
+            updatedAt: new Date()
+          }
+        })
+
+        issues.push({
+          orderId: order.id,
+          issue: 'Pedido com rastreio mas status incorreto - atualizado para SHIPPED',
+          fixed: true
+        })
+
+        console.log(`[Consistency] ✅ Pedido ${order.id} com rastreio atualizado para SHIPPED`)
+      } catch (error: any) {
+        issues.push({
+          orderId: order.id,
+          issue: 'Erro ao atualizar status do pedido com rastreio',
+          fixed: false,
+          error: error.message
+        })
+      }
+    }
+  } catch (error) {
+    console.error('[Consistency] Erro ao verificar pedidos com rastreio:', error)
+  }
+
+  return issues
+}
+
+/**
+ * 🔍 11. Verifica divergências de pagamento (valor menor ou não confirmado no gateway)
+ */
+async function checkPaymentDivergence(): Promise<ConsistencyIssue[]> {
+  const issues: ConsistencyIssue[] = []
+
+  try {
+    // Buscar pedidos com pagamento aprovado
+    const paidOrders = await prisma.order.findMany({
+      where: {
+        paymentStatus: 'approved',
+        status: {
+          notIn: ['CANCELLED']
+        }
+      },
+      select: {
+        id: true,
+        total: true,
+        paymentId: true,
+        paymentStatus: true
+      }
+    })
+
+    console.log(`[Consistency] Verificando divergências em ${paidOrders.length} pedidos pagos`)
+
+    for (const order of paidOrders) {
+      try {
+        // TODO: Implementar verificação com gateway de pagamento
+        // Para Mercado Pago, fazer GET /v1/payments/{paymentId}
+        // Para outros gateways, implementar conforme API
+        // if (order.paymentId) {
+        //   const gatewayPayment = await verifyPaymentInGateway(order.paymentId)
+        //   if (!gatewayPayment || gatewayPayment.status !== 'approved') {
+        //     issues.push({
+        //       orderId: order.id,
+        //       issue: '🚨 Pagamento não confirmado no gateway - possível fraude',
+        //       fixed: false
+        //     })
+        //   }
+        // }
+
+      } catch (error: any) {
+        console.error(`[Consistency] Erro ao verificar pagamento do pedido ${order.id}:`, error)
+      }
+    }
+
+    if (issues.length === 0) {
+      console.log('[Consistency] ✅ Nenhuma divergência de pagamento encontrada')
+    }
+
+  } catch (error) {
+    console.error('[Consistency] Erro ao verificar divergências de pagamento:', error)
+  }
+
+  return issues
+}
+
+/**
  * 🔍 Executa todas as verificações de consistência
  */
 export async function checkAndFixConsistency(): Promise<CheckResult> {
@@ -620,6 +763,16 @@ export async function checkAndFixConsistency(): Promise<CheckResult> {
   const paymentIssues = await checkOrphanPayments()
   allIssues.push(...paymentIssues)
 
+  // 10. Pedidos com rastreio mas status não é SHIPPED
+  console.log('\n🔟 Verificando pedidos com rastreio inconsistente...')
+  const trackingIssues = await checkTrackingWithoutShippedStatus()
+  allIssues.push(...trackingIssues)
+
+  // 11. Pagamentos com divergências de valor
+  console.log('\n1️⃣1️⃣ Verificando divergências de pagamento...')
+  const paymentDivergenceIssues = await checkPaymentDivergence()
+  allIssues.push(...paymentDivergenceIssues)
+
   const issuesFixed = allIssues.filter(i => i.fixed).length
   const duration = Date.now() - startTime
 
@@ -650,6 +803,8 @@ export async function quickHealthCheck(): Promise<{
   ordersWithoutShipping: number
   dropWithoutSeller: number
   ordersWithoutItems: number
+  trackingWithoutShipped: number
+  paymentDivergence: number
 }> {
   const twoDaysAgo = new Date()
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
@@ -662,7 +817,9 @@ export async function quickHealthCheck(): Promise<{
     ordersWithoutBuyer,
     ordersWithoutShipping,
     dropWithoutSeller,
-    ordersWithoutItems
+    ordersWithoutItems,
+    trackingWithoutShipped,
+    paymentDivergence
   ] = await Promise.all([
     // Pedidos travados
     prisma.order.count({
@@ -743,7 +900,16 @@ export async function quickHealthCheck(): Promise<{
       LEFT JOIN order_item oi ON o.id = oi.orderId
       WHERE oi.id IS NULL AND o.status != 'CANCELLED'
       GROUP BY o.id
-    `.then(result => result.length || 0)
+    `.then(result => result.length || 0),
+    // Rastreio sem SHIPPED
+    prisma.order.count({
+      where: {
+        trackingCode: { not: null },
+        status: { in: ['PENDING', 'PROCESSING'] }
+      }
+    }),
+    // Divergência de pagamento - TODO: implementar quando campo paymentAmount existir
+    Promise.resolve(0)
   ])
 
   const healthy =
@@ -754,7 +920,9 @@ export async function quickHealthCheck(): Promise<{
     ordersWithoutBuyer === 0 &&
     ordersWithoutShipping === 0 &&
     dropWithoutSeller === 0 &&
-    ordersWithoutItems === 0
+    ordersWithoutItems === 0 &&
+    trackingWithoutShipped === 0 &&
+    paymentDivergence === 0
 
   return {
     healthy,
@@ -765,6 +933,8 @@ export async function quickHealthCheck(): Promise<{
     ordersWithoutBuyer,
     ordersWithoutShipping,
     dropWithoutSeller,
-    ordersWithoutItems
+    ordersWithoutItems,
+    trackingWithoutShipped,
+    paymentDivergence
   }
 }

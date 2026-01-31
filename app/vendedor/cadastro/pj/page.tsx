@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import toast from 'react-hot-toast';
 
 export default function SellerSignupPJPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [isLoading, setIsLoading] = useState(false);
   
   // IMPORTANTE: Todos os hooks devem vir ANTES de qualquer return condicional
@@ -135,8 +135,13 @@ export default function SellerSignupPJPage() {
         throw new Error(data.error || 'Erro ao cadastrar');
       }
 
+      // Atualizar a sessão para refletir o novo status de vendedor
+      await update({ role: 'SELLER' });
+      
       toast.success('Cadastro enviado com sucesso! Aguarde aprovação.');
-      router.push('/vendedor/dashboard');
+      
+      // Redirecionar para página de cadastro pendente
+      router.push('/vendedor/cadastro?pendente=true');
     } catch (error: any) {
       toast.error(error.message);
     } finally {

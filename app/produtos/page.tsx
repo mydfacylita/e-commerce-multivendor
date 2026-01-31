@@ -5,7 +5,11 @@ import { serializeProduct } from '@/lib/serialize'
 export default async function ProdutosPage() {
   const productsRaw = await prisma.product.findMany({
     where: { active: true },  // Apenas produtos ativos
-    include: { category: true },
+    include: { 
+      category: true,
+      supplier: true,  // Para identificar produtos importados
+      seller: true  // Para identificação de origem (frete)
+    },
     orderBy: { createdAt: 'desc' },
   })
 

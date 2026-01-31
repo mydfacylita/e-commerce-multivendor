@@ -20,9 +20,22 @@ interface Product {
   comparePrice?: number | null
   images: string[]
   stock: number
+  isImported?: boolean  // Para cálculo de impostos
+  isInternationalSupplier?: boolean  // Para fluxo/exibição
+  supplierId?: string | null  // ID do fornecedor externo
+  sellerId?: string | null  // ID do vendedor (marketplace)
+  sellerCep?: string | null  // CEP do vendedor
+  itemType?: 'ADM' | 'DROP' | 'SELLER'  // Tipo do item para roteamento
+  shipFromCountry?: string | null  // País de origem do envio
+  description?: string | null  // Descrição para modo lista
 }
 
-export default function ProductCard({ product }: { product: Product }) {
+interface ProductCardProps {
+  product: Product
+  layout?: 'vertical' | 'horizontal'
+}
+
+export default function ProductCard({ product, layout = 'vertical' }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem)
   const [isHovered, setIsHovered] = useState(false)
 
@@ -34,6 +47,13 @@ export default function ProductCard({ product }: { product: Product }) {
       price: product.price,
       image: product.images[0] || '/placeholder.jpg',
       quantity: 1,
+      isImported: product.isImported || false,
+      isInternationalSupplier: product.isInternationalSupplier || false,
+      supplierId: product.supplierId || null,
+      sellerId: product.sellerId || null,
+      sellerCep: product.sellerCep || null,
+      itemType: product.itemType || 'ADM',
+      shipFromCountry: product.shipFromCountry || null,
     })
     toast.success('🎉 Produto adicionado!', {
       style: {
@@ -49,6 +69,91 @@ export default function ProductCard({ product }: { product: Product }) {
 
   const isLowStock = product.stock > 0 && product.stock <= 5
 
+  // Layout Horizontal (Lista)
+  if (layout === 'horizontal') {
+    return (
+      <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-all duration-300 flex">
+        <Link href={`/produtos/${product.slug}`} className="block w-48 flex-shrink-0">
+          <div className="relative h-full min-h-[180px] bg-gray-100 overflow-hidden">
+            {product.images[0] ? (
+              <Image
+                src={product.images[0]}
+                alt={product.name}
+                fill
+                className="object-cover"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-400 text-4xl">
+                📦
+              </div>
+            )}
+            {discount > 0 && (
+              <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                🔥 -{discount}%
+              </div>
+            )}
+          </div>
+        </Link>
+        
+        <div className="p-4 flex flex-col flex-1">
+          <Link href={`/produtos/${product.slug}`} className="block">
+            <h3 className="font-semibold text-lg hover:text-primary-600 transition line-clamp-2 mb-2">
+              {product.name}
+            </h3>
+          </Link>
+          
+          {product.description && (
+            <p className="text-gray-500 text-sm line-clamp-2 mb-3">{product.description}</p>
+          )}
+          
+          <div className="flex items-center gap-4 flex-wrap mt-auto">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-primary-600">
+                {formatCurrency(product.price)}
+              </span>
+              {product.comparePrice && (
+                <span className="text-gray-400 line-through text-sm">
+                  {formatCurrency(product.comparePrice)}
+                </span>
+              )}
+            </div>
+            
+            {discount > 0 && (
+              <span className="text-green-600 text-sm font-semibold">
+                Economize {formatCurrency(product.comparePrice! - product.price)}
+              </span>
+            )}
+            
+            <p className="text-xs text-gray-500">ou 3x de {formatCurrency(product.price / 3)}</p>
+          </div>
+          
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              onClick={handleAddToCart}
+              disabled={product.stock === 0}
+              className="bg-accent-500 text-white px-6 py-2.5 rounded-lg hover:bg-accent-600 transition flex items-center gap-2 font-bold text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <FiShoppingCart size={18} />
+              <span>{product.stock === 0 ? 'ESGOTADO' : 'ADICIONAR'}</span>
+            </button>
+            
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span>🚚 Frete Grátis</span>
+              <span>🔒 Compra Segura</span>
+            </div>
+            
+            {isLowStock && (
+              <span className="text-red-600 text-xs font-semibold">
+                ⚡ Últimas {product.stock} unidades!
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Layout Vertical (Grid) - Padrão
   return (
     <div 
       className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-2xl transition-all duration-300 group relative flex flex-col h-full"

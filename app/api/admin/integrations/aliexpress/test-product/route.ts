@@ -68,6 +68,24 @@ export async function POST(req: Request) {
 
     console.log('[Test Product] Resposta:', JSON.stringify(data, null, 2))
 
+    // Debug preços
+    if (data.aliexpress_ds_product_get_response?.result) {
+      const result = data.aliexpress_ds_product_get_response.result
+      const skus = result.ae_item_sku_info_dtos?.ae_item_sku_info_d_t_o || []
+      const skuList = Array.isArray(skus) ? skus : [skus]
+      
+      console.log('\n💰 [Debug Preços] Produto:', productId)
+      skuList.slice(0, 3).forEach((sku: any, i: number) => {
+        console.log(`   SKU ${i + 1}:`, {
+          sku_id: sku.sku_id,
+          offer_sale_price: sku.offer_sale_price,
+          sku_price: sku.sku_price,
+          sku_bulk_order_price: sku.sku_bulk_order_price,
+          currency: sku.currency_code || result.ae_item_base_info_dto?.currency_code,
+        })
+      })
+    }
+
     // Analisar resposta
     let found = false
     let message = ''

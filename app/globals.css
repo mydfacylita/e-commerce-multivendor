@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Variáveis de cores dinâmicas - valores iniciais que serão sobrescritos pelo DynamicStyles */
+:root {
+  /* Cores principais */
+  --primary-color: #2C4A9E;
+  --secondary-color: #FF9900;
+  --bg-color: #F3F4F6;
+  
+  /* Paleta primary (valores iniciais - serão atualizados dinamicamente) */
+  --primary-50: #e8eef9;
+  --primary-100: #d1ddf3;
+  --primary-200: #a3bbe7;
+  --primary-300: #7599db;
+  --primary-400: #4777cf;
+  --primary-500: #2C4A9E;
+  --primary-600: #27428e;
+  --primary-700: #213777;
+  --primary-800: #1a2c5f;
+  --primary-900: #142047;
+  
+  /* Paleta accent/secondary (valores iniciais - serão atualizados dinamicamente) */
+  --accent-50: #fff4e6;
+  --accent-100: #ffe9cc;
+  --accent-200: #ffd399;
+  --accent-300: #ffbd66;
+  --accent-400: #ffa733;
+  --accent-500: #FF9900;
+  --accent-600: #e68a00;
+  --accent-700: #bf7300;
+  --accent-800: #995c00;
+  --accent-900: #734500;
+}
+
 /* Animações customizadas */
 @keyframes fade-in {
   from {
@@ -56,10 +88,12 @@
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
   }
-  
-  body {
-    @apply bg-white text-gray-900;
-  }
+}
+
+/* Body background - usando variável dinâmica com alta especificidade */
+body {
+  background-color: var(--bg-color, #F3F4F6) !important;
+  color: #111827;
 }
 
 /* NProgress - Barra de progresso de navegação */

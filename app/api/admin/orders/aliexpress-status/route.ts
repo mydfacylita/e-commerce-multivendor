@@ -38,16 +38,21 @@ export async function POST(req: Request) {
     const timestamp = Date.now().toString()
 
     // Parâmetros para consultar status do pedido
+    // Método correto: aliexpress.trade.ds.order.get
     const params: Record<string, any> = {
       app_key: auth.appKey,
-      method: 'aliexpress.ds.order.get',
+      method: 'aliexpress.trade.ds.order.get',
       session: auth.accessToken,
       timestamp: timestamp,
       format: 'json',
       v: '2.0',
       sign_method: 'sha256',
-      order_id: aliexpressOrderId,
     }
+    
+    // O parâmetro single_order_query é um objeto JSON serializado
+    params.single_order_query = JSON.stringify({
+      order_id: aliexpressOrderId
+    })
 
     // Gerar assinatura
     const sortedKeys = Object.keys(params)
@@ -86,8 +91,8 @@ export async function POST(req: Request) {
       )
     }
 
-    if (data.aliexpress_ds_order_get_response?.result) {
-      const result = data.aliexpress_ds_order_get_response.result
+    if (data.aliexpress_trade_ds_order_get_response?.result) {
+      const result = data.aliexpress_trade_ds_order_get_response.result
       
       return NextResponse.json({
         success: true,

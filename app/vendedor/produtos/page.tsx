@@ -6,6 +6,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { FiPlus, FiEdit2, FiTrash2, FiPackage, FiTruck, FiEye, FiEyeOff, FiSearch } from 'react-icons/fi'
+import NotificationModal from '@/components/ui/NotificationModal'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useNotification } from '@/hooks/useNotification'
+import { useConfirm } from '@/hooks/useConfirm'
 
 interface Product {
   id: string
@@ -27,6 +31,8 @@ interface Product {
 export default function VendedorProdutosPage() {
   const router = useRouter()
   const { data: session, status } = useSession()
+  const { notification, success, error: showError, hideNotification } = useNotification()
+  const { confirmState, loading: confirmLoading, confirmDelete, hideConfirm } = useConfirm()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -53,27 +59,26 @@ export default function VendedorProdutosPage() {
     }
   }
 
-  const handleDelete = async (productId: string) => {
-    if (!confirm('Deseja realmente excluir este produto?')) return
+  const handleDelete = (productId: string) => {
+    confirmDelete('Deseja realmente excluir este produto?', async () => {
+      try {
+        const res = await fetch(`/api/admin/products/${productId}`, {
+          method: 'DELETE'
+        })
 
-    try {
-      const res = await fetch(`/api/admin/products/${productId}`, {
-        method: 'DELETE'
-      })
+        const data = await res.json()
 
-      const data = await res.json()
-
-      if (res.ok) {
-        alert('Produto excluído com sucesso!')
-        loadProducts()
-      } else {
-        // Mostrar mensagem específica da API
-        alert(data.message || 'Erro ao excluir produto')
+        if (res.ok) {
+          success('Sucesso', 'Produto excluído com sucesso!')
+          loadProducts()
+        } else {
+          showError('Erro', data.message || 'Erro ao excluir produto')
+        }
+      } catch (error) {
+        console.error('Erro:', error)
+        showError('Erro', 'Erro ao excluir produto')
       }
-    } catch (error) {
-      console.error('Erro:', error)
-      alert('Erro ao excluir produto')
-    }
+    })
   }
 
   const handleToggleActive = async (productId: string, currentActive: boolean) => {
@@ -90,11 +95,11 @@ export default function VendedorProdutosPage() {
         loadProducts()
       } else {
         // Mostrar mensagem de erro da API para o vendedor
-        alert(data.error || data.message || 'Erro ao alterar status do produto')
+        showError('Erro', data.error || data.message || 'Erro ao alterar status do produto')
       }
     } catch (error) {
       console.error('Erro ao alterar status:', error)
-      alert('Erro de conexão ao alterar status do produto')
+      showError('Erro', 'Erro de conexão ao alterar status do produto')
     }
   }
 
@@ -385,6 +390,29 @@ export default function VendedorProdutosPage() {
           </div>
         )}
       </div>
+
+      {/* Modal de Notificação */}
+      <NotificationModal
+        isOpen={notification.isOpen}
+        onClose={hideNotification}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        details={notification.details}
+      />
+
+      {/* Modal de Confirmação */}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={hideConfirm}
+        onConfirm={confirmState.onConfirm}
+        type={confirmState.type}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        loading={confirmLoading}
+      />
     </div>
   )
 }

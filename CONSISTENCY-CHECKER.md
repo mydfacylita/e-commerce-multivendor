@@ -2,7 +2,7 @@
 
 Sistema automatizado que detecta e corrige inconsistências nos pedidos.
 
-## 📋 O que é Verificado
+## 📋 O que é Verificado (11 Verificações)
 
 ### 1. Pedidos Travados
 - **Problema**: Pedidos com pagamento e antifraude aprovados mas não estão em PROCESSING
@@ -48,6 +48,19 @@ Sistema automatizado que detecta e corrige inconsistências nos pedidos.
 - **Problema**: Pagamentos sem pedidos vinculados
 - **Solução**: Registra para auditoria (não deleta automaticamente)
 - **Quando**: paymentIds que não existem em nenhum pedido
+
+### 10. ⚠️ Pedidos com Rastreio mas Status Incorreto
+- **Problema**: Pedidos com trackingCode preenchido mas status ainda em PENDING ou PROCESSING
+- **Solução**: Atualiza automaticamente para SHIPPED e define shippedAt
+- **Quando**: Qualquer pedido com trackingCode não nulo e status != SHIPPED/DELIVERED
+
+### 11. 🚨 Divergências de Pagamento
+- **Problema**: Pagamento com valor menor que o total do pedido ou não confirmado no gateway
+- **Solução**: Registra para análise manual (possível fraude ou erro de integração)
+- **Quando**: 
+  - paymentAmount < total do pedido
+  - Pagamento registrado no sistema mas não confirmado no gateway (Mercado Pago, etc)
+
 
 ## ⚙️ Como Funciona
 

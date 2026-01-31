@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { FiUpload, FiX, FiImage } from 'react-icons/fi'
+import { FiUpload, FiX, FiImage, FiEdit2 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
+import ImageBackgroundEditor from '@/components/ImageBackgroundEditor'
 
 interface ImageUploaderProps {
   images: string[]
@@ -13,6 +14,8 @@ interface ImageUploaderProps {
 export default function ImageUploader({ images, onImagesChange, maxImages = 10 }: ImageUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [showImageEditor, setShowImageEditor] = useState(false)
+  const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -117,6 +120,24 @@ export default function ImageUploader({ images, onImagesChange, maxImages = 10 }
     }
   }
 
+  const handleEditImage = (index: number) => {
+    setEditingImageIndex(index)
+    setShowImageEditor(true)
+  }
+
+  const handleImageProcessed = (imageUrl: string) => {
+    if (editingImageIndex !== null) {
+      // Substituir imagem existente
+      const newImages = [...images]
+      newImages[editingImageIndex] = imageUrl
+      onImagesChange(newImages)
+      setEditingImageIndex(null)
+    } else {
+      // Adicionar nova imagem
+      onImagesChange([...images, imageUrl])
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -124,6 +145,27 @@ export default function ImageUploader({ images, onImagesChange, maxImages = 10 }
         <span className="text-xs text-gray-500">
           {images.length}/{maxImages} imagens
         </span>
+      </div>
+
+      {/* Botão para abrir editor de imagem */}
+      <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-medium text-blue-800">✨ Editor de Imagem com Fundo Branco</h4>
+            <p className="text-sm text-blue-600">Remova o fundo da imagem e deixe branco profissional</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingImageIndex(null)
+              setShowImageEditor(true)
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition flex items-center gap-2 shadow-md"
+          >
+            <FiEdit2 />
+            Abrir Editor
+          </button>
+        </div>
       </div>
 
       {/* Área de Upload */}
@@ -205,14 +247,25 @@ export default function ImageUploader({ images, onImagesChange, maxImages = 10 }
                 </div>
               )}
 
-              {/* Botão de remover */}
-              <button
-                type="button"
-                onClick={() => removeImage(index)}
-                className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-              >
-                <FiX className="w-4 h-4" />
-              </button>
+              {/* Botões de ação */}
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => handleEditImage(index)}
+                  className="bg-blue-500 text-white p-1.5 rounded-full hover:bg-blue-600"
+                  title="Editar fundo"
+                >
+                  <FiEdit2 className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeImage(index)}
+                  className="bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600"
+                  title="Remover"
+                >
+                  <FiX className="w-4 h-4" />
+                </button>
+              </div>
 
               {/* Número da ordem */}
               <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
@@ -221,6 +274,18 @@ export default function ImageUploader({ images, onImagesChange, maxImages = 10 }
             </div>
           ))}
         </div>
+      )}
+
+      {/* Editor de Imagem Modal */}
+      {showImageEditor && (
+        <ImageBackgroundEditor
+          onImageProcessed={handleImageProcessed}
+          onClose={() => {
+            setShowImageEditor(false)
+            setEditingImageIndex(null)
+          }}
+          initialImage={editingImageIndex !== null ? images[editingImageIndex] : undefined}
+        />
       )}
 
       <p className="text-xs text-gray-500">

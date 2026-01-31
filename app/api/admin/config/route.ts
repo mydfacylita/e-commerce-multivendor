@@ -14,8 +14,17 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')
+    const prefix = searchParams.get('prefix') // Novo: filtrar por prefixo da key
 
-    const where = category ? { category } : {}
+    const where: any = {}
+    
+    if (category) {
+      where.category = category
+    }
+    
+    if (prefix) {
+      where.key = { startsWith: prefix }
+    }
 
     const configs = await prisma.systemConfig.findMany({
       where,
@@ -32,7 +41,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ configs, configMap })
+    return NextResponse.json({ configs: configMap, configList: configs })
   } catch (error) {
     console.error('Erro ao buscar configurações:', error)
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })

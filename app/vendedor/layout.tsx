@@ -62,10 +62,15 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         }
         
         // ===== VERIFICAÇÃO DE REGRAS DE NEGÓCIO =====
+        // Pegar assinatura ativa do array de subscriptions
+        const activeSubscription = data.seller.subscriptions?.find(
+          (s: any) => ['ACTIVE', 'TRIAL'].includes(s.status)
+        ) || data.seller.subscriptions?.[0];
+        
         console.log('🔍 Verificando regras de negócio:', {
           status: data.seller.status,
-          hasSubscription: !!data.seller.subscription,
-          subscriptionStatus: data.seller.subscription?.status
+          hasSubscription: !!activeSubscription,
+          subscriptionStatus: activeSubscription?.status
         });
         
         // 1. Verifica se o vendedor foi aprovado (status = ACTIVE)
@@ -84,15 +89,15 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         
         // 2. Status é ACTIVE - Verifica se tem plano ativo
         console.log('✅ Status ACTIVE - verificando subscription...');
-        if (!data.seller.subscription || 
-            !['ACTIVE', 'TRIAL'].includes(data.seller.subscription.status)) {
+        if (!activeSubscription || 
+            !['ACTIVE', 'TRIAL'].includes(activeSubscription.status)) {
           console.log('❌ SEM PLANO ATIVO - redirecionando para planos');
           router.push('/vendedor/planos?sem-plano=true');
           // MANTÉM loading infinito - não libera acesso
           return;
         }
         
-        console.log('✅ Plano ativo encontrado:', data.seller.subscription.status);
+        console.log('✅ Plano ativo encontrado:', activeSubscription.status);
         console.log('✅ LIBERANDO ACESSO TOTAL');
         
         // APENAS AQUI libera o acesso

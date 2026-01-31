@@ -7,7 +7,8 @@ import toast from 'react-hot-toast'
 import { 
   FiSettings, FiImage, FiShoppingCart, FiTool, FiGlobe, FiMail,
   FiSave, FiRefreshCw, FiUpload, FiTrash2, FiPlus, FiX,
-  FiServer, FiLock, FiUser, FiSend, FiCheck, FiAlertCircle
+  FiServer, FiLock, FiUser, FiSend, FiCheck, FiAlertCircle,
+  FiPercent
 } from 'react-icons/fi'
 
 interface ConfigItem {
@@ -26,6 +27,7 @@ const CATEGORIES = [
   { id: 'loading', name: 'Loading/Mascote', icon: FiRefreshCw, description: 'Tela de carregamento e mascote festivo' },
   { id: 'social', name: 'Redes Sociais', icon: FiGlobe, description: 'Links para redes sociais' },
   { id: 'ecommerce', name: 'E-commerce', icon: FiShoppingCart, description: 'Frete, pagamentos e vendas' },
+  { id: 'impostos', name: 'Impostos', icon: FiPercent, description: 'Taxas de importação e ICMS' },
   { id: 'manutencao', name: 'Manutenção', icon: FiTool, description: 'Modo manutenção e avisos' },
   { id: 'seo', name: 'SEO', icon: FiGlobe, description: 'Meta tags e otimização' },
   { id: 'email', name: 'E-mail', icon: FiMail, description: 'Servidor SMTP e envio' },
@@ -50,13 +52,8 @@ const DEFAULT_CONFIGS: ConfigItem[] = [
   { key: 'appearance.zoom', value: 100, category: 'aparencia', label: 'Zoom do Site (%)', type: 'number', description: 'Escala visual do site (80-120). Ex: 80 = site menor, 100 = normal, 120 = site maior' },
   { key: 'appearance.logo', value: '/logo-animated.svg', category: 'aparencia', label: 'Logo', type: 'image' },
   { key: 'appearance.favicon', value: '/favicon.svg', category: 'aparencia', label: 'Favicon', type: 'image', description: 'Ícone do site (aparece na aba do navegador)' },
-  { key: 'appearance.heroBanner', value: '', category: 'aparencia', label: 'Banner Principal (Hero)', type: 'image', description: 'Imagem de fundo do banner principal' },
-  { key: 'appearance.heroTitle', value: 'MEGA PROMOÇÃO', category: 'aparencia', label: 'Título do Banner', type: 'text' },
-  { key: 'appearance.heroSubtitle', value: 'toda quarta é + mercado', category: 'aparencia', label: 'Subtítulo do Banner', type: 'text' },
-  { key: 'appearance.heroDiscount', value: '10%', category: 'aparencia', label: 'Desconto no Banner', type: 'text', description: 'Ex: 10%, 25%, FREE' },
-  { key: 'appearance.heroBadge', value: 'descontão de até', category: 'aparencia', label: 'Badge do Banner', type: 'text' },
-  { key: 'appearance.heroButtonText', value: 'COMPRAR AGORA', category: 'aparencia', label: 'Texto do Botão', type: 'text' },
-  { key: 'appearance.heroButtonLink', value: '/produtos', category: 'aparencia', label: 'Link do Botão', type: 'text' },
+  // Carrossel / Banners
+  { key: 'appearance.carouselSlides', value: [], category: 'aparencia', label: 'Slides do Carrossel', type: 'carousel', description: 'Configure os slides do carrossel da página inicial' },
   
   // Redes Sociais
   { key: 'social.facebook', value: '', category: 'social', label: 'Facebook', type: 'text', description: 'URL completa do Facebook' },
@@ -112,6 +109,45 @@ const DEFAULT_CONFIGS: ConfigItem[] = [
   { key: 'maintenance.message', value: 'Estamos em manutenção. Voltamos em breve!', category: 'manutencao', label: 'Mensagem de Manutenção', type: 'textarea' },
   { key: 'maintenance.estimatedTime', value: '', category: 'manutencao', label: 'Previsão de Retorno', type: 'text' },
   
+  // Impostos de Importação
+  { key: 'tax.importEnabled', value: true, category: 'impostos', label: 'Cobrar Impostos de Importação', type: 'boolean', description: 'Aplicar impostos para produtos importados (China, etc)' },
+  { key: 'tax.importRate', value: 20, category: 'impostos', label: 'Imposto de Importação (%)', type: 'number', description: 'Taxa de imposto de importação (Lei 14.902/2024 - Remessa Conforme = 20%)' },
+  { key: 'tax.importBase', value: 'product_freight', category: 'impostos', label: 'Base de Cálculo', type: 'select', description: 'Sobre qual valor calcular o imposto', options: [
+    { value: 'product_only', label: 'Apenas Produto' },
+    { value: 'product_freight', label: 'Produto + Frete' },
+  ]},
+  { key: 'tax.icmsEnabled', value: true, category: 'impostos', label: 'Cobrar ICMS', type: 'boolean', description: 'Aplicar ICMS estadual para produtos importados' },
+  { key: 'tax.icmsDefault', value: 17, category: 'impostos', label: 'ICMS Padrão (%)', type: 'number', description: 'Alíquota padrão quando não houver configuração específica do estado' },
+  { key: 'tax.icmsUseStateRate', value: true, category: 'impostos', label: 'Usar Alíquota por Estado', type: 'boolean', description: 'Usar alíquotas específicas de ICMS por estado (ex: MA=22%, SP=18%)' },
+  // Alíquotas ICMS por estado (principais)
+  { key: 'tax.icms.AC', value: 19.0, category: 'impostos', label: 'ICMS Acre (AC)', type: 'number' },
+  { key: 'tax.icms.AL', value: 19.0, category: 'impostos', label: 'ICMS Alagoas (AL)', type: 'number' },
+  { key: 'tax.icms.AM', value: 20.0, category: 'impostos', label: 'ICMS Amazonas (AM)', type: 'number' },
+  { key: 'tax.icms.AP', value: 18.0, category: 'impostos', label: 'ICMS Amapá (AP)', type: 'number' },
+  { key: 'tax.icms.BA', value: 20.5, category: 'impostos', label: 'ICMS Bahia (BA)', type: 'number' },
+  { key: 'tax.icms.CE', value: 20.0, category: 'impostos', label: 'ICMS Ceará (CE)', type: 'number' },
+  { key: 'tax.icms.DF', value: 20.0, category: 'impostos', label: 'ICMS Distrito Federal (DF)', type: 'number' },
+  { key: 'tax.icms.ES', value: 17.0, category: 'impostos', label: 'ICMS Espírito Santo (ES)', type: 'number' },
+  { key: 'tax.icms.GO', value: 19.0, category: 'impostos', label: 'ICMS Goiás (GO)', type: 'number' },
+  { key: 'tax.icms.MA', value: 22.0, category: 'impostos', label: 'ICMS Maranhão (MA)', type: 'number' },
+  { key: 'tax.icms.MG', value: 18.0, category: 'impostos', label: 'ICMS Minas Gerais (MG)', type: 'number' },
+  { key: 'tax.icms.MS', value: 17.0, category: 'impostos', label: 'ICMS Mato Grosso do Sul (MS)', type: 'number' },
+  { key: 'tax.icms.MT', value: 17.0, category: 'impostos', label: 'ICMS Mato Grosso (MT)', type: 'number' },
+  { key: 'tax.icms.PA', value: 19.0, category: 'impostos', label: 'ICMS Pará (PA)', type: 'number' },
+  { key: 'tax.icms.PB', value: 20.0, category: 'impostos', label: 'ICMS Paraíba (PB)', type: 'number' },
+  { key: 'tax.icms.PE', value: 20.5, category: 'impostos', label: 'ICMS Pernambuco (PE)', type: 'number' },
+  { key: 'tax.icms.PI', value: 21.0, category: 'impostos', label: 'ICMS Piauí (PI)', type: 'number' },
+  { key: 'tax.icms.PR', value: 19.5, category: 'impostos', label: 'ICMS Paraná (PR)', type: 'number' },
+  { key: 'tax.icms.RJ', value: 22.0, category: 'impostos', label: 'ICMS Rio de Janeiro (RJ)', type: 'number' },
+  { key: 'tax.icms.RN', value: 20.0, category: 'impostos', label: 'ICMS Rio Grande do Norte (RN)', type: 'number' },
+  { key: 'tax.icms.RO', value: 19.5, category: 'impostos', label: 'ICMS Rondônia (RO)', type: 'number' },
+  { key: 'tax.icms.RR', value: 20.0, category: 'impostos', label: 'ICMS Roraima (RR)', type: 'number' },
+  { key: 'tax.icms.RS', value: 17.0, category: 'impostos', label: 'ICMS Rio Grande do Sul (RS)', type: 'number' },
+  { key: 'tax.icms.SC', value: 17.0, category: 'impostos', label: 'ICMS Santa Catarina (SC)', type: 'number' },
+  { key: 'tax.icms.SE', value: 19.0, category: 'impostos', label: 'ICMS Sergipe (SE)', type: 'number' },
+  { key: 'tax.icms.SP', value: 18.0, category: 'impostos', label: 'ICMS São Paulo (SP)', type: 'number' },
+  { key: 'tax.icms.TO', value: 20.0, category: 'impostos', label: 'ICMS Tocantins (TO)', type: 'number' },
+  
   // SEO
   { key: 'seo.title', value: 'MYDSHOP - Seu Marketplace Online', category: 'seo', label: 'Título da Página', type: 'text' },
   { key: 'seo.description', value: 'Encontre os melhores produtos com os melhores preços na MYDSHOP', category: 'seo', label: 'Meta Description', type: 'textarea' },
@@ -165,9 +201,10 @@ export default function ConfiguracoesPage() {
         const data = await res.json()
         
         // Mesclar configurações do banco com padrões
+        // API retorna { configs: {...}, configList: [...] }
         const mergedConfigs: Record<string, any> = {}
         DEFAULT_CONFIGS.forEach(config => {
-          mergedConfigs[config.key] = data.configMap?.[config.key] ?? config.value
+          mergedConfigs[config.key] = data.configs?.[config.key] ?? config.value
         })
         
         setConfigs(mergedConfigs)
@@ -492,6 +529,319 @@ export default function ConfiguracoesPage() {
             rows={5}
             placeholder="[]"
           />
+        )
+      
+      case 'carousel':
+        const slides = Array.isArray(value) ? value : []
+        
+        const addSlide = () => {
+          const newSlide = {
+            id: Date.now().toString(),
+            type: 'image', // 'image' ou 'hero'
+            active: true,
+            image: '',
+            title: '',
+            subtitle: '',
+            discount: '',
+            badge: '',
+            buttonText: 'COMPRAR AGORA',
+            buttonLink: '/produtos',
+            bgColor: 'from-primary-500 to-primary-700',
+          }
+          handleChange(config.key, [...slides, newSlide])
+        }
+        
+        const updateSlide = (slideId: string, field: string, fieldValue: any) => {
+          const updated = slides.map((s: any) => 
+            s.id === slideId ? { ...s, [field]: fieldValue } : s
+          )
+          handleChange(config.key, updated)
+        }
+        
+        const removeSlide = (slideId: string) => {
+          handleChange(config.key, slides.filter((s: any) => s.id !== slideId))
+        }
+        
+        const moveSlide = (slideId: string, direction: 'up' | 'down') => {
+          const idx = slides.findIndex((s: any) => s.id === slideId)
+          if ((direction === 'up' && idx === 0) || (direction === 'down' && idx === slides.length - 1)) return
+          const newSlides = [...slides]
+          const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+          ;[newSlides[idx], newSlides[swapIdx]] = [newSlides[swapIdx], newSlides[idx]]
+          handleChange(config.key, newSlides)
+        }
+        
+        return (
+          <div className="space-y-4">
+            {/* Lista de Slides */}
+            {slides.length === 0 ? (
+              <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                <p className="text-gray-500 mb-4">Nenhum slide configurado</p>
+                <button
+                  onClick={addSlide}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  <FiPlus className="inline mr-2" /> Adicionar Primeiro Slide
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {slides.map((slide: any, idx: number) => (
+                  <div key={slide.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                    {/* Header do Slide */}
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b">
+                      <div className="flex items-center gap-3">
+                        <span className="bg-primary-100 text-primary-700 px-3 py-1 rounded-full text-sm font-medium">
+                          Slide {idx + 1}
+                        </span>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={slide.active}
+                            onChange={(e) => updateSlide(slide.id, 'active', e.target.checked)}
+                            className="w-4 h-4 text-primary-600 rounded"
+                          />
+                          <span className="text-sm">Ativo</span>
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => moveSlide(slide.id, 'up')}
+                          disabled={idx === 0}
+                          className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"
+                          title="Mover para cima"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          onClick={() => moveSlide(slide.id, 'down')}
+                          disabled={idx === slides.length - 1}
+                          className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"
+                          title="Mover para baixo"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          onClick={() => removeSlide(slide.id)}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded"
+                          title="Remover"
+                        >
+                          <FiTrash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Tipo do Slide */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Tipo do Slide</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`slide-type-${slide.id}`}
+                            value="image"
+                            checked={slide.type === 'image'}
+                            onChange={() => updateSlide(slide.id, 'type', 'image')}
+                            className="w-4 h-4 text-primary-600"
+                          />
+                          <span>Banner com Imagem</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`slide-type-${slide.id}`}
+                            value="hero"
+                            checked={slide.type === 'hero'}
+                            onChange={() => updateSlide(slide.id, 'type', 'hero')}
+                            className="w-4 h-4 text-primary-600"
+                          />
+                          <span>Hero com Texto</span>
+                        </label>
+                      </div>
+                    </div>
+                    
+                    {slide.type === 'image' ? (
+                      /* Tipo: Banner com Imagem */
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Imagem do Banner</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={slide.image || ''}
+                              onChange={(e) => updateSlide(slide.id, 'image', e.target.value)}
+                              placeholder="URL da imagem"
+                              className="flex-1 px-3 py-2 border rounded-lg"
+                            />
+                            <label className="cursor-pointer bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                              <FiUpload size={16} />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  const formData = new FormData()
+                                  formData.append('file', file)
+                                  try {
+                                    const response = await fetch('/api/upload', { method: 'POST', body: formData })
+                                    const data = await response.json()
+                                    if (data.success && data.url) {
+                                      updateSlide(slide.id, 'image', data.url)
+                                    }
+                                  } catch (error) {
+                                    toast.error('Erro ao fazer upload')
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                          {slide.image && (
+                            <div className="mt-2 relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
+                              <img src={slide.image} alt="Preview" className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Link (ao clicar)</label>
+                          <input
+                            type="text"
+                            value={slide.buttonLink || ''}
+                            onChange={(e) => updateSlide(slide.id, 'buttonLink', e.target.value)}
+                            placeholder="/categorias/promocoes"
+                            className="w-full px-3 py-2 border rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      /* Tipo: Hero com Texto */
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                          <input
+                            type="text"
+                            value={slide.title || ''}
+                            onChange={(e) => updateSlide(slide.id, 'title', e.target.value)}
+                            placeholder="MEGA PROMOÇÃO"
+                            className="w-full px-3 py-2 border rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Subtítulo</label>
+                          <input
+                            type="text"
+                            value={slide.subtitle || ''}
+                            onChange={(e) => updateSlide(slide.id, 'subtitle', e.target.value)}
+                            placeholder="Descontos incríveis"
+                            className="w-full px-3 py-2 border rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Badge</label>
+                          <input
+                            type="text"
+                            value={slide.badge || ''}
+                            onChange={(e) => updateSlide(slide.id, 'badge', e.target.value)}
+                            placeholder="economize agora"
+                            className="w-full px-3 py-2 border rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Desconto</label>
+                          <input
+                            type="text"
+                            value={slide.discount || ''}
+                            onChange={(e) => updateSlide(slide.id, 'discount', e.target.value)}
+                            placeholder="10% ou FREE"
+                            className="w-full px-3 py-2 border rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Texto do Botão</label>
+                          <input
+                            type="text"
+                            value={slide.buttonText || ''}
+                            onChange={(e) => updateSlide(slide.id, 'buttonText', e.target.value)}
+                            placeholder="COMPRAR AGORA"
+                            className="w-full px-3 py-2 border rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Link do Botão</label>
+                          <input
+                            type="text"
+                            value={slide.buttonLink || ''}
+                            onChange={(e) => updateSlide(slide.id, 'buttonLink', e.target.value)}
+                            placeholder="/produtos"
+                            className="w-full px-3 py-2 border rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Cor de Fundo</label>
+                          <select
+                            value={slide.bgColor || 'from-primary-500 to-primary-700'}
+                            onChange={(e) => updateSlide(slide.id, 'bgColor', e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg bg-white"
+                          >
+                            <option value="from-primary-500 to-primary-700">Azul (Primária)</option>
+                            <option value="from-accent-500 to-accent-600">Laranja (Secundária)</option>
+                            <option value="from-purple-500 to-pink-600">Roxo → Rosa</option>
+                            <option value="from-green-500 to-teal-600">Verde → Teal</option>
+                            <option value="from-red-500 to-orange-500">Vermelho → Laranja</option>
+                            <option value="from-gray-800 to-gray-900">Escuro</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Imagem (opcional)</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={slide.image || ''}
+                              onChange={(e) => updateSlide(slide.id, 'image', e.target.value)}
+                              placeholder="URL da imagem"
+                              className="flex-1 px-3 py-2 border rounded-lg text-sm"
+                            />
+                            <label className="cursor-pointer bg-gray-200 hover:bg-gray-300 px-3 py-2 rounded-lg">
+                              <FiUpload size={16} />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  const formData = new FormData()
+                                  formData.append('file', file)
+                                  try {
+                                    const response = await fetch('/api/upload', { method: 'POST', body: formData })
+                                    const data = await response.json()
+                                    if (data.success && data.url) {
+                                      updateSlide(slide.id, 'image', data.url)
+                                    }
+                                  } catch (error) {
+                                    toast.error('Erro ao fazer upload')
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Botão adicionar */}
+                <button
+                  onClick={addSlide}
+                  className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-primary-500 hover:text-primary-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <FiPlus /> Adicionar Slide
+                </button>
+              </div>
+            )}
+          </div>
         )
       
       default:

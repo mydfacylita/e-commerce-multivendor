@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import AddToCartButton from './AddToCartButton'
 import ProductSizeSelector from './ProductSizeSelector'
 import ShippingCalculator from './ShippingCalculator'
 import { useCartStore } from '@/lib/store'
+import { isSupplierInternacional } from '@/lib/import-tax'
 import { FiShoppingBag, FiMinus, FiPlus } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
@@ -15,6 +16,7 @@ interface Variant {
   colorHex: string
   stock: number
   price?: number
+  skuId?: string  // Adicionado para mapear com selectedSkus
 }
 
 interface Size {
@@ -24,6 +26,15 @@ interface Size {
   sku?: string
 }
 
+interface SelectedSku {
+  skuId: string
+  enabled: boolean
+  customStock?: number
+  customPrice?: number
+  margin?: number
+  costPrice?: number
+}
+
 interface ProductSelectionWrapperProps {
   product: any
   variants: Variant[] | null
@@ -31,6 +42,9 @@ interface ProductSelectionWrapperProps {
   sizeType?: string
   sizeCategory?: string
   onColorChange?: (color: string | null) => void
+  selectedSkus?: SelectedSku[]  // SKUs com preços personalizados
+  onPriceChange?: (price: number) => void  // Callback para atualizar preço
+  onStockChange?: (stock: number) => void  // Callback para atualizar estoque
 }
 
 export default function ProductSelectionWrapper({ 
@@ -39,7 +53,10 @@ export default function ProductSelectionWrapper({
   sizes,
   sizeType = 'adult',
   sizeCategory = 'shoes',
-  onColorChange
+  onColorChange,
+  selectedSkus = [],
+  onPriceChange,
+  onStockChange
 }: ProductSelectionWrapperProps) {
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
   const [selectedColor, setSelectedColor] = useState<string | null>(null)
@@ -83,12 +100,16 @@ export default function ProductSelectionWrapper({
   } else if (sizes && sizes.length > 0) {
     availableSizes = sizes.filter(s => !s.stock || s.stock > 0).map(s => s.size)
   }
+  
+  // Se só tem um tamanho ou é "Único", auto-selecionar
+  const autoSelectedSize = availableSizes.length === 1 ? availableSizes[0] : null
+  const effectiveSelectedSize = selectedSize || autoSelectedSize
 
-  // Se já selecionou tamanho, pegar cores disponíveis para aquele tamanho (APENAS COM ESTOQUE)
+  // Se já selecionou tamanho (ou auto-selecionou), pegar cores disponíveis (APENAS COM ESTOQUE)
   let availableColors: { name: string, hex: string, stock: number }[] = []
-  if (hasVariants && selectedSize) {
+  if (hasVariants && effectiveSelectedSize) {
     const colorsWithStock = variants
-      .filter(v => v.size === selectedSize && v.stock > 0)
+      .filter(v => v.size === effectiveSelectedSize && v.stock > 0)
       .map(v => ({
         name: v.color,
         hex: v.colorHex || '#808080',
@@ -107,21 +128,63 @@ export default function ProductSelectionWrapper({
   
   console.log('📦 availableSizes:', availableSizes)
   console.log('🎨 availableColors:', availableColors)
+  console.log('🔄 effectiveSelectedSize:', effectiveSelectedSize)
   
-  // Verifica se precisa selecionar tamanho
+  // Verifica se precisa selecionar tamanho (não precisa se só tem um e já está auto-selecionado)
   const hasSizes = hasVariants || (sizes && sizes.length > 0)
+  const needsSizeSelection = availableSizes.length > 1 // Só precisa selecionar se tiver mais de 1 opção
   
   // Obter estoque da variante selecionada ou do produto
   let currentStock = product.stock || 0
   let selectedVariant: Variant | null = null
   
-  if (hasVariants && selectedSize && selectedColor) {
-    selectedVariant = variants.find(v => v.size === selectedSize && v.color === selectedColor) || null
+  if (hasVariants && effectiveSelectedSize && selectedColor) {
+    selectedVariant = variants.find(v => v.size === effectiveSelectedSize && v.color === selectedColor) || null
     currentStock = selectedVariant?.stock || 0
-  } else if (hasSizes && selectedSize && !hasVariants && sizes) {
-    const sizeItem = sizes.find(s => s.size === selectedSize)
+  } else if (hasSizes && effectiveSelectedSize && !hasVariants && sizes) {
+    const sizeItem = sizes.find(s => s.size === effectiveSelectedSize)
     currentStock = sizeItem?.stock || product.stock || 0
   }
+  
+  // Calcular preço baseado no SKU selecionado
+  // Prioridade: 
+  //   1) selectedSkus com customPrice (preço de VENDA com margem)
+  //   2) product.price fixo (fallback seguro)
+  // NUNCA usar variant.price pois é o preço de CUSTO do fornecedor!
+  const getCurrentPrice = (): number => {
+    // Se tem SKU selecionado, buscar preço customizado (com margem aplicada)
+    if (selectedVariant?.skuId && selectedSkus.length > 0) {
+      const skuConfig = selectedSkus.find(s => s.skuId === selectedVariant.skuId)
+      if (skuConfig?.customPrice) {
+        return skuConfig.customPrice
+      }
+    }
+    
+    // Para produtos nacionais (sem selectedSkus), pode ter preço na variante
+    // Mas só se NÃO for produto importado (identificado por ter selectedSkus configurados)
+    if (selectedSkus.length === 0 && selectedVariant?.price) {
+      return selectedVariant.price
+    }
+    
+    // Preço padrão do produto (sempre seguro)
+    return product.price
+  }
+  
+  const currentPrice = getCurrentPrice()
+  
+  // Atualizar preço no componente pai quando a seleção muda
+  useEffect(() => {
+    if (onPriceChange) {
+      onPriceChange(currentPrice)
+    }
+  }, [currentPrice, onPriceChange])
+  
+  // Atualizar estoque no componente pai quando a seleção muda
+  useEffect(() => {
+    if (onStockChange) {
+      onStockChange(currentStock)
+    }
+  }, [currentStock, onStockChange])
   
   // Verifica se a combinação selecionada tem estoque
   const hasStock = currentStock > 0
@@ -136,9 +199,10 @@ export default function ProductSelectionWrapper({
   }
   
   // Desabilita o botão se faltar seleção OU não tiver estoque OU quantidade > estoque
+  // Para tamanho: só precisa selecionar se tiver mais de uma opção
   const isDisabled = currentStock === 0 || 
-    (hasSizes && !selectedSize) ||
-    (hasVariants && !selectedColor) ||
+    (needsSizeSelection && !selectedSize) ||
+    (hasVariants && availableColors.length > 0 && !selectedColor) ||
     !hasStock ||
     quantity > currentStock
 
@@ -147,28 +211,52 @@ export default function ProductSelectionWrapper({
     if (isDisabled) {
       if (currentStock === 0) {
         toast.error('Produto esgotado!')
-      } else if (hasSizes && !selectedSize) {
+      } else if (needsSizeSelection && !selectedSize) {
         toast.error('Por favor, selecione um tamanho!')
-      } else if (hasVariants && !selectedColor) {
+      } else if (hasVariants && availableColors.length > 0 && !selectedColor) {
         toast.error('Por favor, selecione uma cor!')
       } else {
-        toast.error('Por favor, selecione cor e tamanho!')
+        toast.error('Por favor, selecione as opções!')
       }
       return
     }
 
+    // Verificar se é de fornecedor internacional (para fluxo/exibição)
+    const shipFromCountry = product.shipFromCountry || null
+    const isInternationalSupplier = Boolean(product.supplierId) && 
+      isSupplierInternacional(product.supplier?.type)
+    
+    // Para impostos: só TRUE se é internacional E não vem do Brasil
+    const isImported = isInternationalSupplier && shipFromCountry?.toUpperCase() !== 'BR'
+    
+    // Determinar tipo do item para roteamento
+    let itemType: 'ADM' | 'DROP' | 'SELLER' = 'ADM'
+    if (product.sellerId) {
+      itemType = product.isDropshipping ? 'DROP' : 'SELLER'
+    } else if (isInternationalSupplier) {
+      itemType = 'DROP' // Produto de fornecedor internacional vai para DROP
+    }
+    
     // Adicionar ao carrinho com quantidade selecionada
     addItem({
       id: product.id,
       productId: product.id,
       name: product.name,
-      price: product.price,
+      price: currentPrice,  // Usar preço do SKU selecionado
       image: product.images[0] || '/placeholder.jpg',
       quantity: quantity,
       selectedColor: selectedColor || null,
-      selectedSize: selectedSize || null,
+      selectedSize: effectiveSelectedSize || null,
+      skuId: selectedVariant?.skuId || null,  // SUB-SKU do fornecedor
       stock: currentStock, // Usar o estoque da variante selecionada
       slug: product.slug,
+      isImported: isImported,  // Para cálculo de impostos no checkout
+      isInternationalSupplier: isInternationalSupplier,  // Para fluxo/exibição
+      supplierId: product.supplierId || null,
+      sellerId: product.sellerId || null,
+      sellerCep: product.seller?.cep || null,
+      itemType: itemType,
+      shipFromCountry: shipFromCountry,
     })
 
     // Redirecionar para checkout
@@ -185,8 +273,8 @@ export default function ProductSelectionWrapper({
         />
       </div>
 
-      {/* Seletor de Tamanhos */}
-      {availableSizes.length > 0 && (
+      {/* Seletor de Tamanhos - só mostra se tiver mais de uma opção */}
+      {availableSizes.length > 1 && (
         <div className="mb-6">
           <h3 className="font-semibold text-lg mb-3">Tamanhos Disponíveis</h3>
           <div className="flex flex-wrap gap-3">
@@ -195,7 +283,7 @@ export default function ProductSelectionWrapper({
                 key={size}
                 onClick={() => handleSizeChange(size)}
                 className={`px-6 py-3 border-2 rounded-lg font-semibold transition-all ${
-                  selectedSize === size
+                  effectiveSelectedSize === size
                     ? 'border-primary-600 bg-primary-600 text-white'
                     : 'border-gray-300 bg-white text-gray-800 hover:border-primary-600'
                 }`}
@@ -204,14 +292,14 @@ export default function ProductSelectionWrapper({
               </button>
             ))}
           </div>
-          {!selectedSize && (
+          {!effectiveSelectedSize && (
             <p className="text-sm text-red-500 mt-2">* Selecione um tamanho</p>
           )}
         </div>
       )}
 
-      {/* Seletor de Cores */}
-      {hasVariants && selectedSize && (
+      {/* Seletor de Cores - mostra se tem cores e tamanho está selecionado (ou auto-selecionado) */}
+      {hasVariants && effectiveSelectedSize && availableColors.length > 0 && (
         <div className="mb-6">
           <h3 className="font-semibold text-lg mb-3">Cores Disponíveis</h3>
           <div className="flex flex-wrap gap-3">
@@ -233,12 +321,12 @@ export default function ProductSelectionWrapper({
               </button>
             ))}
           </div>
-          {!selectedColor && (
+          {!selectedColor && availableColors.length > 0 && (
             <p className="text-sm text-red-500 mt-2">* Selecione uma cor</p>
           )}
-          {selectedSize && availableColors.length === 0 && (
+          {effectiveSelectedSize && availableColors.length === 0 && (
             <p className="text-sm text-gray-500 mt-2">
-              Nenhuma cor disponível para o tamanho {selectedSize}. Selecione outro tamanho.
+              Nenhuma cor disponível para o tamanho {effectiveSelectedSize}. Selecione outro tamanho.
             </p>
           )}
         </div>

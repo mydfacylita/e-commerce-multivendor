@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveSubscription, generateContractNumber } from '@/lib/subscription'
 
 export async function POST(req: Request) {
   try {
@@ -14,13 +15,27 @@ export async function POST(req: Request) {
       )
     }
 
-    const { planId } = await req.json()
+    // Tratar body vazio ou inválido
+    let planId: string | undefined
+    try {
+      const body = await req.json()
+      planId = body.planId
+    } catch {
+      // Body vazio - não é erro se veio de redirect
+    }
+
+    if (!planId) {
+      return NextResponse.json(
+        { message: 'ID do plano é obrigatório' },
+        { status: 400 }
+      )
+    }
 
     // Buscar vendedor
     const seller = await prisma.seller.findUnique({
       where: { userId: session.user.id },
       include: {
-        subscription: true
+        subscriptions: true
       }
     })
 
@@ -43,8 +58,11 @@ export async function POST(req: Request) {
       )
     }
 
+    // Buscar assinatura ativa usando a nova função
+    const currentSubscription = await getActiveSubscription(seller.id)
+
     // Verificar se já tem assinatura ativa
-    if (seller.subscription && seller.subscription.status === 'ACTIVE') {
+    if (currentSubscription && currentSubscription.status === 'ACTIVE') {
       return NextResponse.json(
         { message: 'Você já possui uma assinatura ativa. Cancele primeiro para trocar de plano.' },
         { status: 400 }
@@ -83,10 +101,29 @@ export async function POST(req: Request) {
     }
 
     // Remover assinatura anterior se existir
-    if (seller.subscription) {
+    if (currentSubscription) {
       await prisma.subscription.delete({
-        where: { id: seller.subscription.id }
+        where: { id: currentSubscription.id }
       })
+    }
+
+    // Determinar status inicial
+    // - Se tem trial: TRIAL (acesso liberado durante trial)
+    // - Se não tem trial e plano é pago: PENDING_PAYMENT (precisa pagar primeiro)
+    // - Se plano é gratuito (price = 0): ACTIVE
+    const hasTrial = plan.hasFreeTrial && plan.trialDays && plan.trialDays > 0
+    const isPaidPlan = plan.price > 0
+    
+    let initialStatus: 'TRIAL' | 'ACTIVE' | 'PENDING_PAYMENT'
+    let requiresPayment = false
+    
+    if (hasTrial) {
+      initialStatus = 'TRIAL'
+    } else if (isPaidPlan) {
+      initialStatus = 'PENDING_PAYMENT' as any // Precisa pagar antes de ativar
+      requiresPayment = true
+    } else {
+      initialStatus = 'ACTIVE' // Plano gratuito
     }
 
     // Criar nova assinatura
@@ -94,14 +131,15 @@ export async function POST(req: Request) {
       data: {
         sellerId: seller.id,
         planId: plan.id,
-        status: plan.hasFreeTrial && plan.trialDays ? 'TRIAL' : 'ACTIVE',
+        status: initialStatus as any,
         startDate,
         endDate,
         trialEndDate,
         price: plan.price,
         billingCycle: plan.billingCycle,
-        nextBillingDate: plan.hasFreeTrial && plan.trialDays ? trialEndDate : endDate,
-        autoRenew: true
+        nextBillingDate: hasTrial ? trialEndDate : endDate,
+        autoRenew: true,
+        contractNumber: generateContractNumber()
       },
       include: {
         plan: true
@@ -109,8 +147,10 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json({
-      message: 'Assinatura criada com sucesso!',
-      subscription
+      message: requiresPayment ? 'Plano selecionado! Complete o pagamento.' : 'Assinatura criada com sucesso!',
+      subscription,
+      requiresPayment,
+      status: initialStatus
     })
 
   } catch (error) {

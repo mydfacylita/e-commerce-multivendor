@@ -14,6 +14,13 @@ function generateSlug(name: string): string {
     .replace(/-+/g, '-');
 }
 
+// Gerar número de conta único
+function generateAccountNumber(): string {
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  return `MYD${timestamp}${random}`;
+}
+
 // POST - Cadastrar novo vendedor
 export async function POST(request: NextRequest) {
   try {
@@ -122,6 +129,47 @@ export async function POST(request: NextRequest) {
       data: { role: 'SELLER' },
     });
 
+    // Criar conta digital automaticamente
+    let accountNumber = generateAccountNumber();
+    
+    // Verificar unicidade do número da conta
+    const existingAccount = await prisma.sellerAccount.findUnique({
+      where: { accountNumber }
+    });
+    if (existingAccount) {
+      accountNumber = generateAccountNumber();
+    }
+
+    const sellerAccount = await prisma.sellerAccount.create({
+      data: {
+        sellerId: seller.id,
+        accountNumber,
+        status: 'PENDING',
+        kycStatus: 'PENDING',
+        pixKeyType: chavePix ? 'PIX' : null,
+        pixKey: chavePix,
+        bankName: banco,
+        agencia,
+        conta,
+        contaTipo: tipoConta,
+        minWithdrawalAmount: 50
+      }
+    });
+
+    // Registrar transação de abertura
+    await prisma.sellerAccountTransaction.create({
+      data: {
+        accountId: sellerAccount.id,
+        type: 'BONUS',
+        amount: 0,
+        balanceBefore: 0,
+        balanceAfter: 0,
+        description: 'Conta digital criada automaticamente',
+        referenceType: 'ACCOUNT_OPENING',
+        status: 'COMPLETED'
+      }
+    });
+
     return NextResponse.json({
       success: true,
       seller: {
@@ -130,6 +178,11 @@ export async function POST(request: NextRequest) {
         storeSlug: seller.storeSlug,
         status: seller.status,
       },
+      account: {
+        id: sellerAccount.id,
+        accountNumber: sellerAccount.accountNumber,
+        status: sellerAccount.status
+      }
     });
   } catch (error) {
     console.error('Erro ao cadastrar vendedor:', error);
@@ -150,7 +203,12 @@ export async function GET(request: NextRequest) {
       include: {
         seller: {
           include: {
-            subscription: true, // 1:1 relacionamento
+            subscriptions: {
+              where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+              include: { plan: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
+            },
             products: {
               include: {
                 category: true,
@@ -161,7 +219,12 @@ export async function GET(request: NextRequest) {
         },
         workForSeller: {
           include: {
-            subscription: true, // 1:1 relacionamento
+            subscriptions: {
+              where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+              include: { plan: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
+            },
             products: {
               include: {
                 category: true,

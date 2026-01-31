@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { parseAliExpressVariants, stringifyVariants, generateSelectedSkus, stringifySelectedSkus } from '@/lib/product-variants';
 
 interface AliExpressProduct {
   product_id: string;
@@ -440,8 +441,14 @@ async function fetchAliExpressProducts(appKey: string, appSecret: string, keywor
       // Capturar especificações e variações dos detalhes ou dados da busca
       // Reutilizar a variável details já declarada acima
       const specs = details?.ae_item_properties || product.specifications || product.productSpecs || null;
-      const variants = details?.aeop_ae_product_s_k_us || product.aeop_ae_product_s_k_us || product.variants || product.skus || null;
       const attrs = details?.ae_item_base_info_dto || product.productAttributes || product.attributes || null;
+      
+      // Para variants, passar o objeto completo de details para o parser padronizado
+      // O parser precisa de ae_item_sku_info_dtos e ae_item_base_info_dto
+      const variants = details || {
+        ae_item_sku_info_dtos: product.aeop_ae_product_s_k_us || product.variants || product.skus || null,
+        ae_item_base_info_dto: attrs
+      };
       
       return {
         product_id: product.itemId?.toString() || product.product_id?.toString() || '',
@@ -449,7 +456,7 @@ async function fetchAliExpressProducts(appKey: string, appSecret: string, keywor
         product_main_image_url: product.itemMainPic || product.product_main_image_url || '',
         product_description: product.productDesc || product.description || product.product_desc || '',
         product_specs: specs,
-        product_variants: variants,
+        product_variants: variants, // Raw response completa para o parser
         product_attributes: attrs,
         target_sale_price: product.targetSalePrice || product.target_sale_price || product.salePrice || '0',
         target_original_price: product.targetOriginalPrice || product.target_original_price || product.originalPrice,
@@ -662,12 +669,51 @@ export async function POST(req: NextRequest) {
         const imagensJSON = JSON.stringify(imagensArray);
         console.log(`   📸 ${imagensArray.length} imagens`);
 
-        // Preparar especificações, variações e atributos como JSON
+        // Preparar especificações e atributos como JSON
         const specifications = aliProduct.product_specs ? JSON.stringify(aliProduct.product_specs) : null;
-        const variants = aliProduct.product_variants ? JSON.stringify(aliProduct.product_variants) : null;
         const attributes = aliProduct.product_attributes ? JSON.stringify(aliProduct.product_attributes) : null;
         
+        // 🔄 Usar nova estrutura padronizada de variações
+        // Isso permite compatibilidade com outras integrações (ML, Shopee, etc.)
+        let variants: string | null = null;
+        
+        // 🎯 Variável para selectedSkus
+        let selectedSkus: string | null = null;
+        
+        if (aliProduct.product_variants) {
+          try {
+            // Se já temos o rawResponse completo (de fetchProductDetails), usar diretamente
+            const rawResponse = aliProduct.product_variants;
+            
+            // Verificar se é a estrutura nova ou precisa converter
+            if (rawResponse.ae_item_sku_info_dtos || rawResponse.ae_item_base_info_dto) {
+              // Formato do ds.product.get - usar parser padronizado
+              const parsedVariants = parseAliExpressVariants(rawResponse);
+              variants = stringifyVariants(parsedVariants);
+              // Gerar selectedSkus com margem de 50%
+              selectedSkus = stringifySelectedSkus(generateSelectedSkus(parsedVariants, 50));
+              console.log(`   🔄 Variants convertidos: ${parsedVariants.skus.length} SKUs, ${parsedVariants.properties.length} propriedades`);
+            } else if (Array.isArray(rawResponse)) {
+              // Array de SKUs antigo - tentar converter
+              const mockResponse = { ae_item_sku_info_dtos: { ae_item_sku_info_d_t_o: rawResponse } };
+              const parsedVariants = parseAliExpressVariants(mockResponse);
+              variants = stringifyVariants(parsedVariants);
+              // Gerar selectedSkus com margem de 50%
+              selectedSkus = stringifySelectedSkus(generateSelectedSkus(parsedVariants, 50));
+              console.log(`   🔄 Variants (array) convertidos: ${parsedVariants.skus.length} SKUs`);
+            } else {
+              // Formato desconhecido - salvar como estava
+              variants = JSON.stringify(rawResponse);
+              console.log(`   ⚠️ Variants em formato desconhecido, salvando raw`);
+            }
+          } catch (err) {
+            console.log(`   ⚠️ Erro ao converter variants, salvando raw:`, err);
+            variants = JSON.stringify(aliProduct.product_variants);
+          }
+        }
+        
         console.log(`   🔍 Variants a serem salvos: ${variants ? 'SIM' : 'NÃO'}`);
+        console.log(`   🔍 SelectedSkus a serem salvos: ${selectedSkus ? 'SIM' : 'NÃO'}`);
         if (variants) console.log(`   📦 Tamanho do JSON: ${variants.length} caracteres`);
 
         // 🏷️ Extrair informações para campos dedicados (marketplaces)
@@ -756,6 +802,7 @@ export async function POST(req: NextRequest) {
             images: imagensJSON,
             specifications,
             variants,
+            selectedSkus,  // SKUs com preços para checkout/envio
             attributes,
             brand,
             model,

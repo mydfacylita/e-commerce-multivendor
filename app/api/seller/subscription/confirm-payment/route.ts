@@ -24,10 +24,11 @@ export async function POST(request: NextRequest) {
       include: {
         seller: {
           include: {
-            subscription: {
-              include: {
-                plan: true
-              }
+            subscriptions: {
+              where: { status: 'PENDING_PAYMENT' },
+              include: { plan: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
             }
           }
         }
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Vendedor não encontrado' }, { status: 404 })
     }
 
-    const subscription = user.seller.subscription
+    const subscription = user.seller.subscriptions?.[0]
 
     if (!subscription) {
       return NextResponse.json({ error: 'Nenhuma assinatura encontrada' }, { status: 404 })

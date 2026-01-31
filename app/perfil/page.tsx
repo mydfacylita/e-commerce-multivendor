@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { FiUser, FiMail, FiPackage, FiSettings, FiLogOut } from 'react-icons/fi'
+import { FiUser, FiMail, FiPackage, FiSettings, FiLogOut, FiGift } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import LoadingSpinner from '@/components/LoadingSpinner'
 
@@ -101,6 +101,13 @@ export default function PerfilPage() {
               >
                 <FiPackage />
                 <span>Meus Pedidos</span>
+              </button>
+              <button
+                onClick={() => router.push('/perfil/cashback')}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-md hover:bg-green-50 text-green-700 text-left"
+              >
+                <FiGift />
+                <span>Meu Cashback</span>
               </button>
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}

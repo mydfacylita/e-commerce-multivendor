@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { FiCheckCircle, FiAlertTriangle, FiRefreshCw, FiActivity } from 'react-icons/fi'
+import { useState, useEffect } from 'react'
+import { FiCheckCircle, FiAlertTriangle, FiRefreshCw, FiActivity, FiClock } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
 interface ConsistencyIssue {
@@ -19,9 +19,42 @@ interface CheckResult {
   issues: ConsistencyIssue[]
 }
 
+interface HistoryLog {
+  id: string
+  orderId: string
+  status: string
+  details: string
+  createdAt: string
+}
+
 export default function ConsistencyCheckPage() {
   const [checking, setChecking] = useState(false)
   const [lastCheck, setLastCheck] = useState<CheckResult | null>(null)
+  const [history, setHistory] = useState<HistoryLog[]>([])
+  const [stats, setStats] = useState({ success: 0, failed: 0, total: 0 })
+  const [loadingHistory, setLoadingHistory] = useState(true)
+
+  // Buscar histórico ao carregar
+  useEffect(() => {
+    fetchHistory()
+  }, [])
+
+  const fetchHistory = async () => {
+    try {
+      setLoadingHistory(true)
+      const response = await fetch('/api/admin/consistency/history?limit=20')
+      const data = await response.json()
+      
+      if (data.success) {
+        setHistory(data.logs)
+        setStats(data.stats.last7Days)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar histórico:', error)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
 
   const runCheck = async () => {
     setChecking(true)
@@ -34,6 +67,7 @@ export default function ConsistencyCheckPage() {
 
       if (data.success) {
         setLastCheck(data.result)
+        fetchHistory() // Atualizar histórico após verificação
         
         if (data.result.issuesFound === 0) {
           toast.success('✅ Nenhuma inconsistência encontrada!')
@@ -215,6 +249,105 @@ export default function ConsistencyCheckPage() {
           )}
         </div>
       )}
+
+      {/* Estatísticas dos Últimos 7 Dias */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <FiClock />
+          Estatísticas (Últimos 7 Dias)
+        </h2>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-blue-50 rounded-lg p-4">
+            <p className="text-sm text-blue-600 mb-1">Total de Correções</p>
+            <p className="text-3xl font-bold text-blue-900">{stats.total}</p>
+          </div>
+          <div className="bg-green-50 rounded-lg p-4">
+            <p className="text-sm text-green-600 mb-1">Sucesso</p>
+            <p className="text-3xl font-bold text-green-900">{stats.success}</p>
+          </div>
+          <div className="bg-red-50 rounded-lg p-4">
+            <p className="text-sm text-red-600 mb-1">Falhas</p>
+            <p className="text-3xl font-bold text-red-900">{stats.failed}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Histórico de Verificações */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Histórico de Correções</h2>
+          <button
+            onClick={fetchHistory}
+            className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+          >
+            <FiRefreshCw className={loadingHistory ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
+        </div>
+
+        {loadingHistory ? (
+          <div className="text-center py-8">
+            <FiRefreshCw className="animate-spin text-4xl text-gray-400 mx-auto mb-2" />
+            <p className="text-gray-500">Carregando histórico...</p>
+          </div>
+        ) : history.length === 0 ? (
+          <div className="text-center py-8">
+            <FiCheckCircle className="text-gray-400 text-5xl mx-auto mb-3" />
+            <p className="text-gray-500">Nenhum registro encontrado</p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {history.map((log) => {
+              const details = JSON.parse(log.details)
+              const isSuccess = log.status === 'SUCCESS'
+              
+              return (
+                <div
+                  key={log.id}
+                  className={`p-3 rounded-lg border text-sm ${
+                    isSuccess
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-red-50 border-red-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {isSuccess ? (
+                          <FiCheckCircle className="text-green-600 flex-shrink-0" />
+                        ) : (
+                          <FiAlertTriangle className="text-red-600 flex-shrink-0" />
+                        )}
+                        <span className="font-mono text-xs text-gray-600">
+                          {log.orderId?.slice(-8).toUpperCase() || 'SYSTEM'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(log.createdAt).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      <p className={`text-xs ${isSuccess ? 'text-green-800' : 'text-red-800'}`}>
+                        {details.issue}
+                      </p>
+                      {details.error && (
+                        <p className="text-xs text-red-600 mt-1">Erro: {details.error}</p>
+                      )}
+                    </div>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
+                        isSuccess
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {isSuccess ? '✓' : '✗'}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

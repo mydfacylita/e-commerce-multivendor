@@ -20,6 +20,7 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@imgly/background-removal": "^1.7.0",
     "@paralleldrive/cuid2": "^3.0.6",
     "@prisma/client": "^5.8.0",
     "@stripe/stripe-js": "^2.4.0",

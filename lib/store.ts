@@ -10,8 +10,16 @@ interface CartItem {
   quantity: number
   selectedSize?: string | null
   selectedColor?: string | null
+  skuId?: string | null  // SUB-SKU do fornecedor (para produtos importados)
   stock?: number
   slug?: string
+  isImported?: boolean // Para cálculo de impostos (FALSE se shipFromCountry = BR)
+  isInternationalSupplier?: boolean // TRUE se fornecedor é internacional (AliExpress, etc) - para fluxo/exibição
+  supplierId?: string | null // ID do fornecedor externo (AliExpress, etc)
+  sellerId?: string | null // ID do vendedor (marketplace)
+  sellerCep?: string | null // CEP do vendedor (para cálculo de frete)
+  itemType?: 'ADM' | 'DROP' | 'SELLER' // Tipo do item para roteamento
+  shipFromCountry?: string | null // País de origem do envio (BR = não paga imposto importação)
 }
 
 interface CartStore {

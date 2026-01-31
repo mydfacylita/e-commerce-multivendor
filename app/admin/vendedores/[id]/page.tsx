@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { FiCheck, FiX, FiPause, FiArrowLeft, FiExternalLink } from 'react-icons/fi';
+import { FiCheck, FiX, FiPause, FiArrowLeft, FiExternalLink, FiCreditCard, FiDollarSign } from 'react-icons/fi';
 
 export default function SellerDetailPage() {
   const router = useRouter();
@@ -12,10 +12,18 @@ export default function SellerDetailPage() {
   const [seller, setSeller] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [accountData, setAccountData] = useState<any>(null);
+  const [creatingAccount, setCreatingAccount] = useState(false);
 
   useEffect(() => {
     fetchSeller();
   }, []);
+
+  useEffect(() => {
+    if (seller) {
+      fetchAccountData();
+    }
+  }, [seller]);
 
   const fetchSeller = async () => {
     try {
@@ -32,6 +40,43 @@ export default function SellerDetailPage() {
       toast.error('Erro ao buscar vendedor');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchAccountData = async () => {
+    try {
+      const response = await fetch(`/api/admin/sellers/${params.id}/account`);
+      if (response.ok) {
+        const data = await response.json();
+        setAccountData(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar conta:', error);
+    }
+  };
+
+  const handleCreateAccount = async () => {
+    if (!confirm('Deseja criar uma conta digital para este vendedor?')) return;
+    
+    setCreatingAccount(true);
+    try {
+      const response = await fetch(`/api/admin/sellers/${params.id}/account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success('Conta digital criada com sucesso!');
+        fetchAccountData();
+      } else {
+        toast.error(data.error || 'Erro ao criar conta');
+      }
+    } catch (error) {
+      toast.error('Erro ao criar conta digital');
+    } finally {
+      setCreatingAccount(false);
     }
   };
 
@@ -294,6 +339,68 @@ export default function SellerDetailPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Conta Digital MYDSHOP */}
+      <div className="bg-white rounded-lg shadow p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <FiCreditCard className="text-primary-600" />
+            Conta Digital MYDSHOP
+          </h2>
+          {accountData?.hasAccount && (
+            <Link
+              href={`/admin/vendedores/contas/${accountData.account.id}`}
+              className="text-primary-600 hover:text-primary-700 text-sm font-medium"
+            >
+              Ver detalhes →
+            </Link>
+          )}
+        </div>
+
+        {accountData === null ? (
+          <div className="text-gray-500 text-center py-4">Carregando...</div>
+        ) : !accountData.hasAccount ? (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-yellow-800 mb-4">
+              Este vendedor ainda não possui uma conta digital.
+            </p>
+            <button
+              onClick={handleCreateAccount}
+              disabled={creatingAccount}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              <FiCreditCard size={18} />
+              {creatingAccount ? 'Criando...' : 'Criar Conta Digital'}
+            </button>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <span className="text-gray-600 text-sm">Número da Conta</span>
+              <p className="font-mono font-bold text-lg">{accountData.account.accountNumber}</p>
+            </div>
+            <div className="bg-green-50 rounded-lg p-4">
+              <span className="text-gray-600 text-sm">Saldo Disponível</span>
+              <p className="font-bold text-lg text-green-600">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(accountData.account.balance)}
+              </p>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-4">
+              <span className="text-gray-600 text-sm">Status</span>
+              <p className={`font-bold text-lg ${
+                accountData.account.status === 'ACTIVE' ? 'text-green-600' :
+                accountData.account.status === 'PENDING' ? 'text-yellow-600' :
+                'text-red-600'
+              }`}>
+                {accountData.account.status === 'ACTIVE' ? 'Ativa' :
+                 accountData.account.status === 'PENDING' ? 'Pendente' :
+                 accountData.account.status === 'BLOCKED' ? 'Bloqueada' :
+                 accountData.account.status}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Produtos */}

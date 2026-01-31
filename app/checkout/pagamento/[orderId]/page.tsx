@@ -21,7 +21,7 @@ export default function CheckoutPagamentoPage() {
   const params = useParams()
   const router = useRouter()
   const orderId = params?.orderId as string
-  const { clearCart } = useCartStore()
+  const { removeItem } = useCartStore()
   
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
@@ -51,9 +51,20 @@ export default function CheckoutPagamentoPage() {
     installmentsFreeInterest: 1
   })
 
-  // Limpar carrinho ao chegar na página de pagamento
+  // Remover do carrinho apenas os itens que foram comprados neste pedido
   useEffect(() => {
-    clearCart()
+    const savedCartData = localStorage.getItem('checkoutData')
+    if (savedCartData) {
+      const data = JSON.parse(savedCartData)
+      if (data.itensSelecionados && Array.isArray(data.itensSelecionados)) {
+        // Remover apenas os itens que foram selecionados para este pedido
+        data.itensSelecionados.forEach((itemId: string) => {
+          removeItem(itemId)
+        })
+        // Limpar dados do checkout após remover os itens
+        localStorage.removeItem('checkoutData')
+      }
+    }
   }, [])
 
   useEffect(() => {

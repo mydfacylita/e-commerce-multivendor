@@ -93,30 +93,39 @@ export async function DELETE(
         include: {
           seller: {
             include: {
-              subscription: true
+              subscriptions: {
+                where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+                orderBy: { createdAt: 'desc' },
+                take: 1
+              }
             }
           },
           workForSeller: {
             include: {
-              subscription: true
+              subscriptions: {
+                where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+                orderBy: { createdAt: 'desc' },
+                take: 1
+              }
             }
           }
         }
       })
 
       const seller = user?.seller || user?.workForSeller
+      const activeSubscription = seller?.subscriptions?.[0]
 
       if (!seller || seller.status !== 'ACTIVE') {
         console.log('❌ Vendedor inválido')
         return NextResponse.json({ message: 'Vendedor inválido' }, { status: 403 })
       }
 
-      if (!seller.subscription || !['ACTIVE', 'TRIAL'].includes(seller.subscription.status)) {
+      if (!activeSubscription || !['ACTIVE', 'TRIAL'].includes(activeSubscription.status)) {
         console.log('❌ Plano inválido')
         return NextResponse.json({ message: 'Plano inválido' }, { status: 403 })
       }
 
-      if (seller.subscription.endDate < new Date()) {
+      if (activeSubscription.endDate < new Date()) {
         console.log('❌ Plano expirado')
         return NextResponse.json({ message: 'Plano expirado' }, { status: 403 })
       }
@@ -248,27 +257,40 @@ export async function PUT(
         where: { id: session.user.id },
         include: {
           seller: {
-            include: { subscription: true }
+            include: {
+              subscriptions: {
+                where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+                orderBy: { createdAt: 'desc' },
+                take: 1
+              }
+            }
           },
           workForSeller: {
-            include: { subscription: true }
+            include: {
+              subscriptions: {
+                where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+                orderBy: { createdAt: 'desc' },
+                take: 1
+              }
+            }
           }
         }
       })
 
       const seller = user?.seller || user?.workForSeller
+      const activeSubscription = seller?.subscriptions?.[0]
 
       if (!seller || seller.status !== 'ACTIVE') {
         console.log('❌ Vendedor inválido')
         return NextResponse.json({ message: 'Vendedor inválido' }, { status: 403 })
       }
 
-      if (!seller.subscription || !['ACTIVE', 'TRIAL'].includes(seller.subscription.status)) {
+      if (!activeSubscription || !['ACTIVE', 'TRIAL'].includes(activeSubscription.status)) {
         console.log('❌ Plano inválido')
         return NextResponse.json({ message: 'Plano inválido' }, { status: 403 })
       }
 
-      if (seller.subscription.endDate < new Date()) {
+      if (activeSubscription.endDate < new Date()) {
         console.log('❌ Plano expirado')
         return NextResponse.json({ message: 'Plano expirado' }, { status: 403 })
       }
@@ -303,7 +325,7 @@ export async function PUT(
         // Buscar produto original para validar preço
         const sourceProduct = await prisma.product.findUnique({
           where: { id: existingProduct.supplierSku },
-          select: { price: true, active: true, availableForDropship: true }
+          select: { price: true, active: true, isDropshipping: true }
         })
         
         if (sourceProduct) {
@@ -329,8 +351,8 @@ export async function PUT(
             }, { status: 400 })
           }
           
-          // BLOQUEAR ATIVAÇÃO SE PRODUTO ORIGINAL ESTÁ INATIVO
-          if (data.active === true && (!sourceProduct.active || !sourceProduct.availableForDropship)) {
+          // BLOQUEAR ATIVAÇÃO SE PRODUTO ORIGINAL ESTÁ INATIVO OU NÃO É MAIS DROPSHIPPING
+          if (data.active === true && (!sourceProduct.active || !sourceProduct.isDropshipping)) {
             console.log(`❌ Tentativa de ativar produto cujo original está inativo`)
             return NextResponse.json({ 
               message: `Não é possível ativar este produto. O produto original foi desativado pelo administrador.`
@@ -404,6 +426,7 @@ export async function PUT(
         bookIsbn: data.bookIsbn,
         sizes: data.sizes,
         variants: data.variants,
+        selectedSkus: data.selectedSkus,
         sizeType: data.sizeType,
         sizeCategory: data.sizeCategory,
         // Campos de Tributação (NF-e)

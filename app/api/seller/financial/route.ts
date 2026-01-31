@@ -25,10 +25,11 @@ export async function GET(request: NextRequest) {
     const seller = await prisma.seller.findUnique({
       where: { userId: session.user.id },
       include: {
-        subscription: {
-          include: {
-            plan: true
-          }
+        subscriptions: {
+          where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+          include: { plan: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1
         }
       }
     });
@@ -38,7 +39,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Pegar comissão do plano ativo ou fallback para seller.commission
-    const activePlan = seller.subscription?.plan
+    const activeSubscription = seller.subscriptions?.[0]
+    const activePlan = activeSubscription?.plan
     const platformCommission = activePlan?.platformCommission ?? seller.commission ?? 10
 
     // Buscar todos os pedidos que contêm produtos do vendedor
@@ -185,7 +187,7 @@ export async function GET(request: NextRequest) {
       plan: activePlan ? {
         name: activePlan.name,
         commission: activePlan.platformCommission,
-        status: seller.subscription?.status,
+        status: activeSubscription?.status,
       } : null,
       summary: {
         totalGross,

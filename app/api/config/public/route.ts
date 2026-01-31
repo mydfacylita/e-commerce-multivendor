@@ -19,6 +19,7 @@ export async function GET() {
       'appearance.zoom',
       'appearance.primaryColor',
       'appearance.secondaryColor',
+      'appearance.backgroundColor',
       'appearance.logo',
       'appearance.favicon',
       'appearance.heroBanner',
@@ -29,6 +30,7 @@ export async function GET() {
       'appearance.heroButtonText',
       'appearance.heroButtonLink',
       'appearance.banners',
+      'appearance.carouselSlides',
       // Loading / Mascote
       'loading.mascotTheme',
       'loading.message1',
@@ -74,8 +76,9 @@ export async function GET() {
     // Retorna valores padrão em caso de erro
     return NextResponse.json({
       'appearance.zoom': 100,
-      'appearance.primaryColor': '#3B82F6',
-      'appearance.secondaryColor': '#F97316',
+      'appearance.primaryColor': '#2C4A9E',
+      'appearance.secondaryColor': '#FF9900',
+      'appearance.backgroundColor': '#F3F4F6',
       'site.name': 'MYDSHOP',
       'ecommerce.freeShippingMin': 299
     })

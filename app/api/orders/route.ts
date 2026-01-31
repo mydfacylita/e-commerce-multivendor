@@ -5,6 +5,22 @@ import { prisma } from '@/lib/prisma'
 import { validateApiKey, validateUserToken } from '@/lib/api-security'
 import { analyzeFraud } from '@/lib/fraud-detection'
 
+// Função para extrair número de dias da string de prazo de entrega
+// Exemplos: "05 - 22 de Fev." -> 22, "5 dias úteis" -> 5, "10-15 dias" -> 15
+function parseDeliveryDays(value: any): number | null {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    // Tentar extrair o maior número da string (geralmente o prazo máximo)
+    const numbers = value.match(/\d+/g)
+    if (numbers && numbers.length > 0) {
+      // Pegar o maior número encontrado (prazo máximo)
+      return Math.max(...numbers.map(n => parseInt(n, 10)))
+    }
+  }
+  return null
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Capturar IP do usuário
@@ -69,6 +85,9 @@ export async function POST(req: NextRequest) {
       shippingMethod,     // 'correios', 'jadlog', 'propria', 'melhorenvio', etc.
       shippingService,    // 'SEDEX', 'PAC', 'Expresso', etc.
       shippingCarrier,    // Nome da transportadora para exibição
+      // Impostos de importação
+      importTax,          // Imposto de importação (20%)
+      icmsTax,            // ICMS estadual
       // Suporte a formato do app móvel
       address,  // { street, number, city, state, zipCode, ... }
       shipping, // { method, price }
@@ -126,10 +145,11 @@ export async function POST(req: NextRequest) {
       include: { 
         seller: {
           include: {
-            subscription: {
-              include: {
-                plan: true
-              }
+            subscriptions: {
+              where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+              include: { plan: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1
             }
           }
         }
@@ -192,7 +212,8 @@ export async function POST(req: NextRequest) {
         commissionAmount = discount * item.quantity // Desconto total
       } else {
         // STOCK: vendedor paga taxa da plataforma definida no PLANO
-        const planCommission = product.seller?.subscription?.plan?.platformCommission || product.seller?.commission || 10
+        const activeSubscription = product.seller?.subscriptions?.[0]
+        const planCommission = activeSubscription?.plan?.platformCommission || product.seller?.commission || 10
         commissionRate = planCommission
         commissionAmount = (itemTotal * commissionRate) / 100
         sellerRevenue = itemTotal - commissionAmount
@@ -205,6 +226,7 @@ export async function POST(req: NextRequest) {
         costPrice: productCostPrice, // ✅ Salvar custo no momento da venda
         selectedSize: item.selectedSize || null,
         selectedColor: item.selectedColor || null,
+        supplierSkuId: item.skuId || null, // ✅ SUB-SKU do fornecedor
         itemType: isDropshipping ? 'DROPSHIPPING' : 'STOCK',
         sellerId: sellerId || null,
         commissionRate,
@@ -268,7 +290,7 @@ export async function POST(req: NextRequest) {
           total: normalizedTotal,
           subtotal: normalizedSubtotal || normalizedTotal,
           shippingCost: normalizedShippingCost,
-          deliveryDays: body.deliveryDays || null,
+          deliveryDays: parseDeliveryDays(body.deliveryDays),
           couponCode: couponCode || null,
           discountAmount: normalizedDiscountAmount,
           shippingAddress: normalizedShippingAddress,
@@ -285,6 +307,9 @@ export async function POST(req: NextRequest) {
           shippingMethod: normalizedShippingMethod,
           shippingService: normalizedShippingService,
           shippingCarrier: normalizedShippingCarrier,
+          // Impostos de importação
+          importTax: importTax || null,
+          icmsTax: icmsTax || null,
           // Campos de antifraude
           fraudScore: fraudAnalysis.score,
           fraudReasons: JSON.stringify(fraudAnalysis.reasons),
@@ -360,7 +385,7 @@ export async function POST(req: NextRequest) {
             total: subTotal,
             subtotal: subTotal,
             shippingCost: normalizedShippingCost / itemsByDestination.size, // Divide frete entre subpedidos
-            deliveryDays: body.deliveryDays || null,
+            deliveryDays: parseDeliveryDays(body.deliveryDays),
             couponCode: couponCode || null,
             discountAmount: normalizedDiscountAmount / itemsByDestination.size, // Divide desconto proporcionalmente
             shippingAddress: normalizedShippingAddress,
@@ -375,6 +400,9 @@ export async function POST(req: NextRequest) {
             shippingMethod: normalizedShippingMethod,
             shippingService: normalizedShippingService,
             shippingCarrier: normalizedShippingCarrier,
+            // Impostos de importação (divididos proporcionalmente)
+            importTax: importTax ? importTax / itemsByDestination.size : null,
+            icmsTax: icmsTax ? icmsTax / itemsByDestination.size : null,
             items: {
               create: orderItems
             },

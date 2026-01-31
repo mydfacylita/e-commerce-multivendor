@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveSubscription } from '@/lib/subscription'
 
 export async function POST() {
   try {
@@ -18,7 +19,7 @@ export async function POST() {
     const seller = await prisma.seller.findUnique({
       where: { userId: session.user.id },
       include: {
-        subscription: true
+        subscriptions: true
       }
     })
 
@@ -29,7 +30,10 @@ export async function POST() {
       )
     }
 
-    if (!seller.subscription) {
+    // Buscar assinatura ativa usando a nova função
+    const subscription = await getActiveSubscription(seller.id)
+
+    if (!subscription) {
       return NextResponse.json(
         { message: 'Nenhuma assinatura ativa para cancelar' },
         { status: 400 }
@@ -38,7 +42,7 @@ export async function POST() {
 
     // Atualizar assinatura como cancelada
     const cancelledSubscription = await prisma.subscription.update({
-      where: { id: seller.subscription.id },
+      where: { id: subscription.id },
       data: {
         status: 'CANCELLED',
         cancelledAt: new Date(),

@@ -35,7 +35,8 @@ import {
   FiShield,
   FiLink,
   FiPrinter,
-  FiLogOut
+  FiLogOut,
+  FiGift
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -189,7 +190,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Pedidos</span>
                 </Link>
                 <Link
-                  href="/admin/pedidos/dropshipping"
+                  href="/admin/pedidos/dropshipping/dsers"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.includes('/admin/pedidos/dropshipping') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
                   <FiBox className="text-base" />
@@ -208,6 +209,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiTag className="text-base" />
                   <span>Cupons</span>
+                </Link>
+                <Link
+                  href="/admin/marketing"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/marketing' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiZap className="text-base" />
+                  <span>Marketing</span>
                 </Link>
               </div>
             )}
@@ -286,6 +294,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiShoppingBag className="text-base" />
                   <span>Vendedores</span>
+                </Link>
+                <Link
+                  href="/admin/vendedores/contas"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/vendedores/contas') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiCreditCard className="text-base" />
+                  <span>Contas Digitais</span>
+                </Link>
+                <Link
+                  href="/admin/cashback"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/cashback') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiGift className="text-base" />
+                  <span>Cashback</span>
                 </Link>
                 <Link
                   href="/admin/empresa"

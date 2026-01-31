@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/lib/store'
 import Image from 'next/image'
 import toast from 'react-hot-toast'
-import { FiCreditCard, FiDollarSign, FiAlertCircle, FiMapPin, FiPlus, FiCheck, FiTrash2 } from 'react-icons/fi'
+import { FiCreditCard, FiDollarSign, FiAlertCircle, FiMapPin, FiPlus, FiCheck, FiTrash2, FiInfo } from 'react-icons/fi'
+import { calcularImpostoImportacao, type CalculoImpostoResult } from '@/lib/import-tax'
 
 // Função para calcular data de entrega estimada
 function calcularDataEntrega(diasUteis: number): string {
@@ -148,7 +149,57 @@ interface SavedAddress {
 export default function CheckoutPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const { items, total, clearCart } = useCartStore()
+  const { items: allItems, total: cartTotal, clearCart } = useCartStore()
+  
+  // Estado para itens selecionados do carrinho
+  const [itensSelecionadosIds, setItensSelecionadosIds] = useState<Set<string>>(new Set())
+  
+  // Filtrar apenas itens selecionados
+  const items = useMemo(() => {
+    if (itensSelecionadosIds.size === 0) return allItems // fallback se não tiver seleção
+    return allItems.filter(item => itensSelecionadosIds.has(item.id))
+  }, [allItems, itensSelecionadosIds])
+  
+  // Calcular total apenas dos itens selecionados
+  const total = useMemo(() => {
+    return () => items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  }, [items])
+  
+  // Agrupar itens por origem de envio
+  const gruposDeEnvio = useMemo(() => {
+    const grupos: Map<string, { 
+      id: string
+      nome: string 
+      itens: typeof items 
+    }> = new Map()
+    
+    for (const item of items) {
+      let grupoId: string
+      let grupoNome: string
+      
+      // Usar isInternationalSupplier para classificação visual/fluxo
+      const isInternational = item.isInternationalSupplier || item.itemType === 'DROP'
+      
+      if (isInternational) {
+        grupoId = 'INTERNACIONAL'
+        grupoNome = 'Internacional'
+      } else if (item.sellerId && item.sellerCep) {
+        grupoId = `SELLER_${item.sellerId}`
+        grupoNome = 'Vendedor Parceiro'
+      } else {
+        grupoId = 'ADM'
+        grupoNome = 'Loja Principal'
+      }
+      
+      if (!grupos.has(grupoId)) {
+        grupos.set(grupoId, { id: grupoId, nome: grupoNome, itens: [] })
+      }
+      grupos.get(grupoId)!.itens.push(item)
+    }
+    
+    return Array.from(grupos.values())
+  }, [items])
+  
   const [isLoading, setIsLoading] = useState(false)
   const [step, setStep] = useState<'address' | 'payment'>('address')
   const [orderId, setOrderId] = useState<string>('')
@@ -159,8 +210,20 @@ export default function CheckoutPage() {
   const [frete, setFrete] = useState(0)
   const [freteGratis, setFreteGratis] = useState(false)
   const [prazoEntrega, setPrazoEntrega] = useState(0)
+  const [prazoDescricaoGeral, setPrazoDescricaoGeral] = useState('') // Ex: "02 - 06 de Fev."
   const [freteCalculado, setFreteCalculado] = useState(false)
   const [calculandoFrete, setCalculandoFrete] = useState(false)
+  
+  // Fretes por grupo de envio (para pedidos híbridos)
+  const [fretesPorGrupo, setFretesPorGrupo] = useState<Array<{
+    grupoId: string
+    grupoNome: string
+    frete: number
+    prazo: number
+    prazoDescricao?: string // Ex: "10 - 27 de Fev."
+    gratis: boolean
+  }>>([])
+  
   // Campos de transportadora
   const [shippingMethod, setShippingMethod] = useState<string | null>(null)
   const [shippingService, setShippingService] = useState<string | null>(null)
@@ -201,7 +264,7 @@ export default function CheckoutPage() {
   })
 
   useEffect(() => {
-    // Carregar apenas cupom e desconto do carrinho
+    // Carregar dados do carrinho incluindo itens selecionados
     // SEGURANÇA: NÃO carregar frete - deve ser recalculado baseado no CEP do endereço
     const savedCartData = localStorage.getItem('checkoutData')
     if (savedCartData) {
@@ -212,6 +275,11 @@ export default function CheckoutPage() {
       setFrete(0)
       setFreteGratis(false)
       setFreteCalculado(false)
+      
+      // Carregar itens selecionados do carrinho
+      if (data.itensSelecionados && Array.isArray(data.itensSelecionados)) {
+        setItensSelecionadosIds(new Set(data.itensSelecionados))
+      }
     }
   }, [])
 
@@ -277,6 +345,30 @@ export default function CheckoutPage() {
     loadStates()
   }, [])
 
+  // Calcular impostos de importação baseado nos itens do carrinho e estado de destino
+  const calculoImpostos = useMemo((): CalculoImpostoResult => {
+    // Só calcular se tiver estado selecionado
+    const ufDestino = formData.state || ''
+    
+    // Converter itens do carrinho para formato de cálculo
+    // Verificação dupla: usa isImported E verifica shipFromCountry
+    // Se shipFromCountry = 'BR', NÃO é importado para fins de impostos
+    const produtosParaCalculo = items.map(item => {
+      const shipFrom = item.shipFromCountry?.toUpperCase()
+      // Se vem do Brasil, NÃO é importado para impostos
+      const isImportadoParaImposto = shipFrom === 'BR' ? false : (item.isImported || false)
+      
+      return {
+        preco: item.price,
+        quantidade: item.quantity,
+        isImportado: isImportadoParaImposto,
+        shipFromCountry: item.shipFromCountry || null
+      }
+    })
+    
+    return calcularImpostoImportacao(produtosParaCalculo, ufDestino)
+  }, [items, formData.state])
+
   // Calcular peso total dos produtos
   const calcularPesoTotal = async (): Promise<number> => {
     try {
@@ -311,67 +403,157 @@ export default function CheckoutPage() {
       // Calcular peso real dos produtos (igual ao carrinho)
       const pesoTotal = await calcularPesoTotal()
       console.log('⚖️ [Checkout] Peso calculado:', pesoTotal, 'kg')
+      console.log('📦 [Checkout] Grupos de envio:', gruposDeEnvio.length)
       
-      const response = await fetch('/api/shipping/quote', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
-        },
-        body: JSON.stringify({
-          cep,
-          cartValue: total(),
-          weight: pesoTotal, // peso real calculado
-          items: items.map(item => ({
-            id: item.id,
-            quantity: item.quantity
-          }))
-        })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
+      // Calcular frete para cada grupo de envio
+      const fretesCalculados: typeof fretesPorGrupo = []
+      let freteTotal = 0
+      let prazoMax = 0
+      let todosGratis = true
+      
+      for (let i = 0; i < gruposDeEnvio.length; i++) {
+        const grupo = gruposDeEnvio[i]
         
-        // Se tiver opções de frete, salvar
-        if (data.shippingOptions && data.shippingOptions.length > 0) {
-          setOpcoesFreteState(data.shippingOptions)
-          // Selecionar a primeira opção (mais barata) como padrão
-          const maisBarata = data.shippingOptions[0]
-          setFreteSelecionado(maisBarata.id)
-          setFrete(maisBarata.price)
-          setPrazoEntrega(maisBarata.deliveryDays)
-          setFreteGratis(false)
-          setShippingMethod(maisBarata.method)
-          setShippingService(maisBarata.service)
-          setShippingCarrier(maisBarata.carrier)
-        } else if (data.isFree) {
-          setFreteGratis(true)
-          setFrete(0)
-          setOpcoesFreteState([])
-          setPrazoEntrega(data.deliveryDays || 0)
-          setShippingMethod(data.shippingMethod || 'propria')
-          setShippingService(data.shippingService || null)
-          setShippingCarrier(data.shippingCarrier || null)
-        } else {
-          setFreteGratis(false)
-          setFrete(data.shippingCost || 0)
-          setOpcoesFreteState([])
-          setPrazoEntrega(data.deliveryDays || 0)
-          setShippingMethod(data.shippingMethod || 'propria')
-          setShippingService(data.shippingService || null)
-          setShippingCarrier(data.shippingCarrier || null)
+        // Para grupos internacionais, calcular frete por ITEM (cada produto tem frete próprio)
+        if (grupo.id === 'INTERNACIONAL') {
+          let grupoFreteTotal = 0
+          let grupoPrazoMax = 0
+          let grupoPrazoDesc = ''
+          
+          for (const item of grupo.itens) {
+            const response = await fetch('/api/shipping/quote', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
+              },
+              body: JSON.stringify({
+                cep,
+                cartValue: item.price * item.quantity,
+                items: [{ id: item.productId || item.id, quantity: item.quantity }]
+              })
+            })
+            
+            if (response.ok) {
+              const data = await response.json()
+              let itemFrete = 0
+              let itemPrazo = 0
+              let itemPrazoDesc = ''
+              
+              if (data.shippingOptions && data.shippingOptions.length > 0) {
+                const maisBarata = data.shippingOptions[0]
+                itemFrete = maisBarata.price
+                // deliveryDays pode ser string (ex: "10 - 27 de Fev.") ou número
+                itemPrazoDesc = typeof maisBarata.deliveryDays === 'string' ? maisBarata.deliveryDays : (maisBarata.days || '')
+                // Extrair número de dias da string se necessário
+                const matchDias = String(maisBarata.deliveryDays || maisBarata.days || '').match(/(\d+)/)
+                itemPrazo = matchDias ? parseInt(matchDias[1]) : 10
+              } else {
+                itemFrete = data.shippingCost || 0
+                itemPrazoDesc = typeof data.deliveryDays === 'string' ? data.deliveryDays : ''
+                const matchDias = String(data.deliveryDays || '').match(/(\d+)/)
+                itemPrazo = matchDias ? parseInt(matchDias[1]) : (typeof data.deliveryDays === 'number' ? data.deliveryDays : 10)
+              }
+              
+              grupoFreteTotal += itemFrete
+              grupoPrazoMax = Math.max(grupoPrazoMax, itemPrazo)
+              if (itemPrazoDesc && !grupoPrazoDesc) grupoPrazoDesc = itemPrazoDesc // Guardar primeira descrição
+              console.log(`🌍 [Internacional] ${item.name.substring(0, 30)}...: R$ ${itemFrete.toFixed(2)} | ${itemPrazoDesc || itemPrazo + ' dias'}`)
+            }
+          }
+          
+          fretesCalculados.push({
+            grupoId: grupo.id,
+            grupoNome: `Envio ${i + 1} (Internacional)`,
+            frete: grupoFreteTotal,
+            prazo: grupoPrazoMax,
+            prazoDescricao: grupoPrazoDesc || `${grupoPrazoMax} dias`,
+            gratis: grupoFreteTotal === 0
+          })
+          
+          freteTotal += grupoFreteTotal
+          prazoMax = Math.max(prazoMax, grupoPrazoMax)
+          if (grupoFreteTotal > 0) todosGratis = false
+          
+          console.log(`📦 [Grupo ${i + 1}] ${grupo.nome}: R$ ${grupoFreteTotal.toFixed(2)} (${grupo.itens.length} itens)`)
+          continue
         }
-        setFreteCalculado(true)
         
-        console.log('📦 Frete calculado:', {
-          custo: data.shippingCost,
-          prazo: data.deliveryDays,
-          metodo: data.shippingMethod,
-          servico: data.shippingService,
-          transportadora: data.shippingCarrier,
-          opcoes: data.shippingOptions?.length || 0
+        // Para grupos nacionais (ADM, SELLER), calcular frete do grupo inteiro
+        const response = await fetch('/api/shipping/quote', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
+          },
+          body: JSON.stringify({
+            cep,
+            cartValue: grupo.itens.reduce((sum, item) => sum + item.price * item.quantity, 0),
+            items: grupo.itens.map(item => ({
+              id: item.productId || item.id,
+              quantity: item.quantity
+            }))
+          })
         })
+
+        if (response.ok) {
+          const data = await response.json()
+          
+          let grupoFrete = 0
+          let grupoPrazo = 0
+          let grupoPrazoDesc = ''
+          let grupoGratis = false
+          
+          if (data.shippingOptions && data.shippingOptions.length > 0) {
+            const maisBarata = data.shippingOptions[0]
+            grupoFrete = maisBarata.price
+            // Prazo pode vir como string ou número
+            grupoPrazoDesc = typeof maisBarata.deliveryDays === 'string' ? maisBarata.deliveryDays : (maisBarata.days || '')
+            const matchDias = String(maisBarata.deliveryDays || maisBarata.days || '').match(/(\d+)/)
+            grupoPrazo = matchDias ? parseInt(matchDias[1]) : (typeof maisBarata.deliveryDays === 'number' ? maisBarata.deliveryDays : 7)
+          } else if (data.isFree) {
+            grupoGratis = true
+            grupoPrazoDesc = typeof data.deliveryDays === 'string' ? data.deliveryDays : ''
+            grupoPrazo = typeof data.deliveryDays === 'number' ? data.deliveryDays : 7
+          } else {
+            grupoFrete = data.shippingCost || 0
+            grupoPrazoDesc = typeof data.deliveryDays === 'string' ? data.deliveryDays : ''
+            grupoPrazo = typeof data.deliveryDays === 'number' ? data.deliveryDays : 7
+          }
+          
+          fretesCalculados.push({
+            grupoId: grupo.id,
+            grupoNome: `Envio ${i + 1}`,
+            frete: grupoFrete,
+            prazo: grupoPrazo,
+            prazoDescricao: grupoPrazoDesc || `${grupoPrazo} dias úteis`,
+            gratis: grupoGratis
+          })
+          
+          freteTotal += grupoFrete
+          prazoMax = Math.max(prazoMax, grupoPrazo)
+          if (!grupoGratis) todosGratis = false
+          
+          console.log(`📦 [Grupo ${i + 1}] ${grupo.nome}: R$ ${grupoFrete.toFixed(2)} | ${grupoPrazoDesc || grupoPrazo + ' dias'}`)
+        }
       }
+      
+      // Atualizar estados
+      setFretesPorGrupo(fretesCalculados)
+      setFrete(freteTotal)
+      setPrazoEntrega(prazoMax > 0 ? prazoMax : 0)
+      // Pegar a descrição do prazo do primeiro grupo (geralmente o maior prazo é internacional)
+      const descPrazoMaior = fretesCalculados.find(f => f.prazoDescricao && !f.prazoDescricao.includes('dias úteis'))?.prazoDescricao || ''
+      setPrazoDescricaoGeral(descPrazoMaior)
+      setFreteGratis(todosGratis && fretesCalculados.length > 0)
+      setFreteCalculado(true)
+      
+      console.log('📦 Frete total calculado:', {
+        grupos: fretesCalculados.length,
+        total: freteTotal,
+        prazoMax: prazoMax,
+        prazoDesc: descPrazoMaior
+      })
     } catch (error) {
       console.error('Erro ao calcular frete:', error)
     } finally {
@@ -681,7 +863,8 @@ export default function CheckoutPage() {
       }
       
       const itemsSubtotal = total()
-      const finalTotal = itemsSubtotal - desconto + (freteGratisAtual ? 0 : freteAtual)
+      const importTax = calculoImpostos.totalImpostos
+      const finalTotal = itemsSubtotal - desconto + (freteGratisAtual ? 0 : freteAtual) + importTax
       
       const orderData = {
         items: items.map(item => ({
@@ -690,6 +873,7 @@ export default function CheckoutPage() {
           price: item.price,
           selectedSize: item.selectedSize || null,
           selectedColor: item.selectedColor || null,
+          skuId: item.skuId || null,  // SUB-SKU do fornecedor
         })),
         total: finalTotal,
         subtotal: itemsSubtotal,
@@ -704,6 +888,9 @@ export default function CheckoutPage() {
         shippingMethod: shippingMethod || 'propria',
         shippingService: shippingService || null,
         shippingCarrier: shippingCarrier || null,
+        // Impostos de importação
+        importTax: calculoImpostos.impostoImportacao,
+        icmsTax: calculoImpostos.icms,
       }
       
       let response: Response
@@ -1242,9 +1429,11 @@ export default function CheckoutPage() {
                     <p className="text-gray-700">
                       <strong>Frete:</strong> R$ {formatarMoeda(frete)}
                     </p>
-                    <p className="text-sm text-gray-500">
-                      Entrega em {prazoEntrega} dias úteis
-                    </p>
+                    {(prazoDescricaoGeral || prazoEntrega > 0) && (
+                      <p className="text-sm text-gray-500">
+                        {prazoDescricaoGeral ? `📦 Chegará ${prazoDescricaoGeral}` : `Entrega em ${prazoEntrega} dias úteis`}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1256,7 +1445,9 @@ export default function CheckoutPage() {
                   <span className="text-2xl">🎉</span>
                   <div>
                     <p className="font-bold text-lg">Frete Grátis!</p>
-                    <p className="text-sm">Entrega em até {prazoEntrega} dias úteis</p>
+                    {(prazoDescricaoGeral || prazoEntrega > 0) && (
+                      <p className="text-sm">{prazoDescricaoGeral ? `📦 Chegará ${prazoDescricaoGeral}` : `Entrega em até ${prazoEntrega} dias úteis`}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1390,24 +1581,82 @@ export default function CheckoutPage() {
                   <span>- R$ {formatarMoeda(desconto)}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span>Frete</span>
-                <div className="text-right">
-                  {freteGratis ? (
-                    <span className="text-green-600 font-semibold">Grátis</span>
-                  ) : (
-                    <span>R$ {formatarMoeda(frete)}</span>
-                  )}
-                  {prazoEntrega > 0 && (
-                    <p className="text-xs text-green-600 font-medium">
-                      📦 Chegará {calcularDataEntrega(prazoEntrega)}
+              {/* Frete - por grupo de envio */}
+              {fretesPorGrupo.length > 1 ? (
+                // Múltiplos envios - mostrar cada um separado
+                <>
+                  {fretesPorGrupo.map((grupo, index) => (
+                    <div key={grupo.grupoId} className="flex justify-between text-sm">
+                      <span className="flex items-center gap-1">
+                        <span className="text-blue-600">📦</span>
+                        {grupo.grupoNome}
+                      </span>
+                      <div className="text-right">
+                        {grupo.gratis ? (
+                          <span className="text-green-600 font-medium">Grátis</span>
+                        ) : (
+                          <span>R$ {formatarMoeda(grupo.frete)}</span>
+                        )}
+                        {(grupo.prazoDescricao || grupo.prazo > 0) && (
+                          <p className="text-xs text-gray-500">
+                            {grupo.prazoDescricao || `${grupo.prazo} dias úteis`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {/* Prazo máximo de entrega */}
+                  {(prazoDescricaoGeral || prazoEntrega > 0) && (
+                    <p className="text-xs text-green-600 font-medium text-right">
+                      📦 Todos chegarão até {prazoDescricaoGeral || calcularDataEntrega(prazoEntrega)}
                     </p>
                   )}
+                </>
+              ) : (
+                // Envio único - mostrar normal
+                <div className="flex justify-between">
+                  <span>Frete</span>
+                  <div className="text-right">
+                    {freteGratis ? (
+                      <span className="text-green-600 font-semibold">Grátis</span>
+                    ) : (
+                      <span>R$ {formatarMoeda(frete)}</span>
+                    )}
+                    {(prazoDescricaoGeral || prazoEntrega > 0) && (
+                      <p className="text-xs text-green-600 font-medium">
+                        📦 Chegará {prazoDescricaoGeral || calcularDataEntrega(prazoEntrega)}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+              
+              {/* Impostos de Importação */}
+              {calculoImpostos.temProdutosImportados && formData.state && (
+                <>
+                  <div className="flex justify-between text-amber-700 bg-amber-50 p-2 rounded -mx-2">
+                    <div className="flex items-center gap-1">
+                      <FiInfo size={14} />
+                      <span className="text-sm">Imposto de Importação (20%)</span>
+                    </div>
+                    <span className="text-sm font-medium">R$ {formatarMoeda(calculoImpostos.impostoImportacao)}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-700 bg-amber-50 p-2 rounded -mx-2">
+                    <div className="flex items-center gap-1">
+                      <FiInfo size={14} />
+                      <span className="text-sm">ICMS {formData.state} ({calculoImpostos.aliquotaIcms}%)</span>
+                    </div>
+                    <span className="text-sm font-medium">R$ {formatarMoeda(calculoImpostos.icms)}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 italic">
+                    Impostos aplicados conforme Lei 14.902/2024 (Remessa Conforme) para produtos importados.
+                  </p>
+                </>
+              )}
+              
               <div className="flex justify-between text-xl font-bold border-t pt-2">
                 <span>Total</span>
-                <span className="text-primary-600">R$ {formatarMoeda(total() - desconto + (freteGratis ? 0 : frete))}</span>
+                <span className="text-primary-600">R$ {formatarMoeda(total() - desconto + (freteGratis ? 0 : frete) + calculoImpostos.totalImpostos)}</span>
               </div>
             </div>
           </div>

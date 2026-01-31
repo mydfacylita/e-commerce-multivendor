@@ -12,6 +12,13 @@ interface Product {
   price: number
   images: string[]
   stock: number
+  isImported?: boolean  // Para cálculo de impostos
+  isInternationalSupplier?: boolean  // Para fluxo/exibição
+  supplierId?: string | null  // ID do fornecedor externo
+  sellerId?: string | null  // ID do vendedor (marketplace)
+  sellerCep?: string | null  // CEP do vendedor
+  itemType?: 'ADM' | 'DROP' | 'SELLER'  // Tipo do item para roteamento
+  shipFromCountry?: string | null  // País de origem do envio
 }
 
 interface AddToCartButtonProps {
@@ -57,6 +64,13 @@ export default function AddToCartButton({
       selectedSize: selectedSize || null,
       stock: currentStock,
       slug: product.slug,
+      isImported: product.isImported || false,
+      isInternationalSupplier: product.isInternationalSupplier || false,
+      supplierId: product.supplierId || null,
+      sellerId: product.sellerId || null,
+      sellerCep: product.sellerCep || null,
+      itemType: product.itemType || 'ADM',
+      shipFromCountry: product.shipFromCountry || null,
     })
     
     const sizeColorInfo = []

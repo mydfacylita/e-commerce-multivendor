@@ -1,0 +1,908 @@
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+
+/**
+ * Enviar pedido ao fornecedor (Shopify ou outro com API)
+ */
+export async function POST(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ message: 'Não autorizado' }, { status: 403 })
+    }
+
+    const { orderId } = await req.json()
+
+    if (!orderId) {
+      return NextResponse.json(
+        { message: 'ID do pedido não fornecido' },
+        { status: 400 }
+      )
+    }
+
+    // Buscar pedido com itens e produtos
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: {
+          include: {
+            product: {
+              include: {
+                supplier: true,
+              },
+            },
+          },
+        },
+        user: true,
+      },
+    })
+
+    if (!order) {
+      return NextResponse.json(
+        { message: 'Pedido não encontrado' },
+        { status: 404 }
+      )
+    }
+
+    if (order.sentToSupplier) {
+      return NextResponse.json(
+        { message: 'Pedido já foi enviado ao fornecedor' },
+        { status: 400 }
+      )
+    }
+
+    // Agrupar itens por fornecedor
+    const itemsBySupplier = new Map<string, any[]>()
+
+    for (const item of order.items) {
+      if (!item.product.supplierId) continue
+
+      const supplierId = item.product.supplierId
+      if (!itemsBySupplier.has(supplierId)) {
+        itemsBySupplier.set(supplierId, [])
+      }
+      itemsBySupplier.get(supplierId)!.push(item)
+    }
+
+    const results = []
+
+    // Enviar pedido para cada fornecedor
+    for (const [supplierId, items] of itemsBySupplier) {
+      const supplier = items[0].product.supplier
+
+      console.log(`[Pedido ${orderId}] Processando fornecedor:`, {
+        id: supplier.id,
+        name: supplier.name,
+        hasAPI: !!(supplier.apiUrl && supplier.apiKey),
+      })
+
+      // Verificar se é AliExpress pelo nome (mesmo sem API configurada)
+      const isAliExpress = supplier.name?.toLowerCase().includes('aliexpress')
+
+      if ((supplier.apiUrl && supplier.apiKey) || isAliExpress) {
+        // Fornecedor com API ou AliExpress - enviar automaticamente
+        try {
+          const supplierOrderId = await sendToSupplierAPI(
+            supplier,
+            order,
+            items
+          )
+          console.log(`[Pedido ${orderId}] Sucesso no fornecedor ${supplier.name}:`, supplierOrderId)
+          results.push({
+            supplierId: supplier.id,
+            supplierName: supplier.name,
+            status: 'sent',
+            supplierOrderId,
+          })
+        } catch (error: any) {
+          console.error(`[Pedido ${orderId}] Erro no fornecedor ${supplier.name}:`, error.message)
+          results.push({
+            supplierId: supplier.id,
+            supplierName: supplier.name,
+            status: 'error',
+            error: error.message,
+          })
+        }
+      } else {
+        // Fornecedor sem API - marcar como manual
+        console.log(`[Pedido ${orderId}] Fornecedor ${supplier.name} requer envio manual`)
+        results.push({
+          supplierId: supplier.id,
+          supplierName: supplier.name,
+          status: 'manual',
+          message: 'Enviar pedido manualmente para este fornecedor',
+        })
+      }
+    }
+
+    // Atualizar pedido como enviado
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        sentToSupplier: true,
+        sentToSupplierAt: new Date(),
+        status: 'PROCESSING',
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Pedido enviado aos fornecedores',
+      results,
+    })
+  } catch (error: any) {
+    console.error('Erro ao enviar pedido:', error)
+    return NextResponse.json(
+      { message: error.message || 'Erro ao enviar pedido' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * Enviar pedido para API do fornecedor (Shopify)
+ */
+async function sendToSupplierAPI(
+  supplier: any,
+  order: any,
+  items: any[]
+): Promise<string> {
+  // Produtos Choice agora são processados normalmente
+  // A verificação real de disponibilidade será feita na consulta de frete
+  const choiceProducts = items.filter(item => item.product.isChoiceProduct)
+  if (choiceProducts.length > 0) {
+    const productNames = choiceProducts.map(item => item.product.name).join(', ')
+    console.log(`[AliExpress DS] ⚠️ Produtos Choice detectados: ${productNames} - Tentando processar...`)
+  }
+
+  // Se for AliExpress dropshipping, usar API do AliExpress
+  if (supplier.name?.toLowerCase().includes('aliexpress') || supplier.apiUrl?.includes('aliexpress')) {
+    return await sendToAliExpress(supplier, order, items)
+  }
+
+  // Se for Shopify, usar API do Shopify
+  if (supplier.apiUrl?.includes('myshopify.com')) {
+    return await sendToShopify(supplier, order, items)
+  }
+
+  // Fornecedor genérico com API
+  try {
+    const response = await fetch(supplier.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${supplier.apiKey}`,
+      },
+      body: JSON.stringify({
+        shipping_address: order.shippingAddress,
+        items: items.map((item) => ({
+          sku: item.product.supplierSku,
+          quantity: item.quantity,
+          product_name: item.product.name,
+        })),
+        reference_id: order.id,
+        marketplace: order.marketplaceName,
+        marketplace_order_id: order.marketplaceOrderId,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`Erro na API do fornecedor: ${error}`)
+    }
+
+    const data = await response.json()
+    return data.order_id || data.id || 'SENT'
+  } catch (error: any) {
+    throw new Error(`Falha ao enviar ao fornecedor: ${error.message}`)
+  }
+}
+
+/**
+ * Enviar pedido para AliExpress Dropshipping
+ * SEGUINDO EXATAMENTE O EXEMPLO JAVA OFICIAL
+ */
+async function sendToAliExpress(
+  supplier: any,
+  order: any,
+  items: any[]
+): Promise<string> {
+  try {
+    console.log('[AliExpress DS] ====== CRIANDO PEDIDO (FORMATO JAVA) ======')
+    
+    // Buscar credenciais do AliExpress
+    const auth = await prisma.aliExpressAuth.findFirst()
+    if (!auth || !auth.accessToken) {
+      throw new Error('Credenciais AliExpress não configuradas ou access token ausente')
+    }
+
+    const crypto = require('crypto')
+    const apiUrl = 'https://api-sg.aliexpress.com/sync'
+    const timestamp = Date.now().toString()
+
+    // Parsear endereço
+    const shippingInfo = parseShippingAddress(order.shippingAddress)
+    
+    // Telefone formatado
+    const userPhone = shippingInfo.phone || order.buyerPhone || order.user?.phone || ''
+    const formattedPhone = userPhone.startsWith('+') ? userPhone : `+55 ${userPhone}`
+    
+    // CPF
+    const userCpf = shippingInfo.cpf || order.buyerCpf || order.user?.cpf || ''
+    
+    // ============================================
+    // PARÂMETROS EXATAMENTE COMO NO EXEMPLO JAVA
+    // ============================================
+    
+    // 1. delivery_address - JSON string
+    const deliveryAddress = {
+      recipientName: order.user.name || 'Cliente',
+      phone: formattedPhone,
+      countryCode: 'BR',
+      province: shippingInfo.provinceName || shippingInfo.state || '',
+      city: shippingInfo.city || '',
+      address: `${shippingInfo.street || ''} ${shippingInfo.streetNumber || ''}, ${shippingInfo.district || ''}`.trim(),
+      zipcode: (shippingInfo.zip || '').replace(/\D/g, ''),
+      cpf: userCpf.replace(/\D/g, '')
+    }
+    
+    console.log('[AliExpress DS] delivery_address:', JSON.stringify(deliveryAddress, null, 2))
+    
+    // 2. product_items - JSON array (SEM logistics_service_name!)
+    const productItems = items.map((item) => ({
+      product_id: String(item.product.supplierSku),
+      product_count: item.quantity,
+      // NÃO passar logistics_service_name - deixar AliExpress escolher
+    }))
+    
+    console.log('[AliExpress DS] product_items:', JSON.stringify(productItems, null, 2))
+    
+    // Calcular valor total
+    const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    
+    // ============================================
+    // MONTAR REQUEST IGUAL AO JAVA
+    // ============================================
+    const orderParams: Record<string, any> = {
+      app_key: auth.appKey,
+      method: 'aliexpress.ds.order.create',
+      session: auth.accessToken,
+      timestamp: timestamp,
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+      // Parâmetros do pedido (IGUAL AO JAVA)
+      delivery_address: JSON.stringify(deliveryAddress),
+      product_items: JSON.stringify(productItems),
+    }
+    
+    // Gerar assinatura
+    const sign = generateAliExpressSign(orderParams, auth.appSecret)
+    orderParams.sign = sign
+    
+    console.log('[AliExpress DS] Parâmetros da API:', {
+      method: orderParams.method,
+      delivery_address: deliveryAddress,
+      product_items: productItems
+    })
+    
+    const url = `${apiUrl}?${new URLSearchParams(orderParams).toString()}`
+    
+    console.log('[AliExpress DS] Enviando request...')
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const data = await response.json()
+    
+    console.log('[AliExpress DS] ========================================')
+    console.log('[AliExpress DS] RESPOSTA COMPLETA:')
+    console.log(JSON.stringify(data, null, 2))
+    console.log('[AliExpress DS] ========================================')
+
+    // Verificar resposta
+    if (data.error_response) {
+      throw new Error(`Erro API: ${data.error_response.msg} (${data.error_response.code})`)
+    }
+
+    const result = data.aliexpress_ds_order_create_response?.result
+    
+    if (result?.is_success === true || result?.order_id) {
+      console.log('[AliExpress DS] ✅ PEDIDO CRIADO COM SUCESSO!')
+      console.log('[AliExpress DS] 📋 Order ID:', result.order_id)
+      return result.order_id
+    }
+    
+    if (result?.error_code) {
+      throw new Error(`Erro: ${result.error_code} - ${result.error_msg || ''}`)
+    }
+
+    throw new Error('Resposta inválida da API')
+    
+  } catch (error: any) {
+    console.error('[AliExpress DS] Erro:', error)
+    throw new Error(`Falha ao criar pedido: ${error.message}`)
+  }
+}
+
+/**
+ * Gerar assinatura HMAC-SHA256 para API AliExpress
+ */
+function generateAliExpressSign(params: Record<string, any>, appSecret: string): string {
+  const crypto = require('crypto')
+  const sortedKeys = Object.keys(params).filter(key => key !== 'sign').sort()
+  const signString = sortedKeys.map(key => `${key}${params[key]}`).join('')
+  return crypto.createHmac('sha256', appSecret).update(signString).digest('hex').toUpperCase()
+}
+
+/**
+ * Verificar se produto está disponível para dropshipping
+ */
+async function verifyProductForDropshipping(
+  appKey: string,
+  appSecret: string,
+  accessToken: string,
+  productId: string
+): Promise<{ available: boolean; reason: string; skuInfo?: any; isBrazilianStore?: boolean; storeInfo?: { name: string; countryCode: string } }> {
+  try {
+    const crypto = require('crypto')
+    const apiUrl = 'https://api-sg.aliexpress.com/sync'
+    const timestamp = Date.now().toString()
+
+    // Usar wholesale.get para verificar se está na lista DS
+    const params: Record<string, any> = {
+      app_key: appKey,
+      method: 'aliexpress.ds.product.wholesale.get',
+      session: accessToken,
+      timestamp: timestamp,
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+      product_id: productId,
+      ship_to_country: 'BR',
+    }
+
+    // Gerar assinatura
+    const sortedKeys = Object.keys(params)
+      .filter(key => key !== 'sign')
+      .sort()
+    const signString = sortedKeys.map(key => `${key}${params[key]}`).join('')
+    const sign = crypto.createHmac('sha256', appSecret)
+      .update(signString)
+      .digest('hex')
+      .toUpperCase()
+    
+    params.sign = sign
+
+    const url = `${apiUrl}?${new URLSearchParams(params).toString()}`
+    const response = await fetch(url, { method: 'GET' })
+    const data = await response.json()
+
+    console.log('[AliExpress DS] ========================================')
+    console.log('[AliExpress DS] RESPOSTA COMPLETA DA API ds.product.get:')
+    console.log(JSON.stringify(data, null, 2))
+    console.log('[AliExpress DS] ========================================')
+
+    // Verificar se retornou erro
+    if (data.error_response) {
+      const errorCode = data.error_response.code
+      const errorMsg = data.error_response.msg
+
+      if (errorCode === 'ITEM_ID_NOT_FOUND') {
+        return { available: false, reason: 'Produto não encontrado na sua lista de dropshipping' }
+      } else if (errorMsg && errorMsg.includes('not allowed to this country')) {
+        return { available: false, reason: 'Produto não disponível para o Brasil' }
+      } else {
+        return { available: false, reason: `Produto não está na sua lista DS: ${errorMsg}` }
+      }
+    }
+
+    // Se retornou dados do produto via wholesale.get, está na lista DS
+    if (data.aliexpress_ds_product_wholesale_get_response?.result) {
+      const productData = data.aliexpress_ds_product_wholesale_get_response.result
+      
+      // 🇧🇷 VERIFICAR SE É LOJA BRASILEIRA
+      const storeInfo = productData.ae_store_info || {}
+      const storeCountryCode = storeInfo.store_country_code || ''
+      const isBrazilianStore = storeCountryCode.toUpperCase() === 'BR'
+      
+      if (isBrazilianStore) {
+        console.log('[AliExpress DS] 🇧🇷 PRODUTO DE LOJA BRASILEIRA DETECTADO!')
+        console.log('[AliExpress DS]    Loja:', storeInfo.store_name)
+        console.log('[AliExpress DS]    País:', storeCountryCode)
+      }
+      
+      // ⚠️ VERIFICAR SE É PRODUTO CHOICE/SELECTION
+      const itemProperties = productData.ae_item_properties?.ae_item_property || []
+      const isChoiceProduct = itemProperties.some((prop: any) => 
+        (prop.attr_name?.toLowerCase() === 'choice' && prop.attr_value?.toLowerCase() === 'yes') ||
+        (prop.attr_name_id === -1 && prop.attr_name?.toLowerCase() === 'choice')
+      )
+      
+      if (isChoiceProduct) {
+        console.log('[AliExpress DS] ⚠️ PRODUTO CHOICE DETECTADO - Tentando verificar frete...')
+      }
+      
+      // Buscar SKUs disponíveis
+      let skusArray = []
+      
+      if (productData.ae_item_sku_info_dtos?.ae_item_sku_info_d_t_o) {
+        skusArray = productData.ae_item_sku_info_dtos.ae_item_sku_info_d_t_o
+      }
+      
+      let firstValidSku = null
+      
+      if (Array.isArray(skusArray) && skusArray.length > 0) {
+        for (const sku of skusArray) {
+          const stock = sku.ipm_sku_stock || sku.sku_available_stock || 0
+          
+          if (stock > 0) {
+            firstValidSku = {
+              sku_id: sku.sku_id || sku.skuId || sku.s_k_u_id,
+              sku_attr: sku.sku_attr || sku.id || '',
+              sku_code: sku.sku_code || sku.skuCode || '',
+              stock: stock,
+            }
+            console.log(`[AliExpress DS] ✅ SKU com estoque: Attr=${firstValidSku.sku_attr}, Stock=${stock}`)
+            break
+          }
+        }
+        
+        if (!firstValidSku && skusArray.length > 0) {
+          const sku = skusArray[0]
+          firstValidSku = {
+            sku_id: sku.sku_id || sku.skuId || sku.s_k_u_id,
+            sku_attr: sku.sku_attr || sku.id || '',
+            sku_code: sku.sku_code || sku.skuCode || '',
+            stock: 0,
+          }
+          console.warn('[AliExpress DS] ⚠️ Nenhuma SKU com estoque. Usando primeira:', firstValidSku.sku_attr)
+        }
+      } else {
+        console.log('[AliExpress DS] ❌ Produto sem SKUs na lista DS')
+        return { 
+          available: false, 
+          reason: 'Produto sem SKUs disponíveis na sua lista de dropshipping. Adicione o produto à sua lista DS primeiro.' 
+        }
+      }
+      
+      return { 
+        available: true, 
+        reason: 'Produto está na lista DS',
+        skuInfo: firstValidSku,
+        isBrazilianStore,
+        storeInfo: {
+          name: storeInfo.store_name,
+          countryCode: storeCountryCode
+        }
+      }
+    }
+
+    return { available: false, reason: 'Produto não encontrado na sua lista de dropshipping. Adicione-o primeiro em ds.aliexpress.com' }
+  } catch (error: any) {
+    console.error('[AliExpress DS] Erro ao verificar produto:', error)
+    return { available: false, reason: `Erro na verificação: ${error.message}` }
+  }
+}
+
+/**
+ * Gerar assinatura HMAC-SHA256 para API AliExpress (cópia para verifyProductForDropshipping)
+ */
+function generateAliExpressSign2(params: Record<string, any>, appSecret: string): string {
+  const crypto = require('crypto')
+  const sortedKeys = Object.keys(params).filter(key => key !== 'sign').sort()
+  const signString = sortedKeys.map(key => `${key}${params[key]}`).join('')
+  return crypto.createHmac('sha256', appSecret).update(signString).digest('hex').toUpperCase()
+}
+
+/**
+ * Listar serviços de logística disponíveis para um produto
+ * API: aliexpress.logistics.redefining.listlogisticsservice
+ */
+async function listAvailableLogisticsServices(
+  auth: any,
+  productId: string,
+  countryCode: string = 'BR'
+): Promise<{ success: boolean; services: string[]; error?: string }> {
+  try {
+    const apiUrl = 'https://api-sg.aliexpress.com/sync'
+    const timestamp = Date.now().toString()
+
+    const params: Record<string, any> = {
+      app_key: auth.appKey,
+      method: 'aliexpress.logistics.redefining.listlogisticsservice',
+      session: auth.accessToken,
+      timestamp: timestamp,
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+      countryCode: countryCode,
+      itemId: String(productId),
+    }
+
+    params.sign = generateAliExpressSign(params, auth.appSecret)
+
+    const url = `${apiUrl}?${new URLSearchParams(params).toString()}`
+    
+    console.log('[AliExpress Logistics] Consultando serviços disponíveis para produto:', productId)
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const data = await response.json()
+    
+    if (data.error_response) {
+      return { success: false, services: [], error: data.error_response.msg }
+    }
+    
+    const result = data.aliexpress_logistics_redefining_listlogisticsservice_response?.result
+    if (result && result.success) {
+      const services = result.services?.map((s: any) => s.service_name) || []
+      return { success: true, services }
+    }
+    
+    return { success: false, services: [], error: 'Nenhum serviço encontrado' }
+  } catch (error: any) {
+    console.error('[AliExpress Logistics] Erro:', error)
+    return { success: false, services: [], error: error.message }
+  }
+}
+
+/**
+ * Enviar pedido para Shopify
+ */
+async function sendToShopify(
+  supplier: any,
+  order: any,
+  items: any[]
+): Promise<string> {
+  // Implementação simplificada do Shopify
+  console.log('[Shopify] Enviando pedido para:', supplier.name)
+  return 'SHOPIFY_ORDER_PLACEHOLDER'
+}
+
+/**
+ * Parsear endereço de entrega
+ */
+function parseShippingAddress(address: string) {
+      format: 'json',
+      v: '2.0',
+      sign_method: 'sha256',
+      product_id: productId,
+      ship_to_country: 'BR',
+    }
+
+    // Gerar assinatura
+    const sortedKeys = Object.keys(params)
+      .filter(key => key !== 'sign')
+      .sort()
+    const signString = sortedKeys.map(key => `${key}${params[key]}`).join('')
+    const sign = crypto.createHmac('sha256', appSecret)
+      .update(signString)
+      .digest('hex')
+      .toUpperCase()
+    
+    params.sign = sign
+
+    const url = `${apiUrl}?${new URLSearchParams(params).toString()}`
+    const response = await fetch(url, { method: 'GET' })
+    const data = await response.json()
+
+    console.log('[AliExpress DS] ========================================')
+    console.log('[AliExpress DS] RESPOSTA COMPLETA DA API ds.product.get:')
+    console.log(JSON.stringify(data, null, 2))
+    console.log('[AliExpress DS] ========================================')
+
+    // Verificar se retornou erro
+    if (data.error_response) {
+      const errorCode = data.error_response.code
+      const errorMsg = data.error_response.msg
+
+      if (errorCode === 'ITEM_ID_NOT_FOUND') {
+        return { available: false, reason: 'Produto não encontrado na sua lista de dropshipping' }
+      } else if (errorMsg.includes('not allowed to this country')) {
+        return { available: false, reason: 'Produto não disponível para o Brasil' }
+      } else {
+        return { available: false, reason: `Produto não está na sua lista DS: ${errorMsg}` }
+      }
+    }
+
+    // Se retornou dados do produto via wholesale.get, está na lista DS
+    if (data.aliexpress_ds_product_wholesale_get_response?.result) {
+      const productData = data.aliexpress_ds_product_wholesale_get_response.result
+      
+      // 🇧🇷 VERIFICAR SE É LOJA BRASILEIRA
+      const storeInfo = productData.ae_store_info || {}
+      const storeCountryCode = storeInfo.store_country_code || ''
+      const isBrazilianStore = storeCountryCode.toUpperCase() === 'BR'
+      
+      if (isBrazilianStore) {
+        console.log('[AliExpress DS] 🇧🇷 PRODUTO DE LOJA BRASILEIRA DETECTADO!')
+        console.log('[AliExpress DS]    Loja:', storeInfo.store_name)
+        console.log('[AliExpress DS]    País:', storeCountryCode)
+      }
+      
+      // ⚠️ VERIFICAR SE É PRODUTO CHOICE/SELECTION
+      // Agora apenas logamos - a verificação real será feita quando consultar o frete
+      const itemProperties = productData.ae_item_properties?.ae_item_property || []
+      const isChoiceProduct = itemProperties.some((prop: any) => 
+        (prop.attr_name?.toLowerCase() === 'choice' && prop.attr_value?.toLowerCase() === 'yes') ||
+        (prop.attr_name_id === -1 && prop.attr_name?.toLowerCase() === 'choice')
+      )
+      
+      if (isChoiceProduct) {
+        // Apenas log de aviso - não bloqueia mais
+        // A verificação real será feita quando tentar consultar o frete
+        console.log('[AliExpress DS] ⚠️ PRODUTO CHOICE DETECTADO - Tentando verificar frete...')
+      }
+      
+      // Buscar SKUs disponíveis
+      let skusArray = []
+      
+      // Estrutura wholesale.get: ae_item_sku_info_dtos.ae_item_sku_info_d_t_o
+      if (productData.ae_item_sku_info_dtos?.ae_item_sku_info_d_t_o) {
+        skusArray = productData.ae_item_sku_info_dtos.ae_item_sku_info_d_t_o
+      }
+      
+      let firstValidSku = null
+      
+      if (Array.isArray(skusArray) && skusArray.length > 0) {
+        // Buscar primeiro SKU com estoque disponível
+        for (const sku of skusArray) {
+          const stock = sku.ipm_sku_stock || sku.sku_available_stock || 0
+          
+          // Pegar o primeiro SKU com estoque > 0
+          if (stock > 0) {
+            firstValidSku = {
+              sku_id: sku.sku_id || sku.skuId || sku.s_k_u_id,
+              sku_attr: sku.sku_attr || sku.id || '',
+              sku_code: sku.sku_code || sku.skuCode || '',
+              stock: stock,
+            }
+            console.log(`[AliExpress DS] ✅ SKU com estoque: Attr=${firstValidSku.sku_attr}, Stock=${stock}`)
+            break
+          }
+        }
+        
+        // Se não encontrou SKU com estoque, pegar a primeira mesmo assim
+        if (!firstValidSku && skusArray.length > 0) {
+          const sku = skusArray[0]
+          firstValidSku = {
+            sku_id: sku.sku_id || sku.skuId || sku.s_k_u_id,
+            sku_attr: sku.sku_attr || sku.id || '',
+            sku_code: sku.sku_code || sku.skuCode || '',
+            stock: 0,
+          }
+          console.warn('[AliExpress DS] ⚠️ Nenhuma SKU com estoque. Usando primeira:', firstValidSku.sku_attr);
+        }
+      } else {
+        console.log('[AliExpress DS] ❌ Produto sem SKUs na lista DS');
+        return { 
+          available: false, 
+          reason: 'Produto sem SKUs disponíveis na sua lista de dropshipping. Adicione o produto à sua lista DS primeiro.' 
+        };
+      }
+      
+      return { 
+        available: true, 
+        reason: 'Produto está na lista DS',
+        skuInfo: firstValidSku,
+        isBrazilianStore,
+        storeInfo: {
+          name: storeInfo.store_name,
+          countryCode: storeCountryCode
+        }
+      };
+    }
+
+    return { available: false, reason: 'Produto não encontrado na sua lista de dropshipping. Adicione-o primeiro em ds.aliexpress.com' };
+  } catch (error: any) {
+    console.error('[AliExpress DS] Erro ao verificar produto:', error);
+    return { available: false, reason: `Erro na verificação: ${error.message}` };
+  }
+}
+
+// FIM DO ARQUIVO
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const data = await response.json()
+    
+    console.log('[AliExpress Logistics] Resposta:', JSON.stringify(data, null, 2))
+
+    // Verificar erro
+    if (data.error_response) {
+      return { 
+        success: false, 
+        services: [],
+        error: data.error_response.msg || 'Erro ao listar serviços'
+      }
+    }
+
+    // Extrair serviços disponíveis
+    const result = data.aliexpress_logistics_redefining_listlogisticsservice_response?.result ||
+                   data.aliexpress_logistics_redefining_listlogisticsservice_response?.result_list?.aeop_logistics_service_result ||
+                   []
+    
+    let services: string[] = []
+    
+    if (Array.isArray(result)) {
+      services = result.map((svc: any) => svc.logistics_service || svc.service_name || svc.code).filter(Boolean)
+    } else if (result.result_list?.aeop_logistics_service_result) {
+      services = result.result_list.aeop_logistics_service_result.map((svc: any) => 
+        svc.logistics_service || svc.service_name || svc.code
+      ).filter(Boolean)
+    }
+
+    console.log('[AliExpress Logistics] Serviços disponíveis:', services)
+
+    return { 
+      success: true, 
+      services 
+    }
+  } catch (error: any) {
+    console.error('[AliExpress Logistics] Erro:', error)
+    return { 
+      success: false, 
+      services: [],
+      error: error.message 
+    }
+  }
+}
+
+/**
+ * Enviar pedido para Shopify
+ */
+async function sendToShopify(
+  supplier: any,
+  order: any,
+  items: any[]
+): Promise<string> {
+  try {
+    // Shopify não está implementado no schema - retorna mensagem
+    throw new Error('Integração Shopify não configurada. Configure as credenciais do fornecedor.')
+  } catch (error: any) {
+    throw new Error(`Erro ao criar pedido no Shopify: ${error.message}`)
+  }
+}
+
+/**
+ * Parse endereço de envio
+ * Suporta JSON ou formato string: "Rua, Numero, Bairro, Cidade, Estado, CEP"
+ */
+function parseShippingAddress(address: string) {
+  // Mapa de estados BR (sem acentos para AliExpress)
+  const stateMap: Record<string, string> = {
+    'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapa', 'AM': 'Amazonas',
+    'BA': 'Bahia', 'CE': 'Ceara', 'DF': 'Distrito Federal', 'ES': 'Espirito Santo',
+    'GO': 'Goias', 'MA': 'Maranhao', 'MT': 'Mato Grosso', 'MS': 'Mato Grosso do Sul',
+    'MG': 'Minas Gerais', 'PA': 'Para', 'PB': 'Paraiba', 'PR': 'Parana',
+    'PE': 'Pernambuco', 'PI': 'Piaui', 'RJ': 'Rio de Janeiro', 'RN': 'Rio Grande do Norte',
+    'RS': 'Rio Grande do Sul', 'RO': 'Rondonia', 'RR': 'Roraima', 'SC': 'Santa Catarina',
+    'SP': 'Sao Paulo', 'SE': 'Sergipe', 'TO': 'Tocantins'
+  }
+
+  // Tentar parsear como JSON primeiro
+  try {
+    const parsed = JSON.parse(address)
+    
+    // Se é um objeto JSON válido, extrair os dados
+    const stateCode = (parsed.state || '').toUpperCase()
+    const provinceName = stateMap[stateCode] || parsed.state || 'Maranhao'
+    
+    // Remover acentos da cidade
+    const city = (parsed.city || 'Sao Luis')
+      .replace(/[áàâã]/gi, 'a')
+      .replace(/[éê]/gi, 'e')
+      .replace(/[í]/gi, 'i')
+      .replace(/[óôõ]/gi, 'o')
+      .replace(/[ú]/gi, 'u')
+      .replace(/[ç]/gi, 'c')
+    
+    return {
+      street: parsed.street || '',
+      streetNumber: parsed.number || parsed.streetNumber || 'SN',
+      district: parsed.neighborhood || parsed.district || '',
+      complement: parsed.complement || '',
+      city: city,
+      provinceName: provinceName,
+      provinceCode: stateCode || 'MA',
+      zip: (parsed.zipCode || parsed.zip || parsed.postalCode || '').replace(/\D/g, ''),
+      country: 'BR',
+      phone: parsed.phone || '',
+      cpf: parsed.cpf || '',
+      reference: parsed.reference || '',
+      // Campos legados para compatibilidade
+      address1: `${parsed.street || ''}, ${parsed.number || 'SN'}`,
+      address2: parsed.complement || parsed.neighborhood || '',
+    }
+  } catch (e) {
+    // Não é JSON, parsear como string
+  }
+
+  const parts = address.split(',').map(p => p.trim())
+  
+  // Extrair CEP
+  let zip = ''
+  const cepMatch = address.match(/(\d{5}-?\d{3})/)
+  if (cepMatch) {
+    zip = cepMatch[1].replace('-', '')
+  }
+  
+  // Identificar estado
+  let provinceName = ''
+  let provinceCode = ''
+  const stateMatch = address.match(/\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/)
+  if (stateMatch) {
+    provinceCode = stateMatch[1].toUpperCase()
+    provinceName = stateMap[provinceCode] || provinceCode
+  }
+  
+  // Extrair cidade (antes do estado/CEP)
+  let city = ''
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]
+    if (!part.match(/\d{5}-?\d{3}/) && 
+        !part.match(/^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)$/i) && 
+        !Object.values(stateMap).some(s => part.match(new RegExp(s, 'i'))) && 
+        part.length > 2) {
+      city = part.replace(/[áàâã]/gi, 'a').replace(/[éê]/gi, 'e').replace(/[í]/gi, 'i').replace(/[óôõ]/gi, 'o').replace(/[ú]/gi, 'u').replace(/[ç]/gi, 'c')
+      break
+    }
+  }
+  
+  // Montar rua + número
+  let street = parts[0] || ''
+  let streetNumber = 'SN'
+  
+  if (parts[1] && parts[1].match(/^(SN|S\/N|\d+)$/i)) {
+    streetNumber = parts[1].toUpperCase() === 'SN' || parts[1].toUpperCase() === 'S/N' ? 'SN' : parts[1]
+  }
+  
+  // Bairro/Distrito (geralmente posição 2)
+  let district = ''
+  if (parts.length > 2 && parts[2] && !parts[2].match(/\d{5}-?\d{3}/) && parts[2] !== city) {
+    district = parts[2]
+  }
+  
+  // Complemento (resto que não é cidade, estado, CEP, número)
+  let complement = ''
+  const complementParts = []
+  for (let i = 2; i < parts.length; i++) {
+    const part = parts[i]
+    if (!part.match(/^(SN|S\/N|\d+)$/i) && 
+        !part.match(/\d{5}-?\d{3}/) && 
+        !part.match(/^(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)$/i) && 
+        !Object.values(stateMap).some(s => part.match(new RegExp(s, 'i'))) && 
+        part !== city && part !== district) {
+      complementParts.push(part)
+    }
+  }
+  complement = complementParts.join(', ')
+  
+  return {
+    street: street,
+    streetNumber: streetNumber,
+    district: district,
+    complement: complement,
+    city: city || 'Sao Luis',
+    provinceName: provinceName || 'Maranhao',
+    provinceCode: provinceCode || 'MA',
+    zip: zip || '',
+    country: 'BR',
+    phone: '',
+    // Campos legados para compatibilidade
+    address1: `${street}, ${streetNumber}`,
+    address2: complement || district,
+  }
+}
