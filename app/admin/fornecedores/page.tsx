@@ -3,6 +3,10 @@ import Link from 'next/link'
 import { FiEdit, FiTrash2, FiPlus, FiGlobe, FiPhone, FiMail } from 'react-icons/fi'
 import DeleteSupplierButton from '@/components/admin/DeleteSupplierButton'
 
+// Forçar renderização dinâmica - NUNCA cachear esta página
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function AdminFornecedoresPage() {
   const suppliers = await prisma.supplier.findMany({
     include: {

@@ -19,6 +19,7 @@ export default function DeleteSupplierButton({ supplierId }: { supplierId: strin
     try {
       const response = await fetch(`/api/admin/suppliers/${supplierId}`, {
         method: 'DELETE',
+        cache: 'no-store',
       })
 
       if (!response.ok) {
@@ -27,10 +28,11 @@ export default function DeleteSupplierButton({ supplierId }: { supplierId: strin
       }
 
       toast.success('Fornecedor excluído com sucesso!')
-      router.refresh()
+      
+      // Força recarregamento completo da página para limpar cache
+      window.location.reload()
     } catch (error: any) {
       toast.error(error.message || 'Erro ao excluir fornecedor')
-    } finally {
       setIsDeleting(false)
     }
   }
