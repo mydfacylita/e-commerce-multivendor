@@ -116,8 +116,7 @@ export async function GET(
       select: {
         id: true,
         trackingCode: true,
-        shippingLabel: true,
-        shippingLabelCost: true
+        shippingLabel: true
       }
     })
 

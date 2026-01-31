@@ -16,7 +16,6 @@ interface Order {
   packedAt?: string
   shippedAt?: string
   shippingLabel?: string
-  shippingLabelCost?: number
   items: {
     id: string
     quantity: number
