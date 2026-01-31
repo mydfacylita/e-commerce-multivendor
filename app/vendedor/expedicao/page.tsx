@@ -45,35 +45,14 @@ interface Order {
   separatedAt?: string
   packedAt?: string
   shippedAt?: string
-  packagingBoxId?: string
   expeditionNotes?: string
   items: OrderItem[]
-  packagingBox?: {
-    id: string
-    code: string
-    name: string
-  }
-}
-
-interface Embalagem {
-  id: string
-  code: string
-  name: string
-  type: string
-  innerLength: number
-  innerWidth: number
-  innerHeight: number
-  outerLength: number
-  outerWidth: number
-  outerHeight: number
-  maxWeight: number
 }
 
 type ExpeditionStatus = 'all' | 'pending' | 'separated' | 'packed' | 'shipped'
 
 export default function VendedorExpedicaoPage() {
   const [orders, setOrders] = useState<Order[]>([])
-  const [embalagens, setEmbalagens] = useState<Embalagem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ExpeditionStatus>('pending')
   const [search, setSearch] = useState('')
@@ -95,21 +74,8 @@ export default function VendedorExpedicaoPage() {
     }
   }, [filter, search])
 
-  const loadEmbalagens = async () => {
-    try {
-      const res = await fetch('/api/admin/embalagens')
-      if (res.ok) {
-        const data = await res.json()
-        setEmbalagens(data.filter((e: Embalagem) => e.type))
-      }
-    } catch (error) {
-      console.error('Erro ao carregar embalagens:', error)
-    }
-  }
-
   useEffect(() => {
     loadOrders()
-    loadEmbalagens()
   }, [loadOrders])
 
   useEffect(() => {
@@ -183,13 +149,13 @@ export default function VendedorExpedicaoPage() {
     }
   }
 
-  const handleEmbalar = async (orderId: string, embalagemId: string) => {
+  const handleEmbalar = async (orderId: string) => {
     setProcessingOrder(orderId)
     try {
       const res = await fetch(`/api/vendedor/expedicao/${orderId}/embalar`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packagingBoxId: embalagemId })
+        body: JSON.stringify({})
       })
       if (res.ok) {
         setMessage({ type: 'success', text: 'Pedido embalado!' })
@@ -429,21 +395,14 @@ export default function VendedorExpedicaoPage() {
                       )}
 
                       {order.separatedAt && !order.packedAt && (
-                        <div className="flex items-center gap-2">
-                          <select
-                            className="border rounded-lg px-3 py-2"
-                            onChange={(e) => handleEmbalar(order.id, e.target.value)}
-                            disabled={processingOrder === order.id}
-                            defaultValue=""
-                          >
-                            <option value="" disabled>Selecionar embalagem...</option>
-                            {embalagens.map((e) => (
-                              <option key={e.id} value={e.id}>
-                                {e.code} - {e.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        <button
+                          onClick={() => handleEmbalar(order.id)}
+                          disabled={processingOrder === order.id}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <Box size={18} />
+                          Marcar como Embalado
+                        </button>
                       )}
 
                       {order.packedAt && !order.shippedAt && (

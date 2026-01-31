@@ -54,7 +54,6 @@ export async function POST(
       where: { id: params.id },
       data: {
         packedAt: new Date(),
-        packagingBoxId: packagingBoxId || null,
         status: 'PROCESSING'
       }
     })

@@ -83,7 +83,6 @@ export async function GET(request: NextRequest) {
             }
           }
         },
-        packagingBox: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 100
