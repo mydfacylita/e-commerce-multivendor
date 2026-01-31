@@ -72,5 +72,17 @@
   "telemetry.telemetryLevel": "off",
   
   // Salvar automático desabilitado
-  "files.autoSave": "off"
+  "files.autoSave": "off",
+
+  // MCP Server - Hostinger API
+  "github.copilot.chat.mcpServers": {
+    "hostinger-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["hostinger-api-mcp@latest"],
+      "env": {
+        "API_TOKEN": "4zbIVwt5PG6UIdCdV1edh2eQlKKiH4j4eH2yDSIWaa2a69eb"
+      }
+    }
+  }
 }

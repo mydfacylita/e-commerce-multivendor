@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 // URL base para redirects
 const getBaseUrl = () => {
-  return process.env.ALIEXPRESS_CALLBACK_URL || process.env.NEXTAUTH_URL || 'https://www.mydshop.com.br';
+  return process.env.ALIEXPRESS_CALLBACK_URL || process.env.NEXTAUTH_URL || 'https://gerencial-sys.mydshop.com.br';
 };
 
 // Callback OAuth - recebe o código e troca por access token

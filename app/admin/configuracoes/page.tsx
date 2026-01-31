@@ -166,6 +166,19 @@ const DEFAULT_CONFIGS: ConfigItem[] = [
   { key: 'email.fromEmail', value: 'noreply@mydshop.com.br', category: 'email', label: 'E-mail do Remetente', type: 'text' },
 ]
 
+// Helper para converter URL de imagem para a API route (necessário para servir uploads dinâmicos)
+function getImageSrc(imagePath: string | undefined): string {
+  if (!imagePath) return ''
+  // Se já é uma URL completa ou data URL, retorna como está
+  if (imagePath.startsWith('http') || imagePath.startsWith('data:')) return imagePath
+  // Se começa com /uploads, usa a API route
+  if (imagePath.startsWith('/uploads')) {
+    return `/api/image${imagePath}`
+  }
+  // Outros caminhos (logo, favicon, etc) - tenta servir como estático primeiro
+  return imagePath
+}
+
 export default function ConfiguracoesPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -452,7 +465,7 @@ export default function ConfiguracoesPage() {
             {value && (
               <div className="relative w-40 h-24 bg-gray-100 rounded-lg overflow-hidden border">
                 <img 
-                  src={value} 
+                  src={getImageSrc(value)} 
                   alt="Preview" 
                   className="w-full h-full object-contain"
                   onError={(e) => {
@@ -699,7 +712,7 @@ export default function ConfiguracoesPage() {
                           </div>
                           {slide.image && (
                             <div className="mt-2 relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
-                              <img src={slide.image} alt="Preview" className="w-full h-full object-cover" />
+                              <img src={getImageSrc(slide.image)} alt="Preview" className="w-full h-full object-cover" />
                             </div>
                           )}
                         </div>

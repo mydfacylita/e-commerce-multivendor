@@ -3,6 +3,19 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
+// Helper para converter URL de imagem para a API route (necessário para servir uploads dinâmicos)
+function getImageSrc(imagePath: string | undefined): string {
+  if (!imagePath) return ''
+  // Se já é uma URL completa ou data URL, retorna como está
+  if (imagePath.startsWith('http') || imagePath.startsWith('data:')) return imagePath
+  // Se começa com /uploads, usa a API route
+  if (imagePath.startsWith('/uploads')) {
+    return `/api/image${imagePath}`
+  }
+  // Outros caminhos - retorna como está
+  return imagePath
+}
+
 interface OfferProduct {
   id: string
   name: string
@@ -195,7 +208,7 @@ export default function Hero() {
   const renderImageSlide = (slide: CarouselSlide) => {
     const imageElement = (
       <img
-        src={slide.image}
+        src={getImageSrc(slide.image)}
         alt={slide.title || 'Banner'}
         className="w-full h-full object-fill"
         style={{ objectPosition: 'center' }}
@@ -219,7 +232,7 @@ export default function Hero() {
   const renderHeroSlide = (slide: CarouselSlide) => (
     <div 
       className={`bg-gradient-to-r ${slide.bgColor || 'from-primary-500 to-primary-700'} text-white transition-all duration-700`}
-      style={slide.image ? { backgroundImage: `url(${slide.image})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+      style={slide.image ? { backgroundImage: `url(${getImageSrc(slide.image)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
     >
       {slide.image && <div className={`absolute inset-0 bg-gradient-to-r ${slide.bgColor || 'from-primary-500 to-primary-700'} opacity-80`} />}
       <div className="relative max-w-7xl mx-auto px-4 py-12 md:py-16">

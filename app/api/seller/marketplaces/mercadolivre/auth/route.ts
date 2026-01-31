@@ -3,6 +3,16 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+// Helper para obter URL base - para vendedor usa domínio público
+function getBaseUrl(req: NextRequest): string {
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL.replace(/\/$/, '');
+  }
+  const host = req.headers.get('host') || 'www.mydshop.com.br';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  return `${protocol}://${host}`;
+}
+
 /**
  * POST /api/seller/marketplaces/mercadolivre/auth
  * Troca o código de autorização por tokens de acesso usando credenciais globais
@@ -44,8 +54,9 @@ export async function POST(request: NextRequest) {
     const clientId = mlCredentials.clientId
     const clientSecret = mlCredentials.clientSecret
 
-    // Usar domínio de produção para o redirect_uri (deve bater com o configurado no ML)
-    const redirectUri = `https://mydshop.com.br/vendedor/integracao/mercadolivre/callback`
+    // Usar domínio dinâmico para o redirect_uri
+    const baseUrl = getBaseUrl(request);
+    const redirectUri = `${baseUrl}/vendedor/integracao/mercadolivre/callback`
 
     // Trocar código por token
     const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {

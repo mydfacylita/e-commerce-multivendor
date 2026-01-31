@@ -1,9 +1,19 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-export async function POST(req: Request) {
+// Helper para obter URL base
+function getBaseUrl(req: NextRequest): string {
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL.replace(/\/$/, '');
+  }
+  const host = req.headers.get('host') || 'gerencial-sys.mydshop.com.br';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  return `${protocol}://${host}`;
+}
+
+export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
@@ -42,7 +52,8 @@ export async function POST(req: Request) {
 
     const clientId = credentials.clientId
     const clientSecret = credentials.clientSecret
-    const redirectUri = `${process.env.NEXTAUTH_URL}/admin/integracao/mercadolivre/callback`
+    const baseUrl = getBaseUrl(req);
+    const redirectUri = `${baseUrl}/admin/integracao/mercadolivre/callback`
 
     // Trocar código por token de acesso
     const tokenResponse = await fetch('https://api.mercadolibre.com/oauth/token', {

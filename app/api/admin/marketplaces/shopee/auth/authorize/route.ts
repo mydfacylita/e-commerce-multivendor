@@ -5,7 +5,16 @@ import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 
 const SHOPEE_API_BASE_URL = 'https://partner.shopeemobile.com';
-const REDIRECT_URI = process.env.NEXTAUTH_URL + '/admin/integracao/shopee/callback';
+
+// Helper para obter URL base
+function getBaseUrl(req: NextRequest): string {
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL.replace(/\/$/, '');
+  }
+  const host = req.headers.get('host') || 'gerencial-sys.mydshop.com.br';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  return `${protocol}://${host}`;
+}
 
 // Função para gerar assinatura HMAC-SHA256 da Shopee
 function generateShopeeSignature(url: string, body: string, partnerId: number, partnerKey: string, timestamp: number): string {
@@ -34,7 +43,9 @@ export async function GET(request: NextRequest) {
     const { partnerId, partnerKey } = user.shopeeAuth;
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/api/v2/shop/auth_partner';
-    const redirectUrl = encodeURIComponent(REDIRECT_URI);
+    const baseUrl = getBaseUrl(request);
+    const redirectUri = `${baseUrl}/admin/integracao/shopee/callback`;
+    const redirectUrl = encodeURIComponent(redirectUri);
     
     // Gerar assinatura para autorização
     const baseString = `${partnerId}${path}${timestamp}`;
