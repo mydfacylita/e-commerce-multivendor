@@ -9,7 +9,12 @@ const nextConfig = {
     ],
   },
   
-  // 🚀 BUILD CONFIG: Otimizado para produção
+  // � CACHE: Desabilitar cache de fetch globalmente
+  experimental: {
+    // Desabilitar cache de fetch para TODAS as requisições
+  },
+  
+  // �🚀 BUILD CONFIG: Otimizado para produção
   trailingSlash: false,
   
   // 🚀 BUILD CONFIG: Generate build ID
@@ -78,6 +83,16 @@ const nextConfig = {
   // �🚀 BUILD CONFIG: Unified headers configuration
   async headers() {
     return [
+      // 🔥 NO CACHE para páginas admin
+      {
+        source: '/admin/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0' },
+          { key: 'Pragma', value: 'no-cache' },
+          { key: 'Expires', value: '0' },
+          { key: 'Surrogate-Control', value: 'no-store' },
+        ],
+      },
       // CORS para APIs
       {
         source: '/api/:path*',
@@ -85,7 +100,9 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
           { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, x-api-key' },
-          { key: 'Cache-Control', value: 'no-store' }, // Prevent caching of API routes
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0' },
+          { key: 'Pragma', value: 'no-cache' },
+          { key: 'Expires', value: '0' },
         ],
       },
       // CORS para uploads (imagens estáticas)

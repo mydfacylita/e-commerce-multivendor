@@ -2,12 +2,17 @@ import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { FiEdit, FiTrash2, FiPlus, FiGlobe, FiPhone, FiMail } from 'react-icons/fi'
 import DeleteSupplierButton from '@/components/admin/DeleteSupplierButton'
+import { unstable_noStore as noStore } from 'next/cache'
 
 // Forçar renderização dinâmica - NUNCA cachear esta página
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 export default async function AdminFornecedoresPage() {
+  // Desabilitar cache completamente
+  noStore()
+  
   const suppliers = await prisma.supplier.findMany({
     include: {
       _count: {
