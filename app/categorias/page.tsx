@@ -40,11 +40,6 @@ export default async function CategoriasPage() {
               <h2 className="text-xl font-bold mb-2 group-hover:text-primary-600">
                 {category.name}
               </h2>
-              {category.description && (
-                <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                  {category.description}
-                </p>
-              )}
               <p className="text-sm text-gray-500">
                 {category._count.products}{' '}
                 {category._count.products === 1 ? 'produto' : 'produtos'}

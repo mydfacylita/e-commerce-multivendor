@@ -558,7 +558,7 @@ export async function POST(req: NextRequest) {
         data: {
           name: 'Importados',
           slug: 'importados',
-          description: 'Produtos importados do AliExpress'
+          description: 'Produtos importados internacionais'
         }
       });
     }

@@ -426,7 +426,7 @@ export default function BuscaProdutosAliExpressPage() {
             body: JSON.stringify({
               name: 'Importados',
               slug: 'importados',
-              description: 'Produtos importados do AliExpress'
+              description: 'Produtos importados internacionais'
             })
           });
           const newCat = await createCatRes.json();

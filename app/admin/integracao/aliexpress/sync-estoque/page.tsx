@@ -299,7 +299,7 @@ export default function SyncEstoquePage() {
               Sincronização de Estoque
             </h1>
             <p className="text-gray-600 mt-1">
-              Monitore e sincronize o estoque dos produtos importados do AliExpress
+              Monitore e sincronize o estoque dos produtos importados
             </p>
           </div>
 
