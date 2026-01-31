@@ -5,7 +5,11 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { FiPackage, FiDollarSign, FiHome, FiExternalLink, FiTruck, FiSettings, FiShoppingBag, FiUsers, FiCreditCard } from 'react-icons/fi';
+import { 
+  FiPackage, FiDollarSign, FiHome, FiExternalLink, FiTruck, FiSettings, 
+  FiShoppingBag, FiUsers, FiCreditCard, FiChevronDown, FiChevronRight,
+  FiBox, FiGrid, FiStar, FiLayers, FiBarChart2, FiArrowUpCircle
+} from 'react-icons/fi';
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -143,23 +147,75 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
     canManageDropshipping: true,
   };
 
-  const menuItems = [
-    { label: 'Dashboard', href: '/vendedor/dashboard', icon: FiHome, requiresPermission: null },
-    { label: 'Produtos', href: '/vendedor/produtos', icon: FiPackage, requiresPermission: 'canManageProducts' },
-    { label: 'Códigos EAN', href: '/vendedor/ean', icon: FiPackage, requiresPermission: 'canManageProducts' },
-    { label: 'Pedidos', href: '/vendedor/pedidos', icon: FiShoppingBag, requiresPermission: 'canManageOrders' },
-    { label: 'Dropshipping', href: '/vendedor/dropshipping', icon: FiTruck, requiresPermission: 'canManageDropshipping' },
-    { label: 'Integração', href: '/vendedor/integracao', icon: FiSettings, requiresPermission: 'canManageIntegrations' },
-    { label: 'Planos', href: '/vendedor/planos', icon: FiCreditCard, requiresPermission: null },
-    { label: 'Financeiro', href: '/vendedor/financeiro', icon: FiDollarSign, requiresPermission: 'canViewFinancial' },
-    { label: 'Extrato', href: '/vendedor/saques', icon: FiDollarSign, requiresPermission: 'canViewFinancial' },
-    { label: 'Funcionários', href: '/vendedor/funcionarios', icon: FiUsers, requiresPermission: 'canManageEmployees' },
-    { 
-      label: 'Ver Minha Loja', 
-      href: `/loja/${seller.storeName?.toLowerCase().replace(/\s+/g, '-')}`,
+  // Menu organizado por categorias
+  const menuCategories = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: FiHome,
+      href: '/vendedor/dashboard',
+      requiresPermission: null,
+    },
+    {
+      id: 'cadastro',
+      label: 'Cadastro',
+      icon: FiGrid,
+      requiresPermission: 'canManageProducts',
+      children: [
+        { label: 'Produtos', href: '/vendedor/produtos', icon: FiPackage },
+        { label: 'Códigos EAN', href: '/vendedor/ean', icon: FiBarChart2 },
+        { label: 'Funcionários', href: '/vendedor/funcionarios', icon: FiUsers, requiresPermission: 'canManageEmployees' },
+        { label: 'Dropshipping', href: '/vendedor/dropshipping', icon: FiTruck, requiresPermission: 'canManageDropshipping' },
+        { label: 'Integrações', href: '/vendedor/integracao', icon: FiSettings, requiresPermission: 'canManageIntegrations' },
+      ]
+    },
+    {
+      id: 'vendas',
+      label: 'Vendas',
+      icon: FiShoppingBag,
+      requiresPermission: 'canManageOrders',
+      children: [
+        { label: 'Pedidos', href: '/vendedor/pedidos', icon: FiShoppingBag },
+        { label: 'Perguntas', href: '/vendedor/perguntas', icon: FiLayers },
+      ]
+    },
+    {
+      id: 'logistica',
+      label: 'Logística',
+      icon: FiTruck,
+      requiresPermission: 'canManageOrders',
+      children: [
+        { label: 'Expedição', href: '/vendedor/expedicao', icon: FiBox },
+        { label: 'Etiquetas', href: '/vendedor/expedicao/etiquetas', icon: FiPackage },
+      ]
+    },
+    {
+      id: 'financeiro',
+      label: 'Financeiro',
+      icon: FiDollarSign,
+      requiresPermission: 'canViewFinancial',
+      children: [
+        { label: 'Comissões', href: '/vendedor/financeiro', icon: FiBarChart2 },
+        { label: 'Conta', href: '/vendedor/saques', icon: FiDollarSign },
+      ]
+    },
+    {
+      id: 'assinaturas',
+      label: 'Assinaturas',
+      icon: FiCreditCard,
+      requiresPermission: null,
+      children: [
+        { label: 'Meu Plano', href: '/vendedor/planos', icon: FiStar },
+        { label: 'Upgrade', href: '/vendedor/planos/upgrade', icon: FiArrowUpCircle },
+      ]
+    },
+    {
+      id: 'loja',
+      label: 'Ver Minha Loja',
       icon: FiExternalLink,
+      href: `/loja/${seller.storeSlug || seller.storeName?.toLowerCase().replace(/\s+/g, '-')}`,
       external: true,
-      requiresPermission: null
+      requiresPermission: null,
     },
   ];
 
@@ -181,9 +237,9 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   };
 
   return (
-    <div className="flex bg-gray-50">
+    <div className="flex bg-gray-50 min-h-screen">
       {/* Sidebar Vendedor */}
-      <aside className="w-64 bg-white shadow-lg h-[calc(100vh-140px)] sticky overflow-y-auto" style={{ top: '140px' }}>
+      <aside className="w-64 bg-white shadow-lg min-h-screen sticky top-0 overflow-y-auto">
         <div className="p-6 border-b">
           <h2 className="text-xl font-bold text-gray-800 truncate">{seller.storeName}</h2>
           <p className="text-sm text-gray-600 mt-1">
@@ -195,42 +251,11 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         </div>
 
         <nav className="p-4">
-          {menuItems
-            .filter(item => !item.requiresPermission || effectivePermissions[item.requiresPermission])
-            .map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            
-            if (item.external) {
-              return (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors mb-1"
-                >
-                  <Icon size={20} />
-                  <span className="font-medium">{item.label}</span>
-                </a>
-              );
-            }
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-1 ${
-                  isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-                }`}
-              >
-                <Icon size={20} />
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
+          <MenuWithSubmenus 
+            categories={menuCategories} 
+            pathname={pathname} 
+            effectivePermissions={effectivePermissions}
+          />
         </nav>
       </aside>
 
@@ -238,6 +263,124 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       <main className="flex-1 min-h-screen bg-gray-50">
         {children}
       </main>
+    </div>
+  );
+}
+
+// Componente de Menu com Submenus
+function MenuWithSubmenus({ categories, pathname, effectivePermissions }: { 
+  categories: any[], 
+  pathname: string | null,
+  effectivePermissions: any 
+}) {
+  const [openMenus, setOpenMenus] = useState<string[]>([]);
+
+  // Auto-expandir menu quando uma rota filha está ativa
+  useEffect(() => {
+    categories.forEach(cat => {
+      if (cat.children) {
+        const hasActiveChild = cat.children.some((child: any) => pathname?.startsWith(child.href));
+        if (hasActiveChild && !openMenus.includes(cat.id)) {
+          setOpenMenus(prev => [...prev, cat.id]);
+        }
+      }
+    });
+  }, [pathname, categories]);
+
+  const toggleMenu = (id: string) => {
+    setOpenMenus(prev => 
+      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
+    );
+  };
+
+  return (
+    <div className="space-y-1">
+      {categories
+        .filter(cat => !cat.requiresPermission || effectivePermissions[cat.requiresPermission])
+        .map((category) => {
+          const Icon = category.icon;
+          const isOpen = openMenus.includes(category.id);
+          const hasChildren = category.children && category.children.length > 0;
+          const isActive = pathname === category.href;
+          const hasActiveChild = hasChildren && category.children.some((child: any) => pathname?.startsWith(child.href));
+
+          // Link direto (sem filhos)
+          if (!hasChildren) {
+            if (category.external) {
+              return (
+                <a
+                  key={category.id}
+                  href={category.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-4 py-2.5 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                >
+                  <Icon size={18} />
+                  <span className="font-medium text-sm">{category.label}</span>
+                </a>
+              );
+            }
+            return (
+              <Link
+                key={category.id}
+                href={category.href}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                }`}
+              >
+                <Icon size={18} />
+                <span className="font-medium text-sm">{category.label}</span>
+              </Link>
+            );
+          }
+
+          // Menu com submenus
+          return (
+            <div key={category.id}>
+              <button
+                onClick={() => toggleMenu(category.id)}
+                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition-colors ${
+                  hasActiveChild
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon size={18} />
+                  <span className="font-medium text-sm">{category.label}</span>
+                </div>
+                {isOpen ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
+              </button>
+
+              {isOpen && (
+                <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-100 pl-2">
+                  {category.children
+                    .filter((child: any) => !child.requiresPermission || effectivePermissions[child.requiresPermission])
+                    .map((child: any) => {
+                      const ChildIcon = child.icon;
+                      const isChildActive = pathname === child.href || pathname?.startsWith(child.href + '/');
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
+                            isChildActive
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+                          }`}
+                        >
+                          <ChildIcon size={16} />
+                          <span className="text-sm">{child.label}</span>
+                        </Link>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          );
+        })}
     </div>
   );
 }

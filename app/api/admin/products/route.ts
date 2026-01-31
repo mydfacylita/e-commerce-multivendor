@@ -182,9 +182,20 @@ export async function POST(req: Request) {
       const randomSuffix = Math.random().toString(36).substring(2, 8)
       const newSlug = `${originalProduct.slug}-${seller!.id.substring(0, 6)}-${randomSuffix}`
 
+      // ✅ LÓGICA DE supplierSku:
+      // - Se produto INTERNACIONAL (sellerId NULL no original): copiar supplierSku do original (ID do AliExpress)
+      // - Se produto PRÓPRIO (sellerId preenchido no original): usar ID do produto como referência
+      const isInternationalProduct = !originalProduct.sellerId && originalProduct.supplierSku
+      const supplierSkuForClone = isInternationalProduct 
+        ? originalProduct.supplierSku  // Produto internacional: copiar SKU do AliExpress
+        : data.sourceProductId          // Produto próprio: usar ID do produto original
+
       console.log('✅ Criando cópia do produto...')
-      console.log('   📦 Campos AliExpress do original:')
-      console.log('   - supplierSku (productId):', originalProduct.supplierSku)
+      console.log('   📦 Tipo do produto original:')
+      console.log('   - É internacional (AliExpress):', isInternationalProduct)
+      console.log('   - sellerId original:', originalProduct.sellerId)
+      console.log('   - supplierSku original:', originalProduct.supplierSku)
+      console.log('   - supplierSku para clone:', supplierSkuForClone)
       console.log('   - selectedSkus:', originalProduct.selectedSkus)
       console.log('   - shipFromCountry:', originalProduct.shipFromCountry)
       console.log('   - supplierCountryCode:', originalProduct.supplierCountryCode)
@@ -204,18 +215,18 @@ export async function POST(req: Request) {
           categoryId: originalProduct.categoryId,
           sellerId: seller!.id,
           supplierId: originalProduct.supplierId,
-          // ✅ COPIAR supplierSku do ORIGINAL (ID do produto no AliExpress)
-          supplierSku: originalProduct.supplierSku,
+          // ✅ supplierSku: Internacional=copiar SKU, Próprio=usar ID
+          supplierSku: supplierSkuForClone,
           supplierUrl: originalProduct.supplierUrl || `/produtos/${originalProduct.slug}`,
           specifications: originalProduct.specifications,
           variants: originalProduct.variants,
           attributes: originalProduct.attributes,
           // ✅ COPIAR selectedSkus do ORIGINAL (SKUs habilitados no AliExpress)
-          selectedSkus: originalProduct.selectedSkus,
-          // ✅ COPIAR campos de origem/entrega
-          shipFromCountry: originalProduct.shipFromCountry,
-          supplierCountryCode: originalProduct.supplierCountryCode,
-          deliveryDays: originalProduct.deliveryDays,
+          selectedSkus: isInternationalProduct ? originalProduct.selectedSkus : null,
+          // ✅ COPIAR campos de origem/entrega (só para internacional)
+          shipFromCountry: isInternationalProduct ? originalProduct.shipFromCountry : null,
+          supplierCountryCode: isInternationalProduct ? originalProduct.supplierCountryCode : null,
+          deliveryDays: isInternationalProduct ? originalProduct.deliveryDays : null,
           isDropshipping: true, // ✅ SEMPRE TRUE para produtos clonados
           dropshippingCommission: originalProduct.dropshippingCommission,
           availableForDropship: false,
