@@ -55,7 +55,7 @@ export async function POST(
       data: {
         packedAt: new Date(),
         packagingBoxId: packagingBoxId || null,
-        status: 'PACKED'
+        status: 'PROCESSING'
       }
     })
 

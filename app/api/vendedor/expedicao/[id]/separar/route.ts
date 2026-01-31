@@ -47,7 +47,7 @@ export async function POST(
       where: { id: params.id },
       data: {
         separatedAt: new Date(),
-        status: 'SEPARATED'
+        status: 'PROCESSING'
       }
     })
 
