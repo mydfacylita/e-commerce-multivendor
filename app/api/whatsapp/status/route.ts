@@ -31,14 +31,14 @@ export async function GET() {
       })
     }
 
-    // Para Cloud API, verificar conexão
-    if (config.provider === 'cloud') {
+    // Para Meta Cloud API, verificar conexão
+    if (config.provider === 'meta') {
       try {
         const response = await fetch(
           `https://graph.facebook.com/v18.0/${config.phoneNumberId}`,
           {
             headers: {
-              'Authorization': `Bearer ${config.apiKey}`
+              'Authorization': `Bearer ${config.accessToken}`
             }
           }
         )
@@ -47,7 +47,7 @@ export async function GET() {
           const data = await response.json()
           return NextResponse.json({
             connected: true,
-            provider: 'cloud',
+            provider: 'meta',
             phoneNumber: data.display_phone_number,
             verifiedName: data.verified_name,
             message: 'Conectado à API do WhatsApp (Meta)'
@@ -56,14 +56,14 @@ export async function GET() {
           const error = await response.json()
           return NextResponse.json({
             connected: false,
-            provider: 'cloud',
+            provider: 'meta',
             message: error.error?.message || 'Erro ao verificar conexão'
           })
         }
       } catch (error: any) {
         return NextResponse.json({
           connected: false,
-          provider: 'cloud',
+          provider: 'meta',
           message: `Erro de conexão: ${error.message}`
         })
       }
