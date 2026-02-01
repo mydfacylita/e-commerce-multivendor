@@ -268,17 +268,23 @@ export class WhatsAppService {
   static async sendPixCode(
     phone: string, 
     data: { 
-      orderId: string
+      orderId?: string
+      orderNumber?: string
       pixCode: string
       pixQrCodeUrl?: string
-      total: number
+      total?: number
+      amount?: number
       expiresAt?: Date
+      expiresIn?: string
     }
   ): Promise<SendMessageResult> {
+    const orderRef = data.orderNumber || data.orderId || 'N/A'
+    const valor = data.total || data.amount || 0
+    
     const message = `🛒 *MYDSHOP - Pagamento PIX*
 
-📋 Pedido: #${data.orderId}
-💰 Valor: R$ ${data.total.toFixed(2)}
+📋 Pedido: #${orderRef}
+💰 Valor: R$ ${valor.toFixed(2)}
 
 📲 *Código PIX (Copia e Cola):*
 \`\`\`
@@ -286,6 +292,7 @@ ${data.pixCode}
 \`\`\`
 
 ${data.expiresAt ? `⏰ Válido até: ${new Date(data.expiresAt).toLocaleString('pt-BR')}` : ''}
+${data.expiresIn ? `⏰ ${data.expiresIn}` : ''}
 
 Após o pagamento, você receberá a confirmação automaticamente.
 
@@ -303,18 +310,26 @@ Obrigado por comprar na MYDSHOP! 💙`
   static async sendBoletoLink(
     phone: string,
     data: {
-      orderId: string
+      orderId?: string
+      orderNumber?: string
       boletoUrl: string
       barCode?: string
-      total: number
-      dueDate?: Date
+      total?: number
+      amount?: number
+      dueDate?: Date | string
     }
   ): Promise<SendMessageResult> {
+    const orderRef = data.orderNumber || data.orderId || 'N/A'
+    const valor = data.total || data.amount || 0
+    const dueDateStr = data.dueDate instanceof Date 
+      ? data.dueDate.toLocaleDateString('pt-BR')
+      : data.dueDate || ''
+    
     const message = `🛒 *MYDSHOP - Boleto Bancário*
 
-📋 Pedido: #${data.orderId}
-💰 Valor: R$ ${data.total.toFixed(2)}
-${data.dueDate ? `📅 Vencimento: ${new Date(data.dueDate).toLocaleDateString('pt-BR')}` : ''}
+📋 Pedido: #${orderRef}
+💰 Valor: R$ ${valor.toFixed(2)}
+${dueDateStr ? `📅 Vencimento: ${dueDateStr}` : ''}
 
 📄 *Link do Boleto:*
 ${data.boletoUrl}
