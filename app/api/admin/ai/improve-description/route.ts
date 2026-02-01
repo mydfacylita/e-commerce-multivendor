@@ -56,24 +56,24 @@ export async function POST(request: NextRequest) {
     let prompt = ''
     
     if (action === 'improve') {
-      prompt = `Você é um especialista em e-commerce brasileiro. Melhore a seguinte descrição de produto para torná-la mais atraente, profissional e otimizada para SEO. Mantenha as informações técnicas importantes.
+      prompt = `Você é um redator de e-commerce brasileiro. Reescreva a descrição do produto abaixo de forma mais atraente e profissional.
 
 Produto: ${productName || 'Produto'}
 
 Descrição original:
 ${description}
 
-Instruções:
+Regras OBRIGATÓRIAS:
+- NÃO inclua título ou cabeçalho - comece direto com o texto da descrição
 - Escreva em português do Brasil
-- Use linguagem persuasiva e profissional
-- Destaque benefícios para o cliente
-- Mantenha informações técnicas importantes
-- Organize em parágrafos ou bullet points quando apropriado
-- Não use emojis em excesso
-- Não invente especificações que não estão na descrição original
-- Tamanho ideal: 150-300 palavras
+- Use linguagem persuasiva mas natural
+- Destaque os benefícios para o cliente
+- Use bullet points (•) para listar características
+- NÃO invente especificações que não existem no original
+- NÃO use emojis
+- Tamanho: entre 100 e 250 palavras
 
-Retorne APENAS a descrição melhorada, sem explicações adicionais.`
+Responda APENAS com a descrição, sem títulos, sem explicações.`
     } else if (action === 'generate') {
       prompt = `Você é um especialista em e-commerce brasileiro. Crie uma descrição atraente e profissional para o seguinte produto:
 
@@ -121,11 +121,11 @@ Retorne APENAS o resumo, sem explicações adicionais.`
         const ai = new GoogleGenAI({ apiKey: aiConfig.apiKey })
         
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-preview-05-20',
+          model: 'gemini-2.5-flash',
           contents: prompt,
           config: {
             temperature: 0.7,
-            maxOutputTokens: 1024,
+            maxOutputTokens: 4096,
           }
         })
         
@@ -135,9 +135,9 @@ Retorne APENAS o resumo, sem explicações adicionais.`
         const errorMessage = error?.message || 'Erro ao processar com IA'
         
         // Verificar se é erro de quota
-        if (errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+        if (errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('429')) {
           return NextResponse.json({ 
-            error: 'Limite de requisições atingido. Aguarde alguns segundos e tente novamente.' 
+            error: 'IA indisponível no momento. Tente novamente mais tarde.' 
           }, { status: 429 })
         }
         

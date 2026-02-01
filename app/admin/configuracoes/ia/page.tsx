@@ -157,9 +157,9 @@ export default function ConfiguracaoIAPage() {
           </div>
           <div className="flex items-center gap-4">
             {testResult && (
-              <span className={`flex items-center gap-1 text-sm ${testResult === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+              <span className={`flex items-center gap-1 text-sm ${testResult === 'success' ? 'text-green-600' : 'text-orange-600'}`}>
                 {testResult === 'success' ? <FiCheck /> : <FiAlertCircle />}
-                {testResult === 'success' ? 'Conectado' : 'Erro interno'}
+                {testResult === 'success' ? 'Conectado' : 'Indisponível'}
               </span>
             )}
             <label className="relative inline-flex items-center cursor-pointer">
