@@ -4,9 +4,9 @@ const prisma = new PrismaClient()
 async function checkExpedicao() {
   console.log('\n=== VERIFICANDO PEDIDOS PARA EXPEDIÇÃO ===\n')
   
-  // Verificar todos os pedidos PROCESSING
+  // Verificar todos os pedidos PROCESSING, SHIPPED, DELIVERED
   const allProcessing = await prisma.order.findMany({
-    where: { status: 'PROCESSING' },
+    where: { status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] } },
     select: {
       id: true,
       status: true,
