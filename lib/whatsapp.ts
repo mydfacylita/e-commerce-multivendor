@@ -54,7 +54,7 @@ export class WhatsAppService {
    */
   static async getConfig(): Promise<WhatsAppConfig> {
     try {
-      const settings = await prisma.companySettings.findMany({
+      const settings = await prisma.systemConfig.findMany({
         where: {
           key: {
             in: [
@@ -97,19 +97,24 @@ export class WhatsAppService {
   static async saveConfig(config: Partial<WhatsAppConfig>): Promise<boolean> {
     try {
       const updates = [
-        { key: 'WHATSAPP_ENABLED', value: config.enabled ? 'true' : 'false' },
-        { key: 'WHATSAPP_PHONE_NUMBER_ID', value: config.phoneNumberId || '' },
-        { key: 'WHATSAPP_ACCESS_TOKEN', value: config.accessToken || '' },
-        { key: 'WHATSAPP_BUSINESS_ID', value: config.businessId || '' },
-        { key: 'WHATSAPP_VERIFY_TOKEN', value: config.verifyToken || '' }
+        { key: 'WHATSAPP_ENABLED', value: config.enabled ? 'true' : 'false', label: 'WhatsApp Habilitado', category: 'whatsapp' },
+        { key: 'WHATSAPP_PHONE_NUMBER_ID', value: config.phoneNumberId || '', label: 'Phone Number ID', category: 'whatsapp' },
+        { key: 'WHATSAPP_ACCESS_TOKEN', value: config.accessToken || '', label: 'Access Token', category: 'whatsapp' },
+        { key: 'WHATSAPP_BUSINESS_ID', value: config.businessId || '', label: 'Business ID', category: 'whatsapp' },
+        { key: 'WHATSAPP_VERIFY_TOKEN', value: config.verifyToken || '', label: 'Verify Token', category: 'whatsapp' }
       ]
 
       for (const update of updates) {
         if (update.value !== undefined) {
-          await prisma.companySettings.upsert({
+          await prisma.systemConfig.upsert({
             where: { key: update.key },
             update: { value: update.value },
-            create: { key: update.key, value: update.value }
+            create: { 
+              key: update.key, 
+              value: update.value,
+              label: update.label,
+              category: update.category
+            }
           })
         }
       }
