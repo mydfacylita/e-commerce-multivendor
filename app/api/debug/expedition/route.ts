@@ -26,14 +26,11 @@ export async function GET(request: NextRequest) {
       where: {
         status: 'PROCESSING',
         separatedAt: null,
-        NOT: {
-          OR: [
-            { shippingCarrier: { contains: 'CAINIAO' } },
-            { shippingCarrier: { contains: 'ALIEXPRESS' } },
-            { shippingMethod: { contains: 'ALIEXPRESS' } },
-            { shippingMethod: { contains: 'CAINIAO' } }
-          ]
-        }
+        // Excluir pedidos internacionais
+        AND: [
+          { OR: [{ shippingMethod: null }, { shippingMethod: { not: 'international' } }] },
+          { OR: [{ shippingCarrier: null }, { shippingCarrier: { not: 'Importação Direta' } }] }
+        ]
       },
       select: {
         id: true,

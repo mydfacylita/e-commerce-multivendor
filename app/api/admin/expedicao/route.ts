@@ -28,12 +28,11 @@ export async function GET(request: NextRequest) {
       // Apenas pedidos confirmados (PROCESSING = pago, aguardando envio)
       status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] },
       // Excluir pedidos de importação direta (AliExpress) - esses são enviados pelo fornecedor
-      NOT: {
-        OR: [
-          { shippingMethod: 'international' },
-          { shippingCarrier: 'Importação Direta' }
-        ]
-      }
+      // Usando AND com NOT para cada condição separadamente para evitar problemas com NULL
+      AND: [
+        { OR: [{ shippingMethod: null }, { shippingMethod: { not: 'international' } }] },
+        { OR: [{ shippingCarrier: null }, { shippingCarrier: { not: 'Importação Direta' } }] }
+      ]
     }
 
     // Filtro por status de expedição
