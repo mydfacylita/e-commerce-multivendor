@@ -143,8 +143,9 @@ export default function Navbar() {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false)
       }
+      // Usar setTimeout para dar tempo do click no link ser processado
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowResults(false)
+        setTimeout(() => setShowResults(false), 150)
       }
       if (departmentsRef.current && !departmentsRef.current.contains(event.target as Node)) {
         setIsDepartmentsOpen(false)

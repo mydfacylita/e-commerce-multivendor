@@ -51,6 +51,22 @@ export async function GET(request: NextRequest) {
             brand: {
               contains: query
             }
+          },
+          {
+            category: {
+              name: {
+                contains: query
+              }
+            }
+          },
+          {
+            category: {
+              parent: {
+                name: {
+                  contains: query
+                }
+              }
+            }
           }
         ]
       },
@@ -61,12 +77,18 @@ export async function GET(request: NextRequest) {
         description: true,
         price: true,
         images: true,
-        stock: true
+        stock: true,
+        category: {
+          select: {
+            name: true
+          }
+        }
       },
       take: 20,
-      orderBy: {
-        name: 'asc'
-      }
+      orderBy: [
+        { featured: 'desc' },
+        { name: 'asc' }
+      ]
     })
 
     // Parse do campo images que vem como JSON string
@@ -89,8 +111,18 @@ export async function GET(request: NextRequest) {
         images = []
       }
 
+      // Remover tags HTML da descrição para exibição limpa
+      let cleanDescription = product.description || ''
+      cleanDescription = cleanDescription
+        .replace(/<[^>]*>/g, ' ')  // Remove HTML tags
+        .replace(/&nbsp;/g, ' ')   // Remove &nbsp;
+        .replace(/\s+/g, ' ')      // Multiple spaces to single
+        .trim()
+        .substring(0, 150)         // Limitar tamanho
+
       return {
         ...product,
+        description: cleanDescription,
         images
       }
     })
