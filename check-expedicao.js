@@ -25,7 +25,7 @@ async function checkExpedicao() {
   
   console.log('Pedidos PROCESSING total:', allProcessing.length)
   allProcessing.forEach(o => {
-    console.log(`  - ${o.id.slice(0,8)} | ${o.buyerName} | Method: ${o.shippingMethod || 'null'} | Carrier: ${o.shippingCarrier || 'null'} | Separated: ${o.separatedAt ? 'sim' : 'não'}`)
+    console.log(`  - ${o.id.slice(0,8)} | STATUS: ${o.status} | ${o.buyerName} | Method: ${o.shippingMethod || 'null'} | Carrier: ${o.shippingCarrier || 'null'} | Separated: ${o.separatedAt ? 'sim' : 'não'}`)
   })
   
   // Verificar quantos são excluídos pelo filtro
