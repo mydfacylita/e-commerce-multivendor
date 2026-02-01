@@ -55,9 +55,38 @@ interface SelectedSku {
   costPrice?: number
 }
 
+interface MultiLevelData {
+  properties: {
+    id: string
+    name: string
+    type: string
+    options: {
+      id: string
+      value: string
+      label: string
+      image?: string
+    }[]
+  }[]
+  variants: {
+    skuId: string
+    stock: number
+    price?: number
+    available: boolean
+    image?: string
+    properties: {
+      name: string
+      value: string
+      propertyId: string
+      optionId: string
+      image?: string
+    }[]
+  }[]
+}
+
 interface ProductDetailClientProps {
   product: any
   variants: any
+  multiLevelData?: MultiLevelData | null
   processedSpecs: any
   processedAttrs: any
   selectedSkus?: SelectedSku[]
@@ -66,6 +95,7 @@ interface ProductDetailClientProps {
 export default function ProductDetailClient({ 
   product, 
   variants,
+  multiLevelData,
   processedSpecs,
   processedAttrs,
   selectedSkus = []
@@ -134,6 +164,7 @@ export default function ProductDetailClient({
         <ProductSelectionWrapper
           product={product}
           variants={variants}
+          multiLevelData={multiLevelData}
           sizes={product.sizes}
           sizeType={product.sizeType || 'adult'}
           sizeCategory={product.sizeCategory || 'shoes'}

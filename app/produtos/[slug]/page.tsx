@@ -7,7 +7,7 @@ import ProductDetailClient from '@/components/ProductDetailClient'
 import ProductReviews from '@/components/ProductReviews'
 import ProductQuestions from '@/components/ProductQuestions'
 import { serializeProduct } from '@/lib/serialize'
-import { parseVariantsJson, convertToLegacyFormat, type LegacyVariant } from '@/lib/product-variants'
+import { parseVariantsJson, convertToLegacyFormat, convertToMultiLevel, type LegacyVariant } from '@/lib/product-variants'
 
 // Função para processar especificações baseado no fornecedor
 function processSpecifications(specs: any, supplierName?: string): Record<string, string> {
@@ -262,6 +262,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   
   // Parse de variants com suporte ao novo formato padronizado e formato legado
   let variants: LegacyVariant[] | null = null
+  let multiLevelData: ReturnType<typeof convertToMultiLevel> = null
   
   if (product.variants) {
     try {
@@ -271,9 +272,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       )
       
       if (standardVariants) {
-        // Converter para formato legado usado pelo ProductSelectionWrapper
+        // Converter para formato multi-nível (novo) para exibição dinâmica
+        multiLevelData = convertToMultiLevel(standardVariants)
+        console.log('✅ MultiLevel properties:', multiLevelData?.properties.map(p => p.name))
+        
+        // Converter para formato legado usado pelo ProductSelectionWrapper (fallback)
         variants = convertToLegacyFormat(standardVariants)
-        console.log('✅ Variants (novo formato) convertidos:', variants)
+        console.log('✅ Variants (novo formato) convertidos:', variants?.length)
       } else {
         // Fallback para formato legado antigo
         let parsed = product.variants
@@ -360,6 +365,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <ProductDetailClient
           product={product}
           variants={variants}
+          multiLevelData={multiLevelData}
           processedSpecs={processedSpecs}
           processedAttrs={processedAttrs}
           selectedSkus={selectedSkus}

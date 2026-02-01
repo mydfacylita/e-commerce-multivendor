@@ -35,9 +35,39 @@ interface SelectedSku {
   costPrice?: number
 }
 
+// Novo formato multi-nível
+interface MultiLevelData {
+  properties: {
+    id: string
+    name: string
+    type: string
+    options: {
+      id: string
+      value: string
+      label: string
+      image?: string
+    }[]
+  }[]
+  variants: {
+    skuId: string
+    stock: number
+    price?: number
+    available: boolean
+    image?: string
+    properties: {
+      name: string
+      value: string
+      propertyId: string
+      optionId: string
+      image?: string
+    }[]
+  }[]
+}
+
 interface ProductSelectionWrapperProps {
   product: any
   variants: Variant[] | null
+  multiLevelData?: MultiLevelData | null
   sizes: Size[] | null
   sizeType?: string
   sizeCategory?: string
@@ -50,6 +80,7 @@ interface ProductSelectionWrapperProps {
 export default function ProductSelectionWrapper({ 
   product, 
   variants, 
+  multiLevelData,
   sizes,
   sizeType = 'adult',
   sizeCategory = 'shoes',
@@ -60,9 +91,14 @@ export default function ProductSelectionWrapper({
 }: ProductSelectionWrapperProps) {
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
   const [selectedColor, setSelectedColor] = useState<string | null>(null)
+  // Estado para seleções multi-nível: { propertyId: optionValue }
+  const [multiSelections, setMultiSelections] = useState<Record<string, string>>({})
   const [quantity, setQuantity] = useState(1)
   const router = useRouter()
   const addItem = useCartStore((state) => state.addItem)
+
+  // Determinar se usa multi-nível (quando há mais de 2 propriedades ou estrutura multi-nível)
+  const useMultiLevel = multiLevelData && multiLevelData.properties.length > 2
 
   // Notificar mudança de cor para componente pai
   const handleColorChange = (color: string | null) => {
@@ -147,6 +183,82 @@ export default function ProductSelectionWrapper({
   console.log('🎨 availableColors:', availableColors)
   console.log('🔄 effectiveSelectedSize:', effectiveSelectedSize)
   
+  // ============================================
+  // LÓGICA MULTI-NÍVEL (para produtos com 3+ propriedades)
+  // ============================================
+  
+  // Handler para seleção multi-nível
+  const handleMultiSelect = (propertyId: string, optionValue: string) => {
+    setMultiSelections(prev => ({ ...prev, [propertyId]: optionValue }))
+    setQuantity(1)
+  }
+
+  // Encontrar SKU multi-nível selecionado
+  let multiLevelSelectedVariant: MultiLevelData['variants'][0] | null = null
+  let multiLevelStock = 0
+  let multiLevelSkuId: string | null = null
+
+  if (useMultiLevel && multiLevelData) {
+    // Verificar se todas as propriedades foram selecionadas
+    const allSelected = multiLevelData.properties.every(p => multiSelections[p.id])
+    
+    if (allSelected) {
+      // Buscar SKU que corresponde a todas as seleções
+      multiLevelSelectedVariant = multiLevelData.variants.find(v => {
+        return v.properties.every(prop => {
+          const selectedValue = multiSelections[prop.propertyId]
+          return selectedValue === prop.value
+        })
+      }) || null
+      
+      if (multiLevelSelectedVariant) {
+        multiLevelStock = multiLevelSelectedVariant.stock
+        multiLevelSkuId = multiLevelSelectedVariant.skuId
+      }
+    }
+  }
+
+  // Opções disponíveis para cada propriedade no multi-nível (filtradas por seleções anteriores)
+  const getAvailableOptionsForProperty = (propertyId: string): { id: string, value: string, label: string, image?: string, available: boolean }[] => {
+    if (!multiLevelData) return []
+    
+    const property = multiLevelData.properties.find(p => p.id === propertyId)
+    if (!property) return []
+
+    // Filtrar variantes baseado nas seleções anteriores
+    const propertyIndex = multiLevelData.properties.findIndex(p => p.id === propertyId)
+    const previousProperties = multiLevelData.properties.slice(0, propertyIndex)
+    
+    // SKUs que correspondem às seleções anteriores
+    const matchingVariants = multiLevelData.variants.filter(v => {
+      return previousProperties.every(pp => {
+        const selected = multiSelections[pp.id]
+        if (!selected) return true // Se não selecionou ainda, aceita todas
+        const propValue = v.properties.find(vp => vp.propertyId === pp.id)
+        return propValue?.value === selected
+      })
+    })
+
+    // Valores únicos disponíveis para esta propriedade
+    const availableValues = new Set<string>()
+    matchingVariants.forEach(v => {
+      const prop = v.properties.find(vp => vp.propertyId === propertyId)
+      if (prop && v.stock > 0) {
+        availableValues.add(prop.value)
+      }
+    })
+
+    return property.options.map(opt => ({
+      ...opt,
+      available: availableValues.has(opt.label || opt.value)
+    }))
+  }
+
+  // Verificar quantas propriedades foram selecionadas (multi-nível)
+  const multiLevelSelectionsCount = Object.keys(multiSelections).length
+  const multiLevelTotalProperties = multiLevelData?.properties.length || 0
+  const allMultiLevelSelected = useMultiLevel && multiLevelSelectionsCount === multiLevelTotalProperties
+  
   // Verifica se precisa selecionar tamanho (não precisa se só tem um e já está auto-selecionado)
   const hasSizes = hasVariants || (sizes && sizes.length > 0)
   const needsSizeSelection = availableSizes.length > 1 // Só precisa selecionar se tiver mais de 1 opção
@@ -154,8 +266,13 @@ export default function ProductSelectionWrapper({
   // Obter estoque da variante selecionada ou do produto
   let currentStock = product.stock || 0
   let selectedVariant: Variant | null = null
+  let effectiveSkuId: string | null = null
   
-  if (hasVariants && effectiveSelectedSize && selectedColor) {
+  // MULTI-NÍVEL: Se está usando multi-nível, usar esses valores
+  if (useMultiLevel && allMultiLevelSelected && multiLevelSelectedVariant) {
+    currentStock = multiLevelStock
+    effectiveSkuId = multiLevelSkuId
+  } else if (hasVariants && effectiveSelectedSize && selectedColor) {
     // Buscar variante por size + color
     selectedVariant = variants.find(v => v.size === effectiveSelectedSize && v.color === selectedColor) || null
     
@@ -165,6 +282,7 @@ export default function ProductSelectionWrapper({
     }
     
     currentStock = selectedVariant?.stock || 0
+    effectiveSkuId = selectedVariant?.skuId || null
     
     console.log('🔍 Buscando variante:', { size: effectiveSelectedSize, color: selectedColor })
     console.log('✅ selectedVariant encontrado:', selectedVariant ? { skuId: selectedVariant.skuId, color: selectedVariant.color } : null)
@@ -172,6 +290,7 @@ export default function ProductSelectionWrapper({
     // Produto só com cor, sem tamanho - buscar apenas por cor
     selectedVariant = variants.find(v => v.color === selectedColor) || null
     currentStock = selectedVariant?.stock || 0
+    effectiveSkuId = selectedVariant?.skuId || null
     console.log('🎨 Produto só com cor - selectedVariant:', selectedVariant ? { skuId: selectedVariant.skuId } : null)
   } else if (hasSizes && effectiveSelectedSize && !hasVariants && sizes) {
     const sizeItem = sizes.find(s => s.size === effectiveSelectedSize)
@@ -184,9 +303,11 @@ export default function ProductSelectionWrapper({
   //   2) product.price fixo (fallback seguro)
   // NUNCA usar variant.price pois é o preço de CUSTO do fornecedor!
   const getCurrentPrice = (): number => {
+    const skuIdToCheck = effectiveSkuId || selectedVariant?.skuId
+    
     // Se tem SKU selecionado, buscar preço customizado (com margem aplicada)
-    if (selectedVariant?.skuId && selectedSkus.length > 0) {
-      const skuConfig = selectedSkus.find(s => s.skuId === selectedVariant.skuId)
+    if (skuIdToCheck && selectedSkus.length > 0) {
+      const skuConfig = selectedSkus.find(s => s.skuId === skuIdToCheck)
       if (skuConfig?.customPrice) {
         return skuConfig.customPrice
       }
@@ -233,13 +354,15 @@ export default function ProductSelectionWrapper({
   // Desabilita o botão se faltar seleção OU não tiver estoque OU quantidade > estoque
   // Para tamanho: só precisa selecionar se tiver mais de uma opção
   // Para cor: precisa selecionar se tiver cores disponíveis
-  const needsColorSelection = hasVariants && availableColors.length > 0 && !selectedColor
-  const needsVariantButNotSelected = hasVariants && !selectedVariant // Tem variantes mas nenhuma selecionada
+  const needsColorSelection = !useMultiLevel && hasVariants && availableColors.length > 0 && !selectedColor
+  const needsVariantButNotSelected = !useMultiLevel && hasVariants && !selectedVariant // Tem variantes mas nenhuma selecionada
+  const needsMultiLevelSelection = useMultiLevel && !allMultiLevelSelected
   
   const isDisabled = currentStock === 0 || 
-    (needsSizeSelection && !selectedSize) ||
+    (needsSizeSelection && !selectedSize && !useMultiLevel) ||
     needsColorSelection ||
     needsVariantButNotSelected ||
+    needsMultiLevelSelection ||
     !hasStock ||
     quantity > currentStock
   
@@ -247,6 +370,8 @@ export default function ProductSelectionWrapper({
     needsSizeSelection, selectedSize, 
     needsColorSelection, 
     needsVariantButNotSelected,
+    needsMultiLevelSelection,
+    useMultiLevel,
     hasStock, currentStock 
   })
 
@@ -255,6 +380,8 @@ export default function ProductSelectionWrapper({
     if (isDisabled) {
       if (currentStock === 0) {
         toast.error('Produto esgotado!')
+      } else if (needsMultiLevelSelection) {
+        toast.error('Por favor, selecione todas as opções!')
       } else if (needsSizeSelection && !selectedSize) {
         toast.error('Por favor, selecione um tamanho!')
       } else if (needsColorSelection) {
@@ -282,13 +409,22 @@ export default function ProductSelectionWrapper({
     } else if (isInternationalSupplier) {
       itemType = 'DROP' // Produto de fornecedor internacional vai para DROP
     }
+
+    // Construir descrição das seleções para multi-nível
+    let selectionDescription = ''
+    if (useMultiLevel && multiLevelData) {
+      selectionDescription = multiLevelData.properties
+        .map(p => `${p.name}: ${multiSelections[p.id]}`)
+        .join(' | ')
+    }
     
     // Adicionar ao carrinho com quantidade selecionada
     console.log('🛒 ADICIONANDO AO CARRINHO:')
     console.log('   selectedColor:', selectedColor)
     console.log('   effectiveSelectedSize:', effectiveSelectedSize)
     console.log('   selectedVariant:', selectedVariant)
-    console.log('   skuId:', selectedVariant?.skuId)
+    console.log('   skuId:', effectiveSkuId || selectedVariant?.skuId)
+    console.log('   multiLevelSelections:', multiSelections)
     
     addItem({
       id: product.id,
@@ -297,9 +433,9 @@ export default function ProductSelectionWrapper({
       price: currentPrice,  // Usar preço do SKU selecionado
       image: product.images[0] || '/placeholder.jpg',
       quantity: quantity,
-      selectedColor: selectedColor || null,
-      selectedSize: effectiveSelectedSize || null,
-      skuId: selectedVariant?.skuId || null,  // SUB-SKU do fornecedor
+      selectedColor: useMultiLevel ? selectionDescription : (selectedColor || null),
+      selectedSize: useMultiLevel ? null : (effectiveSelectedSize || null),
+      skuId: effectiveSkuId || selectedVariant?.skuId || null,  // SUB-SKU do fornecedor
       stock: currentStock, // Usar o estoque da variante selecionada
       slug: product.slug,
       isImported: isImported,  // Para cálculo de impostos no checkout
@@ -325,63 +461,124 @@ export default function ProductSelectionWrapper({
         />
       </div>
 
-      {/* Seletor de Tamanhos - só mostra se tiver mais de uma opção */}
-      {availableSizes.length > 1 && (
-        <div className="mb-6">
-          <h3 className="font-semibold text-lg mb-3">Tamanhos Disponíveis</h3>
-          <div className="flex flex-wrap gap-3">
-            {availableSizes.map((size) => (
-              <button
-                key={size}
-                onClick={() => handleSizeChange(size)}
-                className={`px-6 py-3 border-2 rounded-lg font-semibold transition-all ${
-                  effectiveSelectedSize === size
-                    ? 'border-primary-600 bg-primary-600 text-white'
-                    : 'border-gray-300 bg-white text-gray-800 hover:border-primary-600'
-                }`}
-              >
-                {size}
-              </button>
-            ))}
-          </div>
-          {!effectiveSelectedSize && (
-            <p className="text-sm text-red-500 mt-2">* Selecione um tamanho</p>
-          )}
-        </div>
+      {/* SELETORES MULTI-NÍVEL (para produtos com 3+ propriedades) */}
+      {useMultiLevel && multiLevelData && (
+        <>
+          {multiLevelData.properties.map((property, propIndex) => {
+            const options = getAvailableOptionsForProperty(property.id)
+            const selectedValue = multiSelections[property.id]
+            
+            // Só mostra se é a primeira propriedade ou se as anteriores já foram selecionadas
+            const previousPropertiesSelected = multiLevelData.properties
+              .slice(0, propIndex)
+              .every(p => multiSelections[p.id])
+            
+            if (propIndex > 0 && !previousPropertiesSelected) return null
+
+            return (
+              <div key={property.id} className="mb-6">
+                <h3 className="font-semibold text-lg mb-3 capitalize">
+                  {property.name}
+                  <span className="text-sm font-normal text-gray-500 ml-2">
+                    ({options.filter(o => o.available).length} disponíveis)
+                  </span>
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  {options.map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() => option.available && handleMultiSelect(property.id, option.label || option.value)}
+                      disabled={!option.available}
+                      className={`flex items-center gap-2 px-4 py-3 border-2 rounded-lg transition-all ${
+                        selectedValue === (option.label || option.value)
+                          ? 'border-primary-600 bg-primary-600 text-white'
+                          : option.available
+                            ? 'border-gray-300 bg-white text-gray-800 hover:border-primary-600'
+                            : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {option.image && (
+                        <img 
+                          src={option.image} 
+                          alt={option.label || option.value}
+                          className="w-8 h-8 rounded object-cover"
+                        />
+                      )}
+                      <span className="font-medium">{option.label || option.value}</span>
+                    </button>
+                  ))}
+                </div>
+                {!selectedValue && (
+                  <p className="text-sm text-red-500 mt-2">* Selecione {property.name.toLowerCase()}</p>
+                )}
+              </div>
+            )
+          })}
+        </>
       )}
 
-      {/* Seletor de Cores - mostra se tem cores e tamanho está selecionado (ou auto-selecionado) */}
-      {hasVariants && effectiveSelectedSize && availableColors.length > 0 && (
-        <div className="mb-6">
-          <h3 className="font-semibold text-lg mb-3">Cores Disponíveis</h3>
-          <div className="flex flex-wrap gap-3">
-            {availableColors.map((color) => (
-              <button
-                key={color.name}
-                onClick={() => handleColorChange(color.name)}
-                className={`flex items-center gap-2 px-4 py-3 border-2 rounded-lg transition-all ${
-                  selectedColor === color.name
-                    ? 'border-primary-600 bg-primary-50'
-                    : 'border-gray-300 bg-white hover:border-primary-600'
-                }`}
-              >
-                <div 
-                  className="w-8 h-8 rounded-full border-2 border-gray-300 shadow-sm" 
-                  style={{ backgroundColor: color.hex }}
-                />
-                <span className="font-medium text-gray-800">{color.name}</span>
-              </button>
-            ))}
-          </div>
-          {!selectedColor && availableColors.length > 0 && (
-            <p className="text-sm text-red-500 mt-2">* Selecione uma cor</p>
+      {/* SELETORES LEGADO (para produtos com até 2 propriedades) */}
+      {!useMultiLevel && (
+        <>
+          {/* Seletor de Tamanhos - só mostra se tiver mais de uma opção */}
+          {availableSizes.length > 1 && (
+            <div className="mb-6">
+              <h3 className="font-semibold text-lg mb-3">Tamanhos Disponíveis</h3>
+              <div className="flex flex-wrap gap-3">
+                {availableSizes.map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => handleSizeChange(size)}
+                    className={`px-6 py-3 border-2 rounded-lg font-semibold transition-all ${
+                      effectiveSelectedSize === size
+                        ? 'border-primary-600 bg-primary-600 text-white'
+                        : 'border-gray-300 bg-white text-gray-800 hover:border-primary-600'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+              {!effectiveSelectedSize && (
+                <p className="text-sm text-red-500 mt-2">* Selecione um tamanho</p>
+              )}
+            </div>
           )}
-          {effectiveSelectedSize && availableColors.length === 0 && (
-            <p className="text-sm text-gray-500 mt-2">
-              Nenhuma cor disponível para o tamanho {effectiveSelectedSize}. Selecione outro tamanho.
-            </p>
+
+          {/* Seletor de Cores - mostra se tem cores e tamanho está selecionado (ou auto-selecionado) */}
+          {hasVariants && effectiveSelectedSize && availableColors.length > 0 && (
+            <div className="mb-6">
+              <h3 className="font-semibold text-lg mb-3">Cores Disponíveis</h3>
+              <div className="flex flex-wrap gap-3">
+                {availableColors.map((color) => (
+                  <button
+                    key={color.name}
+                    onClick={() => handleColorChange(color.name)}
+                    className={`flex items-center gap-2 px-4 py-3 border-2 rounded-lg transition-all ${
+                      selectedColor === color.name
+                        ? 'border-primary-600 bg-primary-50'
+                        : 'border-gray-300 bg-white hover:border-primary-600'
+                    }`}
+                  >
+                    <div 
+                      className="w-8 h-8 rounded-full border-2 border-gray-300 shadow-sm" 
+                      style={{ backgroundColor: color.hex }}
+                    />
+                    <span className="font-medium text-gray-800">{color.name}</span>
+                  </button>
+                ))}
+              </div>
+              {!selectedColor && availableColors.length > 0 && (
+                <p className="text-sm text-red-500 mt-2">* Selecione uma cor</p>
+              )}
+              {effectiveSelectedSize && availableColors.length === 0 && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Nenhuma cor disponível para o tamanho {effectiveSelectedSize}. Selecione outro tamanho.
+                </p>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
       {/* Formas de Pagamento */}
@@ -465,11 +662,11 @@ export default function ProductSelectionWrapper({
         <AddToCartButton 
           product={product} 
           disabled={isDisabled}
-          selectedColor={selectedColor}
-          selectedSize={selectedSize}
+          selectedColor={useMultiLevel ? Object.values(multiSelections).join(' | ') : selectedColor}
+          selectedSize={useMultiLevel ? null : selectedSize}
           quantity={quantity}
           variantStock={currentStock}
-          skuId={selectedVariant?.skuId || null}
+          skuId={effectiveSkuId || selectedVariant?.skuId || null}
         />
       </div>
     </>

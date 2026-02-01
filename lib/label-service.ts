@@ -910,6 +910,14 @@ export class LabelService {
     packaging: any, 
     pesoTotal: number
   ): string {
+    // Gerar URL do QR Code usando API do Google Charts
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent('https://mydshop.com.br/pedidos/' + order.id)}`
+    
+    // Gerar código de barras Code128 usando bwip-js via API online
+    const barcodeUrl = order.trackingCode 
+      ? `https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(order.trackingCode)}&scale=2&height=12&includetext`
+      : ''
+
     return `
 <!DOCTYPE html>
 <html>
@@ -917,100 +925,201 @@ export class LabelService {
   <meta charset="UTF-8">
   <title>Etiqueta - Pedido ${formatOrderNumber(order.id)}</title>
   <style>
+    @page {
+      size: 100mm 149.9mm;
+      margin: 0;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; padding: 10mm; }
+    html, body { 
+      font-family: Arial, sans-serif; 
+      width: 100mm;
+      height: 149.9mm;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
     .label { 
-      width: 100mm; 
+      width: 100mm;
+      height: 149.9mm;
       border: 2px solid #000; 
-      padding: 5mm;
-      page-break-after: always;
+      padding: 2mm;
+      box-sizing: border-box;
     }
     .header { 
-      text-align: center; 
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       border-bottom: 2px solid #000; 
-      padding-bottom: 3mm;
-      margin-bottom: 3mm;
+      padding-bottom: 2mm;
+      margin-bottom: 2mm;
+      height: 18mm;
     }
-    .header h1 { font-size: 14pt; }
-    .header p { font-size: 8pt; color: #666; }
+    .header-logo {
+      width: 20mm;
+      height: 14mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .header-logo img {
+      max-width: 18mm;
+      max-height: 12mm;
+      object-fit: contain;
+    }
+    .header-center {
+      flex: 1;
+      text-align: center;
+    }
     .entrega-badge {
       display: inline-block;
       background: #10b981;
       color: #fff;
-      padding: 2mm 4mm;
+      padding: 1.5mm 4mm;
       font-size: 10pt;
       font-weight: bold;
-      border-radius: 3px;
-      margin-top: 2mm;
+      border-radius: 2px;
     }
-    .section { margin-bottom: 4mm; }
+    .header-qr {
+      width: 20mm;
+      height: 14mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .header-qr img {
+      width: 14mm;
+      height: 14mm;
+    }
+    .section { margin-bottom: 2mm; }
     .section-title { 
-      font-size: 8pt; 
+      display: block;
+      font-size: 7pt; 
       font-weight: bold; 
-      background: #000; 
-      color: #fff; 
+      background: #000 !important; 
+      color: #fff !important; 
       padding: 1mm 2mm;
-      margin-bottom: 2mm;
+      margin-bottom: 1mm;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
-    .address { font-size: 10pt; line-height: 1.4; }
-    .address .name { font-weight: bold; font-size: 12pt; }
-    .address .cep { font-size: 14pt; font-weight: bold; }
-    .info-grid { display: flex; justify-content: space-between; }
+    .address { font-size: 8pt; line-height: 1.2; padding: 0 1mm; }
+    .address .name { font-weight: bold; font-size: 9pt; }
+    .address .cep { font-size: 11pt; font-weight: bold; margin-top: 1mm; }
+    .info-grid { 
+      display: flex; 
+      gap: 1mm;
+      margin: 2mm 0;
+    }
     .info-box { 
       border: 1px solid #000; 
-      padding: 2mm; 
+      padding: 1mm; 
       text-align: center;
       flex: 1;
-      margin: 0 1mm;
     }
-    .info-box:first-child { margin-left: 0; }
-    .info-box:last-child { margin-right: 0; }
-    .info-box .label { font-size: 7pt; border: none; padding: 0; width: auto; }
-    .info-box .value { font-size: 12pt; font-weight: bold; }
-    .barcode { 
+    .info-box .lbl { font-size: 5pt; text-transform: uppercase; }
+    .info-box .value { font-size: 8pt; font-weight: bold; }
+    .barcode-section { 
       text-align: center; 
-      margin-top: 4mm;
-      padding-top: 4mm;
-      border-top: 1px dashed #000;
+      padding: 2mm 0;
+      border-top: 2px dashed #000;
+      border-bottom: 2px dashed #000;
+      margin: 2mm 0;
     }
-    .barcode .code { font-family: monospace; font-size: 14pt; letter-spacing: 2px; }
-    .items { font-size: 8pt; }
+    .barcode-section .lbl { font-size: 6pt; margin-bottom: 1mm; }
+    .barcode-section .barcode-img { 
+      max-width: 90mm;
+      height: auto;
+    }
+    .barcode-section .code { 
+      font-family: 'Courier New', monospace; 
+      font-size: 10pt; 
+      letter-spacing: 2px; 
+      font-weight: bold; 
+      margin-top: 1mm;
+    }
+    .items { font-size: 7pt; }
+    .items-title { 
+      font-size: 6pt; 
+      font-weight: bold; 
+      background: #eee; 
+      padding: 0.5mm 2mm;
+      margin-bottom: 1mm;
+    }
     .items table { width: 100%; border-collapse: collapse; }
-    .items th, .items td { border: 1px solid #ccc; padding: 1mm; text-align: left; }
-    .items th { background: #f0f0f0; }
-    .footer { 
-      text-align: center; 
-      font-size: 8pt; 
-      color: #666;
-      margin-top: 3mm;
-      padding-top: 3mm;
-      border-top: 1px solid #ccc;
-    }
+    .items th, .items td { border: 1px solid #ccc; padding: 0.5mm 1mm; text-align: left; }
+    .items th { background: #f5f5f5; font-size: 6pt; }
+    .items td { font-size: 7pt; }
     @media print {
-      body { padding: 0; }
-      .no-print { display: none; }
+      html, body { 
+        width: 100mm !important; 
+        height: 149.9mm !important; 
+        margin: 0 !important; 
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .section-title {
+        background: #000 !important;
+        color: #fff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .entrega-badge {
+        background: #10b981 !important;
+        color: #fff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .label { 
+        width: 100mm !important; 
+        height: 149.9mm !important; 
+        border: 2px solid #000 !important;
+        page-break-after: avoid;
+      }
+      .no-print { display: none !important; }
     }
+    .print-btn {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      z-index: 1000;
+    }
+    .print-btn:hover { background: #2563eb; }
   </style>
 </head>
 <body>
-  <button class="no-print" onclick="window.print()" style="margin-bottom: 10px; padding: 10px 20px; font-size: 16px; cursor: pointer;">
+  <button class="no-print print-btn" onclick="window.print()">
     🖨️ Imprimir Etiqueta
   </button>
 
   <div class="label">
     <div class="header">
-      <h1>${company.nome || 'E-Commerce'}</h1>
-      <p>CNPJ: ${company.cnpj || '-'} | Tel: ${company.telefone || '-'}</p>
-      <div class="entrega-badge">🚚 ENTREGA PRÓPRIA</div>
+      <div class="header-logo">
+        <img src="https://mydshop.com.br/logo.png" alt="MYDShop" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 40%22><text x=%2210%22 y=%2228%22 font-size=%2216%22 font-weight=%22bold%22>MYDShop</text></svg>'">
+      </div>
+      <div class="header-center">
+        <div class="entrega-badge">🚚 ENTREGA PRÓPRIA</div>
+      </div>
+      <div class="header-qr">
+        <img src="${qrCodeUrl}" alt="QR Code">
+      </div>
     </div>
 
     <div class="section">
       <div class="section-title">REMETENTE</div>
       <div class="address">
-        <div>${company.nome || 'Remetente'}</div>
+        <div class="name">${company.nome || 'E-Commerce'}</div>
         <div>${company.endereco || '-'}</div>
-        <div>${company.cidade || '-'} - ${company.estado || '-'}</div>
+        <div>${company.cidade || '-'}/${company.estado || '-'}</div>
         <div class="cep">CEP: ${company.cep || '-'}</div>
+        ${company.telefone ? `<div>Tel: ${company.telefone}</div>` : ''}
       </div>
     </div>
 
@@ -1020,59 +1129,61 @@ export class LabelService {
         <div class="name">${order.buyerName || 'Cliente'}</div>
         <div>${destino.street || '-'}${destino.number ? ', ' + destino.number : ''}</div>
         ${destino.complement ? `<div>${destino.complement}</div>` : ''}
-        <div>${destino.neighborhood || '-'}</div>
-        <div>${destino.city || '-'} - ${destino.state || '-'}</div>
-        <div class="cep">CEP: ${destino.zipCode || '-'}</div>
+        <div>${destino.neighborhood || '-'} - ${destino.city || '-'}/${destino.state || '-'}</div>
+        <div class="cep">CEP: ${destino.zipCode || destino.cep || '-'}</div>
         ${order.buyerPhone ? `<div>Tel: ${order.buyerPhone}</div>` : ''}
       </div>
     </div>
 
     <div class="info-grid">
       <div class="info-box">
-        <div class="label">PEDIDO</div>
+        <div class="lbl">PEDIDO</div>
         <div class="value">${formatOrderNumber(order.id)}</div>
       </div>
       <div class="info-box">
-        <div class="label">PESO</div>
+        <div class="lbl">PESO</div>
         <div class="value">${pesoTotal.toFixed(2)} kg</div>
       </div>
       ${packaging ? `
       <div class="info-box">
-        <div class="label">EMBALAGEM</div>
+        <div class="lbl">EMBALAGEM</div>
         <div class="value">${packaging.code}</div>
       </div>
       ` : ''}
       <div class="info-box">
-        <div class="label">ITENS</div>
+        <div class="lbl">ITENS</div>
         <div class="value">${order.items.reduce((acc, i) => acc + i.quantity, 0)}</div>
       </div>
     </div>
 
     ${order.trackingCode ? `
-    <div class="barcode">
-      <div>CÓDIGO DE RASTREIO</div>
-      <div class="code">${order.trackingCode}</div>
+    <div class="barcode-section">
+      <div class="lbl">CÓDIGO DE RASTREIO</div>
+      <img class="barcode-img" src="${barcodeUrl}" alt="Código de Barras">
     </div>
     ` : ''}
 
-    <div class="section items" style="margin-top: 4mm;">
-      <div class="section-title">CONTEÚDO</div>
+    <div class="section items">
+      <div class="items-title">CONTEÚDO</div>
       <table>
         <tr>
           <th>Produto</th>
-          <th style="width: 30px;">Qtd</th>
+          <th style="width: 25px;">Qtd</th>
         </tr>
-        ${order.items.map(item => `
+        ${order.items.slice(0, 5).map(item => `
         <tr>
           <td>${item.product.name.substring(0, 40)}${item.product.name.length > 40 ? '...' : ''}</td>
           <td style="text-align: center;">${item.quantity}</td>
         </tr>
         `).join('')}
+        ${order.items.length > 5 ? `
+        <tr>
+          <td colspan="2" style="text-align:center; font-style:italic; font-size:6pt;">
+            + ${order.items.length - 5} outros itens
+          </td>
+        </tr>
+        ` : ''}
       </table>
-    </div>
-
-    <div class="footer">
-      Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}
     </div>
   </div>
 </body>

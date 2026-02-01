@@ -406,6 +406,92 @@ export interface LegacyVariant {
   stock: number
   price?: number
   skuId?: string  // ID do SKU para mapear com selectedSkus
+  // Novas propriedades para suportar múltiplos níveis
+  properties?: {
+    name: string
+    value: string
+    propertyId: string
+    optionId: string
+  }[]
+}
+
+/**
+ * Formato multi-nível para variações
+ * Suporta qualquer número de propriedades (cor, tamanho, espessura, comprimento, etc.)
+ */
+export interface MultiLevelVariant {
+  skuId: string
+  stock: number
+  price?: number
+  available: boolean
+  image?: string
+  properties: {
+    name: string       // Nome da propriedade: "cor", "cacho", "espessura"
+    value: string      // Valor selecionado: "3D 5D mix 60D", "D", "0,07 mm"
+    propertyId: string
+    optionId: string
+    image?: string
+  }[]
+}
+
+/**
+ * Estrutura de propriedades disponíveis
+ */
+export interface AvailableProperty {
+  id: string
+  name: string
+  type: 'color' | 'size' | 'style' | 'material' | 'voltage' | 'storage' | 'other'
+  options: {
+    id: string
+    value: string
+    label: string
+    image?: string
+  }[]
+}
+
+/**
+ * Converte ProductVariants para formato multi-nível (novo)
+ * Suporta qualquer número de propriedades
+ */
+export function convertToMultiLevel(variants: ProductVariants | null): {
+  properties: AvailableProperty[]
+  variants: MultiLevelVariant[]
+} | null {
+  if (!variants || !variants.skus || variants.skus.length === 0) {
+    return null
+  }
+
+  // Retornar propriedades e SKUs diretamente
+  return {
+    properties: variants.properties.map(p => ({
+      id: p.id,
+      name: p.name,
+      type: p.type,
+      options: p.options.map(o => ({
+        id: o.id,
+        value: o.value,
+        label: o.label || o.value,
+        image: o.image
+      }))
+    })),
+    variants: variants.skus.map(sku => ({
+      skuId: sku.skuId,
+      stock: sku.stock,
+      price: sku.price,
+      available: sku.available,
+      image: sku.image,
+      properties: sku.properties.map(p => ({
+        name: p.propertyName,
+        value: p.optionLabel || p.optionValue,
+        propertyId: p.propertyId,
+        optionId: p.optionId,
+        image: variants.properties
+          .find(prop => prop.id === p.propertyId)
+          ?.options.find(opt => opt.id === p.optionId)
+          ?.image
+      }))
+    }))
+  }
 }
 
 /**
