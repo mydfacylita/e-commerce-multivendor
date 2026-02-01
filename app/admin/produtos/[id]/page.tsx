@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import ImageUploader from '@/components/admin/ImageUploader'
 import ProductVariantsManager from '@/components/admin/ProductVariantsManager'
 import ImportedProductVariantsManager, { type SelectedSku } from '@/components/admin/ImportedProductVariantsManager'
+import AIDescriptionButton from '@/components/admin/AIDescriptionButton'
 
 interface Category {
   id: string
@@ -471,7 +472,14 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Descrição</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium">Descrição</label>
+            <AIDescriptionButton
+              description={formData.description}
+              productName={formData.name}
+              onDescriptionChange={(desc) => setFormData({ ...formData, description: desc })}
+            />
+          </div>
           <textarea
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}

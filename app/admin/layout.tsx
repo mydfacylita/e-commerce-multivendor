@@ -36,7 +36,8 @@ import {
   FiLink,
   FiPrinter,
   FiLogOut,
-  FiGift
+  FiGift,
+  FiCpu
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -531,6 +532,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiPrinter className="text-base" />
                   <span>Impressoras</span>
+                </Link>
+                <Link
+                  href="/admin/configuracoes/ia"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/ia' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiCpu className="text-base" />
+                  <span>Inteligência Artificial</span>
                 </Link>
               </div>
             )}
