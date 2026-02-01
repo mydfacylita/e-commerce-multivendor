@@ -143,17 +143,25 @@ export default function Navbar() {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false)
       }
-      // Usar setTimeout para dar tempo do click no link ser processado
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setTimeout(() => setShowResults(false), 150)
-      }
       if (departmentsRef.current && !departmentsRef.current.contains(event.target as Node)) {
         setIsDepartmentsOpen(false)
       }
     }
+    
+    // Separar o handler da busca para usar 'click' em vez de 'mousedown'
+    // Isso permite que a scrollbar funcione corretamente
+    function handleSearchClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowResults(false)
+      }
+    }
 
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('click', handleSearchClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('click', handleSearchClickOutside)
+    }
   }, [])
 
   const handleProductClick = (slug: string) => {
