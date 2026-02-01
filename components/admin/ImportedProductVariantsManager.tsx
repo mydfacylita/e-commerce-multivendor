@@ -55,9 +55,10 @@ export default function ImportedProductVariantsManager({
           // Margem padrão de 50% se não definida
           const defaultMargin = 50
           const margin = existing?.margin ?? defaultMargin
-          const costPrice = sku.price
-          // Calcular preço de venda: custo / (1 - margem/100)
-          const calculatedPrice = costPrice / (1 - margin / 100)
+          // Usar costPrice salvo no banco, ou o preço original do AliExpress se não existir
+          const costPrice = existing?.costPrice ?? sku.price
+          // Calcular preço de venda: custo * (1 + margem/100)
+          const calculatedPrice = costPrice * (1 + margin / 100)
           initialSkus.set(sku.skuId, {
             skuId: sku.skuId,
             enabled: existing?.enabled ?? true,
@@ -178,9 +179,9 @@ export default function ImportedProductVariantsManager({
       const newMap = new Map(prev)
       const current = newMap.get(skuId)
       if (current) {
-        // Recalcular margem baseado no novo preço
+        // Recalcular margem baseado no novo preço (margem sobre custo)
         const costPrice = current.costPrice || 0
-        const newMargin = costPrice > 0 ? ((price - costPrice) / price) * 100 : 0
+        const newMargin = costPrice > 0 ? ((price - costPrice) / costPrice) * 100 : 0
         newMap.set(skuId, { ...current, customPrice: price, margin: newMargin })
       }
       return newMap
@@ -192,8 +193,8 @@ export default function ImportedProductVariantsManager({
       const newMap = new Map(prev)
       const current = newMap.get(skuId)
       if (current) {
-        // Calcular preço baseado na margem: custo / (1 - margem/100)
-        const newPrice = margin >= 100 ? costPrice * 10 : costPrice / (1 - margin / 100)
+        // Calcular preço baseado na margem: custo * (1 + margem/100)
+        const newPrice = costPrice * (1 + margin / 100)
         newMap.set(skuId, { ...current, margin, customPrice: newPrice })
       }
       return newMap
@@ -337,12 +338,32 @@ export default function ImportedProductVariantsManager({
                   
                   setSkuSelections(prev => {
                     const newMap = new Map(prev)
-                    variants.skus.forEach(sku => {
+                    
+                    // Filtrar SKUs que passam pelo filtro de propriedades (mesma lógica da tabela)
+                    const filteredSkus = variants.skus.filter(sku => 
+                      sku.properties.every(prop => 
+                        propertySelections[prop.propertyId]?.[prop.optionId]
+                      )
+                    )
+                    
+                    filteredSkus.forEach(sku => {
                       const current = newMap.get(sku.skuId)
-                      if (current && current.enabled) {
-                        const costPrice = sku.price
-                        const newPrice = margin >= 100 ? costPrice * 10 : costPrice / (1 - margin / 100)
-                        newMap.set(sku.skuId, { ...current, margin, customPrice: newPrice, costPrice })
+                      const isEnabled = current?.enabled ?? true
+                      
+                      // Atualizar todos os SKUs habilitados (incluindo os que ainda não foram modificados)
+                      if (isEnabled) {
+                        // Usar costPrice salvo no banco, ou o preço original do AliExpress se não existir
+                        const costPrice = current?.costPrice ?? sku.price
+                        const newPrice = costPrice * (1 + margin / 100)
+                        newMap.set(sku.skuId, { 
+                          ...current,
+                          skuId: sku.skuId,
+                          enabled: true,
+                          margin, 
+                          customPrice: newPrice, 
+                          costPrice,
+                          customStock: current?.customStock ?? sku.stock
+                        })
                       }
                     })
                     return newMap
@@ -388,9 +409,10 @@ export default function ImportedProductVariantsManager({
                   const selection = skuSelections.get(sku.skuId)
                   const isEnabled = selection?.enabled ?? true
                   const displayStock = selection?.customStock ?? sku.stock
-                  const costPrice = sku.price
+                  // Usar costPrice salvo no banco, ou o preço original do AliExpress se não existir
+                  const costPrice = selection?.costPrice ?? sku.price
                   const displayMargin = selection?.margin ?? 50
-                  const displayPrice = selection?.customPrice ?? (costPrice / (1 - displayMargin / 100))
+                  const displayPrice = selection?.customPrice ?? (costPrice * (1 + displayMargin / 100))
                   
                   return (
                     <tr 
