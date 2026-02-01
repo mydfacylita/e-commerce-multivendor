@@ -65,17 +65,40 @@ async function checkExpedicao() {
   console.log('Só status PROCESSING:', simpleFilter.length)
   simpleFilter.forEach(o => console.log(`  - ${o.id.slice(0,8)} | ${o.buyerName}`))
 
-  // Agora com o filtro completo
-  const apiFilter = await prisma.order.findMany({
+  // Agora com o filtro completo - PASSO A PASSO
+  console.log('\n--- Teste 1: PROCESSING + NOT international/Importação ---')
+  const test1 = await prisma.order.findMany({
     where: {
-      status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] },
+      status: 'PROCESSING',
       NOT: {
         OR: [
           { shippingMethod: 'international' },
           { shippingCarrier: 'Importação Direta' }
         ]
-      },
+      }
+    },
+    select: { id: true, buyerName: true, shippingMethod: true }
+  })
+  console.log('Resultado:', test1.length)
+  test1.forEach(o => console.log(`  - ${o.id.slice(0,8)} | ${o.buyerName}`))
+  
+  console.log('\n--- Teste 2: PROCESSING + separatedAt null ---')
+  const test2 = await prisma.order.findMany({
+    where: {
+      status: 'PROCESSING',
       separatedAt: null
+    },
+    select: { id: true, buyerName: true, separatedAt: true }
+  })
+  console.log('Resultado:', test2.length)
+  test2.forEach(o => console.log(`  - ${o.id.slice(0,8)} | ${o.buyerName} | separatedAt: ${o.separatedAt}`))
+  
+  console.log('\n--- Teste 3: PROCESSING + pendentes completo ---')
+  const apiFilter = await prisma.order.findMany({
+    where: {
+      status: 'PROCESSING',
+      separatedAt: null,
+      shippingMethod: { not: 'international' }
     },
     select: {
       id: true,
