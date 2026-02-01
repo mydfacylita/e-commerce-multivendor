@@ -46,7 +46,26 @@ async function checkExpedicao() {
     console.log(`  - ${o.id.slice(0,8)} | ${o.buyerName} | Method: ${o.shippingMethod || 'null'} | Carrier: ${o.shippingCarrier || 'null'}`)
   })
   
-  // Simular o filtro da API
+  // Simular o filtro da API - usando o mesmo filtro exato
+  console.log('\n=== TESTANDO FILTRO EXATO DA API (pendentes) ===')
+  
+  // Primeiro, teste simples só com status PROCESSING
+  const simpleFilter = await prisma.order.findMany({
+    where: {
+      status: 'PROCESSING'
+    },
+    select: {
+      id: true,
+      status: true,
+      shippingMethod: true,
+      separatedAt: true,
+      buyerName: true
+    }
+  })
+  console.log('Só status PROCESSING:', simpleFilter.length)
+  simpleFilter.forEach(o => console.log(`  - ${o.id.slice(0,8)} | ${o.buyerName}`))
+
+  // Agora com o filtro completo
   const apiFilter = await prisma.order.findMany({
     where: {
       status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] },
@@ -63,6 +82,7 @@ async function checkExpedicao() {
       status: true,
       shippingMethod: true,
       shippingCarrier: true,
+      separatedAt: true,
       buyerName: true
     },
     take: 20
