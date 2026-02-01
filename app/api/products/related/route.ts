@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         include: {
           category: { select: { name: true } }
         },
-        take: 12,
+        take: 20,
         orderBy: { createdAt: 'desc' }
       })
     } else {
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         include: {
           category: { select: { name: true } }
         },
-        take: 12,
+        take: 20,
         orderBy: { createdAt: 'desc' }
       })
     }

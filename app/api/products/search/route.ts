@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         images: true,
         stock: true
       },
-      take: 10,
+      take: 20,
       orderBy: {
         name: 'asc'
       }

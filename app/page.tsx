@@ -17,7 +17,7 @@ export default async function HomePage() {
         supplier: true,  // Para identificar produtos importados
         seller: true  // Para identificação de origem (frete)
       },
-      take: 8,
+      take: 24,
     }),
     // Buscar apenas categorias principais (sem pai)
     prisma.category.findMany({
@@ -27,7 +27,7 @@ export default async function HomePage() {
           select: { products: true },
         },
       },
-      take: 6,
+      take: 12,
     })
   ])
 

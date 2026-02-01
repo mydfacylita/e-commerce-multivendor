@@ -188,10 +188,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       }
     },
     orderBy: { createdAt: 'desc' },
-    take: 10
+    take: 20
   })
-
-  // Calcular estatísticas de avaliações
   const reviewStats = await prisma.productReview.aggregate({
     where: {
       productId: product.id,
@@ -235,7 +233,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       }
     },
     orderBy: { createdAt: 'desc' },
-    take: 10
+    take: 20
   })
 
   // Estatísticas de perguntas

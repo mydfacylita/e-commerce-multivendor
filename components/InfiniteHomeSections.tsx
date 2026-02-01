@@ -67,7 +67,7 @@ export default function InfiniteHomeSections() {
         case 'recommended':
           endpoint = '/api/products/paginated'
           params.set('page', '1')
-          params.set('limit', '12')
+          params.set('limit', '24')
           break
         case 'last-purchase':
           if (!session?.user) {
@@ -84,34 +84,34 @@ export default function InfiniteHomeSections() {
         case 'flash-sale':
           endpoint = '/api/products/paginated'
           params.set('page', String(Math.floor(Math.random() * 3) + 1))
-          params.set('limit', '12')
+          params.set('limit', '24')
           break
         case 'trending':
           endpoint = '/api/products/paginated'
           params.set('page', '2')
-          params.set('limit', '12')
+          params.set('limit', '24')
           break
         case 'new-arrivals':
           endpoint = '/api/products/paginated'
           params.set('page', '1')
-          params.set('limit', '12')
+          params.set('limit', '24')
           break
         case 'best-sellers':
           endpoint = '/api/products/paginated'
           params.set('page', '3')
-          params.set('limit', '12')
+          params.set('limit', '24')
           break
         case 'for-you':
         case 'budget-friendly':
         case 'premium':
           endpoint = '/api/products/paginated'
           params.set('page', String(currentSectionIndex + 1))
-          params.set('limit', '12')
+          params.set('limit', '24')
           break
         default:
           endpoint = '/api/products/paginated'
           params.set('page', String(currentSectionIndex + 1))
-          params.set('limit', '12')
+          params.set('limit', '24')
       }
       
       const response = await fetch(`${endpoint}?${params.toString()}`, {

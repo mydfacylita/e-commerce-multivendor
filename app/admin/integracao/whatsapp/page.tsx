@@ -6,20 +6,22 @@ import toast from 'react-hot-toast'
 import Link from 'next/link'
 
 interface WhatsAppConfig {
-  provider: 'cloud' | 'evolution' | 'zapi' | 'disabled'
+  provider: 'meta' | 'disabled'
   phoneNumberId: string
-  apiKey: string
-  apiUrl: string
-  instanceId: string
+  accessToken: string
+  businessId: string
+  verifyToken: string
+  enabled: boolean
 }
 
 export default function WhatsAppIntegrationPage() {
   const [config, setConfig] = useState<WhatsAppConfig>({
-    provider: 'cloud',
+    provider: 'meta',
     phoneNumberId: '',
-    apiKey: '',
-    apiUrl: '',
-    instanceId: ''
+    accessToken: '',
+    businessId: '',
+    verifyToken: 'MYDSHOP_WHATSAPP_VERIFY_2026',
+    enabled: false
   })
   const [isActive, setIsActive] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -38,13 +40,14 @@ export default function WhatsAppIntegrationPage() {
         const data = await response.json()
         if (data.config) {
           setConfig({
-            provider: data.config.provider || 'cloud',
+            provider: data.config.provider || 'meta',
             phoneNumberId: data.config.phoneNumberId || '',
-            apiKey: data.config.apiKey || '',
-            apiUrl: data.config.apiUrl || '',
-            instanceId: data.config.instanceId || ''
+            accessToken: data.config.accessToken || '',
+            businessId: data.config.businessId || '',
+            verifyToken: data.config.verifyToken || 'MYDSHOP_WHATSAPP_VERIFY_2026',
+            enabled: data.config.enabled || false
           })
-          setIsActive(data.config.provider && data.config.provider !== 'disabled')
+          setIsActive(data.config.enabled || false)
         }
       }
     } catch (error) {
@@ -55,14 +58,12 @@ export default function WhatsAppIntegrationPage() {
   }
 
   const handleSave = async () => {
-    if (config.provider === 'cloud' && !config.phoneNumberId) {
-      toast.error('Phone Number ID é obrigatório para Cloud API')
+    if (!config.phoneNumberId) {
+      toast.error('Phone Number ID é obrigatório')
       return
     }
 
-    if (!config.apiKey || config.apiKey.includes('...')) {
-      // Se não foi alterado, ok
-    } else if (!config.apiKey) {
+    if (!config.accessToken || (config.accessToken.includes('...') === false && !config.accessToken)) {
       toast.error('Access Token é obrigatório')
       return
     }
@@ -73,7 +74,10 @@ export default function WhatsAppIntegrationPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...config,
+          phoneNumberId: config.phoneNumberId,
+          accessToken: config.accessToken,
+          businessId: config.businessId,
+          verifyToken: config.verifyToken,
           isActive
         })
       })
@@ -207,13 +211,45 @@ export default function WhatsAppIntegrationPage() {
             </label>
             <input
               type="password"
-              value={config.apiKey}
-              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+              value={config.accessToken}
+              onChange={(e) => setConfig({ ...config, accessToken: e.target.value })}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm"
               placeholder="EAAxxxxxxxxxx..."
             />
             <p className="text-xs text-gray-500 mt-1">
               Token permanente gerado em Configurações do App &gt; Tokens de acesso do sistema
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Business ID
+            </label>
+            <input
+              type="text"
+              value={config.businessId}
+              onChange={(e) => setConfig({ ...config, businessId: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              placeholder="Ex: 509124134868638"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              ID da conta comercial do WhatsApp Business
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Verify Token (Webhook)
+            </label>
+            <input
+              type="text"
+              value={config.verifyToken}
+              onChange={(e) => setConfig({ ...config, verifyToken: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm"
+              placeholder="MYDSHOP_WHATSAPP_VERIFY_2026"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Token de verificação usado na configuração do Webhook
             </p>
           </div>
 
