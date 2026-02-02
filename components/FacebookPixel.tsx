@@ -3,7 +3,6 @@
 import Script from 'next/script'
 import { useEffect, useState, Suspense } from 'react'
 import { usePathname } from 'next/navigation'
-import { useSession } from 'next-auth/react'
 
 interface FacebookPixelProps {
   pixelId?: string
@@ -12,17 +11,16 @@ interface FacebookPixelProps {
 // Componente interno
 function FacebookPixelInner({ pixelId }: FacebookPixelProps) {
   const pathname = usePathname()
-  const { data: session } = useSession()
   const [fbPixelId, setFbPixelId] = useState<string | null>(pixelId || null)
   const [isAdmin, setIsAdmin] = useState(false)
 
-  // Verificar se é admin
+  // Verificar se é admin pela URL (evita erro de prerender com useSession)
   useEffect(() => {
-    const userRole = (session?.user as any)?.role
-    const isAdminUser = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
-    const isAdminPath = pathname?.startsWith('/admin')
-    setIsAdmin(isAdminUser || isAdminPath)
-  }, [session, pathname])
+    const isAdminPath = pathname?.startsWith('/admin') || 
+                        pathname?.startsWith('/vendedor') ||
+                        window.location.hostname.includes('gerencial-sys')
+    setIsAdmin(isAdminPath)
+  }, [pathname])
 
   // Buscar Pixel ID das configurações se não foi passado como prop
   useEffect(() => {

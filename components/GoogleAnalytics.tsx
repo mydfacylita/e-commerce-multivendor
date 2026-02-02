@@ -3,7 +3,6 @@
 import Script from 'next/script'
 import { useEffect, useState, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useSession } from 'next-auth/react'
 
 interface GoogleAnalyticsProps {
   gaId?: string
@@ -13,17 +12,16 @@ interface GoogleAnalyticsProps {
 function GoogleAnalyticsInner({ gaId }: GoogleAnalyticsProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
   const [measurementId, setMeasurementId] = useState<string | null>(gaId || null)
   const [isAdmin, setIsAdmin] = useState(false)
 
-  // Verificar se é admin
+  // Verificar se é admin pela URL (evita erro de prerender com useSession)
   useEffect(() => {
-    const userRole = (session?.user as any)?.role
-    const isAdminUser = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
-    const isAdminPath = pathname?.startsWith('/admin')
-    setIsAdmin(isAdminUser || isAdminPath)
-  }, [session, pathname])
+    const isAdminPath = pathname?.startsWith('/admin') || 
+                        pathname?.startsWith('/vendedor') ||
+                        window.location.hostname.includes('gerencial-sys')
+    setIsAdmin(isAdminPath)
+  }, [pathname])
 
   // Buscar ID do GA das configurações se não foi passado como prop
   useEffect(() => {

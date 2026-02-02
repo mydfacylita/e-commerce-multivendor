@@ -2,24 +2,22 @@
 
 import { useEffect, useRef, Suspense, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useSession } from 'next-auth/react'
 import { analytics } from '@/lib/analytics-client'
 
 // Componente interno que usa useSearchParams
 function AnalyticsTrackerInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
   const visitorRegistered = useRef(false)
   const [isAdmin, setIsAdmin] = useState(false)
 
-  // Verificar se é admin
+  // Verificar se é admin pela URL (evita erro de prerender com useSession)
   useEffect(() => {
-    const userRole = (session?.user as any)?.role
-    const isAdminUser = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
-    const isAdminPath = pathname?.startsWith('/admin')
-    setIsAdmin(isAdminUser || isAdminPath)
-  }, [session, pathname])
+    const isAdminPath = pathname?.startsWith('/admin') || 
+                        pathname?.startsWith('/vendedor') ||
+                        window.location.hostname.includes('gerencial-sys')
+    setIsAdmin(isAdminPath)
+  }, [pathname])
 
   useEffect(() => {
     // Não rastrear admins
