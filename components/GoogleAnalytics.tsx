@@ -3,6 +3,7 @@
 import Script from 'next/script'
 import { useEffect, useState, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 
 interface GoogleAnalyticsProps {
   gaId?: string
@@ -12,7 +13,17 @@ interface GoogleAnalyticsProps {
 function GoogleAnalyticsInner({ gaId }: GoogleAnalyticsProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   const [measurementId, setMeasurementId] = useState<string | null>(gaId || null)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  // Verificar se é admin
+  useEffect(() => {
+    const userRole = (session?.user as any)?.role
+    const isAdminUser = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+    const isAdminPath = pathname?.startsWith('/admin')
+    setIsAdmin(isAdminUser || isAdminPath)
+  }, [session, pathname])
 
   // Buscar ID do GA das configurações se não foi passado como prop
   useEffect(() => {
@@ -28,9 +39,9 @@ function GoogleAnalyticsInner({ gaId }: GoogleAnalyticsProps) {
     }
   }, [gaId])
 
-  // Rastrear mudanças de página
+  // Rastrear mudanças de página (apenas se não for admin)
   useEffect(() => {
-    if (!measurementId || typeof window === 'undefined') return
+    if (!measurementId || typeof window === 'undefined' || isAdmin) return
 
     const url = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '')
     
@@ -40,10 +51,10 @@ function GoogleAnalyticsInner({ gaId }: GoogleAnalyticsProps) {
         page_path: url,
       })
     }
-  }, [pathname, searchParams, measurementId])
+  }, [pathname, searchParams, measurementId, isAdmin])
 
-  // Não renderizar se não tiver ID
-  if (!measurementId) return null
+  // Não renderizar se não tiver ID ou se for admin
+  if (!measurementId || isAdmin) return null
 
   return (
     <>

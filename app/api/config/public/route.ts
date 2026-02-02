@@ -59,6 +59,7 @@ export async function GET() {
       'social.tiktok',
       // SEO / Analytics
       'seo.googleAnalytics',
+      'seo.facebookPixel',
     ]
 
     const configs = await prisma.systemConfig.findMany({

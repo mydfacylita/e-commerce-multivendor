@@ -1,16 +1,30 @@
 'use client'
 
-import { useEffect, useRef, Suspense } from 'react'
+import { useEffect, useRef, Suspense, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { analytics } from '@/lib/analytics-client'
 
 // Componente interno que usa useSearchParams
 function AnalyticsTrackerInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   const visitorRegistered = useRef(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  // Verificar se é admin
+  useEffect(() => {
+    const userRole = (session?.user as any)?.role
+    const isAdminUser = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'
+    const isAdminPath = pathname?.startsWith('/admin')
+    setIsAdmin(isAdminUser || isAdminPath)
+  }, [session, pathname])
 
   useEffect(() => {
+    // Não rastrear admins
+    if (isAdmin) return
+    
     // Registrar visitante apenas UMA VEZ na sessão
     if (!visitorRegistered.current) {
       // Verificar se já foi registrado nesta sessão
@@ -23,9 +37,12 @@ function AnalyticsTrackerInner() {
       
       visitorRegistered.current = true
     }
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
+    // Não rastrear admins
+    if (isAdmin) return
+    
     // Registrar page view a cada mudança de página/rota
     if (pathname) {
       const fullPath = searchParams?.toString() 
@@ -34,7 +51,7 @@ function AnalyticsTrackerInner() {
       
       analytics.pageView(fullPath)
     }
-  }, [pathname, searchParams])
+  }, [pathname, searchParams, isAdmin])
 
   return null // Componente invisível
 }
