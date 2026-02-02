@@ -75,8 +75,20 @@ export default function ShippingCalculator({
       // Construir opções de frete
       const options: ShippingOption[] = [];
       
-      // Se houver opções de frete internacional (AliExpress)
-      if (data.allOptions && Array.isArray(data.allOptions)) {
+      // PRIORIDADE 1: Usar shippingOptions se disponível (Correios, MelhorEnvio, etc.)
+      if (data.shippingOptions && Array.isArray(data.shippingOptions) && data.shippingOptions.length > 0) {
+        data.shippingOptions.forEach((opt: any) => {
+          options.push({
+            name: opt.name || opt.service || 'Envio',
+            price: opt.price || 0,
+            days: typeof opt.deliveryDays === 'string' ? opt.deliveryDays : `${opt.deliveryDays || 7} dias úteis`,
+            icon: opt.name?.includes('SEDEX') ? "🚀" : opt.name?.includes('PAC') ? "📦" : "🚚",
+            isFree: opt.price === 0
+          });
+        });
+      }
+      // PRIORIDADE 2: Opções de frete internacional (AliExpress)
+      else if (data.allOptions && Array.isArray(data.allOptions)) {
         data.allOptions.forEach((opt: any) => {
           options.push({
             name: opt.name || 'Envio Internacional',
@@ -104,24 +116,12 @@ export default function ShippingCalculator({
           isFree: true
         });
       } else {
-        // Opção principal
+        // Opção principal (fallback)
         options.push({
           name: data.shippingService || 'Entrega Padrão',
           price: data.shippingCost || 0,
           days: `${data.deliveryDays || 7}-${(data.deliveryDays || 7) + 3}`,
           icon: "📦"
-        });
-      }
-
-      // Se houver opções de Correios
-      if (data.correiosOptions && Array.isArray(data.correiosOptions)) {
-        data.correiosOptions.forEach((opt: any) => {
-          options.push({
-            name: opt.name || opt.servico,
-            price: opt.price || opt.valor,
-            days: opt.days || opt.prazo,
-            icon: opt.name?.includes('SEDEX') ? "🚀" : "📦"
-          });
         });
       }
 

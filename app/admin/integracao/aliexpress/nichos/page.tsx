@@ -7,8 +7,31 @@ import toast from 'react-hot-toast';
 import { FiSearch, FiPackage, FiShoppingCart, FiCheck, FiX, 
   FiExternalLink, FiRefreshCw, FiChevronLeft, FiPlus,
   FiTrash2, FiStar, FiTruck, FiDollarSign, FiCopy,
-  FiCheckSquare, FiSquare, FiDownload, FiLink
+  FiCheckSquare, FiSquare, FiDownload, FiLink,
+  FiZap, FiPercent, FiFolder, FiEdit3, FiSettings, FiTag
 } from 'react-icons/fi';
+
+// Interface para categoria
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+  parent?: { id: string; name: string } | null;
+  children?: Category[];
+}
+
+// Interface para configuração de importação
+interface ImportConfig {
+  product: AliProduct | null;
+  categoryId: string;
+  margin: number;
+  comparePrice: number | null; // Preço riscado/de comparação
+  title: string;
+  description: string;
+  isGeneratingDescription: boolean;
+}
+
 interface AliProduct {
   productId: string;
   title: string;
@@ -44,6 +67,33 @@ export default function BuscaProdutosAliExpressPage() {
   const [supplierId, setSupplierId] = useState<string>('');
   const [initialLoading, setInitialLoading] = useState(true);
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  
+  // Novos estados para configuração de importação
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [importConfig, setImportConfig] = useState<ImportConfig>({
+    product: null,
+    categoryId: '',
+    margin: 50,
+    comparePrice: null,
+    title: '',
+    description: '',
+    isGeneratingDescription: false
+  });
+
+  // Buscar categorias ao carregar
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/admin/categories');
+        const data = await response.json();
+        setCategories(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Erro ao buscar categorias:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Buscar fornecedor AliExpress ao carregar
   useEffect(() => {
@@ -390,6 +440,457 @@ export default function BuscaProdutosAliExpressPage() {
       setSelectedProducts(new Set());
     } else {
       setSelectedProducts(new Set(products.map(p => p.productId)));
+    }
+  };
+
+  // ====== NOVAS FUNÇÕES: Modal de Configuração ======
+  
+  // Abrir modal de configuração para um produto
+  const openConfigModal = (product: AliProduct) => {
+    // Calcula preço de venda sugerido com margem padrão
+    const suggestedPrice = product.price * (1 + 50 / 100);
+    // Preço riscado sugerido (20% acima do preço de venda)
+    const suggestedComparePrice = suggestedPrice * 1.2;
+    
+    setImportConfig({
+      product,
+      categoryId: '',
+      margin: 50,
+      comparePrice: Math.ceil(suggestedComparePrice * 100) / 100, // Arredonda para cima
+      title: product.title,
+      description: '',
+      isGeneratingDescription: false
+    });
+    setShowConfigModal(true);
+  };
+
+  // Gerar descrição com IA
+  const generateAIDescription = async () => {
+    if (!importConfig.product) return;
+    
+    setImportConfig(prev => ({ ...prev, isGeneratingDescription: true }));
+    
+    try {
+      const response = await fetch('/api/admin/ai/improve-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: importConfig.title,
+          description: '',
+          action: 'generate'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao gerar descrição');
+      }
+      
+      setImportConfig(prev => ({
+        ...prev,
+        description: data.description,
+        isGeneratingDescription: false
+      }));
+      
+      toast.success('Descrição gerada com sucesso!');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao gerar descrição');
+      setImportConfig(prev => ({ ...prev, isGeneratingDescription: false }));
+    }
+  };
+
+  // Traduzir título com IA
+  const translateTitle = async () => {
+    if (!importConfig.product) return;
+    
+    // Verifica se parece estar em inglês
+    const hasEnglishWords = /\b(with|for|and|the|new|free|shipping|portable|wireless)\b/i.test(importConfig.title);
+    if (!hasEnglishWords) {
+      toast('O título já parece estar em português', { icon: 'ℹ️' });
+      return;
+    }
+    
+    setImportConfig(prev => ({ ...prev, isGeneratingDescription: true }));
+    
+    try {
+      const response = await fetch('/api/admin/ai/improve-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: '',
+          description: importConfig.title,
+          action: 'translate'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao traduzir');
+      }
+      
+      setImportConfig(prev => ({
+        ...prev,
+        title: data.description,
+        isGeneratingDescription: false
+      }));
+      
+      toast.success('Título traduzido!');
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao traduzir');
+      setImportConfig(prev => ({ ...prev, isGeneratingDescription: false }));
+    }
+  };
+
+  // Importar produto com configuração personalizada
+  const importWithConfig = async () => {
+    if (!importConfig.product || !importConfig.categoryId) {
+      toast.error('Selecione uma categoria');
+      return;
+    }
+    
+    if (!supplierId) {
+      toast.error('Fornecedor AliExpress não configurado');
+      return;
+    }
+    
+    setImporting(true);
+    toast.loading('Importando produto...', { id: 'import' });
+    
+    try {
+      const product = importConfig.product;
+      
+      // Buscar detalhes completos do produto
+      const detailsRes = await fetch('/api/admin/integrations/aliexpress/test-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.productId })
+      });
+      
+      const detailsData = await detailsRes.json();
+      
+      let allImages: string[] = [];
+      let variations: any[] = [];
+      let costPrice = product.price;
+      let mainAttributes: any[] = [];
+      let brand = '';
+      let variationOptions: { type: string; values: string[] }[] = [];
+      
+      // Dados do fornecedor
+      let supplierStoreId = '';
+      let supplierStoreName = '';
+      let supplierCountryCode = '';
+      let shipFromCountry = '';
+      let deliveryDays: number | null = null;
+      let gtin = '';
+      let weightWithPackage: number | null = null;
+      let lengthWithPackage: number | null = null;
+      let widthWithPackage: number | null = null;
+      let heightWithPackage: number | null = null;
+      let supplierStock: number | null = null;
+      
+      if (detailsData.found && detailsData.data?.aliexpress_ds_product_get_response?.result) {
+        const result = detailsData.data.aliexpress_ds_product_get_response.result;
+        const baseInfo = result.ae_item_base_info_dto;
+        const skuList = result.ae_item_sku_info_dtos?.ae_item_sku_info_d_t_o || [];
+        const skus = Array.isArray(skuList) ? skuList : [skuList];
+        
+        // Dados do fornecedor
+        const storeInfo = result.ae_store_info;
+        if (storeInfo) {
+          supplierStoreId = storeInfo.store_id?.toString() || '';
+          supplierStoreName = storeInfo.store_name || '';
+          supplierCountryCode = storeInfo.store_country_code || '';
+        }
+        
+        // Dados de logística
+        const logisticsInfo = result.logistics_info_dto;
+        if (logisticsInfo) {
+          shipFromCountry = supplierCountryCode || 'CN';
+          deliveryDays = logisticsInfo.delivery_time || null;
+        }
+        
+        // Dados do pacote
+        const packageInfo = result.package_info_dto;
+        if (packageInfo) {
+          weightWithPackage = parseFloat(packageInfo.gross_weight) || null;
+          lengthWithPackage = packageInfo.package_length > 1 ? packageInfo.package_length : null;
+          widthWithPackage = packageInfo.package_width > 1 ? packageInfo.package_width : null;
+          heightWithPackage = packageInfo.package_height > 1 ? packageInfo.package_height : null;
+        }
+        
+        // GTIN e estoque
+        if (skus.length > 0) {
+          gtin = skus[0].ean_code || '';
+          supplierStock = skus[0].sku_available_stock || null;
+        }
+        
+        // Imagens
+        if (result.ae_multimedia_info_dto?.image_urls) {
+          const imgs = result.ae_multimedia_info_dto.image_urls.split(';');
+          allImages = imgs.map((img: string) => 
+            img.startsWith('http') ? img : `https:${img}`
+          ).filter((img: string) => img.length > 10);
+        }
+        
+        // Atributos importantes
+        if (result.ae_item_properties?.ae_item_property) {
+          const props = result.ae_item_properties.ae_item_property;
+          const allAttrs = (Array.isArray(props) ? props : [props]).map((prop: any) => ({
+            name: prop.attr_name || prop.attr_name_id || '',
+            value: prop.attr_value || prop.attr_value_id || '',
+          })).filter((a: any) => a.name && a.value);
+          
+          const importantKeys = ['marca', 'brand', 'material', 'tamanho', 'size', 'cor', 'color', 
+                                 'modelo', 'model', 'capacidade', 'capacity', 'tela', 'screen',
+                                 'memória', 'memory', 'bateria', 'battery', 'resolução', 'resolution'];
+          
+          mainAttributes = allAttrs.filter((a: any) => 
+            importantKeys.some(key => a.name.toLowerCase().includes(key))
+          ).slice(0, 8);
+          
+          const brandAttr = allAttrs.find((a: any) => 
+            a.name.toLowerCase().includes('marca') || a.name.toLowerCase().includes('brand')
+          );
+          if (brandAttr) brand = brandAttr.value;
+        }
+        
+        // Variações
+        const variationsMap: { [key: string]: { id: string; name: string; options: Map<string, { id: string; value: string; image?: string }> } } = {};
+        for (const sku of skus) {
+          if (sku.ae_sku_property_dtos?.ae_sku_property_d_t_o) {
+            const props = sku.ae_sku_property_dtos.ae_sku_property_d_t_o;
+            const propList = Array.isArray(props) ? props : [props];
+            for (const prop of propList) {
+              const propId = String(prop.sku_property_id || '');
+              const propName = prop.sku_property_name || 'Opção';
+              const optionId = String(prop.property_value_id || prop.property_value_id_long || '');
+              const optionValue = prop.property_value_definition_name || prop.sku_property_value || '';
+              const optionImage = prop.sku_image || sku.sku_image;
+              
+              if (!variationsMap[propName]) {
+                variationsMap[propName] = { id: propId, name: propName, options: new Map() };
+              }
+              if (optionValue && !variationsMap[propName].options.has(optionId)) {
+                variationsMap[propName].options.set(optionId, { 
+                  id: optionId, 
+                  value: optionValue,
+                  image: optionImage ? (optionImage.startsWith('http') ? optionImage : `https:${optionImage}`) : undefined
+                });
+              }
+            }
+          }
+        }
+        variationOptions = Object.entries(variationsMap).map(([type, data]) => ({
+          type, 
+          id: data.id,
+          values: Array.from(data.options.values()).map(o => o.value),
+          optionsWithIds: Array.from(data.options.values())
+        }));
+        
+        // SKUs
+        if (skus.length > 0) {
+          variations = skus.map((sku: any) => {
+            const skuProperties: any[] = [];
+            let skuImage = sku.sku_image ? (sku.sku_image.startsWith('http') ? sku.sku_image : `https:${sku.sku_image}`) : null;
+            
+            if (sku.ae_sku_property_dtos?.ae_sku_property_d_t_o) {
+              const props = sku.ae_sku_property_dtos.ae_sku_property_d_t_o;
+              const propList = Array.isArray(props) ? props : [props];
+              for (const prop of propList) {
+                skuProperties.push({
+                  propertyId: String(prop.sku_property_id || ''),
+                  propertyName: prop.sku_property_name || '',
+                  optionId: String(prop.property_value_id || prop.property_value_id_long || ''),
+                  optionValue: prop.sku_property_value || '',
+                  optionLabel: prop.property_value_definition_name || prop.sku_property_value || ''
+                });
+                
+                if (!skuImage && prop.sku_image) {
+                  skuImage = prop.sku_image.startsWith('http') ? prop.sku_image : `https:${prop.sku_image}`;
+                }
+              }
+            }
+            
+            return {
+              skuId: sku.sku_id,
+              skuAttr: sku.sku_attr,
+              price: parseFloat(sku.offer_sale_price || sku.sku_price) || 0,
+              originalPrice: parseFloat(sku.sku_price) || 0,
+              stock: sku.sku_available_stock || (sku.sku_stock ? 999 : 0),
+              image: skuImage,
+              properties: skuProperties
+            };
+          });
+          
+          variations.forEach((v: any) => {
+            if (v.image && !allImages.includes(v.image)) {
+              allImages.push(v.image);
+            }
+          });
+          
+          costPrice = variations[0]?.price || product.price;
+        }
+      }
+      
+      // Se não tem imagens, usar a do produto
+      if (allImages.length === 0 && product.imageUrl) {
+        allImages = [product.imageUrl];
+      }
+      
+      // Calcular preço de venda com margem configurada
+      const margin = importConfig.margin;
+      const salePrice = Math.round(costPrice * (1 + margin / 100) * 100) / 100;
+      
+      // Gerar slug
+      const slug = importConfig.title
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 100) + '-' + product.productId.slice(-6);
+      
+      // Verificar se produto já existe
+      const checkResponse = await fetch(`/api/admin/products/check-sku?sku=${product.productId}`);
+      const checkData = await checkResponse.json();
+      
+      if (checkData.exists) {
+        toast.error('Produto já importado!', { id: 'import' });
+        setImporting(false);
+        return;
+      }
+      
+      // Criar descrição
+      let finalDescription = importConfig.description;
+      if (!finalDescription) {
+        // Descrição padrão se não foi gerada pela IA
+        finalDescription = `<h2>${importConfig.title}</h2>\n`;
+        if (mainAttributes.length > 0) {
+          finalDescription += '<h3>📋 Especificações</h3><ul>';
+          mainAttributes.forEach((attr: any) => {
+            finalDescription += `<li><strong>${attr.name}:</strong> ${attr.value}</li>`;
+          });
+          finalDescription += '</ul>';
+        }
+        finalDescription += `
+<h3>📦 Informações de Entrega</h3>
+<ul>
+  <li>Prazo de envio: 2-5 dias úteis</li>
+  <li>Prazo de entrega: 15-40 dias úteis</li>
+  <li>Código de rastreamento fornecido</li>
+</ul>
+<h3>✅ Garantia</h3>
+<p>Produto com garantia de 30 dias contra defeitos de fabricação.</p>`;
+      }
+      
+      // Criar produto
+      const response = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: importConfig.title,
+          slug: slug,
+          description: finalDescription,
+          price: salePrice,
+          comparePrice: importConfig.comparePrice || undefined, // Preço riscado
+          costPrice: costPrice,
+          stock: supplierStock || 999,
+          images: allImages,
+          categoryId: importConfig.categoryId,
+          supplierId: supplierId,
+          supplierSku: product.productId,
+          supplierUrl: `https://www.aliexpress.com/item/${product.productId}.html`,
+          availableForDropship: true,
+          active: false,
+          brand: brand || undefined,
+          supplierStoreId: supplierStoreId || undefined,
+          supplierStoreName: supplierStoreName || undefined,
+          supplierCountryCode: supplierCountryCode || undefined,
+          shipFromCountry: shipFromCountry || undefined,
+          deliveryDays: deliveryDays || undefined,
+          gtin: gtin || undefined,
+          supplierStock: supplierStock || undefined,
+          weightWithPackage: weightWithPackage || undefined,
+          lengthWithPackage: lengthWithPackage || undefined,
+          widthWithPackage: widthWithPackage || undefined,
+          heightWithPackage: heightWithPackage || undefined,
+          variants: variations.length > 0 ? JSON.stringify({
+            version: '1.0',
+            source: 'aliexpress',
+            sourceProductId: product.productId,
+            lastUpdated: new Date().toISOString(),
+            properties: variationOptions.map((opt: any) => {
+              const nameLower = opt.type.toLowerCase();
+              let propType = 'other';
+              if (nameLower.includes('cor') || nameLower.includes('color')) propType = 'color';
+              else if (nameLower.includes('tamanho') || nameLower.includes('size')) propType = 'size';
+              else if (nameLower.includes('memória') || nameLower.includes('memory') || nameLower.includes('storage')) propType = 'storage';
+              else if (nameLower.includes('voltagem') || nameLower.includes('voltage') || nameLower.includes('plug')) propType = 'voltage';
+              
+              return {
+                id: opt.id || String(variationOptions.indexOf(opt) + 1),
+                name: opt.type.toLowerCase(),
+                type: propType,
+                options: (opt.optionsWithIds || []).map((o: any) => ({
+                  id: o.id,
+                  value: o.value,
+                  label: o.value,
+                  image: o.image || null
+                }))
+              };
+            }),
+            skus: variations.map(v => ({
+              skuId: v.skuId,
+              skuAttr: v.skuAttr,
+              price: v.price,
+              originalPrice: v.originalPrice,
+              stock: v.stock,
+              available: v.stock > 0,
+              image: v.image,
+              properties: v.properties || []
+            })),
+            metadata: {
+              currency: 'BRL',
+              minPrice: Math.min(...variations.map(v => v.price)),
+              maxPrice: Math.max(...variations.map(v => v.price)),
+              totalStock: variations.reduce((sum, v) => sum + v.stock, 0),
+              hasImages: variations.some(v => v.image)
+            }
+          }) : undefined,
+          selectedSkus: variations.length > 0 ? variations.map(v => ({
+            skuId: v.skuId,
+            enabled: true,
+            customPrice: Math.round(v.price * (1 + margin / 100) * 100) / 100,
+            margin: margin,
+            costPrice: v.price
+          })) : undefined,
+        })
+      });
+      
+      if (response.ok) {
+        toast.success('Produto importado com sucesso!', { id: 'import' });
+        setShowConfigModal(false);
+        setImportConfig({
+          product: null,
+          categoryId: '',
+          margin: 50,
+          comparePrice: null,
+          title: '',
+          description: '',
+          isGeneratingDescription: false
+        });
+        // Remover produto da lista
+        setProducts(prev => prev.filter(p => p.productId !== product.productId));
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao importar');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao importar produto', { id: 'import' });
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -1193,8 +1694,17 @@ export default function BuscaProdutosAliExpressPage() {
                         </div>
                       )}
 
+                      {/* Botão Configurar e Importar */}
+                      <button
+                        onClick={() => openConfigModal(product)}
+                        className="mt-3 w-full py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 flex items-center justify-center gap-2 font-medium transition"
+                      >
+                        <FiSettings size={16} />
+                        Configurar e Importar
+                      </button>
+
                       {/* Ações */}
-                      <div className="mt-3 flex gap-2">
+                      <div className="mt-2 flex gap-2">
                         <button
                           onClick={() => copyProductId(product.productId)}
                           className="flex-1 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg flex items-center justify-center gap-1"
@@ -1260,6 +1770,336 @@ export default function BuscaProdutosAliExpressPage() {
           </div>
         </div>
       </div>
+
+      {/* ====== MODAL DE CONFIGURAÇÃO DE IMPORTAÇÃO ====== */}
+      {showConfigModal && importConfig.product && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <FiSettings />
+                Configurar Produto para Importação
+              </h3>
+              <button
+                onClick={() => setShowConfigModal(false)}
+                className="text-white/80 hover:text-white p-1"
+              >
+                <FiX size={24} />
+              </button>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Coluna Esquerda - Preview do Produto */}
+                <div className="space-y-4">
+                  {/* Imagem */}
+                  <div className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden">
+                    {importConfig.product.imageUrl && (
+                      <img
+                        src={importConfig.product.imageUrl}
+                        alt={importConfig.product.title}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+
+                  {/* Galeria de Imagens */}
+                  {importConfig.product.allImages && importConfig.product.allImages.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {importConfig.product.allImages.slice(0, 8).map((img, i) => (
+                        <img
+                          key={i}
+                          src={img}
+                          alt={`Foto ${i + 1}`}
+                          className="w-16 h-16 object-cover rounded-lg border flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-orange-400"
+                          onClick={() => window.open(img, '_blank')}
+                        />
+                      ))}
+                      {importConfig.product.allImages.length > 8 && (
+                        <div className="w-16 h-16 bg-gray-100 rounded-lg border flex items-center justify-center text-sm text-gray-500 flex-shrink-0">
+                          +{importConfig.product.allImages.length - 8}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Informações do Produto */}
+                  <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                    <h4 className="font-semibold text-gray-900">Informações do Produto</h4>
+                    
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-500">SKU AliExpress:</span>
+                        <p className="font-mono text-gray-900">{importConfig.product.productId}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Status:</span>
+                        <p className={`font-medium ${importConfig.product.status === 'onSelling' ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {importConfig.product.status === 'onSelling' ? '✓ Ativo' : importConfig.product.status}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Custo:</span>
+                        <p className="font-bold text-red-600">R$ {importConfig.product.price?.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Venda (com margem):</span>
+                        <p className="font-bold text-green-600">
+                          R$ {(importConfig.product.price * (1 + importConfig.margin / 100)).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Variações */}
+                    {importConfig.product.variations && importConfig.product.variations.length > 0 && (
+                      <div className="border-t pt-3 mt-3">
+                        <span className="text-gray-500 text-sm">Variações disponíveis:</span>
+                        {importConfig.product.variations.map((v, i) => (
+                          <div key={i} className="mt-1">
+                            <span className="font-medium text-gray-700">{v.type}: </span>
+                            <span className="text-gray-600">{v.values.slice(0, 5).join(', ')}</span>
+                            {v.values.length > 5 && <span className="text-gray-400"> +{v.values.length - 5}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Coluna Direita - Configurações */}
+                <div className="space-y-4">
+                  {/* Categoria */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <FiFolder className="inline mr-1" />
+                      Categoria <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={importConfig.categoryId}
+                      onChange={(e) => setImportConfig(prev => ({ ...prev, categoryId: e.target.value }))}
+                      className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    >
+                      <option value="">Selecione uma categoria...</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.parent ? `${cat.parent.name} → ` : ''}{cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Margem */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <FiPercent className="inline mr-1" />
+                      Margem de Lucro (%)
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="number"
+                        min="0"
+                        max="500"
+                        value={importConfig.margin}
+                        onChange={(e) => {
+                          const newMargin = parseInt(e.target.value) || 0;
+                          const newPrice = importConfig.product!.price * (1 + newMargin / 100);
+                          const newComparePrice = newPrice * 1.2; // 20% acima do preço de venda
+                          setImportConfig(prev => ({ 
+                            ...prev, 
+                            margin: newMargin,
+                            comparePrice: Math.ceil(newComparePrice * 100) / 100
+                          }));
+                        }}
+                        className="w-32 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      />
+                      <div className="flex gap-2">
+                        {[30, 50, 80, 100].map(m => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => {
+                              const newPrice = importConfig.product!.price * (1 + m / 100);
+                              const newComparePrice = newPrice * 1.2;
+                              setImportConfig(prev => ({ 
+                                ...prev, 
+                                margin: m,
+                                comparePrice: Math.ceil(newComparePrice * 100) / 100
+                              }));
+                            }}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                              importConfig.margin === m 
+                                ? 'bg-orange-500 text-white' 
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {m}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Custo: R$ {importConfig.product.price?.toFixed(2)} → 
+                      Venda: <span className="font-bold text-green-600">R$ {(importConfig.product.price * (1 + importConfig.margin / 100)).toFixed(2)}</span>
+                    </p>
+                  </div>
+
+                  {/* Preço Riscado (Compare Price) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <FiTag className="inline mr-1" />
+                      Preço Riscado (De:)
+                    </label>
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={importConfig.comparePrice || ''}
+                          onChange={(e) => setImportConfig(prev => ({ ...prev, comparePrice: parseFloat(e.target.value) || null }))}
+                          className="w-40 pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        {[10, 20, 30].map(percent => {
+                          const salePrice = importConfig.product!.price * (1 + importConfig.margin / 100);
+                          const compareValue = salePrice * (1 + percent / 100);
+                          return (
+                            <button
+                              key={percent}
+                              type="button"
+                              onClick={() => setImportConfig(prev => ({ ...prev, comparePrice: Math.ceil(compareValue * 100) / 100 }))}
+                              className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition"
+                            >
+                              +{percent}%
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Aparece riscado: <span className="line-through text-red-500">R$ {importConfig.comparePrice?.toFixed(2) || '0.00'}</span>
+                      {' '}→ Por: <span className="font-bold text-green-600">R$ {(importConfig.product.price * (1 + importConfig.margin / 100)).toFixed(2)}</span>
+                      {importConfig.comparePrice && (
+                        <span className="ml-2 text-orange-600 font-medium">
+                          ({Math.round((1 - (importConfig.product.price * (1 + importConfig.margin / 100)) / importConfig.comparePrice) * 100)}% OFF)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Título */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <FiEdit3 className="inline mr-1" />
+                      Título do Produto
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={importConfig.title}
+                        onChange={(e) => setImportConfig(prev => ({ ...prev, title: e.target.value }))}
+                        className="flex-1 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={translateTitle}
+                        disabled={importConfig.isGeneratingDescription}
+                        className="px-4 py-3 bg-purple-500 text-white rounded-xl hover:bg-purple-600 flex items-center gap-2 disabled:opacity-50"
+                        title="Traduzir para PT-BR"
+                      >
+                        {importConfig.isGeneratingDescription ? (
+                          <FiRefreshCw className="animate-spin" size={16} />
+                        ) : (
+                          <FiZap size={16} />
+                        )}
+                        PT
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Descrição */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Descrição do Produto
+                    </label>
+                    <div className="relative">
+                      <textarea
+                        value={importConfig.description}
+                        onChange={(e) => setImportConfig(prev => ({ ...prev, description: e.target.value }))}
+                        rows={6}
+                        placeholder="Clique em 'Gerar com IA' para criar uma descrição automática ou digite manualmente..."
+                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={generateAIDescription}
+                      disabled={importConfig.isGeneratingDescription}
+                      className="mt-2 w-full py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl hover:from-purple-600 hover:to-blue-600 flex items-center justify-center gap-2 font-medium disabled:opacity-50"
+                    >
+                      {importConfig.isGeneratingDescription ? (
+                        <>
+                          <FiRefreshCw className="animate-spin" size={18} />
+                          Gerando descrição...
+                        </>
+                      ) : (
+                        <>
+                          <FiZap size={18} />
+                          Gerar Descrição com IA ✨
+                        </>
+                      )}
+                    </button>
+                    <p className="text-xs text-gray-500 mt-1">
+                      A IA irá criar uma descrição atraente baseada no título do produto
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowConfigModal(false)}
+                className="px-6 py-3 text-gray-600 hover:bg-gray-200 rounded-xl transition flex items-center gap-2"
+              >
+                <FiX size={18} />
+                Cancelar
+              </button>
+              
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-gray-600">
+                  Preço Final: <span className="text-xl font-bold text-green-600">R$ {(importConfig.product.price * (1 + importConfig.margin / 100)).toFixed(2)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={importWithConfig}
+                  disabled={importing || !importConfig.categoryId}
+                  className="px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 flex items-center gap-2 font-medium disabled:opacity-50 transition"
+                >
+                  {importing ? (
+                    <>
+                      <FiRefreshCw className="animate-spin" size={18} />
+                      Importando...
+                    </>
+                  ) : (
+                    <>
+                      <FiDownload size={18} />
+                      Importar Produto
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

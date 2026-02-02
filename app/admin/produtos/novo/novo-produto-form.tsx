@@ -134,8 +134,9 @@ export default function NovoProductForm({ categories, suppliers }: NovoProductFo
   const calculateMargin = () => {
     const totalCost = parseFloat(calculateTotalCost())
     const price = parseFloat(formData.price) || 0
-    if (totalCost && price) {
-      const margin = ((price - totalCost) / price) * 100
+    if (totalCost && price && totalCost > 0) {
+      // Margem = (preço - custo) / custo * 100 (markup sobre custo)
+      const margin = ((price - totalCost) / totalCost) * 100
       return margin.toFixed(2)
     }
     return '0'
@@ -153,7 +154,8 @@ export default function NovoProductForm({ categories, suppliers }: NovoProductFo
     const tax = parseFloat(formData.taxCost) || 0
     const totalCost = cost + shipping + tax
     const price = parseFloat(formData.price) || 0
-    const margin = totalCost && price ? ((price - totalCost) / price) * 100 : 0
+    // Margem = (preço - custo) / custo * 100 (markup sobre custo)
+    const margin = totalCost && price && totalCost > 0 ? ((price - totalCost) / totalCost) * 100 : 0
 
     // Monta especificações técnicas
     const technicalSpecs: any = {}

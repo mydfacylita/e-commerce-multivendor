@@ -668,6 +668,46 @@ export default function ProductSelectionWrapper({
           variantStock={currentStock}
           skuId={effectiveSkuId || selectedVariant?.skuId || null}
         />
+
+        {/* Botão Continuar Comprando */}
+        <button
+          onClick={async () => {
+            // Pegar categoria pai (se existir) ou a própria categoria
+            const parentCategory = product?.category?.parent
+            const currentCategory = product?.category
+            
+            // Usar categoria pai se existir, senão usar a atual
+            const targetCategory = parentCategory || currentCategory
+            const categoryId = targetCategory?.id || product?.categoryId
+            const categorySlug = targetCategory?.slug || currentCategory?.slug
+            
+            if (!categoryId || !categorySlug) {
+              router.push('/')
+              return
+            }
+            
+            try {
+              // Verificar quantos produtos tem na categoria pai
+              const response = await fetch(`/api/categories/${categoryId}/products/count`)
+              const data = await response.json()
+              
+              // Se tiver mais de 1 produto na categoria, vai para a categoria
+              // Caso contrário, vai para home
+              if (data.count && data.count > 1) {
+                router.push(`/categorias/${categorySlug}`)
+              } else {
+                router.push('/')
+              }
+            } catch (error) {
+              // Em caso de erro, vai para home
+              router.push('/')
+            }
+          }}
+          className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg hover:bg-gray-200 transition flex items-center justify-center space-x-2 font-medium border border-gray-300"
+        >
+          <FiShoppingBag size={18} />
+          <span>Continuar Comprando</span>
+        </button>
       </div>
     </>
   )

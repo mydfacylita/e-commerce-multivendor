@@ -309,8 +309,9 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
   const calculateMargin = () => {
     const cost = parseFloat(formData.costPrice) || 0
     const price = parseFloat(formData.price) || 0
-    if (cost && price) {
-      const margin = ((price - cost) / price) * 100
+    if (cost && price && cost > 0) {
+      // Margem = (preço - custo) / custo * 100 (markup sobre custo)
+      const margin = ((price - cost) / cost) * 100
       return margin.toFixed(2)
     }
     return '0'
@@ -327,7 +328,8 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
 
     const cost = parseFloat(formData.costPrice) || 0
     const price = parseFloat(formData.price) || 0
-    const margin = cost && price ? ((price - cost) / price) * 100 : 0
+    // Margem = (preço - custo) / custo * 100 (markup sobre custo)
+    const margin = cost && price && cost > 0 ? ((price - cost) / cost) * 100 : 0
 
     // Monta especificações técnicas
     const technicalSpecs: any = {}

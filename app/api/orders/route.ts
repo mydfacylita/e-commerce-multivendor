@@ -112,16 +112,31 @@ export async function POST(req: NextRequest) {
     const normalizedDiscountAmount = discountAmount || ((totals?.discount || 0) + (totals?.paymentDiscount || 0))
     
     // Extrair método de envio do formato app ou web
-    const normalizedShippingMethod = shippingMethod || (shipping?.method === 'free' ? 'propria' : shipping?.method) || 'propria'
-    const normalizedShippingService = shippingService || null
-    const normalizedShippingCarrier = shippingCarrier || null
+    // IMPORTANTE: Não usar 'propria' como fallback - deixar null se não foi definido
+    let normalizedShippingMethod = shippingMethod || null
+    if (!normalizedShippingMethod && shipping?.method) {
+      // Mapear método do app móvel
+      if (shipping.method === 'free') {
+        normalizedShippingMethod = 'gratis'
+      } else if (shipping.method.toLowerCase().includes('correios')) {
+        normalizedShippingMethod = 'correios'
+      } else if (shipping.method.toLowerCase().includes('jadlog')) {
+        normalizedShippingMethod = 'jadlog'
+      } else if (shipping.method.toLowerCase().includes('melhor')) {
+        normalizedShippingMethod = 'melhorenvio'
+      } else {
+        normalizedShippingMethod = shipping.method
+      }
+    }
+    const normalizedShippingService = shippingService || shipping?.service || null
+    const normalizedShippingCarrier = shippingCarrier || shipping?.carrier || null
 
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     console.log('📦 [CREATE ORDER] Dados recebidos:')
     console.log('   Total:', normalizedTotal)
     console.log('   Subtotal:', normalizedSubtotal)
     console.log('   Frete:', normalizedShippingCost)
-    console.log('   Método Envio:', normalizedShippingMethod)
+    console.log('   Método Envio:', normalizedShippingMethod, '(raw:', shippingMethod, ')')
     console.log('   Serviço:', normalizedShippingService)
     console.log('   Transportadora:', normalizedShippingCarrier)
     console.log('   Cupom:', couponCode)
