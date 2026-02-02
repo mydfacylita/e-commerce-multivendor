@@ -12,10 +12,13 @@ interface FacebookPixelProps {
 function FacebookPixelInner({ pixelId }: FacebookPixelProps) {
   const pathname = usePathname()
   const [fbPixelId, setFbPixelId] = useState<string | null>(pixelId || null)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [isReady, setIsReady] = useState(false)
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
 
   // Verificar se é admin pela URL (evita erro de prerender com useSession)
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     const isAdminPath = pathname?.startsWith('/admin') || 
                         pathname?.startsWith('/vendedor') ||
                         window.location.hostname.includes('gerencial-sys')
@@ -24,16 +27,25 @@ function FacebookPixelInner({ pixelId }: FacebookPixelProps) {
 
   // Buscar Pixel ID das configurações se não foi passado como prop
   useEffect(() => {
-    if (!pixelId) {
-      fetch('/api/config/public')
-        .then(res => res.json())
-        .then(data => {
-          if (data?.['seo.facebookPixel']) {
-            setFbPixelId(data['seo.facebookPixel'])
-          }
-        })
-        .catch(console.error)
+    if (pixelId) {
+      setFbPixelId(String(pixelId))
+      setIsReady(true)
+      return
     }
+    
+    fetch('/api/config/public')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.['seo.facebookPixel']) {
+          // Converter para string caso venha como número
+          setFbPixelId(String(data['seo.facebookPixel']))
+        }
+        setIsReady(true)
+      })
+      .catch(err => {
+        console.error('Error loading Facebook Pixel config:', err)
+        setIsReady(true)
+      })
   }, [pixelId])
 
   // Rastrear mudanças de página (PageView) - apenas se não for admin
@@ -46,6 +58,9 @@ function FacebookPixelInner({ pixelId }: FacebookPixelProps) {
     }
   }, [pathname, fbPixelId, isAdmin])
 
+  // Aguardar até saber se é admin ou não
+  if (isAdmin === null || !isReady) return null
+  
   // Não renderizar se não tiver Pixel ID ou se for admin
   if (!fbPixelId || isAdmin) return null
 
