@@ -9,6 +9,7 @@ import DynamicStyles from '@/components/DynamicStyles'
 import { NavigationProvider } from '@/components/NavigationProvider'
 import LoadingScreen from '@/components/LoadingScreen'
 import AnalyticsTracker from '@/components/AnalyticsTracker'
+import GoogleAnalytics from '@/components/GoogleAnalytics'
 // NOTA: Jobs de background agora são iniciados via instrumentation.ts (Next.js 14)
 // Não usar mais: import '@/lib/init'
 
@@ -32,6 +33,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={inter.className}>
+        <GoogleAnalytics />
         <Providers>
           <NavigationProvider>
             <DynamicFavicon />
