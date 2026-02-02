@@ -26,6 +26,7 @@ const nextConfig = {
   experimental: {
     optimizeCss: true,
     instrumentationHook: true, // Habilita instrumentation.ts para crons de background
+    missingSuspenseWithCSRBailout: false, // Permite useSearchParams sem Suspense obrigatório
   },
   
   // Comprimir respostas

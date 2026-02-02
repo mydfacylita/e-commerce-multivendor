@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { analytics } from '@/lib/analytics-client'
 
-export default function AnalyticsTracker() {
+// Componente interno que usa useSearchParams
+function AnalyticsTrackerInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const visitorRegistered = useRef(false)
@@ -36,4 +37,13 @@ export default function AnalyticsTracker() {
   }, [pathname, searchParams])
 
   return null // Componente invisível
+}
+
+// Componente exportado envolve em Suspense
+export default function AnalyticsTracker() {
+  return (
+    <Suspense fallback={null}>
+      <AnalyticsTrackerInner />
+    </Suspense>
+  )
 }
