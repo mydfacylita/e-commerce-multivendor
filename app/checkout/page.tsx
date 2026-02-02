@@ -147,7 +147,7 @@ interface SavedAddress {
 }
 
 export default function CheckoutPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const { items: allItems, total: cartTotal, clearCart } = useCartStore()
   
@@ -247,8 +247,12 @@ export default function CheckoutPage() {
   const [states, setStates] = useState<{id: number, name: string, uf: string}[]>([])
   const [cities, setCities] = useState<{id: number, name: string}[]>([])
   const [loadingCities, setLoadingCities] = useState(false)
+  const [cepValidado, setCepValidado] = useState(false) // CEP foi validado pelo ViaCEP
+  const [cepErro, setCepErro] = useState('') // Erro de validação do CEP
+  const [buscandoCep, setBuscandoCep] = useState(false) // Buscando dados do CEP
   const [cpfError, setCpfError] = useState('')
   const [phoneError, setPhoneError] = useState('')
+  const [cpfUsuario, setCpfUsuario] = useState('') // CPF do usuário logado
   const [formData, setFormData] = useState({
     address: '',
     number: '',
@@ -262,6 +266,15 @@ export default function CheckoutPage() {
     reference: '', // Ponto de referência
     notes: '', // Observações
   })
+
+  // Carregar CPF do usuário da sessão
+  useEffect(() => {
+    if (session?.user?.cpf) {
+      const cpfFormatado = formatarCPF(session.user.cpf)
+      setCpfUsuario(cpfFormatado)
+      setFormData(prev => ({ ...prev, cpf: cpfFormatado }))
+    }
+  }, [session])
 
   useEffect(() => {
     // Carregar dados do carrinho incluindo itens selecionados
@@ -664,24 +677,56 @@ export default function CheckoutPage() {
 
   // Consultar ViaCEP para preencher endereço automaticamente
   const consultarCep = async (cep: string) => {
-    if (cep.length !== 8) return
+    if (cep.length !== 8) {
+      setCepValidado(false)
+      setCepErro('')
+      return
+    }
+    
+    setBuscandoCep(true)
+    setCepErro('')
     
     try {
       const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
       if (response.ok) {
         const data = await response.json()
-        if (!data.erro) {
-          setFormData(prev => ({
-            ...prev,
-            address: prev.address || data.logradouro || '',
-            neighborhood: data.bairro || '',
-            city: data.localidade || '',
-            state: data.uf || ''
-          }))
+        if (data.erro) {
+          setCepErro('CEP não encontrado. Verifique e tente novamente.')
+          setCepValidado(false)
+          return
         }
+        
+        // Preencher campos automaticamente
+        setFormData(prev => ({
+          ...prev,
+          address: data.logradouro || prev.address,
+          neighborhood: data.bairro || prev.neighborhood,
+          city: data.localidade || '',
+          state: data.uf || ''
+        }))
+        
+        // Carregar cidades do estado retornado
+        if (data.uf) {
+          try {
+            const res = await fetch(`/api/location/cities/${data.uf}`)
+            if (res.ok) setCities(await res.json())
+          } catch (err) {
+            console.error('Erro ao buscar cidades:', err)
+          }
+        }
+        
+        setCepValidado(true)
+        setCepErro('')
+      } else {
+        setCepErro('Erro ao buscar CEP. Tente novamente.')
+        setCepValidado(false)
       }
     } catch (error) {
       console.error('Erro ao consultar CEP:', error)
+      setCepErro('Erro ao buscar CEP. Verifique sua conexão.')
+      setCepValidado(false)
+    } finally {
+      setBuscandoCep(false)
     }
   }
 
@@ -782,16 +827,35 @@ export default function CheckoutPage() {
     }
   }
 
-  if (!session) {
-    router.push('/login')
-    return null
+  // Redirecionar se não estiver logado
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login')
+    }
+  }, [status, router])
+
+  // Redirecionar se carrinho vazio (exceto quando já tem pedido)
+  useEffect(() => {
+    if (items.length === 0 && !orderId && step !== 'payment' && status === 'authenticated') {
+      router.push('/carrinho')
+    }
+  }, [items.length, orderId, step, status, router])
+
+  if (!session || status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
   }
 
-  // Só redirecionar se carrinho vazio E não tiver pedido criado
-  // (quando há orderId, o cliente está na etapa de pagamento e o carrinho pode estar vazio)
+  // Mostrar loading enquanto redireciona
   if (items.length === 0 && !orderId && step !== 'payment') {
-    router.push('/carrinho')
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
   }
 
   const getGatewayInfo = (gateway: string) => {
@@ -845,14 +909,16 @@ export default function CheckoutPage() {
       return
     }
     
-    // SEGURANÇA: Validar CPF antes de continuar
-    if (!formData.cpf || formData.cpf.length < 14) {
+    // SEGURANÇA: Usar CPF do usuário se disponível, senão usar do formulário
+    const cpfParaUsar = cpfUsuario || formData.cpf
+    
+    if (!cpfParaUsar || cpfParaUsar.length < 14) {
       toast.error('Por favor, informe seu CPF completo')
       setCpfError('CPF é obrigatório')
       return
     }
     
-    if (!validarCPF(formData.cpf)) {
+    if (!validarCPF(cpfParaUsar)) {
       toast.error('CPF inválido. Verifique os números digitados.')
       setCpfError('CPF inválido. Verifique os números digitados.')
       return
@@ -891,6 +957,12 @@ export default function CheckoutPage() {
       return
     }
     
+    // SEGURANÇA: Verificar se o CEP foi validado pelo ViaCEP
+    if (!cepValidado) {
+      toast.error('CEP não validado. Verifique se o CEP está correto.')
+      return
+    }
+    
     if (!freteCalculado || calculandoFrete) {
       toast.error('Aguarde o cálculo do frete antes de continuar')
       return
@@ -912,7 +984,7 @@ export default function CheckoutPage() {
             state: formData.state,
             zipCode: cepNumeros,
             phone: formData.phone.replace(/\D/g, ''), // Salvar apenas números
-            cpf: formData.cpf.replace(/\D/g, ''), // Salvar apenas números
+            cpf: (cpfUsuario || formData.cpf).replace(/\D/g, ''), // Usar CPF do usuário
             reference: formData.reference || '', // Ponto de referência
             notes: formData.notes || '', // Observações
             isDefault: savedAddresses.length === 0 // Primeiro endereço é padrão
@@ -945,7 +1017,7 @@ export default function CheckoutPage() {
         reference: formData.reference || '', // Ponto de referência
         notes: formData.notes || '', // Observações para entrega
         phone: formData.phone.replace(/\D/g, ''), // Telefone só números
-        cpf: formData.cpf.replace(/\D/g, ''), // CPF só números
+        cpf: (cpfUsuario || formData.cpf).replace(/\D/g, ''), // CPF do usuário
         // Texto legível para exibição
         formatted: `${formData.address}, ${formData.number}${formData.complement ? ` - ${formData.complement}` : ''}, ${formData.neighborhood}, ${formData.city} - ${formData.state}, CEP ${formData.zipCode}`
       }
@@ -971,7 +1043,7 @@ export default function CheckoutPage() {
         shippingAddress: JSON.stringify(shippingAddressData),
         deliveryDays: prazoEntrega || null,
         buyerPhone: formData.phone,
-        buyerCpf: formData.cpf.replace(/\D/g, ''),
+        buyerCpf: (cpfUsuario || formData.cpf).replace(/\D/g, ''),
         // Campos de transportadora
         shippingMethod: shippingMethod || 'propria',
         shippingService: shippingService || null,
@@ -1244,7 +1316,7 @@ export default function CheckoutPage() {
                       value={formData.complement}
                       onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
                       className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                      placeholder="Apto, Bloco, etc. (opcional)"
+                      placeholder="Apt, Bloco, etc. (opcional)"
                     />
                   </div>
                   <div>
@@ -1273,58 +1345,8 @@ export default function CheckoutPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Estado <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      required
-                      value={formData.state}
-                      onChange={async (e) => {
-                        const uf = e.target.value
-                        setFormData({ ...formData, state: uf, city: '' })
-                        setCities([])
-                        if (uf) {
-                          setLoadingCities(true)
-                          try {
-                            const res = await fetch(`/api/location/cities/${uf}`)
-                            if (res.ok) setCities(await res.json())
-                          } catch (err) {
-                            console.error('Erro ao buscar cidades:', err)
-                          }
-                          setLoadingCities(false)
-                        }
-                      }}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                    >
-                      <option value="">Selecione o estado</option>
-                      {states.map((s) => (
-                        <option key={s.id} value={s.uf}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Cidade <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      required
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      disabled={!formData.state || loadingCities}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:bg-gray-100"
-                    >
-                      <option value="">{loadingCities ? 'Carregando...' : 'Selecione a cidade'}</option>
-                      {cities.map((c) => (
-                        <option key={c.id} value={c.name}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                {/* CEP PRIMEIRO - com validação automática */}
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">
                       CEP <span className="text-red-500">*</span>
@@ -1333,23 +1355,88 @@ export default function CheckoutPage() {
                       type="text"
                       required
                       value={formData.zipCode}
-                      onChange={(e) => setFormData({ ...formData, zipCode: e.target.value.replace(/\D/g, '').slice(0, 8) })}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      onChange={(e) => {
+                        const cep = e.target.value.replace(/\D/g, '').slice(0, 8)
+                        setFormData({ ...formData, zipCode: cep })
+                        setCepValidado(false)
+                        if (cep.length === 8) {
+                          consultarCep(cep)
+                        } else {
+                          setCepErro('')
+                          // Limpar estado e cidade se CEP incompleto
+                          if (cep.length < 8) {
+                            setFormData(prev => ({ ...prev, zipCode: cep, state: '', city: '' }))
+                          }
+                        }
+                      }}
+                      className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        cepErro 
+                          ? 'border-red-500 focus:ring-red-500 bg-red-50' 
+                          : cepValidado 
+                            ? 'border-green-500 focus:ring-green-500 bg-green-50' 
+                            : 'border-gray-300 focus:ring-primary-600'
+                      }`}
                       placeholder="00000000"
                       maxLength={8}
                     />
-                    {/* Feedback do frete calculado */}
+                    {buscandoCep && (
+                      <p className="text-sm text-gray-500 mt-1">⏳ Buscando endereço...</p>
+                    )}
+                    {cepErro && (
+                      <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                        <FiAlertCircle className="w-4 h-4" />
+                        {cepErro}
+                      </p>
+                    )}
+                    {cepValidado && !calculandoFrete && (
+                      <p className="text-sm text-green-600 mt-1">
+                        ✅ CEP válido
+                        {freteCalculado && (
+                          <span> • Frete: {freteGratis ? 'GRÁTIS' : `R$ ${formatarMoeda(frete)}`}
+                          {prazoEntrega > 0 && ` (${prazoEntrega} dias)`}</span>
+                        )}
+                      </p>
+                    )}
                     {calculandoFrete && (
                       <p className="text-sm text-gray-500 mt-1">⏳ Calculando frete...</p>
                     )}
-                    {freteCalculado && !calculandoFrete && (
-                      <p className="text-sm text-green-600 mt-1">
-                        ✅ Frete: {freteGratis ? 'GRÁTIS' : `R$ ${formatarMoeda(frete)}`}
-                        {prazoEntrega > 0 && ` (${prazoEntrega} dias úteis)`}
-                      </p>
+                  </div>
+
+                  {/* Estado - TRAVADO após CEP validado */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Estado <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.state}
+                      readOnly
+                      className="w-full px-4 py-2 border rounded-md bg-gray-100 text-gray-700 cursor-not-allowed"
+                      placeholder="Preenchido pelo CEP"
+                    />
+                    {!formData.state && formData.zipCode.length < 8 && (
+                      <p className="text-xs text-gray-500 mt-1">Digite o CEP para preencher</p>
                     )}
                   </div>
 
+                  {/* Cidade - TRAVADO após CEP validado */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Cidade <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.city}
+                      readOnly
+                      className="w-full px-4 py-2 border rounded-md bg-gray-100 text-gray-700 cursor-not-allowed"
+                      placeholder="Preenchido pelo CEP"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">
                       Telefone <span className="text-red-500">*</span>
@@ -1362,7 +1449,6 @@ export default function CheckoutPage() {
                         const formatted = formatarTelefone(e.target.value)
                         setFormData({ ...formData, phone: formatted })
                         
-                        // Validar quando tiver pelo menos 14 caracteres (telefone completo com máscara)
                         if (formatted.length >= 14) {
                           if (!validarTelefone(formatted)) {
                             setPhoneError('Telefone inválido. Informe DDD + número.')
@@ -1395,53 +1481,67 @@ export default function CheckoutPage() {
                       </p>
                     )}
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    CPF <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.cpf}
-                    onChange={(e) => {
-                      const formatted = formatarCPF(e.target.value)
-                      setFormData({ ...formData, cpf: formatted })
-                      
-                      // Validar quando tiver 14 caracteres (CPF completo com máscara)
-                      if (formatted.length === 14) {
-                        if (!validarCPF(formatted)) {
-                          setCpfError('CPF inválido. Verifique os números digitados.')
-                        } else {
-                          setCpfError('')
-                        }
-                      } else {
-                        setCpfError('')
-                      }
-                    }}
-                    onBlur={() => {
-                      // Validar ao sair do campo
-                      if (formData.cpf && formData.cpf.length > 0) {
-                        if (!validarCPF(formData.cpf)) {
-                          setCpfError('CPF inválido. Verifique os números digitados.')
-                        }
-                      }
-                    }}
-                    className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                      cpfError 
-                        ? 'border-red-500 focus:ring-red-500 bg-red-50' 
-                        : 'border-gray-300 focus:ring-primary-600'
-                    }`}
-                    placeholder="000.000.000-00"
-                    maxLength={14}
-                  />
-                  {cpfError && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                      <FiAlertCircle className="w-4 h-4" />
-                      {cpfError}
-                    </p>
-                  )}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      CPF <span className="text-red-500">*</span>
+                    </label>
+                    {cpfUsuario ? (
+                      <>
+                        <input
+                          type="text"
+                          value={cpfUsuario}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 cursor-not-allowed"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          CPF vinculado à sua conta. Para alterar, acesse Minha Conta.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          required
+                          value={formData.cpf}
+                          onChange={(e) => {
+                            const formatted = formatarCPF(e.target.value)
+                            setFormData({ ...formData, cpf: formatted })
+                            
+                            if (formatted.length === 14) {
+                              if (!validarCPF(formatted)) {
+                                setCpfError('CPF inválido')
+                              } else {
+                                setCpfError('')
+                              }
+                            } else {
+                              setCpfError('')
+                            }
+                          }}
+                          onBlur={() => {
+                            if (formData.cpf && formData.cpf.length > 0) {
+                              if (!validarCPF(formData.cpf)) {
+                                setCpfError('CPF inválido')
+                              }
+                            }
+                          }}
+                          className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                            cpfError 
+                              ? 'border-red-500 focus:ring-red-500 bg-red-50' 
+                              : 'border-gray-300 focus:ring-primary-600'
+                          }`}
+                          placeholder="000.000.000-00"
+                          maxLength={14}
+                        />
+                        {cpfError && (
+                          <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <FiAlertCircle className="w-4 h-4" />
+                            {cpfError}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -1460,7 +1560,7 @@ export default function CheckoutPage() {
             </div>
 
             {/* Seção de Escolha de Frete */}
-            {freteCalculado && !freteGratis && (
+            {freteCalculado && !freteGratis && opcoesFreteState.length > 0 && (
               <div className="bg-white rounded-lg shadow-md p-6">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                   🚚 Escolha a Forma de Envio

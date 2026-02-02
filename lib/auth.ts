@@ -52,6 +52,11 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        // Verificar se o usuário está bloqueado
+        if (user.isActive === false) {
+          throw new Error('Sua conta foi bloqueada. Entre em contato com o suporte.')
+        }
+
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
@@ -66,7 +71,9 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           image: user.image,
-          role: user.role
+          role: user.role,
+          cpf: user.cpf,
+          phone: user.phone,
         }
       }
     })
@@ -76,6 +83,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id
         token.role = user.role
+        token.cpf = user.cpf
+        token.phone = user.phone
       }
       return token
     },
@@ -83,6 +92,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id
         session.user.role = token.role
+        session.user.cpf = token.cpf as string
+        session.user.phone = token.phone as string
       }
       return session
     }

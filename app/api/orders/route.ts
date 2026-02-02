@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { validateApiKey, validateUserToken } from '@/lib/api-security'
 import { analyzeFraud } from '@/lib/fraud-detection'
+import { isValidCPF, validateCEPWithState } from '@/lib/validation'
 
 
 // Force dynamic - disable all caching
@@ -152,6 +153,52 @@ export async function POST(req: NextRequest) {
       })
     })
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+
+    // ====== VALIDAÇÕES DE SEGURANÇA ======
+    
+    // Validar CPF
+    if (normalizedBuyerCpf) {
+      if (!isValidCPF(normalizedBuyerCpf)) {
+        console.log('❌ [CREATE ORDER] CPF inválido:', normalizedBuyerCpf)
+        return NextResponse.json(
+          { message: 'CPF inválido. Verifique os números informados.' },
+          { status: 400 }
+        )
+      }
+    }
+    
+    // Validar CEP e correspondência com estado
+    let addressObj: any = null
+    if (normalizedShippingAddress) {
+      try {
+        addressObj = JSON.parse(normalizedShippingAddress)
+      } catch {
+        // Se não for JSON, tenta extrair CEP da string
+      }
+    } else if (address) {
+      addressObj = address
+    }
+    
+    if (addressObj?.zipCode) {
+      const cepValidation = await validateCEPWithState(addressObj.zipCode, addressObj.state)
+      if (!cepValidation.valid) {
+        console.log('❌ [CREATE ORDER] CEP inválido:', cepValidation.error)
+        return NextResponse.json(
+          { message: cepValidation.error },
+          { status: 400 }
+        )
+      }
+      
+      // Se a validação retornou dados do CEP, atualizar o estado correto
+      if (cepValidation.data && cepValidation.data.uf !== addressObj.state) {
+        console.log(`⚠️ [CREATE ORDER] Corrigindo estado: ${addressObj.state} -> ${cepValidation.data.uf}`)
+        addressObj.state = cepValidation.data.uf
+        // Atualizar o endereço normalizado com o estado correto
+        if (address) {
+          address.state = cepValidation.data.uf
+        }
+      }
+    }
 
     // Buscar nome e email do usuário
     const user = await prisma.user.findUnique({

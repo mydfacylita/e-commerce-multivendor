@@ -10,9 +10,9 @@ export const fetchCache = 'force-no-store';
 
 export async function GET(request: NextRequest) {
   try {
-    // 🔐 Autenticar (API Key + JWT/Session)
+    // 🔐 Autenticar (API Key para apps / Session para web)
     const auth = await authenticateRequest(request, {
-      requireApiKey: true,
+      requireApiKey: false, // API Key opcional - aceita session web
       requireAuth: true
     });
 
@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
         name: true,
         email: true,
         phone: true,
+        cpf: true,
         image: true,
         role: true,
         createdAt: true,
@@ -45,9 +46,9 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    // 🔐 Autenticar (API Key + JWT/Session)
+    // 🔐 Autenticar (API Key para apps / Session para web)
     const auth = await authenticateRequest(request, {
-      requireApiKey: true,
+      requireApiKey: false, // API Key opcional - aceita session web
       requireAuth: true
     });
 
@@ -55,13 +56,18 @@ export async function PUT(request: NextRequest) {
       return auth.response;
     }
 
-    const { name, phone, image } = await request.json()
+    const { name, phone, image, cpf } = await request.json()
+
+    console.log('Atualizando perfil:', { name, phone, cpf })
 
     // Montar objeto de atualização apenas com campos enviados
-    const updateData: { name?: string; phone?: string; image?: string } = {};
+    const updateData: { name?: string; phone?: string; image?: string; cpf?: string } = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
     if (image !== undefined) updateData.image = image;
+    if (cpf !== undefined) updateData.cpf = cpf;
+
+    console.log('Update data:', updateData)
 
     const user = await prisma.user.update({
       where: { id: auth.userId },
@@ -71,10 +77,13 @@ export async function PUT(request: NextRequest) {
         name: true,
         email: true,
         phone: true,
+        cpf: true,
         image: true,
         role: true,
       },
     })
+
+    console.log('Perfil atualizado:', user)
 
     return NextResponse.json(user)
   } catch (error) {

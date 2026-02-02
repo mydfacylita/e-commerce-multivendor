@@ -68,16 +68,38 @@ export async function GET(request: NextRequest) {
     }
     
     // Formatar resposta
-    const formattedProducts = products.map(product => ({
-      id: product.id,
-      name: product.name,
-      slug: product.slug,
-      price: product.price,
-      comparePrice: product.comparePrice,
-      images: JSON.parse(product.images as string || '[]'),
-      category: product.category,
-      stock: product.stock
-    }))
+    const formattedProducts = products.map(product => {
+      // Tratar images - pode ser JSON array, string única, ou URL direta
+      let images: string[] = []
+      if (product.images) {
+        if (typeof product.images === 'string') {
+          // Tentar parsear como JSON
+          if (product.images.startsWith('[')) {
+            try {
+              images = JSON.parse(product.images)
+            } catch {
+              images = [product.images]
+            }
+          } else {
+            // É uma URL direta
+            images = [product.images]
+          }
+        } else if (Array.isArray(product.images)) {
+          images = product.images
+        }
+      }
+      
+      return {
+        id: product.id,
+        name: product.name,
+        slug: product.slug,
+        price: product.price,
+        comparePrice: product.comparePrice,
+        images,
+        category: product.category,
+        stock: product.stock
+      }
+    })
     
     return NextResponse.json({
       products: formattedProducts,

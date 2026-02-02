@@ -40,13 +40,100 @@ const estadosCoordenadas: Record<string, { lat: number; lng: number; nome: strin
   TO: { lat: -10.1842, lng: -48.3336, nome: 'Tocantins' }
 }
 
+// Mapeamento de nomes de estados para siglas
+const nomeParaSigla: Record<string, string> = {
+  'acre': 'AC',
+  'alagoas': 'AL',
+  'amapá': 'AP', 'amapa': 'AP',
+  'amazonas': 'AM',
+  'bahia': 'BA',
+  'ceará': 'CE', 'ceara': 'CE',
+  'distrito federal': 'DF',
+  'espírito santo': 'ES', 'espirito santo': 'ES',
+  'goiás': 'GO', 'goias': 'GO',
+  'maranhão': 'MA', 'maranhao': 'MA',
+  'mato grosso': 'MT',
+  'mato grosso do sul': 'MS',
+  'minas gerais': 'MG',
+  'pará': 'PA', 'para': 'PA',
+  'paraíba': 'PB', 'paraiba': 'PB',
+  'paraná': 'PR', 'parana': 'PR',
+  'pernambuco': 'PE',
+  'piauí': 'PI', 'piaui': 'PI',
+  'rio de janeiro': 'RJ',
+  'rio grande do norte': 'RN',
+  'rio grande do sul': 'RS',
+  'rondônia': 'RO', 'rondonia': 'RO',
+  'roraima': 'RR',
+  'santa catarina': 'SC',
+  'são paulo': 'SP', 'sao paulo': 'SP',
+  'sergipe': 'SE',
+  'tocantins': 'TO'
+}
+
 // Cache de coordenadas por cidade para evitar chamadas repetidas
 const coordenadasCache = new Map<string, { lat: number; lng: number } | null>()
 
-// Função para extrair CEP do endereço
+// Cache de coordenadas por CEP
+const cepCoordenadasCache = new Map<string, { lat: number; lng: number } | null>()
+
+// Função para extrair CEP do endereço ou JSON
 function extrairCEP(endereco: string): string | null {
+  // Tenta parsear como JSON primeiro
+  try {
+    const obj = JSON.parse(endereco)
+    if (obj.zipCode) {
+      return obj.zipCode.replace(/\D/g, '')
+    }
+  } catch {}
+  
+  // Fallback para regex
   const match = endereco.match(/\b\d{5}-?\d{3}\b/)
   return match ? match[0].replace('-', '') : null
+}
+
+// Função para buscar coordenadas por CEP usando API gratuita
+async function geocodificarPorCEP(cep: string): Promise<{ lat: number; lng: number } | null> {
+  // Verificar cache
+  if (cepCoordenadasCache.has(cep)) {
+    return cepCoordenadasCache.get(cep) || null
+  }
+  
+  try {
+    // Usar Nominatim com CEP
+    const query = encodeURIComponent(`${cep}, Brasil`)
+    const response = await fetchComTimeout(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1&countrycodes=br`,
+      {
+        headers: {
+          'User-Agent': 'MYDSHOP-Ecommerce/1.0',
+        },
+      },
+      3000
+    )
+    
+    if (!response.ok) {
+      cepCoordenadasCache.set(cep, null)
+      return null
+    }
+    
+    const data = await response.json()
+    if (data.length === 0) {
+      cepCoordenadasCache.set(cep, null)
+      return null
+    }
+    
+    const coords = {
+      lat: parseFloat(data[0].lat),
+      lng: parseFloat(data[0].lon),
+    }
+    
+    cepCoordenadasCache.set(cep, coords)
+    return coords
+  } catch {
+    cepCoordenadasCache.set(cep, null)
+    return null
+  }
 }
 
 // Função com timeout
@@ -142,13 +229,18 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const estado = searchParams.get('estado')
 
-    // Buscar pedidos com endereços
+    // Buscar pedidos com endereços (excluir cancelados)
     const pedidos = await prisma.order.findMany({
-      where: estado ? {
-        shippingAddress: {
-          contains: estado
-        }
-      } : {},
+      where: {
+        status: {
+          notIn: ['CANCELLED']
+        },
+        ...(estado ? {
+          shippingAddress: {
+            contains: estado
+          }
+        } : {})
+      },
       select: {
         id: true,
         total: true,
@@ -168,28 +260,85 @@ export async function GET(req: Request) {
       take: estado ? 500 : 100 // Limitar para performance
     })
 
-    // Processar pedidos - usar coordenadas dos estados primeiro (rápido)
-    const pedidosComLocalizacao = pedidos.map((pedido) => {
+    // Processar pedidos - com geocodificação por CEP quando possível
+    const pedidosComLocalizacao = await Promise.all(pedidos.map(async (pedido) => {
       let estadoUF = ''
       let cidade = ''
+      let cep = ''
       let lat: number | undefined
       let lng: number | undefined
 
       if (pedido.shippingAddress) {
-        // Extrair estado do endereço (formato: "Rua X, Cidade - UF, CEP")
-        const matchEstado = pedido.shippingAddress.match(/\b([A-Z]{2})\b/)
-        if (matchEstado) {
-          estadoUF = matchEstado[1]
-        }
-        
-        // Extrair cidade
-        const cidadeMatch = pedido.shippingAddress.match(/,\s*([^,]+)\s*-\s*[A-Z]{2}/)
-        if (cidadeMatch) {
-          cidade = cidadeMatch[1].trim()
+        // Tentar parsear como JSON primeiro
+        try {
+          const enderecoObj = JSON.parse(pedido.shippingAddress)
+          
+          // Extrair estado do JSON
+          if (enderecoObj.state) {
+            estadoUF = enderecoObj.state.toUpperCase()
+            // Se for nome completo, converter para sigla
+            if (estadoUF.length > 2) {
+              const sigla = nomeParaSigla[estadoUF.toLowerCase()]
+              if (sigla) estadoUF = sigla
+            }
+          }
+          
+          // Extrair cidade do JSON
+          if (enderecoObj.city) {
+            cidade = enderecoObj.city
+          }
+          
+          // Extrair CEP do JSON
+          if (enderecoObj.zipCode) {
+            cep = enderecoObj.zipCode.replace(/\D/g, '')
+          }
+        } catch {
+          // Se não for JSON, tenta extrair como string
+          const endereco = pedido.shippingAddress.toLowerCase()
+          
+          // Extrair CEP
+          const cepMatch = pedido.shippingAddress.match(/\b\d{5}-?\d{3}\b/)
+          if (cepMatch) {
+            cep = cepMatch[0].replace('-', '')
+          }
+          
+          // Primeiro tenta extrair sigla (formato: "Cidade - SP, CEP" ou "SP")
+          const matchSigla = pedido.shippingAddress.match(/\b([A-Z]{2})\b/)
+          if (matchSigla && estadosCoordenadas[matchSigla[1]]) {
+            estadoUF = matchSigla[1]
+          }
+          
+          // Se não encontrou sigla, tenta pelo nome do estado
+          if (!estadoUF) {
+            for (const [nome, sigla] of Object.entries(nomeParaSigla)) {
+              if (endereco.includes(nome)) {
+                estadoUF = sigla
+                break
+              }
+            }
+          }
+          
+          // Extrair cidade - tenta vários formatos
+          let cidadeMatch = pedido.shippingAddress.match(/,\s*([^,]+)\s*-\s*[A-Z]{2}/)
+          if (!cidadeMatch) {
+            cidadeMatch = pedido.shippingAddress.match(/\d{5}-?\d{3},\s*([^,]+),/)
+          }
+          if (cidadeMatch) {
+            cidade = cidadeMatch[1].trim()
+          }
         }
 
-        // Usar coordenadas da capital do estado como fallback
-        if (estadoUF && estadosCoordenadas[estadoUF]) {
+        // Tentar geocodificar pelo CEP primeiro (mais preciso)
+        if (cep) {
+          const coordsCep = await geocodificarPorCEP(cep)
+          if (coordsCep) {
+            lat = coordsCep.lat
+            lng = coordsCep.lng
+          }
+        }
+        
+        // Fallback: usar coordenadas da capital do estado
+        if (!lat && !lng && estadoUF && estadosCoordenadas[estadoUF]) {
           lat = estadosCoordenadas[estadoUF].lat
           lng = estadosCoordenadas[estadoUF].lng
         }
@@ -208,7 +357,7 @@ export async function GET(req: Request) {
         lat,
         lng
       }
-    })
+    }))
 
     // Filtrar apenas pedidos com coordenadas válidas
     const pedidosValidos = pedidosComLocalizacao.filter(p => p.lat && p.lng)

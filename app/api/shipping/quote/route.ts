@@ -254,11 +254,14 @@ export async function POST(req: NextRequest) {
     let totalHeight = 10
 
     // ========================================
-    // 🌍 VERIFICAR SE É PRODUTO IMPORTADO DO ALIEXPRESS
+    // 🌍 VERIFICAR SE É PRODUTO DE DROPSHIPPING (FORNECEDOR EXTERNO)
     // ========================================
-    // Condição: Fornecedor é AliExpress E categoria é "Importados"
-    let isImportedProduct = false
-    let importedProduct: any = null
+    // LÓGICA SIMPLES:
+    // - Se produto tem supplierId (fornecedor) → usa frete do fornecedor
+    // - Se produto NÃO tem supplierId (próprio) → usa regras nacionais
+    let isDropshippingProduct = false
+    let dropshippingProduct: any = null
+    let hasOwnProducts = false  // Tem produtos próprios no carrinho
 
     // Usar products OU items (checkout envia items)
     const productList = products || items || []
@@ -278,56 +281,44 @@ export async function POST(req: NextRequest) {
           where: { id: cleanProductId },
           include: { 
             supplier: true,
-            category: {
-              include: {
-                parent: {
-                  include: {
-                    parent: true  // Até 3 níveis de hierarquia
-                  }
-                }
-              }
-            },
+            category: true,
             seller: true  // Incluir vendedor para CEP de origem
           }
         })
 
         if (product) {
-          // Verificar se é produto IMPORTADO:
-          // 1. Categoria direta, pai ou avô é "Importados"
-          // 2. Fornecedor internacional (AliExpress, Shopee, Amazon, etc.)
+          // ========================================
+          // 📦 LÓGICA SIMPLIFICADA DE FRETE:
+          // ========================================
+          // 1. Se tem supplierId → é dropshipping (usa frete do fornecedor)
+          // 2. Se shipFromCountry != null e != 'BR' → é internacional
+          // 3. Caso contrário → é produto próprio (usa Correios/Jadlog/etc)
           
-          // Verificar hierarquia de categorias (até 3 níveis)
-          const isImportedCategory = (
-            product.category?.slug === 'importados' ||
-            product.category?.name?.toLowerCase() === 'importados' ||
-            product.category?.parent?.slug === 'importados' ||
-            product.category?.parent?.name?.toLowerCase() === 'importados' ||
-            product.category?.parent?.parent?.slug === 'importados' ||
-            product.category?.parent?.parent?.name?.toLowerCase() === 'importados'
-          )
+          const hasSupplier = !!product.supplierId && !!product.supplier
+          const isFromAbroad = product.shipFromCountry && product.shipFromCountry !== 'BR'
           
-          // Verificar se fornecedor é internacional
+          // Verificar tipo do fornecedor
+          const supplierType = product.supplier?.type?.toLowerCase() || ''
           const supplierName = product.supplier?.name?.toLowerCase() || ''
-          const supplierUrl = product.supplierUrl?.toLowerCase() || ''
-          const isInternationalSupplier = (
-            supplierName.includes('aliexpress') || supplierUrl.includes('aliexpress.com') ||
-            supplierName.includes('shopee') || supplierUrl.includes('shopee.com') ||
-            supplierName.includes('amazon') || supplierUrl.includes('amazon.com') ||
-            supplierName.includes('alibaba') || supplierUrl.includes('alibaba.com') ||
-            supplierName.includes('temu') || supplierUrl.includes('temu.com') ||
-            supplierName.includes('shein') || supplierUrl.includes('shein.com') ||
-            supplierName.includes('wish') || supplierUrl.includes('wish.com')
+          const isAliExpressSupplier = (
+            supplierType === 'aliexpress' ||
+            supplierName.includes('aliexpress') ||
+            product.supplierUrl?.toLowerCase()?.includes('aliexpress.com')
           )
           
-          // É importado se está na categoria Importados e tem fornecedor internacional
-          if (isImportedCategory && isInternationalSupplier) {
-            isImportedProduct = true
-            importedProduct = { ...product, quantity }
-            console.log('🌍 [Frete] Produto importado detectado:', product.name)
-            console.log('   - Fornecedor:', product.supplier?.name || supplierUrl)
-            console.log('   - Categoria:', product.category?.name)
-            console.log('   - Categoria Pai:', product.category?.parent?.name)
+          // É dropshipping se: tem fornecedor E (é do exterior OU fornecedor é AliExpress)
+          if (hasSupplier && (isFromAbroad || isAliExpressSupplier)) {
+            isDropshippingProduct = true
+            dropshippingProduct = { ...product, quantity }
+            console.log('📦 [Frete DROP] Produto de dropshipping detectado:', product.name)
+            console.log('   - Fornecedor:', product.supplier?.name)
+            console.log('   - Tipo:', product.supplier?.type)
+            console.log('   - País origem:', product.shipFromCountry || 'não definido')
             console.log('   - SKU:', product.supplierSku)
+          } else {
+            // Produto próprio ou de vendedor nacional
+            hasOwnProducts = true
+            console.log('📦 [Frete PRÓPRIO] Produto próprio/nacional:', product.name)
           }
 
           // Determinar origem do produto para cálculo de frete
@@ -369,19 +360,19 @@ export async function POST(req: NextRequest) {
       }
 
       // ========================================
-      // 🌍 SE FOR PRODUTO IMPORTADO, BUSCAR FRETE DO ALIEXPRESS
+      // 📦 SE FOR PRODUTO DE DROPSHIPPING, BUSCAR FRETE DO FORNECEDOR
       // ========================================
-      if (isImportedProduct && importedProduct) {
-        console.log('🌍 [Frete] Buscando opções de frete internacional...')
+      if (isDropshippingProduct && dropshippingProduct && !hasOwnProducts) {
+        console.log('📦 [Frete DROP] Buscando opções de frete do fornecedor...')
         
         // Buscar credenciais do AliExpress
         const auth = await prisma.aliExpressAuth.findFirst()
         
         if (auth?.accessToken) {
           const aliShipping = await getAliExpressShipping(
-            importedProduct,
+            dropshippingProduct,
             cleanCep,
-            importedProduct.quantity || 1,
+            dropshippingProduct.quantity || 1,
             auth
           )
 
@@ -390,7 +381,7 @@ export async function POST(req: NextRequest) {
             aliShipping.options.sort((a: any, b: any) => a.price - b.price)
             const cheapest = aliShipping.options[0]
 
-            console.log('✅ [Frete Internacional] Opções encontradas:', aliShipping.options.length)
+            console.log('✅ [Frete DROP] Opções encontradas:', aliShipping.options.length)
 
             // Mapear nomes para não expor plataforma
             const mapShippingName = (name: string): string => {
@@ -412,11 +403,11 @@ export async function POST(req: NextRequest) {
               deliveryDays: cheapest.days,
               isFree: cheapest.isFree,
               message: cheapest.isFree ? 'Frete Grátis' : undefined,
-              shippingMethod: 'international',
+              shippingMethod: 'dropshipping',
               shippingService: mapShippingName(cheapest.name),
-              shippingCarrier: 'Importação Direta',
+              shippingCarrier: dropshippingProduct.supplier?.name || 'Fornecedor Externo',
               isInternational: true,
-              shipFrom: cheapest.shipFrom || 'CN',
+              shipFrom: dropshippingProduct.shipFromCountry || 'CN',
               // Todas as opções disponíveis (sem expor nome da plataforma)
               allOptions: aliShipping.options.map((opt: any) => ({
                 name: mapShippingName(opt.name),
@@ -428,53 +419,59 @@ export async function POST(req: NextRequest) {
               }))
             })
           } else {
-            console.log('⚠️ [Frete AliExpress] Sem opções, usando fallback internacional')
+            console.log('⚠️ [Frete DROP] Sem opções da API, usando fallback...')
           }
         }
         
         // ========================================
-        // 🌍 FALLBACK PARA FRETE INTERNACIONAL
+        // 📦 FALLBACK PARA FRETE DE DROPSHIPPING
         // ========================================
-        // Se é produto importado mas não conseguiu frete via API,
+        // Se é produto de dropshipping mas não conseguiu frete via API,
         // usar estimativa baseada no peso e valor do produto
-        console.log('🌍 [Frete Internacional] Usando estimativa para produto importado')
+        console.log('📦 [Frete DROP] Usando estimativa para produto dropshipping')
         
-        const productPrice = importedProduct.price || 50
-        const productWeight = importedProduct.weight || 0.3
-        const quantity = importedProduct.quantity || 1
+        const productPrice = dropshippingProduct.price || 50
+        const productWeight = dropshippingProduct.weight || 0.3
+        const quantity = dropshippingProduct.quantity || 1
+        const shipFrom = dropshippingProduct.shipFromCountry || 'CN'
         
-        // Calcular frete internacional estimado
-        // Base: R$ 10-15 + R$ 5 por kg + taxa por valor
-        let estimatedShipping = 12 + (productWeight * quantity * 8)
+        // Calcular frete estimado baseado na origem
+        let estimatedShipping = 0
+        let deliveryDays = ''
         
-        // Produtos mais caros geralmente têm frete mais caro
-        if (productPrice > 100) estimatedShipping += 5
-        if (productPrice > 200) estimatedShipping += 8
-        if (productPrice > 500) estimatedShipping += 15
+        if (shipFrom === 'BR') {
+          // Fornecedor nacional - frete mais barato e rápido
+          estimatedShipping = 15 + (productWeight * quantity * 5)
+          deliveryDays = '3-7 dias úteis'
+        } else {
+          // Fornecedor internacional
+          estimatedShipping = 12 + (productWeight * quantity * 8)
+          if (productPrice > 100) estimatedShipping += 5
+          if (productPrice > 200) estimatedShipping += 8
+          if (productPrice > 500) estimatedShipping += 15
+          deliveryDays = productPrice > 200 ? '15-30 dias úteis' : '20-45 dias úteis'
+        }
         
-        // Frete grátis se produto > R$ 150 (promoção comum)
+        // Frete grátis se produto > R$ 150 (promoção comum do AliExpress)
         const isFreeShipping = productPrice >= 150
-        
-        // Prazo estimado: 15-45 dias úteis
-        const deliveryDays = productPrice > 200 ? '15-30 dias úteis' : '20-45 dias úteis'
         
         return NextResponse.json({
           shippingCost: isFreeShipping ? 0 : Math.round(estimatedShipping * 100) / 100,
           deliveryDays,
           isFree: isFreeShipping,
           message: isFreeShipping ? 'Frete Grátis' : undefined,
-          shippingMethod: 'international',
-          shippingService: 'Envio Internacional',
-          shippingCarrier: 'Importação Direta',
-          isInternational: true,
-          shipFrom: 'CN',
+          shippingMethod: 'dropshipping',
+          shippingService: shipFrom === 'BR' ? 'Envio Nacional' : 'Envio Internacional',
+          shippingCarrier: dropshippingProduct.supplier?.name || 'Fornecedor Externo',
+          isInternational: shipFrom !== 'BR',
+          shipFrom,
           allOptions: [{
-            name: 'Envio Internacional',
+            name: shipFrom === 'BR' ? 'Envio Nacional' : 'Envio Internacional',
             price: isFreeShipping ? 0 : Math.round(estimatedShipping * 100) / 100,
             days: deliveryDays,
-            icon: '🌍',
+            icon: shipFrom === 'BR' ? '📦' : '🌍',
             isFree: isFreeShipping,
-            isInternational: true
+            isInternational: shipFrom !== 'BR'
           }]
         })
       }

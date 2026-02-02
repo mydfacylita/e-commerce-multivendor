@@ -174,6 +174,25 @@ export default function MapaPedidosPage() {
               </div>
             </div>
           </div>
+          
+          {/* Legenda de cores */}
+          <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-lg p-3 z-[1000]">
+            <div className="text-xs font-semibold text-gray-700 mb-2">Legenda</div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <span className="text-xs text-gray-600">Pendente</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                <span className="text-xs text-gray-600">Em processamento</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span className="text-xs text-gray-600">Entregue</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

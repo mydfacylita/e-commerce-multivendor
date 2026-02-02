@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-import { checkRateLimit, isValidEmail, sanitizeHtml } from '@/lib/validation'
+import { checkRateLimit, isValidEmail, isValidCPF, isDisposableEmail, isValidEmailComplete, sanitizeHtml } from '@/lib/validation'
 
 
 // Force dynamic - disable all caching
@@ -47,12 +47,41 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { name, email, password } = body
+    const { name, email, password, cpf, phone } = body
 
     // 🔒 Validar campos obrigatórios
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !cpf || !phone) {
       return NextResponse.json(
-        { message: 'Todos os campos são obrigatórios' },
+        { message: 'Todos os campos são obrigatórios (nome, email, senha, CPF e telefone)' },
+        { status: 400 }
+      )
+    }
+
+    // 🔒 Validar CPF com algoritmo de dígitos verificadores
+    if (!isValidCPF(cpf)) {
+      return NextResponse.json(
+        { message: 'CPF inválido. Verifique os números digitados.' },
+        { status: 400 }
+      )
+    }
+
+    // 🔒 Validar telefone (mínimo 10 dígitos)
+    const cleanedPhone = phone.replace(/\D/g, '')
+    if (cleanedPhone.length < 10 || cleanedPhone.length > 11) {
+      return NextResponse.json(
+        { message: 'Telefone inválido. Use o formato (00) 00000-0000' },
+        { status: 400 }
+      )
+    }
+
+    // 🔒 Verificar se CPF já existe
+    const cleanedCpf = cpf.replace(/\D/g, '')
+    const existingCpf = await prisma.user.findFirst({
+      where: { cpf: cleanedCpf }
+    })
+    if (existingCpf) {
+      return NextResponse.json(
+        { message: 'CPF já cadastrado' },
         { status: 400 }
       )
     }
@@ -71,6 +100,15 @@ export async function POST(req: NextRequest) {
     if (!isValidEmail(sanitizedEmail)) {
       return NextResponse.json(
         { message: 'Email inválido' },
+        { status: 400 }
+      )
+    }
+
+    // 🔒 Bloquear emails temporários/descartáveis
+    const emailValidation = isValidEmailComplete(sanitizedEmail)
+    if (!emailValidation.valid) {
+      return NextResponse.json(
+        { message: emailValidation.reason || 'Email não permitido' },
         { status: 400 }
       )
     }
@@ -104,6 +142,8 @@ export async function POST(req: NextRequest) {
         name: sanitizedName,
         email: sanitizedEmail,
         password: hashedPassword,
+        cpf: cleanedCpf,
+        phone: cleanedPhone,
       },
     })
 

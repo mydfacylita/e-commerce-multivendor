@@ -87,6 +87,97 @@ export function isValidEmail(email: string): boolean {
 }
 
 /**
+ * Lista de domínios de email temporários/descartáveis conhecidos
+ */
+const DISPOSABLE_EMAIL_DOMAINS = [
+  // Populares
+  'tempmail.com', 'temp-mail.org', 'guerrillamail.com', 'guerrillamail.org',
+  '10minutemail.com', '10minutemail.net', 'mailinator.com', 'mailinator.net',
+  'throwaway.email', 'throwawaymail.com', 'fakeinbox.com', 'trashmail.com',
+  'getairmail.com', 'getnada.com', 'mohmal.com', 'yopmail.com', 'yopmail.fr',
+  'sharklasers.com', 'guerrillamail.info', 'grr.la', 'spam4.me',
+  'dispostable.com', 'mailnesia.com', 'maildrop.cc', 'mintemail.com',
+  'mytrashmail.com', 'mt2009.com', 'trash-mail.at', 'trash-mail.com',
+  'tempmailaddress.com', 'tempail.com', 'tmpmail.org', 'tmpmail.net',
+  'emailondeck.com', 'spamgourmet.com', 'spambox.us', 'spamfree24.org',
+  'jetable.org', 'meltmail.com', 'harakirimail.com', 'emailthe.net',
+  'mailcatch.com', 'mailnull.com', 'mailsac.com', 'mailslurp.com',
+  'disposableaddress.com', 'disposableinbox.com', 'dropmail.me',
+  'fakemailgenerator.com', 'guerrillamail.biz', 'hmamail.com',
+  'instantemailaddress.com', 'mailforspam.com', 'mytemp.email',
+  'putsbox.com', 'receivemail.com', 'receivemail.info', 'spamdecoy.net',
+  'spamobox.com', 'tempinbox.com', 'tempinbox.co.uk', 'tempomail.fr',
+  'tempr.email', 'wegwerfmail.de', 'wegwerfmail.net', 'wegwerfmail.org',
+  // Brasileiros e comuns em fraudes
+  'caifrfrr.com.br', 'idiota.com.br', 'burro.com.br', 'falso.com.br',
+  'teste.com.br', 'temp.com.br', 'naoexiste.com.br', 'lixo.com.br',
+  // Padrões suspeitos
+  'test.com', 'example.com', 'fake.com', 'trash.com', 'spam.com',
+  'noemail.com', 'nomail.com', 'nowhere.com', 'void.com'
+]
+
+/**
+ * Verifica se o email é de um domínio descartável/temporário
+ */
+export function isDisposableEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false
+  
+  const domain = email.toLowerCase().split('@')[1]
+  if (!domain) return false
+  
+  // Verifica domínios exatos
+  if (DISPOSABLE_EMAIL_DOMAINS.includes(domain)) {
+    return true
+  }
+  
+  // Verifica padrões suspeitos no domínio
+  const suspiciousPatterns = [
+    'tempmail', 'temp-mail', 'throwaway', 'disposable', 'fake',
+    'guerrilla', 'mailinator', 'yopmail', 'trashmail', 'spam',
+    '10minute', '10min', 'noreply', 'no-reply'
+  ]
+  
+  for (const pattern of suspiciousPatterns) {
+    if (domain.includes(pattern)) {
+      return true
+    }
+  }
+  
+  return false
+}
+
+/**
+ * Valida email completo (formato + não descartável)
+ */
+export function isValidEmailComplete(email: string): { valid: boolean; reason?: string } {
+  if (!email || typeof email !== 'string') {
+    return { valid: false, reason: 'Email é obrigatório' }
+  }
+  
+  if (!isValidEmail(email)) {
+    return { valid: false, reason: 'Formato de email inválido' }
+  }
+  
+  if (isDisposableEmail(email)) {
+    return { valid: false, reason: 'Emails temporários não são permitidos' }
+  }
+  
+  // Verifica se o domínio tem pelo menos um ponto (TLD válido)
+  const domain = email.split('@')[1]
+  if (!domain || !domain.includes('.')) {
+    return { valid: false, reason: 'Domínio de email inválido' }
+  }
+  
+  // Verifica extensão mínima do TLD
+  const tld = domain.split('.').pop()
+  if (!tld || tld.length < 2) {
+    return { valid: false, reason: 'Extensão de domínio inválida' }
+  }
+  
+  return { valid: true }
+}
+
+/**
  * Valida CPF (apenas formato e dígitos verificadores)
  */
 export function isValidCPF(cpf: string): boolean {
@@ -180,6 +271,112 @@ export function isValidCEP(cep: string): boolean {
   if (!cep || typeof cep !== 'string') return false
   const cleaned = cep.replace(/\D/g, '')
   return /^\d{8}$/.test(cleaned)
+}
+
+/**
+ * Valida CEP e verifica se corresponde ao estado informado
+ * Retorna { valid: boolean, error?: string, data?: ViaCEPData }
+ */
+export async function validateCEPWithState(cep: string, informedState: string): Promise<{
+  valid: boolean
+  error?: string
+  data?: {
+    cep: string
+    logradouro: string
+    bairro: string
+    localidade: string
+    uf: string
+  }
+}> {
+  if (!cep || typeof cep !== 'string') {
+    return { valid: false, error: 'CEP é obrigatório' }
+  }
+  
+  const cleanedCep = cep.replace(/\D/g, '')
+  
+  if (!/^\d{8}$/.test(cleanedCep)) {
+    return { valid: false, error: 'CEP inválido. Deve ter 8 dígitos.' }
+  }
+  
+  try {
+    const response = await fetch(`https://viacep.com.br/ws/${cleanedCep}/json/`, {
+      signal: AbortSignal.timeout(5000) // Timeout de 5 segundos
+    })
+    
+    if (!response.ok) {
+      return { valid: false, error: 'Não foi possível validar o CEP. Tente novamente.' }
+    }
+    
+    const data = await response.json()
+    
+    if (data.erro) {
+      return { valid: false, error: 'CEP não encontrado. Verifique o número informado.' }
+    }
+    
+    // Verificar se o estado corresponde
+    const cleanedState = informedState?.toUpperCase().trim()
+    
+    if (cleanedState && data.uf !== cleanedState) {
+      return { 
+        valid: false, 
+        error: `CEP ${cleanedCep} pertence a ${data.localidade}/${data.uf}, mas foi informado ${cleanedState}. Verifique o endereço.`,
+        data 
+      }
+    }
+    
+    return { valid: true, data }
+  } catch (error) {
+    // Em caso de erro de rede, não bloquear mas logar
+    console.error('Erro ao validar CEP:', error)
+    // Retorna válido mas sem dados - melhor não bloquear por falha de rede
+    return { valid: true }
+  }
+}
+
+/**
+ * Valida apenas se o CEP existe (sem verificar estado)
+ */
+export async function validateCEPExists(cep: string): Promise<{
+  valid: boolean
+  error?: string
+  data?: {
+    cep: string
+    logradouro: string
+    bairro: string
+    localidade: string
+    uf: string
+  }
+}> {
+  if (!cep || typeof cep !== 'string') {
+    return { valid: false, error: 'CEP é obrigatório' }
+  }
+  
+  const cleanedCep = cep.replace(/\D/g, '')
+  
+  if (!/^\d{8}$/.test(cleanedCep)) {
+    return { valid: false, error: 'CEP inválido. Deve ter 8 dígitos.' }
+  }
+  
+  try {
+    const response = await fetch(`https://viacep.com.br/ws/${cleanedCep}/json/`, {
+      signal: AbortSignal.timeout(5000)
+    })
+    
+    if (!response.ok) {
+      return { valid: false, error: 'Não foi possível validar o CEP.' }
+    }
+    
+    const data = await response.json()
+    
+    if (data.erro) {
+      return { valid: false, error: 'CEP não encontrado.' }
+    }
+    
+    return { valid: true, data }
+  } catch (error) {
+    console.error('Erro ao validar CEP:', error)
+    return { valid: true } // Não bloquear por falha de rede
+  }
 }
 
 /**
