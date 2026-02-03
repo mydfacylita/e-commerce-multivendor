@@ -9,6 +9,7 @@ import QRCode from 'qrcode'
 import { formatOrderNumber } from '@/lib/format'
 import CreditCardForm from '@/components/CreditCardForm'
 import { useCartStore } from '@/lib/store'
+import { trackPurchaseConversion, trackBeginCheckout } from '@/components/GoogleAds'
 
 interface Order {
   id: string
@@ -121,6 +122,12 @@ export default function CheckoutPagamentoPage() {
           // Se já foi aprovado, redirecionar
           if (data.status === 'PROCESSING' || data.alreadyPaid || data.justApproved) {
             toast.success('Pagamento já foi confirmado! 🎉')
+            
+            // Rastrear conversão de compra no Google Ads
+            if (order?.total) {
+              trackPurchaseConversion(orderId, order.total)
+            }
+            
             router.push(`/pedidos/${orderId}`)
             return
           }
@@ -159,6 +166,12 @@ export default function CheckoutPagamentoPage() {
           if (data.status === 'PROCESSING' || data.justApproved || data.alreadyPaid) {
             clearInterval(interval)
             toast.success('Pagamento Pix confirmado! 🎉')
+            
+            // Rastrear conversão de compra no Google Ads
+            if (order?.total) {
+              trackPurchaseConversion(orderId, order.total)
+            }
+            
             setTimeout(() => {
               router.push(`/pedidos/${orderId}`)
             }, 1500)

@@ -59,7 +59,7 @@ export function trackPurchaseConversion(
   if (typeof window !== 'undefined' && window.gtag) {
     // Evento de conversão do Google Ads
     window.gtag('event', 'conversion', {
-      send_to: 'AW-17927166534/PURCHASE', // Você vai atualizar com o ID de conversão
+      send_to: 'AW-17927166534/5BMTCJdz_EbEMa0g-RC',
       value: value,
       currency: currency,
       transaction_id: transactionId,

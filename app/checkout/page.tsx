@@ -8,6 +8,7 @@ import Image from 'next/image'
 import toast from 'react-hot-toast'
 import { FiCreditCard, FiDollarSign, FiAlertCircle, FiMapPin, FiPlus, FiCheck, FiTrash2, FiInfo } from 'react-icons/fi'
 import { calcularImpostoImportacao, type CalculoImpostoResult } from '@/lib/import-tax'
+import { trackBeginCheckout } from '@/components/GoogleAds'
 
 // Função para calcular data de entrega estimada
 function calcularDataEntrega(diasUteis: number): string {
