@@ -43,6 +43,53 @@ function generateSign(params: Record<string, string>, appSecret: string): string
     .toUpperCase()
 }
 
+// Verificar status de tracking (entrega) via API de tracking
+async function fetchTrackingStatus(
+  aliexpressOrderId: string,
+  appKey: string,
+  appSecret: string,
+  accessToken: string
+): Promise<{ isDelivered: boolean; trackingName?: string }> {
+  const params: Record<string, string> = {
+    app_key: appKey,
+    method: 'aliexpress.ds.order.tracking.get',
+    session: accessToken,
+    timestamp: Date.now().toString(),
+    format: 'json',
+    v: '2.0',
+    sign_method: 'sha256',
+    ae_order_id: aliexpressOrderId,
+    language: 'en_US'
+  }
+  params.sign = generateSign(params, appSecret)
+
+  const url = `https://api-sg.aliexpress.com/sync?${new URLSearchParams(params).toString()}`
+
+  try {
+    const response = await fetch(url)
+    const data = await response.json()
+    
+    const trackingData = data.aliexpress_ds_order_tracking_get_response?.result?.data
+    const trackingDetails = trackingData?.tracking_detail_line_list?.tracking_detail
+    
+    if (Array.isArray(trackingDetails) && trackingDetails.length > 0) {
+      const nodes = trackingDetails[0]?.detail_node_list?.detail_node
+      if (Array.isArray(nodes) && nodes.length > 0) {
+        // Pegar o status mais recente (primeiro da lista)
+        const latestStatus = nodes[0]?.tracking_name?.toLowerCase() || ''
+        const isDelivered = latestStatus.includes('delivered') || 
+                           latestStatus.includes('entregue') ||
+                           latestStatus.includes('received')
+        return { isDelivered, trackingName: nodes[0]?.tracking_name }
+      }
+    }
+    return { isDelivered: false }
+  } catch (error) {
+    console.log(`[SYNC] Erro ao verificar tracking ${aliexpressOrderId}:`, error)
+    return { isDelivered: false }
+  }
+}
+
 // Buscar status do pedido no AliExpress
 async function fetchOrderStatus(
   aliexpressOrderId: string,
@@ -299,13 +346,33 @@ export async function GET(request: NextRequest) {
         continue
       }
 
+      // Verificar status de entrega via API de tracking
+      // (a API de pedido pode mostrar WAIT_BUYER_ACCEPT_GOODS, mas o tracking já mostra Entregue)
+      let isDeliveredByTracking = false
+      let trackingStatusName = ''
+      if (statusResult.status === 'WAIT_BUYER_ACCEPT_GOODS' && order.status === 'SHIPPED') {
+        const trackingStatus = await fetchTrackingStatus(
+          aliOrderId,
+          auth.appKey,
+          auth.appSecret,
+          auth.accessToken
+        )
+        if (trackingStatus.isDelivered) {
+          isDeliveredByTracking = true
+          trackingStatusName = trackingStatus.trackingName || 'Delivered'
+          console.log(`[SYNC-DROP-ORDERS] 📦 Tracking mostra ENTREGUE: ${trackingStatusName}`)
+        }
+        // Rate limiting extra
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+
       // Verificar se houve mudança
       const newInternalStatus = mapAliExpressToInternalStatus(statusResult.status || '')
       const hasStatusChange = statusResult.status && statusResult.status !== order.items[0]?.supplierStatus
       const hasTrackingChange = statusResult.trackingNumber && statusResult.trackingNumber !== order.trackingCode
       const hasEndReason = !!statusResult.endReason // Se tem end_reason é porque foi cancelado
 
-      if (hasStatusChange || hasTrackingChange || hasEndReason) {
+      if (hasStatusChange || hasTrackingChange || hasEndReason || isDeliveredByTracking) {
         // Verificar se o pedido foi cancelado/deletado no AliExpress
         // Pode ser pelo status OU pelo end_reason dos itens
         const cancelledStatuses = [
@@ -366,8 +433,8 @@ export async function GET(request: NextRequest) {
           }
 
           // Só atualiza status interno se for uma mudança significativa
-          if (hasStatusChange) {
-            updateData.status = newInternalStatus
+          if (hasStatusChange || isDeliveredByTracking) {
+            updateData.status = isDeliveredByTracking ? 'DELIVERED' : newInternalStatus
           }
 
           // Atualizar transportadora se tiver
@@ -391,14 +458,14 @@ export async function GET(request: NextRequest) {
             await prisma.orderItem.update({
               where: { id: item.id },
               data: {
-                supplierStatus: statusResult.status, // Status real do AliExpress
+                supplierStatus: isDeliveredByTracking ? 'DELIVERED' : statusResult.status, // Status real
                 trackingCode: statusResult.trackingNumber || item.trackingCode
               }
             })
           }
 
           result.updated = true
-          result.currentStatus = statusResult.status || ''
+          result.currentStatus = isDeliveredByTracking ? 'DELIVERED' : (statusResult.status || '')
           result.trackingNumber = statusResult.trackingNumber || null
           updated++
 

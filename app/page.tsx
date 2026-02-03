@@ -27,7 +27,7 @@ export default async function HomePage() {
           select: { products: true },
         },
       },
-      take: 12,
+      take: 6,
     })
   ])
 

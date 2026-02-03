@@ -87,8 +87,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Sem credenciais AliExpress' }, { status: 400 })
     }
 
-    // Buscar produtos AliExpress
-    const products = await prisma.product.findMany({
+    // Paginação - buscar produtos em lotes
+    const BATCH_SIZE = 100
+    let page = 0
+    let totalProducts = 0
+    let synced = 0
+    let errors = 0
+    let pricesUpdated = 0
+    const results: any[] = []
+    let hasMore = true
+
+    // Contar total de produtos
+    const totalCount = await prisma.product.count({
       where: {
         supplierSku: { not: null },
         OR: [
@@ -96,27 +106,45 @@ export async function GET(request: NextRequest) {
           { category: { slug: 'importados' } },
           { supplier: { type: 'aliexpress' } }
         ]
-      },
-      select: {
-        id: true,
-        name: true,
-        supplierSku: true,
-        costPrice: true,
-        price: true,
-        margin: true,
-        stock: true,
-        variants: true,
-        selectedSkus: true
-      },
-      take: 500 // Aumentado de 100 para 500 produtos por sincronização
+      }
     })
 
-    console.log(`[SYNC] ${products.length} produtos para sincronizar`)
+    console.log(`[SYNC] Total de produtos para sincronizar: ${totalCount}`)
 
-    let synced = 0
-    let errors = 0
-    let pricesUpdated = 0
-    const results: any[] = []
+    while (hasMore) {
+      // Buscar lote de produtos
+      const products = await prisma.product.findMany({
+        where: {
+          supplierSku: { not: null },
+          OR: [
+            { supplierUrl: { contains: 'aliexpress.com' } },
+            { category: { slug: 'importados' } },
+            { supplier: { type: 'aliexpress' } }
+          ]
+        },
+        select: {
+          id: true,
+          name: true,
+          supplierSku: true,
+          costPrice: true,
+          price: true,
+          margin: true,
+          stock: true,
+          variants: true,
+          selectedSkus: true
+        },
+        skip: page * BATCH_SIZE,
+        take: BATCH_SIZE,
+        orderBy: { id: 'asc' }
+      })
+
+      if (products.length === 0) {
+        hasMore = false
+        break
+      }
+
+      totalProducts += products.length
+      console.log(`[SYNC] Processando lote ${page + 1} (${products.length} produtos, total: ${totalProducts}/${totalCount})`)
 
     for (const product of products) {
       const productId = product.supplierSku!
@@ -126,8 +154,8 @@ export async function GET(request: NextRequest) {
         continue
       }
 
-      // Rate limit
-      await new Promise(r => setTimeout(r, 500))
+      // Rate limit - reduzido para processar mais rápido
+      await new Promise(r => setTimeout(r, 300))
 
       console.log(`[SYNC] Processando: ${product.name.substring(0, 50)}...`)
 
@@ -295,14 +323,23 @@ export async function GET(request: NextRequest) {
       console.log(`[SYNC] ✅ ${product.name.substring(0, 30)}: ${variantsUpdatedCount} variants, ${selectedUpdatedCount} selected, ${pricesRecalculated} preços recalculados`)
     }
 
+      // Próximo lote
+      page++
+      
+      // Se processou menos que o batch, acabou
+      if (products.length < BATCH_SIZE) {
+        hasMore = false
+      }
+    } // fim do while
+
     // Log de sincronização
     await (prisma as any).syncLog?.create({
       data: {
         type: 'ALIEXPRESS_STOCK',
-        totalItems: products.length,
+        totalItems: totalProducts,
         synced,
         errors,
-        details: JSON.stringify({ pricesUpdated, results: results.slice(0, 20) }),
+        details: JSON.stringify({ pricesUpdated, pages: page, results: results.slice(0, 50) }),
         duration: Date.now() - startTime
       }
     }).catch(() => null)
@@ -310,7 +347,8 @@ export async function GET(request: NextRequest) {
     const duration = Date.now() - startTime
 
     console.log(`\n[SYNC] ========== RESUMO ==========`)
-    console.log(`[SYNC] Sincronizados: ${synced}/${products.length}`)
+    console.log(`[SYNC] Total produtos: ${totalProducts} (${page} lotes)`)
+    console.log(`[SYNC] Sincronizados: ${synced}/${totalProducts}`)
     console.log(`[SYNC] Preços atualizados: ${pricesUpdated}`)
     console.log(`[SYNC] Erros: ${errors}`)
     console.log(`[SYNC] Tempo: ${(duration / 1000).toFixed(1)}s`)
@@ -319,7 +357,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       summary: {
-        total: products.length,
+        total: totalProducts,
+        batches: page,
         synced,
         pricesUpdated,
         errors,

@@ -374,6 +374,13 @@ model Order {
   userAgent             String?         @db.Text
   importTax             Float?          // Imposto de Importação (20%)
   icmsTax               Float?          // ICMS estadual para produtos importados
+  deliveredAt           DateTime?       // Data/hora da entrega
+  deliveredBy           String?         // Quem entregou
+  receiverName          String?         // Nome de quem recebeu
+  receiverDocument      String?         // CPF/RG de quem recebeu
+  deliveryNotes         String?         @db.Text // Observações da entrega
+  deliveryPhoto         String?         @db.Text // Foto comprovante
+  deliveryAttempts      Int?            @default(0) // Tentativas de entrega
   invoices              Invoice[]
   seller                Seller?         @relation("SellerOrders", fields: [sellerId], references: [id])
   soldBySeller          Seller?         @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
