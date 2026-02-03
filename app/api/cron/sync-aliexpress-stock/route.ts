@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
         variants: true,
         selectedSkus: true
       },
-      take: 100
+      take: 500 // Aumentado de 100 para 500 produtos por sincronização
     })
 
     console.log(`[SYNC] ${products.length} produtos para sincronizar`)
