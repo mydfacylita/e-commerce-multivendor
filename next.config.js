@@ -141,11 +141,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.mercadopago.com https://sdk.mercadopago.com https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.mercadopago.com https://sdk.mercadopago.com https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://googleads.g.doubleclick.net",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: blob: https: http:",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://api.mercadopago.com https://api.mercadolibre.com https://*.aliexpress.com https://www.google-analytics.com https://analytics.google.com https://www.facebook.com https://connect.facebook.net",
+              "connect-src 'self' https://api.mercadopago.com https://api.mercadolibre.com https://*.aliexpress.com https://www.google-analytics.com https://analytics.google.com https://www.facebook.com https://connect.facebook.net https://viacep.com.br https://www.googleadservices.com https://googleads.g.doubleclick.net",
               "frame-src 'self' https://www.mercadopago.com https://www.facebook.com",
               "object-src 'none'",
               "base-uri 'self'",
