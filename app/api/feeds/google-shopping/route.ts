@@ -59,11 +59,11 @@ ${products.map(product => {
   
   // Preço
   const price = `${product.price.toFixed(2)} BRL`
-  const salePrice = product.compareAtPrice && product.compareAtPrice > product.price 
+  const salePrice = product.comparePrice && product.comparePrice > product.price 
     ? `${product.price.toFixed(2)} BRL` 
     : null
-  const originalPrice = product.compareAtPrice && product.compareAtPrice > product.price
-    ? `${product.compareAtPrice.toFixed(2)} BRL`
+  const originalPrice = product.comparePrice && product.comparePrice > product.price
+    ? `${product.comparePrice.toFixed(2)} BRL`
     : null
 
   // Categoria Google (simplificada)

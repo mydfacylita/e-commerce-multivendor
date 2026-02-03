@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
       const availability = product.stock > 0 ? 'in_stock' : 'out_of_stock'
       const price = `${product.price.toFixed(2)} BRL`
-      const salePrice = product.compareAtPrice && product.compareAtPrice > product.price 
+      const salePrice = product.comparePrice && product.comparePrice > product.price 
         ? `${product.price.toFixed(2)} BRL` 
         : ''
       const gtin = product.ean || product.gtin || ''
