@@ -70,7 +70,7 @@ ${products.map(product => {
   const googleCategory = getGoogleCategory(product.category?.name || '')
   
   // GTIN/EAN
-  const gtin = product.ean || product.gtin || ''
+  const gtin = product.gtin || ''
   
   // Marca
   const brand = product.brand || 'MYDSHOP'

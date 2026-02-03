@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       const salePrice = product.comparePrice && product.comparePrice > product.price 
         ? `${product.price.toFixed(2)} BRL` 
         : ''
-      const gtin = product.ean || product.gtin || ''
+      const gtin = product.gtin || ''
       const brand = product.brand || 'MYDSHOP'
       
       const description = (product.description || product.name)
