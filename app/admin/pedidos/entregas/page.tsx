@@ -45,7 +45,7 @@ interface Stats {
 
 type FilterStatus = 'shipped' | 'out_for_delivery' | 'delivered' | 'failed'
 
-export default function VendedorEntregasPage() {
+export default function AdminEntregasPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [stats, setStats] = useState<Stats>({ shipped: 0, delivered: 0, failed: 0 })
   const [loading, setLoading] = useState(true)
@@ -72,7 +72,7 @@ export default function VendedorEntregasPage() {
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/vendedor/entregas?status=${filter}&search=${search}`)
+      const res = await fetch(`/api/admin/entregas?status=${filter}&search=${search}`)
       if (res.ok) {
         const data = await res.json()
         setOrders(data.orders || [])
@@ -129,7 +129,7 @@ export default function VendedorEntregasPage() {
 
     setProcessingOrder(selectedOrder.id)
     try {
-      const res = await fetch(`/api/vendedor/entregas/${selectedOrder.id}`, {
+      const res = await fetch(`/api/admin/entregas/${selectedOrder.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(deliveryForm)
@@ -155,7 +155,7 @@ export default function VendedorEntregasPage() {
 
     setProcessingOrder(selectedOrder.id)
     try {
-      const res = await fetch(`/api/vendedor/entregas/${selectedOrder.id}`, {
+      const res = await fetch(`/api/admin/entregas/${selectedOrder.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: failedReason })

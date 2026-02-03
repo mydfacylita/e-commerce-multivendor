@@ -187,7 +187,6 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
       children: [
         { label: 'Expedição', href: '/vendedor/expedicao', icon: FiBox },
         { label: 'Etiquetas', href: '/vendedor/expedicao/etiquetas', icon: FiPackage },
-        { label: 'Entregas', href: '/vendedor/entregas', icon: FiTruck },
       ]
     },
     {

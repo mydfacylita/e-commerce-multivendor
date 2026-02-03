@@ -198,6 +198,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Dropshipping</span>
                 </Link>
                 <Link
+                  href="/admin/pedidos/entregas"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/pedidos/entregas' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiTruck className="text-base" />
+                  <span>Entregas</span>
+                </Link>
+                <Link
                   href="/admin/devolucoes"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/devolucoes' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >

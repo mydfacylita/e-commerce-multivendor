@@ -6,17 +6,8 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user?.id || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
-
-    // Buscar seller do usuário
-    const seller = await prisma.seller.findUnique({
-      where: { userId: session.user.id }
-    })
-
-    if (!seller) {
-      return NextResponse.json({ error: 'Vendedor não encontrado' }, { status: 404 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -29,7 +20,7 @@ export async function GET(request: NextRequest) {
       // Pedidos despachados mas não entregues
       statusFilter = {
         status: 'SHIPPED',
-        shippingMethod: 'ENTREGA_PROPRIA',
+        shippingMethod: 'propria',
         deliveredAt: null
       }
     } else if (status === 'out_for_delivery') {
@@ -38,7 +29,7 @@ export async function GET(request: NextRequest) {
       today.setHours(0, 0, 0, 0)
       statusFilter = {
         status: 'SHIPPED',
-        shippingMethod: 'ENTREGA_PROPRIA',
+        shippingMethod: 'propria',
         deliveredAt: null,
         shippedAt: { gte: today }
       }
@@ -46,13 +37,13 @@ export async function GET(request: NextRequest) {
       // Entregues
       statusFilter = {
         status: 'DELIVERED',
-        shippingMethod: 'ENTREGA_PROPRIA'
+        shippingMethod: 'propria'
       }
     } else if (status === 'failed') {
       // Tentativas de entrega falhas (mais de 1 tentativa)
       statusFilter = {
         status: 'SHIPPED',
-        shippingMethod: 'ENTREGA_PROPRIA',
+        shippingMethod: 'propria',
         deliveredAt: null,
         deliveryAttempts: { gte: 1 }
       }
@@ -73,7 +64,6 @@ export async function GET(request: NextRequest) {
 
     const orders = await prisma.order.findMany({
       where: {
-        sellerId: seller.id,
         ...statusFilter,
         ...searchFilter
       },
@@ -100,25 +90,22 @@ export async function GET(request: NextRequest) {
     const [totalShipped, totalDelivered, totalFailed] = await Promise.all([
       prisma.order.count({
         where: {
-          sellerId: seller.id,
           status: 'SHIPPED',
-          shippingMethod: 'ENTREGA_PROPRIA',
+          shippingMethod: 'propria',
           deliveredAt: null
         }
       }),
       prisma.order.count({
         where: {
-          sellerId: seller.id,
           status: 'DELIVERED',
-          shippingMethod: 'ENTREGA_PROPRIA',
+          shippingMethod: 'propria',
           deliveredAt: { not: null }
         }
       }),
       prisma.order.count({
         where: {
-          sellerId: seller.id,
           status: 'SHIPPED',
-          shippingMethod: 'ENTREGA_PROPRIA',
+          shippingMethod: 'propria',
           deliveredAt: null,
           deliveryAttempts: { gte: 1 }
         }

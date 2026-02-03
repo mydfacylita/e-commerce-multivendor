@@ -10,23 +10,12 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user?.id || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const seller = await prisma.seller.findUnique({
-      where: { userId: session.user.id }
-    })
-
-    if (!seller) {
-      return NextResponse.json({ error: 'Vendedor não encontrado' }, { status: 404 })
-    }
-
     const order = await prisma.order.findFirst({
-      where: {
-        id: params.id,
-        sellerId: seller.id
-      }
+      where: { id: params.id }
     })
 
     if (!order) {
@@ -73,23 +62,12 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user?.id || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const seller = await prisma.seller.findUnique({
-      where: { userId: session.user.id }
-    })
-
-    if (!seller) {
-      return NextResponse.json({ error: 'Vendedor não encontrado' }, { status: 404 })
-    }
-
     const order = await prisma.order.findFirst({
-      where: {
-        id: params.id,
-        sellerId: seller.id
-      }
+      where: { id: params.id }
     })
 
     if (!order) {
