@@ -55,7 +55,7 @@ ${products.map(product => {
   const availability = product.stock > 0 ? 'in_stock' : 'out_of_stock'
   
   // Condição
-  const condition = product.supplier ? 'new' : 'new'
+  const condition = 'new'
   
   // Preço
   const price = `${product.price.toFixed(2)} BRL`
