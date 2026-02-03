@@ -183,11 +183,14 @@ export default function PerfilPage() {
   }
 
   if (status === 'loading') {
-    return <LoadingSpinner message="Carregando perfil..." />
+    return <LoadingSpinner message="Carregando Perfil..." />
   }
+
+
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+
       <h1 className="text-4xl font-bold mb-8">Meu Perfil</h1>
 
       <div className="grid md:grid-cols-3 gap-6">

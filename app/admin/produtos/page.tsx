@@ -203,9 +203,19 @@ export default async function AdminProdutosPage({
                     </span>
                   </td>
                   <td className="py-3 px-3 lg:py-4 lg:px-6">
-                    <p className="font-semibold text-sm lg:text-base">R$ {product.price.toFixed(2)}</p>
+                    <p className={`font-semibold text-sm lg:text-base ${
+                      product.comparePrice && product.price > product.comparePrice 
+                        ? 'text-red-600' 
+                        : ''
+                    }`}>
+                      R$ {product.price.toFixed(2)}
+                    </p>
                     {product.comparePrice && (
-                      <p className="text-xs text-gray-500 line-through">
+                      <p className={`text-xs line-through ${
+                        product.price > product.comparePrice 
+                          ? 'text-red-400' 
+                          : 'text-gray-500'
+                      }`}>
                         R$ {product.comparePrice.toFixed(2)}
                       </p>
                     )}

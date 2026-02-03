@@ -12,6 +12,7 @@ import LoadingScreen from '@/components/LoadingScreen'
 import AnalyticsTracker from '@/components/AnalyticsTracker'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
 import FacebookPixel from '@/components/FacebookPixel'
+import OrganizationSchema, { WebsiteSchema, LocalBusinessSchema } from '@/components/StructuredData'
 import { prisma } from '@/lib/prisma'
 // NOTA: Jobs de background agora são iniciados via instrumentation.ts (Next.js 14)
 // Não usar mais: import '@/lib/init'
@@ -43,12 +44,57 @@ async function getFacebookPixelId(): Promise<string | null> {
 }
 
 export const metadata: Metadata = {
-  title: 'MYDSHOP - Marketplace Online',
-  description: 'Sua loja online completa e moderna',
+  metadataBase: new URL('https://mydshop.com.br'),
+  title: {
+    default: 'MYDSHOP - Marketplace Online | Compre com os Melhores Preços',
+    template: '%s | MYDSHOP',
+  },
+  description: 'MYDSHOP - Sua loja online com produtos de qualidade, preços imbatíveis e entrega para todo o Brasil. Eletrônicos, moda, casa e muito mais!',
+  keywords: ['loja online', 'marketplace', 'comprar online', 'promoções', 'ofertas', 'eletronicos', 'moda', 'casa', 'mydshop', 'ecommerce brasil'],
+  authors: [{ name: 'MYDSHOP' }],
+  creator: 'MYDSHOP',
+  publisher: 'MYDSHOP',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
     apple: '/favicon.svg',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    url: 'https://mydshop.com.br',
+    siteName: 'MYDSHOP',
+    title: 'MYDSHOP - Marketplace Online | Compre com os Melhores Preços',
+    description: 'Sua loja online com produtos de qualidade, preços imbatíveis e entrega para todo o Brasil.',
+    images: [
+      {
+        url: '/logo.png',
+        width: 800,
+        height: 600,
+        alt: 'MYDSHOP - Marketplace Online',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'MYDSHOP - Marketplace Online',
+    description: 'Sua loja online com produtos de qualidade e preços imbatíveis!',
+    images: ['/logo.png'],
+  },
+  verification: {
+    // Adicione aqui o código de verificação do Google Search Console
+    // google: 'seu-codigo-google',
   },
 }
 
@@ -102,6 +148,11 @@ export default async function RootLayout({
         )}
       </head>
       <body className={inter.className}>
+        {/* Dados Estruturados para SEO */}
+        <OrganizationSchema />
+        <WebsiteSchema />
+        <LocalBusinessSchema />
+        
         <GoogleAnalytics gaId={gaId || undefined} />
         <FacebookPixel pixelId={fbPixelId || undefined} />
         <Providers>
