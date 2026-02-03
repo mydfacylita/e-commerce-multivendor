@@ -11,6 +11,7 @@ import { NavigationProvider } from '@/components/NavigationProvider'
 import LoadingScreen from '@/components/LoadingScreen'
 import AnalyticsTracker from '@/components/AnalyticsTracker'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
+import GoogleAds from '@/components/GoogleAds'
 import FacebookPixel from '@/components/FacebookPixel'
 import OrganizationSchema, { WebsiteSchema, LocalBusinessSchema } from '@/components/StructuredData'
 import { prisma } from '@/lib/prisma'
@@ -154,6 +155,7 @@ export default async function RootLayout({
         <LocalBusinessSchema />
         
         <GoogleAnalytics gaId={gaId || undefined} />
+        <GoogleAds adsId="AW-17927166534" />
         <FacebookPixel pixelId={fbPixelId || undefined} />
         <Providers>
           <NavigationProvider>
