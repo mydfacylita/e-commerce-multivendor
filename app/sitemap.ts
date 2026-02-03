@@ -100,7 +100,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: {
         seller: {
           select: {
-            slug: true,
+            storeSlug: true,
             updatedAt: true,
           },
         },
@@ -108,9 +108,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
 
     sellerUrls = sellers
-      .filter(s => s.seller?.slug)
+      .filter(s => s.seller?.storeSlug)
       .map((seller) => ({
-        url: `${baseUrl}/loja/${seller.seller!.slug}`,
+        url: `${baseUrl}/loja/${seller.seller!.storeSlug}`,
         lastModified: seller.seller!.updatedAt,
         changeFrequency: 'weekly' as const,
         priority: 0.5,
