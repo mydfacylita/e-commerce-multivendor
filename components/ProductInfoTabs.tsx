@@ -40,42 +40,99 @@ export default function ProductInfoTabs({ product, processedSpecs, processedAttr
       {/* Conteúdo das abas */}
       <div className="p-4 bg-white">
         {activeTab === 'info' && (
-          <dl className="grid grid-cols-2 gap-3">
-            <div>
-              <dt className="text-sm text-gray-500">Categoria</dt>
-              <dd className="text-sm font-semibold text-primary-600">{product.category.name}</dd>
-            </div>
-            {product.brand && (
+          <div className="space-y-4">
+            {/* Informações Básicas */}
+            <dl className="grid grid-cols-2 gap-3">
               <div>
-                <dt className="text-sm text-gray-500">Marca</dt>
-                <dd className="text-sm font-semibold">{product.brand}</dd>
+                <dt className="text-sm text-gray-500">Categoria</dt>
+                <dd className="text-sm font-semibold text-primary-600">{product.category?.name || 'Não definida'}</dd>
+              </div>
+              {product.brand && (
+                <div>
+                  <dt className="text-sm text-gray-500">Marca</dt>
+                  <dd className="text-sm font-semibold">{product.brand}</dd>
+                </div>
+              )}
+              {product.model && (
+                <div>
+                  <dt className="text-sm text-gray-500">Modelo</dt>
+                  <dd className="text-sm font-semibold">{product.model}</dd>
+                </div>
+              )}
+              {product.color && (
+                <div>
+                  <dt className="text-sm text-gray-500">Cor</dt>
+                  <dd className="text-sm font-semibold">{product.color}</dd>
+                </div>
+              )}
+              {product.gtin && (
+                <div>
+                  <dt className="text-sm text-gray-500">GTIN/EAN</dt>
+                  <dd className="text-sm font-semibold font-mono">{product.gtin}</dd>
+                </div>
+              )}
+              <div>
+                <dt className="text-sm text-gray-500">Disponibilidade</dt>
+                <dd className="text-sm font-semibold">
+                  {product.stock > 0 ? `${product.stock} unidades` : 'Sob consulta'}
+                </dd>
+              </div>
+            </dl>
+
+            {/* Dimensões e Peso */}
+            {(product.weight || product.length || product.width || product.height) && (
+              <div className="pt-4 border-t border-gray-200">
+                <h4 className="font-semibold text-sm mb-3 text-gray-700 flex items-center gap-2">
+                  📦 Dimensões e Peso
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Dimensões do Produto */}
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Produto</h5>
+                    <dl className="space-y-1">
+                      {product.weight && (
+                        <div className="flex justify-between">
+                          <dt className="text-sm text-gray-600">Peso</dt>
+                          <dd className="text-sm font-semibold">{(product.weight * 1000).toFixed(0)}g</dd>
+                        </div>
+                      )}
+                      {(product.length || product.width || product.height) && (
+                        <div className="flex justify-between">
+                          <dt className="text-sm text-gray-600">Dimensões</dt>
+                          <dd className="text-sm font-semibold">
+                            {product.length || '—'} × {product.width || '—'} × {product.height || '—'} cm
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+
+                  {/* Dimensões com Embalagem */}
+                  {(product.weightWithPackage || product.lengthWithPackage || product.widthWithPackage || product.heightWithPackage) && (
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <h5 className="text-xs font-semibold text-blue-600 uppercase mb-2">📦 Com Embalagem</h5>
+                      <dl className="space-y-1">
+                        {product.weightWithPackage && (
+                          <div className="flex justify-between">
+                            <dt className="text-sm text-gray-600">Peso</dt>
+                            <dd className="text-sm font-semibold">{(product.weightWithPackage * 1000).toFixed(0)}g</dd>
+                          </div>
+                        )}
+                        {(product.lengthWithPackage || product.widthWithPackage || product.heightWithPackage) && (
+                          <div className="flex justify-between">
+                            <dt className="text-sm text-gray-600">Dimensões</dt>
+                            <dd className="text-sm font-semibold">
+                              {product.lengthWithPackage || '—'} × {product.widthWithPackage || '—'} × {product.heightWithPackage || '—'} cm
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
-            {product.model && (
-              <div>
-                <dt className="text-sm text-gray-500">Modelo</dt>
-                <dd className="text-sm font-semibold">{product.model}</dd>
-              </div>
-            )}
-            {product.color && (
-              <div>
-                <dt className="text-sm text-gray-500">Cor</dt>
-                <dd className="text-sm font-semibold">{product.color}</dd>
-              </div>
-            )}
-            {product.gtin && (
-              <div>
-                <dt className="text-sm text-gray-500">GTIN/EAN</dt>
-                <dd className="text-sm font-semibold font-mono">{product.gtin}</dd>
-              </div>
-            )}
-            <div>
-              <dt className="text-sm text-gray-500">Disponibilidade</dt>
-              <dd className="text-sm font-semibold">
-                {product.stock > 0 ? `${product.stock} unidades` : 'Sob consulta'}
-              </dd>
-            </div>
-          </dl>
+          </div>
         )}
 
         {activeTab === 'specs' && (
