@@ -434,8 +434,8 @@ export default function CheckoutPage() {
           let grupoPrazoMax = 0
           let grupoPrazoDesc = ''
           let grupoMethod = 'internacional'
-          let grupoService = 'AliExpress Standard'
-          let grupoCarrier = 'AliExpress'
+          let grupoService = 'Envio Internacional'
+          let grupoCarrier = 'Fornecedor Internacional'
           
           for (const item of grupo.itens) {
             const response = await fetch('/api/shipping/quote', {
@@ -467,16 +467,16 @@ export default function CheckoutPage() {
                 itemPrazo = matchDias ? parseInt(matchDias[1]) : 10
                 // Capturar dados de transportadora do AliExpress
                 grupoMethod = maisBarata.method || 'internacional'
-                grupoService = maisBarata.name || maisBarata.service || 'AliExpress Standard'
-                grupoCarrier = maisBarata.carrier || 'AliExpress'
+                grupoService = maisBarata.name || maisBarata.service || 'Envio Internacional'
+                grupoCarrier = maisBarata.carrier || 'Fornecedor Internacional'
               } else {
                 itemFrete = data.shippingCost || 0
                 itemPrazoDesc = typeof data.deliveryDays === 'string' ? data.deliveryDays : ''
                 const matchDias = String(data.deliveryDays || '').match(/(\d+)/)
                 itemPrazo = matchDias ? parseInt(matchDias[1]) : (typeof data.deliveryDays === 'number' ? data.deliveryDays : 10)
                 grupoMethod = data.shippingMethod || 'internacional'
-                grupoService = data.shippingService || 'AliExpress Standard'
-                grupoCarrier = data.shippingCarrier || 'AliExpress'
+                grupoService = data.shippingService || 'Envio Internacional'
+                grupoCarrier = data.shippingCarrier || 'Fornecedor Internacional'
               }
               
               grupoFreteTotal += itemFrete

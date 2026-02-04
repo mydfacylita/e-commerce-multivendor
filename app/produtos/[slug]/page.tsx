@@ -145,7 +145,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         }
       },
       supplier: true,  // Incluir informações do fornecedor
-      seller: true  // Para identificação de origem (frete)
+      seller: true  // Informações do vendedor (stats calculados separadamente)
     },
   })
 
@@ -245,6 +245,68 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     totalQuestions,
     answeredCount,
     unansweredCount
+  }
+
+  // Buscar estatísticas de reputação do vendedor
+  let sellerStats = null
+  if (productRaw.seller) {
+    // Buscar média de avaliações de todos os produtos do vendedor
+    const sellerReviewStats = await prisma.productReview.aggregate({
+      where: {
+        product: {
+          sellerId: productRaw.seller.id
+        },
+        isApproved: true
+      },
+      _avg: { rating: true },
+      _count: { rating: true }
+    })
+    
+    // Contar apenas produtos ATIVOS do vendedor
+    const activeProductsCount = await prisma.product.count({
+      where: {
+        sellerId: productRaw.seller.id,
+        active: true
+      }
+    })
+    
+    // Contar apenas vendas CONCRETIZADAS (pagas/enviadas/entregues)
+    const completedSalesCount = await prisma.order.count({
+      where: {
+        sellerId: productRaw.seller.id,
+        paymentStatus: {
+          in: ['PAID', 'COMPLETED']
+        },
+        status: {
+          in: ['PROCESSING', 'SHIPPED', 'DELIVERED']
+        }
+      }
+    })
+    
+    // Calcular tempo desde o cadastro
+    const sellerCreatedAt = productRaw.seller.createdAt
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - sellerCreatedAt.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    const diffMonths = Math.floor(diffDays / 30)
+    const diffYears = Math.floor(diffDays / 365)
+    
+    let memberSince = ''
+    if (diffYears >= 1) {
+      memberSince = `${diffYears} ano${diffYears > 1 ? 's' : ''}`
+    } else if (diffMonths >= 1) {
+      memberSince = `${diffMonths} ${diffMonths > 1 ? 'meses' : 'mês'}`
+    } else {
+      memberSince = `${diffDays} dia${diffDays > 1 ? 's' : ''}`
+    }
+    
+    sellerStats = {
+      averageRating: sellerReviewStats._avg.rating || 0,
+      totalReviews: sellerReviewStats._count.rating,
+      totalProducts: activeProductsCount,
+      totalSales: completedSalesCount,
+      memberSince
+    }
   }
 
   // Log do que vem do banco
@@ -367,30 +429,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           processedSpecs={processedSpecs}
           processedAttrs={processedAttrs}
           selectedSkus={selectedSkus}
+          seller={productRaw.seller ? {
+            id: productRaw.seller.id,
+            storeName: productRaw.seller.storeName,
+            storeSlug: productRaw.seller.storeSlug,
+            storeDescription: productRaw.seller.storeDescription,
+            storeLogo: productRaw.seller.storeLogo,
+            status: productRaw.seller.status
+          } : null}
+          sellerStats={sellerStats}
         />
-      
-        {/* Bloco de garantias abaixo das infos do produto */}
-        <div className="mt-8 pt-8 border-t border-gray-100">
-          <h3 className="font-semibold text-lg mb-4">🛡️ Garantias</h3>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="text-green-600">✓</span>
-              <span>Produto conforme anunciado ou seu dinheiro de volta</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="text-green-600">✓</span>
-              <span>Suporte completo pós-venda</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="text-green-600">✓</span>
-              <span>Garantia contra defeitos de fabricação</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <span className="text-green-600">✓</span>
-              <span>Compra 100% segura e protegida</span>
-            </div>
-          </div>
-        </div>
 
         {/* Seção de Avaliações */}
         <div className="mt-8 pt-8 border-t border-gray-100">
