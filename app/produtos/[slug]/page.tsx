@@ -440,6 +440,61 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           sellerStats={sellerStats}
         />
 
+        {/* Produtos Relacionados */}
+        {relatedProducts.length > 0 && (
+          <div className="mt-8 pt-8 border-t border-gray-100">
+            <h2 className="text-2xl font-bold mb-6">🔥 Produtos Relacionados</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              {relatedProducts.map((relatedProduct) => {
+                const imageUrl = Array.isArray(relatedProduct.images) && relatedProduct.images.length > 0 
+                  ? relatedProduct.images[0] 
+                  : '/placeholder-product.jpg'
+                
+                const discount = relatedProduct.comparePrice
+                  ? Math.round(((relatedProduct.comparePrice - relatedProduct.price) / relatedProduct.comparePrice) * 100)
+                  : 0
+
+                return (
+                  <Link 
+                    key={relatedProduct.id} 
+                    href={`/produtos/${relatedProduct.slug}`}
+                    className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden group"
+                  >
+                    <div className="relative h-48 bg-gray-100">
+                      <Image
+                        src={imageUrl}
+                        alt={relatedProduct.name}
+                        fill
+                        className="object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                      {discount > 0 && (
+                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                          -{discount}%
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-semibold text-gray-800 mb-2 line-clamp-2 h-12">
+                        {relatedProduct.name}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl font-bold text-primary-600">
+                          R$ {relatedProduct.price.toFixed(2)}
+                        </span>
+                        {relatedProduct.comparePrice && (
+                          <span className="text-sm text-gray-400 line-through">
+                            R$ {relatedProduct.comparePrice.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Seção de Avaliações */}
         <div className="mt-8 pt-8 border-t border-gray-100">
           <ProductReviews
@@ -485,61 +540,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           />
         </div>
       </div>
-
-      {/* Produtos Relacionados */}
-      {relatedProducts.length > 0 && (
-        <div className="mt-16">
-          <h2 className="text-3xl font-bold mb-8 text-center">🔥 Produtos Relacionados</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-            {relatedProducts.map((relatedProduct) => {
-              const imageUrl = Array.isArray(relatedProduct.images) && relatedProduct.images.length > 0 
-                ? relatedProduct.images[0] 
-                : '/placeholder-product.jpg'
-              
-              const discount = relatedProduct.comparePrice
-                ? Math.round(((relatedProduct.comparePrice - relatedProduct.price) / relatedProduct.comparePrice) * 100)
-                : 0
-
-              return (
-                <Link 
-                  key={relatedProduct.id} 
-                  href={`/produtos/${relatedProduct.slug}`}
-                  className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden group"
-                >
-                  <div className="relative h-48 bg-gray-100">
-                    <Image
-                      src={imageUrl}
-                      alt={relatedProduct.name}
-                      fill
-                      className="object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                    {discount > 0 && (
-                      <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
-                        -{discount}%
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-800 mb-2 line-clamp-2 h-12">
-                      {relatedProduct.name}
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl font-bold text-primary-600">
-                        R$ {relatedProduct.price.toFixed(2)}
-                      </span>
-                      {relatedProduct.comparePrice && (
-                        <span className="text-sm text-gray-400 line-through">
-                          R$ {relatedProduct.comparePrice.toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

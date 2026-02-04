@@ -10,6 +10,240 @@ import { isSupplierInternacional } from '@/lib/import-tax'
 import { FiShoppingBag, FiMinus, FiPlus } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
+// ========================================
+// 🌍 MAPA DE TRADUÇÕES INGLÊS → PORTUGUÊS
+// ========================================
+const TRANSLATIONS: Record<string, string> = {
+  // Nomes de propriedades
+  'Color': 'Cor',
+  'color': 'Cor',
+  'Size': 'Tamanho',
+  'size': 'Tamanho',
+  'Ships From': 'Envia De',
+  'Ship From': 'Envia De',
+  'ships from': 'Envia De',
+  'ship from': 'Envia De',
+  'Shoe Size': 'Tamanho do Sapato',
+  'shoe size': 'Tamanho do Sapato',
+  'Bundle': 'Kit',
+  'bundle': 'Kit',
+  'Style': 'Estilo',
+  'style': 'Estilo',
+  'Length': 'Comprimento',
+  'length': 'Comprimento',
+  'Material': 'Material',
+  'material': 'Material',
+  'Pattern': 'Padrão',
+  'pattern': 'Padrão',
+  'Type': 'Tipo',
+  'type': 'Tipo',
+  'Model': 'Modelo',
+  'model': 'Modelo',
+  'Version': 'Versão',
+  'version': 'Versão',
+  'Quantity': 'Quantidade',
+  'quantity': 'Quantidade',
+  'Package': 'Pacote',
+  'package': 'Pacote',
+  'Plug Type': 'Tipo de Plugue',
+  'plug type': 'Tipo de Plugue',
+  'Power': 'Potência',
+  'power': 'Potência',
+  'Voltage': 'Voltagem',
+  'voltage': 'Voltagem',
+  
+  // Valores de opções - Países/Locais
+  'China': 'China',
+  'China Mainland': 'China',
+  'CN': 'China',
+  'United States': 'Estados Unidos',
+  'US': 'Estados Unidos',
+  'USA': 'Estados Unidos',
+  'Spain': 'Espanha',
+  'ES': 'Espanha',
+  'Poland': 'Polônia',
+  'PL': 'Polônia',
+  'France': 'França',
+  'FR': 'França',
+  'Germany': 'Alemanha',
+  'DE': 'Alemanha',
+  'Italy': 'Itália',
+  'IT': 'Itália',
+  'Russia': 'Rússia',
+  'RU': 'Rússia',
+  'Brazil': 'Brasil',
+  'BR': 'Brasil',
+  'Australia': 'Austrália',
+  'AU': 'Austrália',
+  'United Kingdom': 'Reino Unido',
+  'UK': 'Reino Unido',
+  'Japan': 'Japão',
+  'JP': 'Japão',
+  'Korea': 'Coreia',
+  'KR': 'Coreia',
+  'Turkey': 'Turquia',
+  'TR': 'Turquia',
+  'Belgium': 'Bélgica',
+  'BE': 'Bélgica',
+  'Czech Republic': 'República Tcheca',
+  'CZ': 'República Tcheca',
+  'Saudi Arabia': 'Arábia Saudita',
+  'SA': 'Arábia Saudita',
+  'Thailand': 'Tailândia',
+  'TH': 'Tailândia',
+  
+  // Valores de opções - Cores comuns
+  'White': 'Branco',
+  'white': 'Branco',
+  'Black': 'Preto',
+  'black': 'Preto',
+  'Red': 'Vermelho',
+  'red': 'Vermelho',
+  'Blue': 'Azul',
+  'blue': 'Azul',
+  'Green': 'Verde',
+  'green': 'Verde',
+  'Yellow': 'Amarelo',
+  'yellow': 'Amarelo',
+  'Purple': 'Roxo',
+  'purple': 'Roxo',
+  'Pink': 'Rosa',
+  'pink': 'Rosa',
+  'Orange': 'Laranja',
+  'orange': 'Laranja',
+  'Gray': 'Cinza',
+  'grey': 'Cinza',
+  'Gray': 'Cinza',
+  'Brown': 'Marrom',
+  'brown': 'Marrom',
+  'Beige': 'Bege',
+  'beige': 'Bege',
+  'Navy': 'Azul Marinho',
+  'navy': 'Azul Marinho',
+  'Navy Blue': 'Azul Marinho',
+  'Khaki': 'Cáqui',
+  'khaki': 'Cáqui',
+  'Gold': 'Dourado',
+  'gold': 'Dourado',
+  'Silver': 'Prata',
+  'silver': 'Prata',
+  'Rose Gold': 'Rosé',
+  'rose gold': 'Rosé',
+  'Champagne': 'Champanhe',
+  'champagne': 'Champanhe',
+  'Light Blue': 'Azul Claro',
+  'Dark Blue': 'Azul Escuro',
+  'Light Green': 'Verde Claro',
+  'Dark Green': 'Verde Escuro',
+  'Light Gray': 'Cinza Claro',
+  'Dark Gray': 'Cinza Escuro',
+  'Multicolor': 'Multicolor',
+  'multicolor': 'Multicolor',
+  'Transparent': 'Transparente',
+  'transparent': 'Transparente',
+  'Clear': 'Transparente',
+  'clear': 'Transparente',
+  
+  // Valores de opções - Materiais
+  'Cotton': 'Algodão',
+  'cotton': 'Algodão',
+  'Polyester': 'Poliéster',
+  'polyester': 'Poliéster',
+  'Leather': 'Couro',
+  'leather': 'Couro',
+  'PU Leather': 'Couro Sintético',
+  'Silk': 'Seda',
+  'silk': 'Seda',
+  'Wool': 'Lã',
+  'wool': 'Lã',
+  'Linen': 'Linho',
+  'linen': 'Linho',
+  'Nylon': 'Nylon',
+  'nylon': 'Nylon',
+  'Velvet': 'Veludo',
+  'velvet': 'Veludo',
+  'Denim': 'Jeans',
+  'denim': 'Jeans',
+  'Rubber': 'Borracha',
+  'rubber': 'Borracha',
+  'Plastic': 'Plástico',
+  'plastic': 'Plástico',
+  'Metal': 'Metal',
+  'metal': 'Metal',
+  'Wood': 'Madeira',
+  'wood': 'Madeira',
+  'Glass': 'Vidro',
+  'glass': 'Vidro',
+  'Stainless Steel': 'Aço Inox',
+  'stainless steel': 'Aço Inox',
+  
+  // Valores de opções - Tamanhos comuns
+  'Small': 'Pequeno',
+  'small': 'Pequeno',
+  'Medium': 'Médio',
+  'medium': 'Médio',
+  'Large': 'Grande',
+  'large': 'Grande',
+  'X-Large': 'Extra Grande',
+  'Extra Large': 'Extra Grande',
+  'X-Small': 'Extra Pequeno',
+  'Extra Small': 'Extra Pequeno',
+  'One Size': 'Tamanho Único',
+  'one size': 'Tamanho Único',
+  'Free Size': 'Tamanho Único',
+  'free size': 'Tamanho Único',
+  
+  // Outros termos comuns
+  'Default': 'Padrão',
+  'default': 'Padrão',
+  'Standard': 'Padrão',
+  'standard': 'Padrão',
+  'None': 'Nenhum',
+  'none': 'Nenhum',
+  'With': 'Com',
+  'with': 'Com',
+  'Without': 'Sem',
+  'without': 'Sem',
+  'Set': 'Conjunto',
+  'set': 'Conjunto',
+  'Pair': 'Par',
+  'pair': 'Par',
+  'Pack': 'Pacote',
+  'pack': 'Pacote',
+  'Box': 'Caixa',
+  'box': 'Caixa',
+  'Piece': 'Unidade',
+  'piece': 'Unidade',
+  'Pieces': 'Unidades',
+  'pieces': 'Unidades',
+  'EU Plug': 'Plug EU',
+  'US Plug': 'Plug US',
+  'UK Plug': 'Plug UK',
+  'AU Plug': 'Plug AU',
+  'BR Plug': 'Plug BR',
+}
+
+// Função para traduzir texto
+function translateText(text: string): string {
+  if (!text) return text
+  
+  // Verifica tradução direta
+  if (TRANSLATIONS[text]) {
+    return TRANSLATIONS[text]
+  }
+  
+  // Tenta traduzir partes do texto (ex: "White Velvet" → "Branco Veludo")
+  let translated = text
+  for (const [en, pt] of Object.entries(TRANSLATIONS)) {
+    if (translated.toLowerCase().includes(en.toLowerCase())) {
+      const regex = new RegExp(en, 'gi')
+      translated = translated.replace(regex, pt)
+    }
+  }
+  
+  return translated
+}
+
 interface Variant {
   size: string
   color: string
@@ -478,9 +712,9 @@ export default function ProductSelectionWrapper({
             return (
               <div key={property.id} className="mb-6">
                 <h3 className="font-semibold text-lg mb-3 capitalize">
-                  {property.name}
+                  {translateText(property.name)}
                   <span className="text-sm font-normal text-gray-500 ml-2">
-                    ({options.filter(o => o.available).length} disponíveis)
+                    ({options.filter(o => o.available).length} Disponíveis)
                   </span>
                 </h3>
                 <div className="flex flex-wrap gap-3">
@@ -500,16 +734,16 @@ export default function ProductSelectionWrapper({
                       {option.image && (
                         <img 
                           src={option.image} 
-                          alt={option.label || option.value}
+                          alt={translateText(option.label || option.value)}
                           className="w-8 h-8 rounded object-cover"
                         />
                       )}
-                      <span className="font-medium">{option.label || option.value}</span>
+                      <span className="font-medium">{translateText(option.label || option.value)}</span>
                     </button>
                   ))}
                 </div>
                 {!selectedValue && (
-                  <p className="text-sm text-red-500 mt-2">* Selecione {property.name.toLowerCase()}</p>
+                  <p className="text-sm text-red-500 mt-2">* Selecione {translateText(property.name).toLowerCase()}</p>
                 )}
               </div>
             )
