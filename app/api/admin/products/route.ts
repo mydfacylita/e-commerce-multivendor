@@ -290,6 +290,8 @@ export async function POST(req: Request) {
         variants: data.variants,
         sizeType: data.sizeType,
         sizeCategory: data.sizeCategory,
+        // Atributos personalizados
+        attributes: data.attributes,
         bookTitle: data.bookTitle,
         bookAuthor: data.bookAuthor,
         bookGenre: data.bookGenre,

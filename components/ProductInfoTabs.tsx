@@ -1,6 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+
+// Interface para atributos personalizados do vendedor
+interface CustomAttribute {
+  nome: string
+  valor: string
+}
 
 interface ProductInfoTabsProps {
   product: any
@@ -10,6 +16,26 @@ interface ProductInfoTabsProps {
 
 export default function ProductInfoTabs({ product, processedSpecs, processedAttrs }: ProductInfoTabsProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'specs'>('info')
+
+  // Parse dos atributos personalizados do vendedor
+  const customAttributes = useMemo<CustomAttribute[]>(() => {
+    if (!product.attributes) return []
+    
+    try {
+      let attrs = product.attributes
+      // Parse se for string JSON
+      if (typeof attrs === 'string') {
+        attrs = JSON.parse(attrs)
+      }
+      // Verificar se é array no formato [{nome, valor}]
+      if (Array.isArray(attrs)) {
+        return attrs.filter((a: any) => a.nome && a.valor)
+      }
+      return []
+    } catch {
+      return []
+    }
+  }, [product.attributes])
 
   return (
     <div className="mt-6 bg-gray-50 rounded-lg overflow-hidden">
@@ -137,9 +163,26 @@ export default function ProductInfoTabs({ product, processedSpecs, processedAttr
 
         {activeTab === 'specs' && (
           <div className="space-y-4">
+            {/* Atributos Personalizados do Vendedor */}
+            {customAttributes.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-gray-700 flex items-center gap-2">
+                  🏷️ Características do Produto
+                </h4>
+                <dl className="space-y-2">
+                  {customAttributes.map((attr, index) => (
+                    <div key={index} className="flex items-start border-b border-gray-100 pb-2">
+                      <dt className="text-sm text-gray-600 min-w-[140px] font-medium">{attr.nome}</dt>
+                      <dd className="text-sm text-gray-800">{attr.valor}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+
             {/* Especificações Técnicas */}
             {Object.keys(processedSpecs).length > 0 && (
-              <div>
+              <div className={customAttributes.length > 0 ? 'pt-4 border-t border-gray-200' : ''}>
                 <h4 className="font-semibold text-sm mb-2 text-gray-700">Especificações Técnicas</h4>
                 <dl className="space-y-2">
                   {Object.entries(processedSpecs).map(([key, value]: [string, any]) => (
@@ -168,7 +211,7 @@ export default function ProductInfoTabs({ product, processedSpecs, processedAttr
             )}
 
             {/* Mensagem se não houver características */}
-            {Object.keys(processedSpecs).length === 0 && Object.keys(processedAttrs).length === 0 && (
+            {customAttributes.length === 0 && Object.keys(processedSpecs).length === 0 && Object.keys(processedAttrs).length === 0 && (
               <p className="text-sm text-gray-500 italic text-center py-4">
                 Nenhuma característica técnica disponível para este produto.
               </p>

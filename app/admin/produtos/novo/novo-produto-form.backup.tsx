@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { FiArrowLeft, FiPackage, FiDollarSign, FiBox, FiTruck, FiTag, FiImage, FiFileText, FiLayers, FiCheck, FiAlertCircle, FiList, FiPlus, FiTrash2 } from 'react-icons/fi'
+import { FiArrowLeft, FiPackage, FiDollarSign, FiBox, FiTruck, FiTag, FiImage, FiFileText, FiLayers, FiCheck, FiAlertCircle } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import ImageUploader from '@/components/admin/ImageUploader'
 import ProductVariantsManager from '@/components/admin/ProductVariantsManager'
@@ -38,13 +38,7 @@ interface NovoProductFormProps {
 }
 
 // Definição das abas
-type TabId = 'basico' | 'precos' | 'dimensoes' | 'imagens' | 'variacoes' | 'atributos' | 'especificacoes' | 'dropshipping' | 'tributacao'
-
-// Interface para atributos personalizados
-interface ProductAttribute {
-  nome: string
-  valor: string
-}
+type TabId = 'basico' | 'precos' | 'dimensoes' | 'imagens' | 'variacoes' | 'especificacoes' | 'dropshipping' | 'tributacao'
 
 interface Tab {
   id: TabId
@@ -59,7 +53,6 @@ const TABS: Tab[] = [
   { id: 'dimensoes', name: 'Peso e Dimensões', icon: <FiBox />, description: 'Medidas para frete' },
   { id: 'imagens', name: 'Imagens', icon: <FiImage />, description: 'Fotos do produto' },
   { id: 'variacoes', name: 'Variações', icon: <FiLayers />, description: 'Tamanhos e cores' },
-  { id: 'atributos', name: 'Atributos', icon: <FiList />, description: 'Características livres' },
   { id: 'especificacoes', name: 'Especificações', icon: <FiTag />, description: 'GTIN, marca, modelo' },
   { id: 'dropshipping', name: 'Dropshipping', icon: <FiTruck />, description: 'Fornecedor externo' },
   { id: 'tributacao', name: 'Tributação', icon: <FiFileText />, description: 'NCM, ICMS para NF-e' },
@@ -135,8 +128,6 @@ export default function NovoProductForm({ categories, suppliers }: NovoProductFo
     unidadeComercial: 'UN',
     unidadeTributavel: 'UN',
     tributacaoEspecial: 'normal',
-    // Atributos personalizados
-    attributes: [] as ProductAttribute[],
   })
 
   useEffect(() => {
@@ -192,9 +183,6 @@ export default function NovoProductForm({ categories, suppliers }: NovoProductFo
         return 'empty'
       case 'variacoes':
         if (formData.variants) return 'complete'
-        return 'empty'
-      case 'atributos':
-        if (formData.attributes.length > 0) return 'complete'
         return 'empty'
       case 'especificacoes':
         if (formData.gtin || formData.brand) return 'complete'
@@ -296,7 +284,6 @@ export default function NovoProductForm({ categories, suppliers }: NovoProductFo
       bookGenre: formData.bookGenre || null,
       bookPublisher: formData.bookPublisher || null,
       bookIsbn: formData.bookIsbn || null,
-      attributes: formData.attributes.length > 0 ? JSON.stringify(formData.attributes) : null,
     }
 
     try {
@@ -725,116 +712,6 @@ export default function NovoProductForm({ categories, suppliers }: NovoProductFo
               }}
               basePrice={formData.price ? parseFloat(formData.price) : undefined}
             />
-          </div>
-        )
-
-      // ==========================================
-      // ABA: ATRIBUTOS PERSONALIZADOS
-      // ==========================================
-      case 'atributos':
-        return (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold mb-4">📋 Atributos Personalizados</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Adicione características livres ao seu produto. Ex: Peso, Origem, Material, Sabor, etc.
-            </p>
-            
-            {/* Lista de atributos existentes */}
-            <div className="space-y-3">
-              {formData.attributes.map((attr, index) => (
-                <div key={index} className="flex gap-3 items-start bg-gray-50 p-3 rounded-lg border">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Nome do Atributo</label>
-                    <input
-                      type="text"
-                      value={attr.nome}
-                      onChange={(e) => {
-                        const newAttrs = [...formData.attributes]
-                        newAttrs[index].nome = e.target.value
-                        setFormData({ ...formData, attributes: newAttrs })
-                      }}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                      placeholder="Ex: Peso, Origem, Material..."
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Valor</label>
-                    <input
-                      type="text"
-                      value={attr.valor}
-                      onChange={(e) => {
-                        const newAttrs = [...formData.attributes]
-                        newAttrs[index].valor = e.target.value
-                        setFormData({ ...formData, attributes: newAttrs })
-                      }}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
-                      placeholder="Ex: 100g, Brasil, Algodão..."
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newAttrs = formData.attributes.filter((_, i) => i !== index)
-                      setFormData({ ...formData, attributes: newAttrs })
-                    }}
-                    className="mt-6 p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
-                    title="Remover atributo"
-                  >
-                    <FiTrash2 size={18} />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* Botão para adicionar novo atributo */}
-            <button
-              type="button"
-              onClick={() => {
-                setFormData({
-                  ...formData,
-                  attributes: [...formData.attributes, { nome: '', valor: '' }]
-                })
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-            >
-              <FiPlus size={18} />
-              Adicionar Atributo
-            </button>
-
-            {/* Exemplos de atributos comuns */}
-            {formData.attributes.length === 0 && (
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">💡 Sugestões de Atributos</h4>
-                <p className="text-sm text-blue-700 mb-3">Clique para adicionar rapidamente:</p>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { nome: 'Peso', valor: '' },
-                    { nome: 'Origem', valor: 'Brasil' },
-                    { nome: 'Material', valor: '' },
-                    { nome: 'Sabor', valor: '' },
-                    { nome: 'Tipo', valor: '' },
-                    { nome: 'Composição', valor: '' },
-                    { nome: 'Validade', valor: '' },
-                    { nome: 'Voltagem', valor: '' },
-                    { nome: 'Garantia', valor: '' },
-                  ].map((sugestao, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setFormData({
-                          ...formData,
-                          attributes: [...formData.attributes, { ...sugestao }]
-                        })
-                      }}
-                      className="px-3 py-1 bg-white border border-blue-300 text-blue-700 rounded-full text-sm hover:bg-blue-100 transition-colors"
-                    >
-                      + {sugestao.nome}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )
 
