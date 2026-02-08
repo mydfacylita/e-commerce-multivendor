@@ -18,6 +18,9 @@ import { prisma } from '@/lib/prisma'
 // NOTA: Jobs de background agora são iniciados via instrumentation.ts (Next.js 14)
 // Não usar mais: import '@/lib/init'
 
+// Forçar busca dinâmica das configurações (não cachear layout)
+export const dynamic = 'force-dynamic'
+
 const inter = Inter({ subsets: ['latin'] })
 
 // Buscar GA ID do banco de dados
