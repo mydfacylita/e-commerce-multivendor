@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
   // 🔐 Verificar autenticação admin
   const session = await getServerSession(authOptions)
-  if (!session?.user || session.user.role !== 'admin') {
+  if (!session?.user || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
