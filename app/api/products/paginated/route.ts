@@ -9,6 +9,57 @@ import { validateApiKey } from '@/lib/api-security'
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
+// Função para embaralhar array (Fisher-Yates shuffle)
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+// Função para diversificar por categoria
+function diversifyByCategory<T extends { categoryId?: string | null }>(products: T[]): T[] {
+  // Agrupa por categoria
+  const byCategory: Record<string, T[]> = {}
+  const noCategory: T[] = []
+  
+  products.forEach(p => {
+    if (p.categoryId) {
+      if (!byCategory[p.categoryId]) byCategory[p.categoryId] = []
+      byCategory[p.categoryId].push(p)
+    } else {
+      noCategory.push(p)
+    }
+  })
+  
+  // Embaralha cada grupo de categoria
+  Object.keys(byCategory).forEach(key => {
+    byCategory[key] = shuffleArray(byCategory[key])
+  })
+  
+  // Intercala produtos de diferentes categorias
+  const result: T[] = []
+  const categories = shuffleArray(Object.keys(byCategory))
+  let maxLength = Math.max(...categories.map(c => byCategory[c].length), noCategory.length)
+  
+  for (let i = 0; i < maxLength; i++) {
+    // Adiciona um de cada categoria por rodada
+    for (const cat of categories) {
+      if (byCategory[cat][i]) {
+        result.push(byCategory[cat][i])
+      }
+    }
+    // Adiciona um sem categoria
+    if (noCategory[i]) {
+      result.push(noCategory[i])
+    }
+  }
+  
+  return result
+}
+
 // CORS é tratado pelo middleware global - não adicionar headers duplicados
 
 // OPTIONS - Preflight para CORS (tratado pelo middleware)
@@ -53,6 +104,14 @@ export async function GET(request: NextRequest) {
     const rawSearch = searchParams.get('search')
     const search = rawSearch ? sanitizeHtml(rawSearch).substring(0, 100) : null
     
+    // Parâmetros de randomização
+    const shuffle = searchParams.get('shuffle') === 'true'
+    const diversify = searchParams.get('diversify') === 'true'
+    const seed = searchParams.get('seed') // Para consistência na sessão
+    
+    // Categorias de interesse do cliente (para priorizar)
+    const interests = searchParams.get('interests')?.split(',').filter(Boolean) || []
+    
     const skip = (page - 1) * limit
 
     // Construir filtro
@@ -73,8 +132,12 @@ export async function GET(request: NextRequest) {
       ]
     }
 
+    // Para shuffle/diversify, buscar mais produtos e depois filtrar
+    const fetchLimit = (shuffle || diversify) ? Math.min(limit * 3, 300) : limit
+    const fetchSkip = (shuffle || diversify) ? 0 : skip
+
     // Buscar produtos e contagem total em paralelo
-    const [products, total] = await Promise.all([
+    const [rawProducts, total] = await Promise.all([
       prisma.product.findMany({
         where,
         include: { 
@@ -82,12 +145,53 @@ export async function GET(request: NextRequest) {
           supplier: true,  // Para identificar produtos importados
           seller: true  // Para identificação de origem (frete)
         },
-        skip,
-        take: limit,
+        skip: fetchSkip,
+        take: fetchLimit,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.product.count({ where })
     ])
+
+    let products = rawProducts
+    
+    // Aplicar diversificação por categoria (intercala produtos de diferentes categorias)
+    if (diversify) {
+      products = diversifyByCategory(products)
+    }
+    
+    // Aplicar embaralhamento
+    if (shuffle) {
+      products = shuffleArray(products)
+    }
+    
+    // Se temos interesses, priorizar produtos dessas categorias (30% no topo)
+    if (interests.length > 0 && products.length > 0) {
+      const interestProducts = products.filter(p => 
+        p.categoryId && interests.includes(p.categoryId)
+      )
+      const otherProducts = products.filter(p => 
+        !p.categoryId || !interests.includes(p.categoryId)
+      )
+      
+      // Mistura: 30% de interesse + 70% outros, embaralhados entre si
+      const interestCount = Math.ceil(products.length * 0.3)
+      const selectedInterest = shuffleArray(interestProducts).slice(0, interestCount)
+      const selectedOther = shuffleArray(otherProducts).slice(0, products.length - selectedInterest.length)
+      
+      // Intercala os produtos de interesse com os outros
+      products = []
+      const maxLen = Math.max(selectedInterest.length, selectedOther.length)
+      for (let i = 0; i < maxLen; i++) {
+        if (selectedInterest[i]) products.push(selectedInterest[i])
+        if (selectedOther[i]) products.push(selectedOther[i])
+        if (selectedOther[i + 1]) products.push(selectedOther[i + 1]) // 2 outros para cada 1 interesse
+      }
+    }
+    
+    // Aplicar paginação após shuffle/diversify
+    if (shuffle || diversify) {
+      products = products.slice(skip, skip + limit)
+    }
 
     const serializedProducts = serializeProducts(products)
 

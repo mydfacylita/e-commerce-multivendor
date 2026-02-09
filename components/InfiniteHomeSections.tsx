@@ -11,7 +11,7 @@ interface Product {
   price: number
   originalPrice?: number | null
   images: string[]
-  category?: { name: string } | null
+  category?: { id: string; name: string } | null
   featured?: boolean
   slug?: string
   stock?: number
@@ -26,6 +26,40 @@ interface Section {
   loaded: boolean
 }
 
+// Função para obter interesses do cliente do localStorage
+function getClientInterests(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const interests = localStorage.getItem('myd_interests')
+    return interests ? JSON.parse(interests) : []
+  } catch {
+    return []
+  }
+}
+
+// Função para salvar interesse do cliente
+function addClientInterest(categoryId: string) {
+  if (typeof window === 'undefined' || !categoryId) return
+  try {
+    const interests = getClientInterests()
+    // Remove duplicatas e mantém no máximo 10 interesses recentes
+    const updated = [categoryId, ...interests.filter(i => i !== categoryId)].slice(0, 10)
+    localStorage.setItem('myd_interests', JSON.stringify(updated))
+  } catch {
+    // Ignore errors
+  }
+}
+
+// Função para embaralhar array no cliente (para variar a cada visita)
+function shuffleClientSide<T>(array: T[]): T[] {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
 export default function InfiniteHomeSections() {
   const { data: session } = useSession()
   const [sections, setSections] = useState<Section[]>([])
@@ -33,6 +67,12 @@ export default function InfiniteHomeSections() {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
+  const [clientInterests, setClientInterests] = useState<string[]>([])
+  
+  // Carregar interesses ao montar
+  useEffect(() => {
+    setClientInterests(getClientInterests())
+  }, [])
 
   // Definir as seções que serão carregadas
   const sectionDefinitions = [
@@ -62,6 +102,15 @@ export default function InfiniteHomeSections() {
       let endpoint = ''
       let params = new URLSearchParams()
       
+      // Adicionar parâmetros de diversificação e embaralhamento
+      params.set('shuffle', 'true')
+      params.set('diversify', 'true')
+      
+      // Adicionar interesses do cliente
+      if (clientInterests.length > 0) {
+        params.set('interests', clientInterests.join(','))
+      }
+      
       // Determinar endpoint baseado no tipo de seção
       switch (sectionDef.id) {
         case 'recommended':
@@ -83,34 +132,48 @@ export default function InfiniteHomeSections() {
         case 'offers':
         case 'flash-sale':
           endpoint = '/api/products/paginated'
-          params.set('page', String(Math.floor(Math.random() * 3) + 1))
+          params.set('page', String(Math.floor(Math.random() * 5) + 1))
           params.set('limit', '24')
           break
         case 'trending':
           endpoint = '/api/products/paginated'
-          params.set('page', '2')
+          params.set('page', String(Math.floor(Math.random() * 3) + 2))
           params.set('limit', '24')
           break
         case 'new-arrivals':
           endpoint = '/api/products/paginated'
           params.set('page', '1')
           params.set('limit', '24')
+          // Novidades não embaralha tanto, mantém ordem de criação
+          params.set('shuffle', 'false')
           break
         case 'best-sellers':
           endpoint = '/api/products/paginated'
-          params.set('page', '3')
+          params.set('page', String(Math.floor(Math.random() * 3) + 1))
           params.set('limit', '24')
           break
         case 'for-you':
+          endpoint = '/api/products/paginated'
+          params.set('page', String(Math.floor(Math.random() * 5) + 1))
+          params.set('limit', '24')
+          // Para você prioriza os interesses
+          if (clientInterests.length > 0) {
+            params.set('interests', clientInterests.slice(0, 3).join(','))
+          }
+          break
         case 'budget-friendly':
+          endpoint = '/api/products/paginated'
+          params.set('page', String(Math.floor(Math.random() * 4) + 1))
+          params.set('limit', '24')
+          break
         case 'premium':
           endpoint = '/api/products/paginated'
-          params.set('page', String(currentSectionIndex + 1))
+          params.set('page', String(Math.floor(Math.random() * 3) + 1))
           params.set('limit', '24')
           break
         default:
           endpoint = '/api/products/paginated'
-          params.set('page', String(currentSectionIndex + 1))
+          params.set('page', String(Math.floor(Math.random() * 5) + 1))
           params.set('limit', '24')
       }
       
@@ -122,9 +185,21 @@ export default function InfiniteHomeSections() {
       
       if (response.ok) {
         const data = await response.json()
-        const products = data.products || data || []
+        let products = data.products || data || []
         
         console.log('📦 Produtos recebidos para', sectionDef.title, ':', products.length)
+        
+        // Embaralhamento adicional no cliente para garantir variedade
+        if (sectionDef.id !== 'new-arrivals') {
+          products = shuffleClientSide(products)
+        }
+        
+        // Salvar categorias visualizadas como interesses
+        products.forEach((p: Product) => {
+          if (p.category?.id) {
+            addClientInterest(p.category.id)
+          }
+        })
         
         if (products.length > 0) {
           setSections(prev => [...prev, {
