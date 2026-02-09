@@ -620,7 +620,6 @@ export async function GET(req: Request) {
       // Sem CPF, sem telefone completo, sem dados pessoais desnecessários
       return {
         id: order.id,
-        number: order.number,
         status: order.status,
         total: order.total,
         subtotal: order.subtotal,
