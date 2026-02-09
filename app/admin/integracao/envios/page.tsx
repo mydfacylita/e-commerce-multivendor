@@ -13,6 +13,7 @@ interface CorreiosConfig {
   enabled: boolean
   usuario: string
   senha: string
+  codigoAcesso: string
   codigoAdministrativo: string
   cartaoPostagem: string
   cnpj: string
@@ -50,6 +51,7 @@ export default function EnviosPage() {
     enabled: false,
     usuario: '',
     senha: '',
+    codigoAcesso: '',
     codigoAdministrativo: '',
     cartaoPostagem: '',
     cnpj: '',
@@ -341,6 +343,17 @@ export default function EnviosPage() {
                   placeholder="Senha do contrato"
                   className="w-full px-3 py-2 border rounded-md"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Código de Acesso (Token API)</label>
+                <input
+                  type="password"
+                  value={config.codigoAcesso}
+                  onChange={(e) => setConfig({ ...config, codigoAcesso: e.target.value })}
+                  placeholder="Token de acesso da API"
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+                <p className="text-xs text-gray-500 mt-1">Token fornecido pelos Correios para autenticação na API</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Código Administrativo</label>
