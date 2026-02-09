@@ -566,7 +566,6 @@ export async function GET(req: Request) {
       where: { userId },
       select: {
         id: true,
-        number: true,
         status: true,
         total: true,
         subtotal: true,
