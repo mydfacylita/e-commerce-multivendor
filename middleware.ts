@@ -262,7 +262,7 @@ export async function middleware(request: NextRequest) {
         )
       }
       
-      if (token.role !== 'admin' && token.role !== 'ADMIN') {
+      if (token.role !== 'ADMIN') {
         console.warn(`🚫 [Security] Acesso admin negado para role ${token.role}: ${pathname}`)
         return NextResponse.json(
           { error: 'Forbidden - Admin access required' },
