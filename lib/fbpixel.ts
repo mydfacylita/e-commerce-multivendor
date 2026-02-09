@@ -34,15 +34,40 @@ export const fbPixelLoaded = () => {
   return typeof window !== 'undefined' && window.fbq !== undefined
 }
 
+// Aguarda o pixel carregar e dispara evento
+const waitForPixel = (callback: () => void, maxAttempts = 10) => {
+  let attempts = 0
+  const check = () => {
+    if (fbPixelLoaded()) {
+      callback()
+    } else if (attempts < maxAttempts) {
+      attempts++
+      setTimeout(check, 300)
+    } else {
+      console.log('[FB Pixel] Timeout aguardando carregamento')
+    }
+  }
+  check()
+}
+
 // Dispara evento genérico
 export const fbEvent = (eventName: FBEventName, params?: FBEventParams) => {
-  if (!fbPixelLoaded()) {
-    console.log('[FB Pixel] Não carregado, evento ignorado:', eventName)
-    return
+  const dispatchEvent = () => {
+    if (!fbPixelLoaded()) {
+      console.log('[FB Pixel] Não carregado, evento ignorado:', eventName)
+      return
+    }
+    
+    console.log('[FB Pixel] Evento:', eventName, params)
+    window.fbq('track', eventName, params)
   }
-  
-  console.log('[FB Pixel] Evento:', eventName, params)
-  window.fbq('track', eventName, params)
+
+  // Se pixel já carregou, dispara imediatamente; senão aguarda
+  if (fbPixelLoaded()) {
+    dispatchEvent()
+  } else {
+    waitForPixel(dispatchEvent)
+  }
 }
 
 // ==========================================
