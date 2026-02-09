@@ -633,8 +633,8 @@ export async function GET(req: Request) {
       },
       orderBy: {
         createdAt: 'desc'
-      },
-      take: 50
+      }
+      // Removido limite de 50 para permitir listagem completa
     })
 
     console.log('✅ Produtos encontrados:', products.length)
