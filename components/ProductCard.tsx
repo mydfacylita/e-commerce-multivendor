@@ -7,6 +7,7 @@ import { FiShoppingCart, FiHeart, FiEye } from 'react-icons/fi'
 import { useCartStore } from '@/lib/store'
 import toast from 'react-hot-toast'
 import { useState } from 'react'
+import { analytics } from '@/lib/analytics-client'
 
 // Formatar moeda brasileira
 const formatCurrency = (value: number) => {
@@ -65,6 +66,15 @@ export default function ProductCard({ product, layout = 'vertical' }: ProductCar
       itemType: product.itemType || 'ADM',
       shipFromCountry: product.shipFromCountry || null,
     })
+    
+    // Rastrear AddToCart no Facebook Pixel e Google Analytics
+    analytics.addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1
+    })
+    
     toast.success('🎉 Produto adicionado!', {
       style: {
         background: '#10B981',

@@ -40,17 +40,17 @@ const config: CapacitorConfig = {
     }
   },
   
-  // Servidor para desenvolvimento - usar HTTP para evitar Mixed Content
+  // Servidor para produção - usar HTTPS
   server: {
-    androidScheme: 'http', // HTTP para permitir requisições HTTP
-    cleartext: true
+    androidScheme: 'https', // HTTPS para produção
+    cleartext: false
   },
   
   // Configurações Android
   android: {
-    allowMixedContent: true,
+    allowMixedContent: false,
     captureInput: true,
-    webContentsDebuggingEnabled: true, // Habilitar para debug
+    webContentsDebuggingEnabled: false, // Desabilitar em produção
     useLegacyBridge: true
   },
   

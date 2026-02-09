@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  // 🚫 BLOQUEAR EM PRODUÇÃO
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // 🔐 Verificar autenticação admin
+  const session = await getServerSession(authOptions)
+  if (!session?.user || session.user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     // Buscar todos os pedidos PROCESSING
     const processingOrders = await prisma.order.findMany({

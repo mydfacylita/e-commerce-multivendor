@@ -33,8 +33,8 @@ export class ImageUrlPipe implements PipeTransform {
         this.baseUrl = 'http://localhost:3000';
       }
     } else {
-      // Production
-      this.baseUrl = 'https://mfrural.shop';
+      // Production - usar domínio correto
+      this.baseUrl = 'https://www.mydshop.com.br';
     }
     
     console.log('[ImageUrlPipe] Initialized with baseUrl:', this.baseUrl, 'env:', mobileEnv);

@@ -10,6 +10,7 @@ import { formatOrderNumber } from '@/lib/format'
 import CreditCardForm from '@/components/CreditCardForm'
 import { useCartStore } from '@/lib/store'
 import { trackPurchaseConversion, trackBeginCheckout } from '@/components/GoogleAds'
+import { analytics } from '@/lib/analytics-client'
 
 interface Order {
   id: string
@@ -126,6 +127,12 @@ export default function CheckoutPagamentoPage() {
             // Rastrear conversão de compra no Google Ads
             if (order?.total) {
               trackPurchaseConversion(orderId, order.total)
+              
+              // Rastrear conversão de compra no Facebook Pixel
+              analytics.purchase({
+                orderId: orderId,
+                total: order.total
+              })
             }
             
             router.push(`/pedidos/${orderId}`)
@@ -170,6 +177,12 @@ export default function CheckoutPagamentoPage() {
             // Rastrear conversão de compra no Google Ads
             if (order?.total) {
               trackPurchaseConversion(orderId, order.total)
+              
+              // Rastrear conversão de compra no Facebook Pixel
+              analytics.purchase({
+                orderId: orderId,
+                total: order.total
+              })
             }
             
             setTimeout(() => {
@@ -241,6 +254,16 @@ export default function CheckoutPagamentoPage() {
     }
   }
 
+  // Handler para mudança de método de pagamento com tracking
+  const handlePaymentMethodChange = (method: 'credit_card' | 'pix' | 'boleto') => {
+    setPaymentMethod(method)
+    
+    // Rastrear AddPaymentInfo no Facebook Pixel
+    if (order?.total) {
+      analytics.addPaymentInfo(order.total)
+    }
+  }
+
   const handleCreditCardPayment = async () => {
     setProcessing(true)
     try {
@@ -267,6 +290,16 @@ export default function CheckoutPagamentoPage() {
       if (response.ok) {
         const data = await response.json()
         toast.success('Pagamento processado com sucesso! 🎉')
+        
+        // Rastrear conversão de compra no Facebook Pixel e Google Ads
+        if (order?.total) {
+          trackPurchaseConversion(orderId, order.total)
+          analytics.purchase({
+            orderId: orderId,
+            total: order.total
+          })
+        }
+        
         setTimeout(() => {
           router.push(`/pedidos/${orderId}`)
         }, 1500)
@@ -410,7 +443,7 @@ export default function CheckoutPagamentoPage() {
                     <div className="flex gap-2 mb-6">
                       {paymentRules.acceptsCreditCard && (
                         <button
-                          onClick={() => setPaymentMethod('credit_card')}
+                          onClick={() => handlePaymentMethodChange('credit_card')}
                           className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
                             paymentMethod === 'credit_card'
                               ? 'bg-primary-600 text-white shadow-lg'
@@ -425,7 +458,7 @@ export default function CheckoutPagamentoPage() {
                         </button>
                       )}
                 <button
-                  onClick={() => setPaymentMethod('pix')}
+                  onClick={() => handlePaymentMethodChange('pix')}
                   className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
                     paymentMethod === 'pix'
                       ? 'bg-primary-600 text-white'
@@ -436,7 +469,7 @@ export default function CheckoutPagamentoPage() {
                   Pix
                 </button>
                 <button
-                  onClick={() => setPaymentMethod('boleto')}
+                  onClick={() => handlePaymentMethodChange('boleto')}
                   className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
                     paymentMethod === 'boleto'
                       ? 'bg-primary-600 text-white'

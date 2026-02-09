@@ -47,12 +47,45 @@ const PUBLIC_API_ROUTES = [
   '/api/webhooks/',
   '/api/auth/',
   '/api/config/public',
+  '/api/config/maintenance-status',
   '/api/payment/webhook',
+  '/api/payment/public-key',
+  '/api/payment/gateways',
+  '/api/payment/installments-rules',
   '/api/admin/mercadopago/webhook',
-  '/api/cron/',
   '/api/products/', // Rotas de produto são públicas (reviews, questions, detalhes)
-  '/api/shipping/free-shipping-info', // Info pública de frete grátis
+  '/api/public/', // Categorias, banners, etc
+  '/api/categories', // Lista de categorias
+  '/api/shipping/free-shipping-info',
+  '/api/shipping/correios',
+  '/api/location/',
+  '/api/coupons/validate',
+  '/api/feeds/',
+  '/api/image/',
+  '/api/analytics/track',
 ]
+
+// 🚫 Rotas BLOQUEADAS em produção (debug, teste)
+const BLOCKED_IN_PRODUCTION = [
+  '/api/debug/',
+  '/api/test/',
+]
+
+// 🔒 Rotas que REQUEREM autenticação ADMIN
+const ADMIN_REQUIRED_ROUTES = [
+  '/api/admin/',
+  '/api/cron/', // Cron jobs só via admin ou secret
+]
+
+// 🔒 Rotas que REQUEREM autenticação de USUÁRIO
+const USER_REQUIRED_ROUTES = [
+  '/api/user/',
+  '/api/orders',
+  '/api/invoices/',
+]
+
+// 🔑 Secret para CRON jobs (configurar em produção!)
+const CRON_SECRET = process.env.CRON_SECRET || ''
 
 /**
  * 🔧 Buscar modo de manutenção (com cache inteligente)
@@ -185,13 +218,89 @@ export async function middleware(request: NextRequest) {
 
   // 🔒 Aplicar CORS em rotas de API
   if (pathname.startsWith('/api/')) {
-    // �️ Rota de imagem gerencia seu próprio CORS (retorna binário)
+    // 🖼️ Rota de imagem gerencia seu próprio CORS (retorna binário)
     if (pathname.startsWith('/api/image/')) {
       return NextResponse.next()
     }
     
-    // �🔓 Verificar se é rota pública (webhooks, auth, etc)
+    // 🚫 BLOQUEAR rotas de debug/teste em produção
+    if (process.env.NODE_ENV === 'production') {
+      const isBlockedRoute = BLOCKED_IN_PRODUCTION.some(route => pathname.startsWith(route))
+      if (isBlockedRoute) {
+        console.warn(`🚫 [Security] Tentativa de acesso bloqueado em produção: ${pathname}`)
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+    }
+    
+    // 🔓 Verificar se é rota pública (webhooks, auth, etc)
     const isPublicApiRoute = PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))
+    
+    // 🔒 Verificar rotas de CRON (requerem secret OU admin)
+    if (pathname.startsWith('/api/cron/')) {
+      const cronSecret = request.headers.get('x-cron-secret')
+      if (CRON_SECRET && cronSecret === CRON_SECRET) {
+        // CRON secret válido
+        const response = NextResponse.next()
+        return setCorsHeaders(response, origin)
+      }
+      // Senão, precisa ser admin (verificado abaixo)
+    }
+    
+    // 🔒 Verificar rotas de ADMIN
+    const isAdminRoute = ADMIN_REQUIRED_ROUTES.some(route => pathname.startsWith(route))
+    if (isAdminRoute) {
+      const token = await getToken({ 
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET 
+      })
+      
+      if (!token) {
+        console.warn(`🚫 [Security] Acesso admin não autenticado: ${pathname}`)
+        return NextResponse.json(
+          { error: 'Unauthorized - Authentication required' },
+          { status: 401 }
+        )
+      }
+      
+      if (token.role !== 'admin' && token.role !== 'ADMIN') {
+        console.warn(`🚫 [Security] Acesso admin negado para role ${token.role}: ${pathname}`)
+        return NextResponse.json(
+          { error: 'Forbidden - Admin access required' },
+          { status: 403 }
+        )
+      }
+      
+      const response = NextResponse.next()
+      return setCorsHeaders(response, origin)
+    }
+    
+    // 🔒 Verificar rotas de USUÁRIO
+    const isUserRoute = USER_REQUIRED_ROUTES.some(route => pathname.startsWith(route))
+    if (isUserRoute && !isPublicApiRoute) {
+      // Permitir API Key como alternativa para apps mobile
+      const apiKey = request.headers.get('x-api-key')
+      if (apiKey) {
+        // API Key será validada pela rota específica
+        const response = NextResponse.next()
+        return setCorsHeaders(response, origin)
+      }
+      
+      const token = await getToken({ 
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET 
+      })
+      
+      if (!token) {
+        console.warn(`🚫 [Security] Acesso usuário não autenticado: ${pathname}`)
+        return NextResponse.json(
+          { error: 'Unauthorized - Authentication required' },
+          { status: 401 }
+        )
+      }
+      
+      const response = NextResponse.next()
+      return setCorsHeaders(response, origin)
+    }
     
     if (!isPublicApiRoute) {
       // 🔐 Verificar se rota requer API Key

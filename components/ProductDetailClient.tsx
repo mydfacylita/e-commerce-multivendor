@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import ProductImageGallery from './ProductImageGallery'
 import ProductSelectionWrapper from './ProductSelectionWrapper'
 import ProductInfoTabs from './ProductInfoTabs'
+import { analytics } from '@/lib/analytics-client'
 
 // Formatar moeda brasileira
 const formatCurrency = (value: number) => {
@@ -126,6 +127,16 @@ export default function ProductDetailClient({
   const [selectedColor, setSelectedColor] = useState<string | null>(null)
   const [currentPrice, setCurrentPrice] = useState<number>(product.price)
   const [currentStock, setCurrentStock] = useState<number>(product.stock || 0)
+  
+  // Rastrear visualização do produto (Facebook Pixel + Analytics)
+  useEffect(() => {
+    analytics.viewProduct({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      category: product.category?.name
+    })
+  }, [product.id, product.name, product.price, product.category?.name])
   
   // Limpar descrição HTML para exibição
   const cleanDescription = useMemo(() => {

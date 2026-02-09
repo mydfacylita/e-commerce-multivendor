@@ -40,8 +40,15 @@ export async function GET(request: NextRequest) {
       return rateLimitResult.response
     }
 
+    // Buscar apenas categorias PAI (parentId = null) com suas filhas
     const categories = await prisma.category.findMany({
+      where: { parentId: null },
       orderBy: { name: 'asc' },
+      include: {
+        children: {
+          orderBy: { name: 'asc' }
+        }
+      }
     })
 
     return NextResponse.json(categories)

@@ -14,7 +14,7 @@
  * - 'local': Usa o IP local (para desenvolvimento)
  * - 'production': Usa mydshop.com.br
  */
-export const MOBILE_ENV: 'local' | 'production' = 'local';
+export const MOBILE_ENV: 'local' | 'production' = 'production';
 
 /** IP da máquina de desenvolvimento (para testes locais) */
 export const LOCAL_IP = '192.168.15.10';
@@ -196,8 +196,16 @@ export function getImageUrl(imageUrl: string | null | undefined): string {
     return 'assets/placeholder.png';
   }
   
-  // Se já é URL absoluta com http/https, retornar como está
+  // Se já é URL absoluta com http/https
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    // 🔒 IMPORTANTE: Converter http:// para https:// em produção
+    // Evita erro de mixed content no Android WebView
+    if (MOBILE_ENV === 'production' && imageUrl.startsWith('http://www.mydshop.com.br')) {
+      return imageUrl.replace('http://', 'https://');
+    }
+    if (MOBILE_ENV === 'production' && imageUrl.startsWith('http://mydshop.com.br')) {
+      return imageUrl.replace('http://', 'https://');
+    }
     return imageUrl;
   }
   

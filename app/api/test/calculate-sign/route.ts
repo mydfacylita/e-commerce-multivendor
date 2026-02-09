@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,17 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 export async function POST(req: NextRequest) {
+  // 🚫 BLOQUEAR EM PRODUÇÃO
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // 🔐 Verificar autenticação admin
+  const session = await getServerSession(authOptions)
+  if (!session?.user || session.user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const { appKey, code, timestamp, signMethod } = await req.json();
 

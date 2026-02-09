@@ -131,7 +131,14 @@
       <div class="categories-scroll">
         <div class="category-item" *ngFor="let category of categories" (click)="goToCategory(category)">
           <div class="category-icon">
-            <ion-icon name="cube-outline"></ion-icon>
+            <img 
+              *ngIf="category.image && !categoryImageErrors.has(category.id)" 
+              [src]="category.image | imageUrl" 
+              [alt]="category.name" 
+              class="category-img"
+              (error)="onCategoryImageError(category.id)"
+              loading="lazy">
+            <ion-icon *ngIf="!category.image || categoryImageErrors.has(category.id)" name="cube-outline"></ion-icon>
           </div>
           <span class="category-name">{{ category.name }}</span>
         </div>

@@ -1,12 +1,12 @@
 <ion-header>
   <ion-toolbar>
-    <ion-buttons slot="start" *ngIf="selectedCategory">
+    <ion-buttons slot="start" *ngIf="parentCategory || showingProducts">
       <ion-button (click)="clearCategory()">
         <ion-icon slot="icon-only" name="arrow-back"></ion-icon>
       </ion-button>
     </ion-buttons>
     <ion-title>{{ selectedCategory?.name || 'Categorias' }}</ion-title>
-    <ion-buttons slot="end" *ngIf="selectedCategory">
+    <ion-buttons slot="end" *ngIf="showingProducts">
       <ion-button (click)="toggleFilters()">
         <ion-icon slot="icon-only" name="options-outline"></ion-icon>
         <ion-badge *ngIf="activeFiltersCount > 0" color="danger">{{ activeFiltersCount }}</ion-badge>
@@ -66,20 +66,35 @@
   </div>
 
   <!-- Loading -->
-  <div *ngIf="isLoading && !selectedCategory" class="loading-container">
+  <div *ngIf="isLoading && !showingProducts" class="loading-container">
     <ion-spinner name="crescent" color="primary"></ion-spinner>
   </div>
 
-  <!-- Lista de Categorias -->
-  <ion-list *ngIf="!selectedCategory && !isLoading">
-    <ion-item *ngFor="let category of categories" (click)="selectCategory(category)" detail>
-      <ion-icon name="folder-outline" slot="start" color="primary"></ion-icon>
-      <ion-label>{{ category.name }}</ion-label>
-    </ion-item>
-  </ion-list>
+  <!-- Lista de Categorias com Imagens -->
+  <div class="categories-grid" *ngIf="!showingProducts && !isLoading">
+    <div class="category-card" *ngFor="let category of currentCategories" (click)="selectCategory(category)">
+      <div class="category-image">
+        <img 
+          *ngIf="category.image && !hasCategoryImageError(category.id)" 
+          [src]="category.image | imageUrl" 
+          [alt]="category.name" 
+          loading="lazy"
+          (error)="onCategoryImageError(category.id)">
+        <ion-icon *ngIf="!category.image || hasCategoryImageError(category.id)" name="folder-outline" class="category-icon"></ion-icon>
+      </div>
+      <div class="category-info">
+        <h3>{{ category.name }}</h3>
+        <p *ngIf="category.description">{{ category.description }}</p>
+        <span *ngIf="category.children && category.children.length > 0" class="subcategory-count">
+          {{ category.children.length }} subcategoria(s)
+        </span>
+      </div>
+      <ion-icon name="chevron-forward-outline" class="arrow-icon"></ion-icon>
+    </div>
+  </div>
 
   <!-- Produtos da Categoria -->
-  <div *ngIf="selectedCategory">
+  <div *ngIf="showingProducts">
     <!-- Barra de filtros rápidos -->
     <div class="quick-filters">
       <ion-chip [color]="selectedSort === 'newest' ? 'primary' : 'medium'" (click)="selectedSort = 'newest'; applyFilters()">

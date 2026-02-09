@@ -1,0 +1,128 @@
+Caminho,Status Atual,Classificação,Ação Necessária,Prioridade
+/api/debug/expedition,SEM AUTH,🚨 CRÍTICA,Bloquear em produção + adicionar auth admin,URGENTE
+/api/debug/pending-orders,SEM AUTH,🚨 CRÍTICA,Bloquear em produção + adicionar auth admin,URGENTE
+/api/test/aliexpress-sign,SEM AUTH,🚨 CRÍTICA,Bloquear em produção - expõe secrets,URGENTE
+/api/test/aliexpress-sign-multi,SEM AUTH,🚨 CRÍTICA,Bloquear em produção - expõe secrets,URGENTE
+/api/test/calculate-sign,SEM AUTH,🚨 CRÍTICA,Bloquear em produção,URGENTE
+/api/upload,SEM AUTH,🚨 CRÍTICA,Adicionar autenticação de usuário,URGENTE
+/api/image/remove-background,SEM AUTH,🚨 CRÍTICA,Adicionar auth - usa API paga,URGENTE
+/api/admin/categories (GET),SEM AUTH,🚨 CRÍTICA,Adicionar auth admin no GET,ALTA
+/api/admin/product-types (GET),SEM AUTH,🚨 CRÍTICA,Adicionar auth admin no GET,ALTA
+/api/admin/products/[id] (GET),SEM AUTH,🚨 CRÍTICA,Adicionar auth admin no GET,ALTA
+/api/admin/suppliers (GET),SEM AUTH,🚨 CRÍTICA,Adicionar auth admin no GET,ALTA
+/api/admin/embalagens (GET),SEM AUTH,🚨 CRÍTICA,Adicionar auth admin no GET,ALTA
+/api/admin/consistency/status,SEM AUTH,🚨 CRÍTICA,Adicionar auth admin,ALTA
+/api/admin/consistency/check (GET),SEM AUTH,🚨 CRÍTICA,Adicionar auth admin,ALTA
+/api/cron/sync-drop-orders,SEM CRON_SECRET,⚠️ REVISAR,Adicionar validação CRON_SECRET,ALTA
+/api/image/proxy,SEM AUTH,⚠️ REVISAR,Adicionar rate limiting + validar domínios,MÉDIA
+/api/image/[...path],SEM AUTH,⚠️ REVISAR,Verificar restrição de paths,MÉDIA
+/api/shipping/tracking,SEM AUTH,⚠️ REVISAR,Adicionar rate limiting por IP,MÉDIA
+/api/feeds/google-shopping,SEM AUTH,⚠️ REVISAR,Considerar token de validação,BAIXA
+/api/feeds/google-shopping-txt,SEM AUTH,⚠️ REVISAR,Considerar token de validação,BAIXA
+/api/webmail/auth,Executa doveadm,⚠️ REVISAR,Verificar command injection,MÉDIA
+/api/analytics/track-client,Verificar,⚠️ REVISAR,Verificar proteção,BAIXA
+/api/config (root),Verificar,⚠️ REVISAR,Verificar proteção,BAIXA
+/api/shipping/correios,Verificar,⚠️ REVISAR,Verificar proteção,BAIXA
+/api/payment/gateways,Verificar,⚠️ REVISAR,Verificar proteção,BAIXA
+/api/orders/tracking,Verificar,⚠️ REVISAR,Verificar proteção,BAIXA
+/api/invoices/[id]/danfe,Token Order,⚠️ REVISAR,Verificar implementação,BAIXA
+/api/auth/[...nextauth],PÚBLICO,✅ PÚBLICA,Nenhuma - NextAuth handler,OK
+/api/auth/login,API Key,✅ PÚBLICA,Nenhuma - endpoint de login,OK
+/api/auth/register,PÚBLICO,✅ PÚBLICA,Nenhuma - registro,OK
+/api/auth/forgot-password,PÚBLICO,✅ PÚBLICA,Nenhuma - recuperação,OK
+/api/auth/reset-password,PÚBLICO,✅ PÚBLICA,Nenhuma,OK
+/api/auth/validate-reset-token,PÚBLICO,✅ PÚBLICA,Nenhuma,OK
+/api/webhooks/mercadopago,Validação HMAC,✅ PÚBLICA,Nenhuma - webhook,OK
+/api/webhooks/mercadolivre,Validação assinatura,✅ PÚBLICA,Nenhuma - webhook,OK
+/api/webhooks/shopee,Validação assinatura,✅ PÚBLICA,Nenhuma - webhook,OK
+/api/webhooks/whatsapp,Validação Meta,✅ PÚBLICA,Nenhuma - webhook,OK
+/api/public/categories,PÚBLICO,✅ PÚBLICA,Nenhuma - dados públicos,OK
+/api/products/[id],API Key + Rate Limit,✅ PÚBLICA,Nenhuma - catálogo público,OK
+/api/products/paginated,API Key,✅ PÚBLICA,Nenhuma - catálogo público,OK
+/api/products/search,Rate Limit,✅ PÚBLICA,Nenhuma - busca pública,OK
+/api/categories,API Key,✅ PÚBLICA,Nenhuma - categorias públicas,OK
+/api/location/states,PÚBLICO,✅ PÚBLICA,Nenhuma - dados de localização,OK
+/api/location/cities/[stateId],PÚBLICO,✅ PÚBLICA,Nenhuma - dados de localização,OK
+/api/config/public,PÚBLICO,✅ PÚBLICA,Nenhuma - config pública,OK
+/api/config/maintenance,PÚBLICO,✅ PÚBLICA,Nenhuma - usado pelo middleware,OK
+/api/config/maintenance-status,PÚBLICO,✅ PÚBLICA,Nenhuma,OK
+/api/shipping/quote,API Key,✅ PÚBLICA,Nenhuma - cotação frete,OK
+/api/shipping/calculate,API Key,✅ PÚBLICA,Nenhuma - cálculo frete,OK
+/api/coupons/validate,PÚBLICO,✅ PÚBLICA,Nenhuma - validação cupom,OK
+/api/app/config,API Key,✅ PÚBLICA,Nenhuma - config app,OK
+/api/payment/webhook,PÚBLICO,✅ PÚBLICA,Nenhuma - webhook pagamento,OK
+/api/payment/public-key,PÚBLICO,✅ PÚBLICA,Nenhuma - chave pública,OK
+/api/packaging,API Key,✅ PÚBLICA,Nenhuma - embalagens app,OK
+/api/admin/users,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/orders/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/invoices,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/analytics,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/financeiro/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/expedicao/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/sellers/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/saques/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/coupons/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/returns/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/refunds/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/fraud/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/marketplaces/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/integrations/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/ean/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/etiquetas/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/plans/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/subscriptions/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/logs,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/config/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/gateway/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/entregas/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/company-stats,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/company-settings,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/shipping-rules/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/ai/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/sync-logs,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/contabilidade,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/configuracoes/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/cashback/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/seller-accounts/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/performance/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/pedidos/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/planos,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/email/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/mercadopago/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/admin/payment/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/user/profile,authenticateRequest,🔒 PROTEGIDA,Nenhuma,OK
+/api/user/addresses,authenticateRequest,🔒 PROTEGIDA,Nenhuma,OK
+/api/user/addresses/[id],getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/user/addresses/[id]/default,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/user/avatar,JWT,🔒 PROTEGIDA,Nenhuma,OK
+/api/user/address,JWT,🔒 PROTEGIDA,Nenhuma,OK
+/api/seller/account/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/seller/register,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/seller/subscription/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/seller/financial,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/seller/employees/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/seller/permissions,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/seller/plans/available,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/seller/marketplaces/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/vendedor/expedicao/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/vendedor/saques/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/vendedor/balance,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/vendedor/perguntas,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/vendedor/ean/*,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/orders,API Key + JWT/Session,🔒 PROTEGIDA,Nenhuma,OK
+/api/orders/[id],Session + JWT,🔒 PROTEGIDA,Nenhuma,OK
+/api/payment/create,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/payment/create-card,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/payment/details/[id],getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/payment/order-payments/[id],getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/cashback,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/cashback/transactions,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/returns/request,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/marketplaces/oauth-config,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/whatsapp/status,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/products/related,getServerSession,🔒 PROTEGIDA,Nenhuma,OK
+/api/products/weights,API Key,🔒 PROTEGIDA,Nenhuma,OK
+/api/products/stock,Verificar,⚠️ REVISAR,Verificar proteção,MÉDIA
+/api/cron/sync-payments,CRON_SECRET,🔒 PROTEGIDA,Nenhuma,OK
+/api/cron/check-drop-prices,CRON_SECRET,🔒 PROTEGIDA,Nenhuma,OK
+/api/cron/sync-aliexpress-stock,CRON_SECRET,🔒 PROTEGIDA,Nenhuma,OK

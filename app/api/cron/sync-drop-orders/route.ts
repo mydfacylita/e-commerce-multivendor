@@ -254,6 +254,17 @@ function mapAliExpressToInternalStatus(aeStatus: string): string {
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
   
+  // 🔐 Verificar autorização CRON
+  const authHeader = request.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET
+  
+  // Em desenvolvimento sem secret, permitir
+  const isDev = process.env.NODE_ENV === 'development'
+  if (!isDev && cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    console.warn('[SYNC-DROP-ORDERS] ⚠️ Tentativa de acesso não autorizada')
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  
   console.log('\n[SYNC-DROP-ORDERS] 🔄 Iniciando sincronização...')
   console.log(`⏰ ${new Date().toLocaleString('pt-BR')}`)
 

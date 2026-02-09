@@ -11,11 +11,32 @@ import crypto from 'crypto'
  * 3. Atualiza em variants.skus[]: stock, price, available
  * 4. Atualiza em selectedSkus[]: stock, costPrice, customPrice (recalculado com margem)
  * 5. Atualiza no produto: costPrice (menor preço), price (menor preço + margem)
+ * 
+ * Segurança: Requer header Authorization: Bearer <CRON_SECRET>
  */
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 export const fetchCache = 'force-no-store'
+
+// 🔐 Verificar autenticação CRON
+function verifyCronAuth(request: NextRequest): boolean {
+  const authHeader = request.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET
+  
+  // Em desenvolvimento, permitir sem secret configurado
+  if (process.env.NODE_ENV === 'development' && !cronSecret) {
+    return true
+  }
+  
+  // Em produção, SEMPRE requer secret
+  if (!cronSecret) {
+    console.error('[CRON] ⚠️ CRON_SECRET não configurado!')
+    return false
+  }
+  
+  return authHeader === `Bearer ${cronSecret}`
+}
 
 // Gerar assinatura para API AliExpress
 function generateSign(params: Record<string, string>, appSecret: string): string {
@@ -68,10 +89,9 @@ async function fetchAliExpressProduct(
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
   
-  // Verificar autorização
-  const authHeader = request.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // 🔐 Verificar autorização CRON
+  if (!verifyCronAuth(request)) {
+    console.warn('[CRON] ⚠️ Tentativa de acesso não autorizada ao sync-aliexpress-stock')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

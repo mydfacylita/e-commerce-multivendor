@@ -11,13 +11,19 @@ import { ToastController, InfiniteScrollCustomEvent, ModalController } from '@io
   standalone: false
 })
 export class CategoriesPage implements OnInit {
-  categories: Category[] = [];
+  categories: Category[] = [];  // Categorias PAI
+  currentCategories: Category[] = [];  // Categorias sendo exibidas (PAI ou filhas)
   products: Product[] = [];
   selectedCategory: Category | null = null;
+  parentCategory: Category | null = null;  // Para navegação de volta
+  showingProducts = false;  // Se está mostrando produtos ou subcategorias
   
   isLoading = true;
   currentPage = 1;
   hasMore = true;
+  
+  // Controle de imagens com erro
+  categoryImageErrors = new Set<string>();
   
   // Filtros
   showFilters = false;
@@ -58,6 +64,7 @@ export class CategoriesPage implements OnInit {
     this.productsService.getCategories().subscribe({
       next: (categories: Category[]) => {
         this.categories = categories;
+        this.currentCategories = categories;  // Inicialmente mostra categorias PAI
         this.isLoading = false;
       },
       error: (error: any) => {
@@ -77,12 +84,21 @@ export class CategoriesPage implements OnInit {
   }
 
   selectCategory(category: Category) {
-    this.selectedCategory = category;
-    this.currentPage = 1;
-    this.products = [];
-    this.isLoading = true;
-    
-    this.loadProducts();
+    // Se a categoria tem filhas, mostrar as subcategorias
+    if (category.children && category.children.length > 0) {
+      this.parentCategory = category;
+      this.currentCategories = category.children;
+      this.selectedCategory = category;
+      this.showingProducts = false;
+    } else {
+      // Se não tem filhas, mostrar produtos
+      this.selectedCategory = category;
+      this.showingProducts = true;
+      this.currentPage = 1;
+      this.products = [];
+      this.isLoading = true;
+      this.loadProducts();
+    }
   }
 
   loadProducts() {
@@ -139,7 +155,30 @@ export class CategoriesPage implements OnInit {
   }
 
   clearCategory() {
+    // Se está mostrando produtos, voltar para subcategorias (se houver)
+    if (this.showingProducts && this.parentCategory) {
+      this.showingProducts = false;
+      this.products = [];
+      this.currentPage = 1;
+      this.hasMore = true;
+      return;
+    }
+    
+    // Se está mostrando subcategorias, voltar para categorias PAI
+    if (this.parentCategory) {
+      this.parentCategory = null;
+      this.selectedCategory = null;
+      this.currentCategories = this.categories;
+      this.showingProducts = false;
+      this.products = [];
+      this.currentPage = 1;
+      this.hasMore = true;
+      return;
+    }
+    
+    // Se está na lista de categorias PAI, não faz nada
     this.selectedCategory = null;
+    this.showingProducts = false;
     this.products = [];
     this.currentPage = 1;
     this.hasMore = true;
@@ -258,6 +297,16 @@ export class CategoriesPage implements OnInit {
       style: 'currency',
       currency: 'BRL'
     });
+  }
+
+  // Método para tratar erro de imagem de categoria
+  onCategoryImageError(categoryId: string): void {
+    this.categoryImageErrors.add(categoryId);
+  }
+
+  // Verifica se imagem da categoria teve erro
+  hasCategoryImageError(categoryId: string): boolean {
+    return this.categoryImageErrors.has(categoryId);
   }
 
   getDiscountPercent(product: Product): number {

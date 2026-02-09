@@ -77,7 +77,8 @@
           },
           "configurations": {
             "production": {
-              "buildTarget": "app:build:production"
+              "buildTarget": "app:build:production",
+              "proxyConfig": "proxy.prod.json"
             },
             "development": {
               "buildTarget": "app:build:development"

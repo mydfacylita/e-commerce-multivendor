@@ -72,6 +72,9 @@ export class HomePage implements OnInit {
     { text: 'MYD', highlight: true },
     { text: 'SHOP', highlight: false }
   ];
+  
+  // Controle de imagens de categorias com erro
+  categoryImageErrors: Set<string> = new Set();
 
   constructor(
     private productsService: ProductsService,
@@ -377,6 +380,13 @@ export class HomePage implements OnInit {
     this.router.navigate(['/tabs/categories'], {
       queryParams: { id: category.id }
     });
+  }
+
+  /**
+   * Tratamento de erro ao carregar imagem da categoria
+   */
+  onCategoryImageError(categoryId: string) {
+    this.categoryImageErrors.add(categoryId);
   }
 
   /**

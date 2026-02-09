@@ -1,5 +1,17 @@
 // Cliente para enviar eventos de analytics
 // Usa a API Key do servidor de forma segura
+// Integra com Facebook Pixel e Google Analytics
+
+import { 
+  fbViewContent, 
+  fbAddToCart, 
+  fbSearch, 
+  fbInitiateCheckout, 
+  fbAddPaymentInfo, 
+  fbPurchase, 
+  fbCompleteRegistration,
+  fbPixelLoaded 
+} from './fbpixel'
 
 class AnalyticsClient {
   private apiUrl = '/api/analytics/track-client'
@@ -92,12 +104,73 @@ class AnalyticsClient {
     })
   }
 
-  addToCart(product: { id: string; name: string; price: number; quantity?: number }) {
+  addToCart(product: { id: string; name: string; price: number; quantity?: number; category?: string }) {
     this.track('add_to_cart', product)
+    
+    // Facebook Pixel
+    if (fbPixelLoaded()) {
+      fbAddToCart({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: product.quantity,
+        category: product.category
+      })
+    }
   }
 
-  purchase(order: { orderId: string; total: number; items?: any[] }) {
+  viewProduct(product: { id: string; name: string; price: number; category?: string }) {
+    this.track('view_product', product)
+    
+    // Facebook Pixel
+    if (fbPixelLoaded()) {
+      fbViewContent({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        category: product.category
+      })
+    }
+  }
+
+  initiateCheckout(cart: { items: { id: string; name: string; price: number; quantity: number }[]; total: number }) {
+    this.track('initiate_checkout', cart)
+    
+    // Facebook Pixel
+    if (fbPixelLoaded()) {
+      fbInitiateCheckout(cart)
+    }
+  }
+
+  addPaymentInfo(total: number) {
+    this.track('add_payment_info', { total })
+    
+    // Facebook Pixel
+    if (fbPixelLoaded()) {
+      fbAddPaymentInfo(total)
+    }
+  }
+
+  purchase(order: { orderId: string; total: number; items?: { id: string; name: string; price: number; quantity: number }[] }) {
     this.track('purchase', order)
+    
+    // Facebook Pixel
+    if (fbPixelLoaded() && order.items) {
+      fbPurchase({
+        orderId: order.orderId,
+        items: order.items,
+        total: order.total
+      })
+    }
+  }
+
+  completeRegistration(method?: string) {
+    this.track('complete_registration', { method })
+    
+    // Facebook Pixel
+    if (fbPixelLoaded()) {
+      fbCompleteRegistration(method)
+    }
   }
 
   search(query: string, results?: number) {
@@ -105,6 +178,11 @@ class AnalyticsClient {
       query,
       results
     })
+    
+    // Facebook Pixel
+    if (fbPixelLoaded()) {
+      fbSearch(query)
+    }
   }
 
   formSubmit(formName: string, data?: Record<string, any>) {

@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import { FiCreditCard, FiDollarSign, FiAlertCircle, FiMapPin, FiPlus, FiCheck, FiTrash2, FiInfo } from 'react-icons/fi'
 import { calcularImpostoImportacao, type CalculoImpostoResult } from '@/lib/import-tax'
 import { trackBeginCheckout } from '@/components/GoogleAds'
+import { analytics } from '@/lib/analytics-client'
 
 // Função para calcular data de entrega estimada
 function calcularDataEntrega(diasUteis: number): string {
@@ -276,6 +277,35 @@ export default function CheckoutPage() {
       setFormData(prev => ({ ...prev, cpf: cpfFormatado }))
     }
   }, [session])
+
+  // Rastrear InitiateCheckout para Facebook Pixel e Google Ads
+  useEffect(() => {
+    if (items.length > 0 && status === 'authenticated') {
+      const totalValue = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+      
+      // Facebook Pixel - InitiateCheckout
+      analytics.initiateCheckout({
+        items: items.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        })),
+        total: totalValue
+      })
+      
+      // Google Ads - BeginCheckout
+      trackBeginCheckout(
+        items.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        })),
+        totalValue
+      )
+    }
+  }, [items.length, status])
 
   useEffect(() => {
     // Carregar dados do carrinho incluindo itens selecionados

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,18 @@ export const fetchCache = 'force-no-store';
 const REMOVE_BG_API_KEY = process.env.REMOVE_BG_API_KEY || ''
 
 export async function POST(request: NextRequest) {
+  // 🔐 Verificar autenticação (admin ou vendedor - API paga)
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized - Login required' }, { status: 401 })
+  }
+  
+  // Apenas admin e vendedor podem usar (API paga!)
+  const allowedRoles = ['admin', 'ADMIN', 'SELLER', 'seller']
+  if (!allowedRoles.includes(session.user.role || '')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   try {
     const formData = await request.formData()
     const image = formData.get('image') as Blob

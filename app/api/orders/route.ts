@@ -564,16 +564,93 @@ export async function GET(req: Request) {
 
     const orders = await prisma.order.findMany({
       where: { userId },
-      include: {
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        total: true,
+        subtotal: true,
+        shippingCost: true,
+        discountAmount: true,
+        createdAt: true,
+        deliveryDays: true,
+        shippingMethod: true,
+        shippingService: true,
+        shippingCarrier: true,
+        shippingLabel: true,
+        trackingCode: true,
+        // Dados de entrega mascarados
+        shippingAddress: true,
+        // Items do pedido
         items: {
-          include: { product: true },
+          select: {
+            id: true,
+            quantity: true,
+            price: true,
+            selectedSize: true,
+            selectedColor: true,
+            product: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                images: true,
+              }
+            }
+          }
         },
       },
       orderBy: { createdAt: 'desc' },
     })
 
+    // Mascarar dados sensíveis do endereço
+    const sanitizedOrders = orders.map(order => {
+      // Parsear endereço se for string JSON
+      let addressObj: any = null
+      if (order.shippingAddress) {
+        try {
+          addressObj = typeof order.shippingAddress === 'string' 
+            ? JSON.parse(order.shippingAddress) 
+            : order.shippingAddress
+        } catch {
+          addressObj = { raw: '***' }
+        }
+      }
+      
+      // Retornar apenas dados necessários para o usuário ver seu pedido
+      // Sem CPF, sem telefone completo, sem dados pessoais desnecessários
+      return {
+        id: order.id,
+        number: order.number,
+        status: order.status,
+        total: order.total,
+        subtotal: order.subtotal,
+        shippingCost: order.shippingCost,
+        discountAmount: order.discountAmount,
+        createdAt: order.createdAt,
+        deliveryDays: order.deliveryDays,
+        shippingMethod: order.shippingMethod,
+        shippingService: order.shippingService,
+        shippingCarrier: order.shippingCarrier,
+        shippingLabel: order.shippingLabel,
+        trackingCode: order.trackingCode,
+        items: order.items,
+        // Endereço sanitizado - apenas o necessário para o cliente ver
+        shippingAddress: addressObj ? {
+          street: addressObj.street || addressObj.logradouro || '***',
+          number: addressObj.number || addressObj.numero || '***',
+          complement: addressObj.complement || addressObj.complemento || '',
+          neighborhood: addressObj.neighborhood || addressObj.bairro || '***',
+          city: addressObj.city || addressObj.cidade || '***',
+          state: addressObj.state || addressObj.uf || '***',
+          zipCode: addressObj.zipCode || addressObj.cep || '***',
+          // NÃO incluir: cpf, phone, name completo, reference
+        } : null
+      }
+    })
+
     // Retornar no formato esperado pelo app { orders: [...] }
-    return NextResponse.json({ orders })
+    return NextResponse.json({ orders: sanitizedOrders })
   } catch (error) {
     console.error('Erro ao buscar pedidos:', error)
     return NextResponse.json(

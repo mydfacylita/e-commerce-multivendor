@@ -18,8 +18,13 @@ import { environment } from '../../../environments/environment';
 export class ApiKeyInterceptor implements HttpInterceptor {
 
   intercept(request: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
-    // Adicionar API Key apenas para requisições à nossa API
-    if (request.url.startsWith('/api') || request.url.includes('localhost:3000')) {
+    // Adicionar API Key para requisições à nossa API (local ou produção)
+    const isApiRequest = 
+      request.url.startsWith('/api') || 
+      request.url.includes('localhost:3000') ||
+      request.url.includes('mydshop.com.br/api');
+      
+    if (isApiRequest) {
       request = request.clone({
         setHeaders: {
           'x-api-key': environment.apiKey

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { analytics } from '@/lib/analytics-client'
 
 export default function RegistroPage() {
   const router = useRouter()
@@ -126,6 +127,9 @@ export default function RegistroPage() {
       }
 
       toast.success('Conta criada com sucesso! Fazendo login...')
+      
+      // Rastrear CompleteRegistration no Facebook Pixel
+      analytics.completeRegistration('email')
       
       // Fazer login automático após registro
       const result = await signIn('credentials', {

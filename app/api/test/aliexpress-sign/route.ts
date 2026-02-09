@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
@@ -8,6 +9,17 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 export async function POST(req: NextRequest) {
+  // 🚫 BLOQUEAR EM PRODUÇÃO
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // 🔐 Verificar autenticação admin
+  const session = await getServerSession(authOptions)
+  if (!session?.user || session.user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await req.json();
     const { appKey, appSecret, code, timestamp, uuid, signMethod } = body;
@@ -50,10 +62,26 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  // 🚫 BLOQUEAR EM PRODUÇÃO
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // 🔐 Verificar autenticação admin
+  const session = await getServerSession(authOptions)
+  if (!session?.user || session.user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const { searchParams } = new URL(req.url);
-    const appKey = searchParams.get('app_key') || '524396';
-    const appSecret = searchParams.get('app_secret') || 'RMz60S4TWtjk3TapvbJNsLStsiuZ351R';
+    // 🚨 NUNCA expor secrets - devem ser passados como parâmetro
+    const appKey = searchParams.get('app_key');
+    const appSecret = searchParams.get('app_secret');
+    
+    if (!appKey || !appSecret) {
+      return NextResponse.json({ error: 'app_key e app_secret são obrigatórios' }, { status: 400 });
+    }
     const code = searchParams.get('code') || '';
     const timestamp = searchParams.get('timestamp') || Date.now().toString();
     const uuid = searchParams.get('uuid') || 'uuid';
