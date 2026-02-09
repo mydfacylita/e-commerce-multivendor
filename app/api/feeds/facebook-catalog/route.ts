@@ -81,9 +81,20 @@ export async function GET(request: NextRequest) {
         stock: { gt: 0 },
         price: { gt: 0 }
       },
-      include: {
-        category: true,
-        seller: true
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        comparePrice: true,
+        stock: true,
+        images: true,
+        slug: true,
+        supplierSku: true,
+        gtin: true,
+        brand: true,
+        category: { select: { name: true } },
+        seller: { select: { storeName: true } }
       },
       take: 10000 // Limite do Facebook
     })
@@ -139,14 +150,16 @@ export async function GET(request: NextRequest) {
       // Preço formatado
       const price = `${product.price.toFixed(2)} BRL`
       
-      // Preço promocional
-      const salePrice = product.comparePrice && product.comparePrice > product.price
+      // Preço promocional (comparePrice é o preço "de" e price é o preço "por")
+      // Se comparePrice > price, então tem promoção
+      const hasPromotion = product.comparePrice && product.comparePrice > product.price
+      const salePrice = hasPromotion
         ? `${product.price.toFixed(2)} BRL`
         : ''
       
-      // Preço original (se tiver promoção, usar comparePrice como price)
-      const displayPrice = product.comparePrice && product.comparePrice > product.price
-        ? `${product.comparePrice.toFixed(2)} BRL`
+      // Preço original (se tiver promoção, mostra o comparePrice como preço original)
+      const displayPrice = hasPromotion
+        ? `${product.comparePrice!.toFixed(2)} BRL`
         : price
 
       // Descrição limpa
@@ -166,7 +179,7 @@ export async function GET(request: NextRequest) {
       const gtin = escapeValue(product.gtin) || ''
       
       // SKU como MPN
-      const mpn = escapeValue(product.sku) || product.id
+      const mpn = escapeValue(product.supplierSku) || product.id
 
       // Montar linha
       const row = [
