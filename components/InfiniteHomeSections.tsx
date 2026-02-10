@@ -193,10 +193,15 @@ export default function InfiniteHomeSections() {
           // Adicionar no topo
           setSearchSections(prev => [searchSection, ...prev.filter(s => s.searchTerm !== searchTerm)])
           
-          // Scroll para a seção de pesquisa
+          // Scroll para a seção de pesquisa com delay para renderização
           setTimeout(() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' })
-          }, 100)
+            const searchResultsSection = document.getElementById('search-results-section')
+            if (searchResultsSection) {
+              searchResultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            } else {
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
+          }, 150)
           
           // Criar seções relacionadas baseadas na pesquisa
           createRelatedSections(searchTerm, products)
@@ -508,7 +513,7 @@ export default function InfiniteHomeSections() {
     <div className="space-y-12">
       {/* Seções de pesquisa (aparecem no topo) */}
       {searchSections.length > 0 && (
-        <div className="bg-gradient-to-b from-primary-50 to-transparent pb-8">
+        <div id="search-results-section" className="bg-gradient-to-b from-primary-50 to-transparent pb-8 scroll-mt-24">
           {searchSections.map((section, sectionIdx) => (
             <section 
               key={section.id} 
