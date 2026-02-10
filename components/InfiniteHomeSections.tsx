@@ -74,7 +74,7 @@ export default function InfiniteHomeSections() {
     setClientInterests(getClientInterests())
   }, [])
 
-  // Definir as seções que serão carregadas
+  // Definir as seções que serão carregadas (muitas seções = mais conteúdo ao scrollar)
   const sectionDefinitions = [
     { id: 'recommended', title: 'Acho que você vai gostar', emoji: '💡', type: 'products' as const },
     { id: 'last-purchase', title: 'Baseado na sua última compra', emoji: '🛒', type: 'related' as const },
@@ -86,6 +86,21 @@ export default function InfiniteHomeSections() {
     { id: 'for-you', title: 'Selecionados Para Você', emoji: '🎁', type: 'products' as const },
     { id: 'budget-friendly', title: 'Cabe no Bolso', emoji: '💰', type: 'products' as const },
     { id: 'premium', title: 'Produtos Premium', emoji: '👑', type: 'products' as const },
+    { id: 'electronics', title: 'Eletrônicos e Tecnologia', emoji: '📱', type: 'products' as const },
+    { id: 'home-decor', title: 'Casa e Decoração', emoji: '🏠', type: 'products' as const },
+    { id: 'fashion', title: 'Moda e Estilo', emoji: '👗', type: 'products' as const },
+    { id: 'sports', title: 'Esportes e Fitness', emoji: '🏃', type: 'products' as const },
+    { id: 'beauty', title: 'Beleza e Cuidados', emoji: '💄', type: 'products' as const },
+    { id: 'kids', title: 'Infantil e Bebês', emoji: '🧸', type: 'products' as const },
+    { id: 'kitchen', title: 'Cozinha e Utilidades', emoji: '🍳', type: 'products' as const },
+    { id: 'outdoor', title: 'Jardim e Área Externa', emoji: '🌿', type: 'products' as const },
+    { id: 'automotive', title: 'Automotivo', emoji: '🚗', type: 'products' as const },
+    { id: 'pets', title: 'Pet Shop', emoji: '🐾', type: 'products' as const },
+    { id: 'more-offers', title: 'Mais Ofertas', emoji: '🎯', type: 'offers' as const },
+    { id: 'explore-more', title: 'Explore Mais', emoji: '🔍', type: 'products' as const },
+    { id: 'surprise', title: 'Surpresas do Dia', emoji: '🎲', type: 'products' as const },
+    { id: 'last-chance', title: 'Últimas Unidades', emoji: '⏰', type: 'offers' as const },
+    { id: 'picks', title: 'Escolhas da Semana', emoji: '⭐', type: 'products' as const },
   ]
 
   // Carregar próxima seção
@@ -116,7 +131,7 @@ export default function InfiniteHomeSections() {
         case 'recommended':
           endpoint = '/api/products/paginated'
           params.set('page', '1')
-          params.set('limit', '24')
+          params.set('limit', '48')
           break
         case 'last-purchase':
           if (!session?.user) {
@@ -131,50 +146,64 @@ export default function InfiniteHomeSections() {
           break
         case 'offers':
         case 'flash-sale':
+        case 'more-offers':
+        case 'last-chance':
           endpoint = '/api/products/paginated'
           params.set('page', String(Math.floor(Math.random() * 5) + 1))
-          params.set('limit', '24')
+          params.set('limit', '48')
           break
         case 'trending':
           endpoint = '/api/products/paginated'
           params.set('page', String(Math.floor(Math.random() * 3) + 2))
-          params.set('limit', '24')
+          params.set('limit', '48')
           break
         case 'new-arrivals':
           endpoint = '/api/products/paginated'
           params.set('page', '1')
-          params.set('limit', '24')
+          params.set('limit', '48')
           // Novidades não embaralha tanto, mantém ordem de criação
           params.set('shuffle', 'false')
           break
         case 'best-sellers':
+        case 'picks':
           endpoint = '/api/products/paginated'
           params.set('page', String(Math.floor(Math.random() * 3) + 1))
-          params.set('limit', '24')
+          params.set('limit', '48')
           break
         case 'for-you':
+        case 'surprise':
           endpoint = '/api/products/paginated'
           params.set('page', String(Math.floor(Math.random() * 5) + 1))
-          params.set('limit', '24')
+          params.set('limit', '48')
           // Para você prioriza os interesses
           if (clientInterests.length > 0) {
             params.set('interests', clientInterests.slice(0, 3).join(','))
           }
           break
         case 'budget-friendly':
+        case 'electronics':
+        case 'home-decor':
+        case 'fashion':
+        case 'sports':
+        case 'beauty':
+        case 'kids':
+        case 'kitchen':
+        case 'outdoor':
+        case 'automotive':
+        case 'pets':
           endpoint = '/api/products/paginated'
           params.set('page', String(Math.floor(Math.random() * 4) + 1))
-          params.set('limit', '24')
+          params.set('limit', '48')
           break
         case 'premium':
           endpoint = '/api/products/paginated'
           params.set('page', String(Math.floor(Math.random() * 3) + 1))
-          params.set('limit', '24')
+          params.set('limit', '48')
           break
         default:
           endpoint = '/api/products/paginated'
           params.set('page', String(Math.floor(Math.random() * 5) + 1))
-          params.set('limit', '24')
+          params.set('limit', '48')
       }
       
       const response = await fetch(`${endpoint}?${params.toString()}`, {

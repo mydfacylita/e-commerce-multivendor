@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
           }
         }
       },
-      take: 20,
+      take: 48,
       orderBy: [
         { featured: 'desc' },
         { name: 'asc' }
