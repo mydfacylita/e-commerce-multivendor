@@ -478,6 +478,18 @@ async function publishToMercadoLivre(product: any) {
       if (attrResponse.ok) {
         categoryAttributes = await attrResponse.json()
         console.log('[ML Publish] ✅ Encontrados', categoryAttributes.length, 'atributos permitidos na categoria')
+        
+        // Identifica atributos OBRIGATÓRIOS da categoria
+        const requiredAttrs = categoryAttributes.filter((a: any) => 
+          a.tags?.required || a.relevance === 1 || a.attribute_group_id === 'MAIN'
+        )
+        if (requiredAttrs.length > 0) {
+          console.log('[ML Publish] ⚠️ ATRIBUTOS OBRIGATÓRIOS da categoria:')
+          requiredAttrs.forEach((a: any) => {
+            console.log(`   - ${a.id}: ${a.name} (${a.value_type})`)
+          })
+        }
+        
         console.log('[ML Publish] IDs de atributos:', categoryAttributes.map((a: any) => a.id).join(', '))
         
         // Busca valores permitidos para BOOK_GENRE
@@ -527,6 +539,26 @@ async function publishToMercadoLivre(product: any) {
     if (product.brand) {
       attributes.push({ id: 'BRAND', value_name: product.brand })
       attributes.push({ id: 'MANUFACTURER', value_name: product.brand })
+    }
+    
+    // FAMILY_NAME - Linha/Família do produto (obrigatório para algumas categorias como fones)
+    // Usa o modelo, ou extrai do nome do produto
+    let familyName = product.model || ''
+    if (!familyName) {
+      // Tenta extrair família do nome do produto (ex: "Fone Bluetooth TWS i12" -> "i12")
+      const nameWords = product.name.split(' ')
+      // Busca por palavras que parecem ser modelo/família (letras + números)
+      const modelPattern = nameWords.find((w: string) => /^[A-Za-z]+\d+.*$/.test(w) || /^\d+[A-Za-z]+.*$/.test(w))
+      if (modelPattern) {
+        familyName = modelPattern
+      } else {
+        // Usa as últimas 2 palavras significativas do nome
+        familyName = nameWords.slice(-2).join(' ')
+      }
+    }
+    if (familyName) {
+      attributes.push({ id: 'FAMILY_NAME', value_name: familyName })
+      console.log('[ML Publish] ✅ FAMILY_NAME adicionado:', familyName)
     }
     
     if (product.model) {

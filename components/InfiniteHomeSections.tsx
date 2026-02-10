@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useSession } from 'next-auth/react'
 import ProductCard from './ProductCard'
 import { FiLoader } from 'react-icons/fi'
 
@@ -61,51 +60,40 @@ function shuffleClientSide<T>(array: T[]): T[] {
 }
 
 export default function InfiniteHomeSections() {
-  const { data: session } = useSession()
   const [sections, setSections] = useState<Section[]>([])
   const [loading, setLoading] = useState(false)
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
   const [clientInterests, setClientInterests] = useState<string[]>([])
+  const [noMoreProducts, setNoMoreProducts] = useState(false)
+  
+  // Manter registro de todos os produtos já exibidos para evitar repetições
+  const shownProductIds = useRef<Set<string>>(new Set())
   
   // Carregar interesses ao montar
   useEffect(() => {
     setClientInterests(getClientInterests())
   }, [])
 
-  // Definir as seções que serão carregadas (muitas seções = mais conteúdo ao scrollar)
+  // Definir as seções que serão carregadas - apenas seções genéricas que fazem sentido
+  // Cada seção busca produtos diferentes e para quando acabarem os produtos novos
   const sectionDefinitions = [
-    { id: 'recommended', title: 'Acho que você vai gostar', emoji: '💡', type: 'products' as const },
-    { id: 'last-purchase', title: 'Baseado na sua última compra', emoji: '🛒', type: 'related' as const },
-    { id: 'offers', title: 'Ofertas Imperdíveis', emoji: '🔥', type: 'offers' as const },
-    { id: 'trending', title: 'Em Alta Agora', emoji: '📈', type: 'products' as const },
-    { id: 'new-arrivals', title: 'Novidades da Semana', emoji: '✨', type: 'products' as const },
-    { id: 'best-sellers', title: 'Mais Vendidos', emoji: '🏆', type: 'products' as const },
-    { id: 'flash-sale', title: 'Promoção Relâmpago', emoji: '⚡', type: 'offers' as const },
-    { id: 'for-you', title: 'Selecionados Para Você', emoji: '🎁', type: 'products' as const },
-    { id: 'budget-friendly', title: 'Cabe no Bolso', emoji: '💰', type: 'products' as const },
-    { id: 'premium', title: 'Produtos Premium', emoji: '👑', type: 'products' as const },
-    { id: 'electronics', title: 'Eletrônicos e Tecnologia', emoji: '📱', type: 'products' as const },
-    { id: 'home-decor', title: 'Casa e Decoração', emoji: '🏠', type: 'products' as const },
-    { id: 'fashion', title: 'Moda e Estilo', emoji: '👗', type: 'products' as const },
-    { id: 'sports', title: 'Esportes e Fitness', emoji: '🏃', type: 'products' as const },
-    { id: 'beauty', title: 'Beleza e Cuidados', emoji: '💄', type: 'products' as const },
-    { id: 'kids', title: 'Infantil e Bebês', emoji: '🧸', type: 'products' as const },
-    { id: 'kitchen', title: 'Cozinha e Utilidades', emoji: '🍳', type: 'products' as const },
-    { id: 'outdoor', title: 'Jardim e Área Externa', emoji: '🌿', type: 'products' as const },
-    { id: 'automotive', title: 'Automotivo', emoji: '🚗', type: 'products' as const },
-    { id: 'pets', title: 'Pet Shop', emoji: '🐾', type: 'products' as const },
-    { id: 'more-offers', title: 'Mais Ofertas', emoji: '🎯', type: 'offers' as const },
-    { id: 'explore-more', title: 'Explore Mais', emoji: '🔍', type: 'products' as const },
-    { id: 'surprise', title: 'Surpresas do Dia', emoji: '🎲', type: 'products' as const },
-    { id: 'last-chance', title: 'Últimas Unidades', emoji: '⏰', type: 'offers' as const },
-    { id: 'picks', title: 'Escolhas da Semana', emoji: '⭐', type: 'products' as const },
+    { id: 'recommended', title: 'Acho que você vai gostar', emoji: '💡', type: 'products' as const, page: 1 },
+    { id: 'offers', title: 'Ofertas Imperdíveis', emoji: '🔥', type: 'offers' as const, page: 2 },
+    { id: 'new-arrivals', title: 'Novidades da Semana', emoji: '✨', type: 'products' as const, page: 3 },
+    { id: 'trending', title: 'Em Alta Agora', emoji: '📈', type: 'products' as const, page: 4 },
+    { id: 'best-sellers', title: 'Mais Vendidos', emoji: '🏆', type: 'products' as const, page: 5 },
+    { id: 'for-you', title: 'Selecionados Para Você', emoji: '🎁', type: 'products' as const, page: 6 },
+    { id: 'flash-sale', title: 'Promoção Relâmpago', emoji: '⚡', type: 'offers' as const, page: 7 },
+    { id: 'explore-more', title: 'Explore Mais', emoji: '🔍', type: 'products' as const, page: 8 },
+    { id: 'surprise', title: 'Surpresas do Dia', emoji: '🎲', type: 'products' as const, page: 9 },
+    { id: 'picks', title: 'Escolhas da Semana', emoji: '⭐', type: 'products' as const, page: 10 },
   ]
 
   // Carregar próxima seção
   const loadNextSection = async () => {
-    if (loadingRef.current || currentSectionIndex >= sectionDefinitions.length) return
+    if (loadingRef.current || currentSectionIndex >= sectionDefinitions.length || noMoreProducts) return
     
     loadingRef.current = true
     setLoading(true)
@@ -126,84 +114,14 @@ export default function InfiniteHomeSections() {
         params.set('interests', clientInterests.join(','))
       }
       
-      // Determinar endpoint baseado no tipo de seção
-      switch (sectionDef.id) {
-        case 'recommended':
-          endpoint = '/api/products/paginated'
-          params.set('page', '1')
-          params.set('limit', '48')
-          break
-        case 'last-purchase':
-          if (!session?.user) {
-            // Se não logado, pular essa seção
-            setCurrentSectionIndex(prev => prev + 1)
-            loadingRef.current = false
-            setLoading(false)
-            return
-          }
-          endpoint = '/api/products/related'
-          params.set('type', 'last-purchase')
-          break
-        case 'offers':
-        case 'flash-sale':
-        case 'more-offers':
-        case 'last-chance':
-          endpoint = '/api/products/paginated'
-          params.set('page', String(Math.floor(Math.random() * 5) + 1))
-          params.set('limit', '48')
-          break
-        case 'trending':
-          endpoint = '/api/products/paginated'
-          params.set('page', String(Math.floor(Math.random() * 3) + 2))
-          params.set('limit', '48')
-          break
-        case 'new-arrivals':
-          endpoint = '/api/products/paginated'
-          params.set('page', '1')
-          params.set('limit', '48')
-          // Novidades não embaralha tanto, mantém ordem de criação
-          params.set('shuffle', 'false')
-          break
-        case 'best-sellers':
-        case 'picks':
-          endpoint = '/api/products/paginated'
-          params.set('page', String(Math.floor(Math.random() * 3) + 1))
-          params.set('limit', '48')
-          break
-        case 'for-you':
-        case 'surprise':
-          endpoint = '/api/products/paginated'
-          params.set('page', String(Math.floor(Math.random() * 5) + 1))
-          params.set('limit', '48')
-          // Para você prioriza os interesses
-          if (clientInterests.length > 0) {
-            params.set('interests', clientInterests.slice(0, 3).join(','))
-          }
-          break
-        case 'budget-friendly':
-        case 'electronics':
-        case 'home-decor':
-        case 'fashion':
-        case 'sports':
-        case 'beauty':
-        case 'kids':
-        case 'kitchen':
-        case 'outdoor':
-        case 'automotive':
-        case 'pets':
-          endpoint = '/api/products/paginated'
-          params.set('page', String(Math.floor(Math.random() * 4) + 1))
-          params.set('limit', '48')
-          break
-        case 'premium':
-          endpoint = '/api/products/paginated'
-          params.set('page', String(Math.floor(Math.random() * 3) + 1))
-          params.set('limit', '48')
-          break
-        default:
-          endpoint = '/api/products/paginated'
-          params.set('page', String(Math.floor(Math.random() * 5) + 1))
-          params.set('limit', '48')
+      // Usar a página definida na seção para buscar produtos diferentes em cada uma
+      endpoint = '/api/products/paginated'
+      params.set('page', String(sectionDef.page))
+      params.set('limit', '48')
+      
+      // Novidades não embaralha, mantém ordem de criação
+      if (sectionDef.id === 'new-arrivals') {
+        params.set('shuffle', 'false')
       }
       
       const response = await fetch(`${endpoint}?${params.toString()}`, {
@@ -218,10 +136,36 @@ export default function InfiniteHomeSections() {
         
         console.log('📦 Produtos recebidos para', sectionDef.title, ':', products.length)
         
+        // Filtrar produtos que já foram exibidos em outras seções
+        products = products.filter((p: Product) => !shownProductIds.current.has(p.id))
+        
+        console.log('📦 Produtos únicos (não repetidos):', products.length)
+        
+        // Se não sobrou nenhum produto novo, parar de mostrar seções
+        if (products.length === 0) {
+          console.log('⚠️ Sem produtos novos, parando de carregar seções')
+          setNoMoreProducts(true)
+          setCurrentSectionIndex(prev => prev + 1)
+          return
+        }
+        
+        // Mínimo de 6 produtos para exibir uma seção (evita seções muito vazias)
+        if (products.length < 6) {
+          console.log('⚠️ Poucos produtos novos, parando de carregar seções')
+          setNoMoreProducts(true)
+          setCurrentSectionIndex(prev => prev + 1)
+          return
+        }
+        
         // Embaralhamento adicional no cliente para garantir variedade
         if (sectionDef.id !== 'new-arrivals') {
           products = shuffleClientSide(products)
         }
+        
+        // Registrar os IDs dos produtos que serão exibidos
+        products.forEach((p: Product) => {
+          shownProductIds.current.add(p.id)
+        })
         
         // Salvar categorias visualizadas como interesses
         products.forEach((p: Product) => {
@@ -281,7 +225,7 @@ export default function InfiniteHomeSections() {
     }
   }, [])
 
-  const hasMore = currentSectionIndex < sectionDefinitions.length
+  const hasMore = currentSectionIndex < sectionDefinitions.length && !noMoreProducts
 
   return (
     <div className="space-y-12">
