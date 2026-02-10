@@ -236,9 +236,37 @@ export default function Navbar() {
                   placeholder="Procurar Produtos"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchQuery.trim().length >= 2) {
+                      // Disparar evento de pesquisa para a home
+                      window.dispatchEvent(new CustomEvent('myd_search', { detail: { term: searchQuery.trim() } }))
+                      // Salvar pesquisa recente
+                      try {
+                        const searches = JSON.parse(localStorage.getItem('myd_recent_searches') || '[]')
+                        const updated = [searchQuery.toLowerCase(), ...searches.filter((s: string) => s !== searchQuery.toLowerCase())].slice(0, 5)
+                        localStorage.setItem('myd_recent_searches', JSON.stringify(updated))
+                      } catch {}
+                      setShowResults(false)
+                    }
+                  }}
                   className="w-full pl-4 pr-12 py-3 border-2 border-gray-300 rounded-l-lg focus:outline-none focus:border-accent-500"
                 />
-                <button className="absolute right-0 top-0 bottom-0 bg-accent-500 text-white px-6 rounded-r-lg hover:bg-accent-600">
+                <button 
+                  onClick={() => {
+                    if (searchQuery.trim().length >= 2) {
+                      // Disparar evento de pesquisa para a home
+                      window.dispatchEvent(new CustomEvent('myd_search', { detail: { term: searchQuery.trim() } }))
+                      // Salvar pesquisa recente
+                      try {
+                        const searches = JSON.parse(localStorage.getItem('myd_recent_searches') || '[]')
+                        const updated = [searchQuery.toLowerCase(), ...searches.filter((s: string) => s !== searchQuery.toLowerCase())].slice(0, 5)
+                        localStorage.setItem('myd_recent_searches', JSON.stringify(updated))
+                      } catch {}
+                      setShowResults(false)
+                    }
+                  }}
+                  className="absolute right-0 top-0 bottom-0 bg-accent-500 text-white px-6 rounded-r-lg hover:bg-accent-600"
+                >
                   <FiSearch size={20} />
                 </button>
 
@@ -411,9 +439,35 @@ export default function Navbar() {
                 placeholder="Procurar Produtos"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim().length >= 2) {
+                    window.dispatchEvent(new CustomEvent('myd_search', { detail: { term: searchQuery.trim() } }))
+                    try {
+                      const searches = JSON.parse(localStorage.getItem('myd_recent_searches') || '[]')
+                      const updated = [searchQuery.toLowerCase(), ...searches.filter((s: string) => s !== searchQuery.toLowerCase())].slice(0, 5)
+                      localStorage.setItem('myd_recent_searches', JSON.stringify(updated))
+                    } catch {}
+                    setShowResults(false)
+                    setIsMenuOpen(false)
+                  }
+                }}
                 className="w-full pl-4 pr-12 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-accent-500"
               />
-              <button className="absolute right-2 top-2 text-accent-500">
+              <button 
+                onClick={() => {
+                  if (searchQuery.trim().length >= 2) {
+                    window.dispatchEvent(new CustomEvent('myd_search', { detail: { term: searchQuery.trim() } }))
+                    try {
+                      const searches = JSON.parse(localStorage.getItem('myd_recent_searches') || '[]')
+                      const updated = [searchQuery.toLowerCase(), ...searches.filter((s: string) => s !== searchQuery.toLowerCase())].slice(0, 5)
+                      localStorage.setItem('myd_recent_searches', JSON.stringify(updated))
+                    } catch {}
+                    setShowResults(false)
+                    setIsMenuOpen(false)
+                  }
+                }}
+                className="absolute right-2 top-2 text-accent-500"
+              >
                 <FiSearch size={20} />
               </button>
 
