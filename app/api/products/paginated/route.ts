@@ -101,8 +101,15 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category')
     const featured = searchParams.get('featured')
     // 🔒 Sanitizar busca e limitar tamanho
-    const rawSearch = searchParams.get('search')
+    const rawSearch = searchParams.get('search') || searchParams.get('q')
     const search = rawSearch ? sanitizeHtml(rawSearch).substring(0, 100) : null
+    
+    // Novos filtros
+    const minPrice = parseFloat(searchParams.get('minPrice') || '0') || 0
+    const maxPrice = parseFloat(searchParams.get('maxPrice') || '0') || 0
+    const inStock = searchParams.get('inStock') === 'true'
+    const onSale = searchParams.get('onSale') === 'true'
+    const sort = searchParams.get('sort') || 'newest'
     
     // Parâmetros de randomização
     const shuffle = searchParams.get('shuffle') === 'true'
@@ -131,6 +138,52 @@ export async function GET(request: NextRequest) {
         { description: { contains: search } },
       ]
     }
+    
+    // Filtro de preço
+    if (minPrice > 0 || maxPrice > 0) {
+      where.price = {}
+      if (minPrice > 0) where.price.gte = minPrice
+      if (maxPrice > 0) where.price.lte = maxPrice
+    }
+    
+    // Filtro de estoque
+    if (inStock) {
+      where.stock = { gt: 0 }
+    }
+    
+    // Filtro de promoção (produtos com comparePrice maior que price)
+    if (onSale) {
+      where.AND = [
+        { comparePrice: { not: null } },
+        { comparePrice: { gt: 0 } }
+      ]
+    }
+    
+    // Determinar ordenação
+    let orderBy: any = { createdAt: 'desc' }
+    switch (sort) {
+      case 'oldest':
+        orderBy = { createdAt: 'asc' }
+        break
+      case 'price-asc':
+        orderBy = { price: 'asc' }
+        break
+      case 'price-desc':
+        orderBy = { price: 'desc' }
+        break
+      case 'name-asc':
+        orderBy = { name: 'asc' }
+        break
+      case 'name-desc':
+        orderBy = { name: 'desc' }
+        break
+      case 'discount':
+        // Para desconto, ordenamos por comparePrice desc (maior desconto potencial)
+        orderBy = [{ comparePrice: 'desc' }, { createdAt: 'desc' }]
+        break
+      default:
+        orderBy = { createdAt: 'desc' }
+    }
 
     // Para shuffle/diversify, buscar mais produtos e depois filtrar
     const fetchLimit = (shuffle || diversify) ? Math.min(limit * 3, 300) : limit
@@ -147,7 +200,7 @@ export async function GET(request: NextRequest) {
         },
         skip: fetchSkip,
         take: fetchLimit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
       }),
       prisma.product.count({ where })
     ])
