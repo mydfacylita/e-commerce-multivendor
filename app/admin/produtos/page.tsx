@@ -290,6 +290,8 @@ export default async function AdminProdutosPage({
                       />
                       <PublishToMarketplaceButton
                         productId={product.id}
+                        productName={product.name}
+                        productGtin={product.gtin || ''}
                         existingListings={product.marketplaceListings}
                       />
                       <Link

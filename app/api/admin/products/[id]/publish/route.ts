@@ -43,6 +43,9 @@ export const POST = withAuth(
       }
 
       const marketplace = sanitizeHtml(data.marketplace || '')
+      // Novos parâmetros do modal inteligente
+      const mlCategoryId = data.mlCategoryId ? sanitizeHtml(data.mlCategoryId) : null
+      const catalogProductId = data.catalogProductId ? sanitizeHtml(data.catalogProductId) : null
 
       if (!marketplace || !['mercadolivre', 'shopee'].includes(marketplace)) {
         return NextResponse.json(
@@ -90,12 +93,21 @@ export const POST = withAuth(
         )
       }
 
-      // Publica no Mercado Livre
-      const mlResult = await publishToMercadoLivre(product)
+      // Publica no Mercado Livre - passa categoria e catálogo do modal
+      console.log('[ML API] Categoria do modal:', mlCategoryId)
+      console.log('[ML API] Catálogo do modal:', catalogProductId)
+      
+      const mlResult = await publishToMercadoLivre(product, { mlCategoryId, catalogProductId })
       
       if (!mlResult.success) {
+        console.error('[ML API] Erro ao publicar:', mlResult.message)
+        console.error('[ML API] Causa:', mlResult.cause)
         return NextResponse.json(
-          { message: mlResult.message },
+          { 
+            message: mlResult.message,
+            cause: mlResult.cause,
+            details: mlResult.details
+          },
           { status: 400 }
         )
       }
@@ -187,7 +199,11 @@ async function validateForMercadoLivre(product: any) {
   return { valid: true }
 }
 
-async function publishToMercadoLivre(product: any) {
+async function publishToMercadoLivre(
+  product: any, 
+  options?: { mlCategoryId?: string | null; catalogProductId?: string | null }
+) {
+  const { mlCategoryId, catalogProductId } = options || {}
   try {
     // Helper para fazer fetch com retry e timeout maior
     const fetchWithRetry = async (url: string, options: any, maxRetries = 3) => {
@@ -388,11 +404,14 @@ async function publishToMercadoLivre(product: any) {
 
     console.log('[ML Publish] Tipo de produto:', productType)
 
-    // Verifica se tem categoria ML salva no produto
-    let categoryId = specs.ml_category_id || 'MLB263532' // Usa a salva ou fallback
+    // PRIORIDADE 1: Categoria selecionada no modal
+    // PRIORIDADE 2: Categoria salva no produto (specs.ml_category_id)
+    // PRIORIDADE 3: Predição automática
+    let categoryId = mlCategoryId || specs.ml_category_id || 'MLB263532'
     
-    // Se não tem categoria salva, usa a API de predição
-    if (!specs.ml_category_id) {
+    if (mlCategoryId) {
+      console.log('[ML Publish] ✅ Usando categoria selecionada no modal:', mlCategoryId)
+    } else if (!specs.ml_category_id) {
       console.log('[ML Publish] Categoria não especificada, usando predição...')
       try {
       // Monta termo de busca inteligente baseado no tipo e dados do produto
@@ -459,6 +478,57 @@ async function publishToMercadoLivre(product: any) {
     }
     
     console.log('[ML Publish] Categoria final:', categoryId)
+    
+    // Verifica se a categoria requer catálogo
+    // PRIORIDADE 1: Catálogo selecionado no modal
+    // PRIORIDADE 2: Busca automática por GTIN
+    let finalCatalogProductId: string | null = catalogProductId || null
+    let requiresCatalog = false
+    
+    if (catalogProductId) {
+      console.log('[ML Publish] ✅ Usando catálogo selecionado no modal:', catalogProductId)
+    }
+    
+    try {
+      const categoryResponse = await fetchWithRetry(
+        `https://api.mercadolibre.com/categories/${categoryId}`,
+        {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        }
+      )
+      
+      if (categoryResponse.ok) {
+        const categoryData = await categoryResponse.json()
+        if (categoryData.settings?.catalog_domain) {
+          requiresCatalog = true
+          console.log('[ML Publish] ⚠️ Categoria requer catálogo:', categoryData.settings.catalog_domain)
+          
+          // Só busca automaticamente se não veio do modal
+          if (!finalCatalogProductId && product.gtin) {
+            console.log('[ML Publish] Buscando produto no catálogo pelo GTIN:', product.gtin)
+            
+            const catalogSearchResponse = await fetchWithRetry(
+              `https://api.mercadolibre.com/products/search?site_id=MLB&gtin=${product.gtin}`,
+              {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+              }
+            )
+            
+            if (catalogSearchResponse.ok) {
+              const catalogData = await catalogSearchResponse.json()
+              if (catalogData.results && catalogData.results.length > 0) {
+                finalCatalogProductId = catalogData.results[0].id
+                console.log('[ML Publish] ✅ Produto encontrado no catálogo:', finalCatalogProductId)
+              } else {
+                console.log('[ML Publish] ⚠️ Produto NÃO encontrado no catálogo do ML')
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log('[ML Publish] ⚠️ Erro ao verificar categoria:', e)
+    }
     
     // Busca os atributos permitidos para esta categoria
     console.log('[ML Publish] Buscando atributos da categoria', categoryId)
@@ -541,7 +611,8 @@ async function publishToMercadoLivre(product: any) {
       attributes.push({ id: 'MANUFACTURER', value_name: product.brand })
     }
     
-    // FAMILY_NAME - Linha/Família do produto (obrigatório para algumas categorias como fones)
+    // FAMILY_NAME / LINE - Linha/Família do produto (obrigatório para algumas categorias como smartwatches)
+    // O ML chama de "family_name" no erro mas o ID do atributo é "LINE"
     // Usa o modelo, ou extrai do nome do produto
     let familyName = product.model || ''
     if (!familyName) {
@@ -557,8 +628,10 @@ async function publishToMercadoLivre(product: any) {
       }
     }
     if (familyName) {
+      // Adiciona tanto LINE (ID correto) quanto FAMILY_NAME (para compatibilidade)
+      attributes.push({ id: 'LINE', value_name: familyName })
       attributes.push({ id: 'FAMILY_NAME', value_name: familyName })
-      console.log('[ML Publish] ✅ FAMILY_NAME adicionado:', familyName)
+      console.log('[ML Publish] ✅ LINE/FAMILY_NAME adicionado:', familyName)
     }
     
     if (product.model) {
@@ -917,26 +990,60 @@ async function publishToMercadoLivre(product: any) {
     console.log('[ML Publish] Preço original:', product.price, '→ Preço final:', finalPrice)
 
     // Monta o payload para criar o anúncio
-    const listingData: any = {
-      title: product.name.substring(0, 60), // ML tem limite de 60 caracteres
-      category_id: categoryId, // Categoria baseada no tipo de produto
-      price: finalPrice, // Preço com exatamente 2 casas decimais
-      currency_id: 'BRL',
-      available_quantity: product.stock,
-      buying_mode: 'buy_it_now',
-      listing_type_id: 'gold_special', // Ou 'gold_pro', 'gold_premium'
-      condition: 'new',
-      description: {
-        plain_text: detailedDescription
-      },
-      pictures,
-      attributes,
-      shipping: {
-        mode: 'me2',
-        free_shipping: false,
-        local_pick_up: false,
-        dimensions: null // Remove dimensões automáticas que podem causar problemas
+    let listingData: any
+    
+    // Verifica se a categoria exige catálogo e não temos
+    if (requiresCatalog && !finalCatalogProductId) {
+      console.log('[ML Publish] ⚠️ ATENÇÃO: Categoria exige catálogo mas não foi encontrado/selecionado!')
+      console.log('[ML Publish] Tentando publicar mesmo assim (pode falhar com body.invalid_fields)')
+    }
+    
+    // Se encontrou produto no catálogo, usa catalog_product_id em vez de title livre
+    if (finalCatalogProductId) {
+      console.log('[ML Publish] ✅ Usando catálogo do ML com product_id:', finalCatalogProductId)
+      
+      listingData = {
+        catalog_product_id: finalCatalogProductId,
+        price: finalPrice,
+        currency_id: 'BRL',
+        available_quantity: product.stock,
+        buying_mode: 'buy_it_now',
+        listing_type_id: 'gold_special',
+        condition: 'new',
+        pictures,
+        shipping: {
+          mode: 'me2',
+          free_shipping: false,
+          local_pick_up: false
+        }
       }
+    } else {
+      // Anúncio normal sem catálogo
+      listingData = {
+        title: product.name.substring(0, 60), // ML tem limite de 60 caracteres
+        category_id: categoryId, // Categoria baseada no tipo de produto
+        price: finalPrice, // Preço com exatamente 2 casas decimais
+        currency_id: 'BRL',
+        available_quantity: product.stock,
+        buying_mode: 'buy_it_now',
+        listing_type_id: 'gold_special', // Ou 'gold_pro', 'gold_premium'
+        condition: 'new',
+        // family_name é obrigatório para algumas categorias (smartwatches, etc.)
+        family_name: familyName || product.model || product.name.split(' ').slice(-2).join(' '),
+        description: {
+          plain_text: detailedDescription
+        },
+        pictures,
+        attributes,
+        shipping: {
+          mode: 'me2',
+          free_shipping: false,
+          local_pick_up: false,
+          dimensions: null // Remove dimensões automáticas que podem causar problemas
+        }
+      }
+      
+      console.log('[ML Publish] family_name adicionado ao body:', listingData.family_name)
     }
     
     // Adiciona SKU se disponível (seller_custom_field)
@@ -974,12 +1081,24 @@ async function publishToMercadoLivre(product: any) {
     if (!response.ok) {
       console.error('[ML Publish] Erro da API:', JSON.stringify(data, null, 2))
       
+      // Verificar campos inválidos específicos
+      if (data.cause) {
+        console.error('[ML Publish] Causa detalhada:')
+        data.cause.forEach((c: any, i: number) => {
+          console.error(`[ML Publish]   ${i + 1}. Código: ${c.code}, Mensagem: ${c.message}`)
+          if (c.references) {
+            console.error(`[ML Publish]      Referências: ${JSON.stringify(c.references)}`)
+          }
+        })
+      }
+      
       const { message, details } = formatMLErrors(data)
       
       return {
         success: false,
         message,
-        details
+        details,
+        cause: data.cause || []
       }
     }
 

@@ -71,13 +71,20 @@ export default function Navbar() {
         const response = await fetch('/api/public/categories')
         if (response.ok) {
           const data = await response.json()
-          // Organizar categorias em hierarquia
-          const parentCategories = data.filter((c: Category) => !c.parentId)
-          const organizedCategories = parentCategories.map((parent: Category) => ({
-            ...parent,
-            children: data.filter((c: Category) => c.parentId === parent.id)
-          }))
-          setCategories(organizedCategories)
+          // A API já retorna categorias organizadas com children
+          // Verificar se já vem com children ou se precisa organizar
+          if (data.length > 0 && data[0].children !== undefined) {
+            // Já vem organizado da API
+            setCategories(data)
+          } else {
+            // Fallback: organizar manualmente se necessário
+            const parentCategories = data.filter((c: Category) => !c.parentId)
+            const organizedCategories = parentCategories.map((parent: Category) => ({
+              ...parent,
+              children: data.filter((c: Category) => c.parentId === parent.id)
+            }))
+            setCategories(organizedCategories)
+          }
         }
       } catch (error) {
         console.error('Erro ao buscar categorias:', error)

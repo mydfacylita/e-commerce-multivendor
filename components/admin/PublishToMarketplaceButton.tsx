@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { FiUpload, FiRefreshCw, FiCheck, FiX, FiExternalLink, FiTrash2, FiPause, FiPlay, FiAlertCircle, FiCheckCircle, FiInfo } from 'react-icons/fi'
+import { useState, useEffect, useCallback } from 'react'
+import { FiUpload, FiRefreshCw, FiCheck, FiX, FiExternalLink, FiTrash2, FiPause, FiPlay, FiAlertCircle, FiCheckCircle, FiInfo, FiSearch, FiChevronRight, FiChevronLeft, FiPackage } from 'react-icons/fi'
 import { getStatusInfo, formatMLErrors } from '@/lib/mercadolivre'
 
 interface PublishToMarketplaceButtonProps {
   productId: string
+  productName?: string
+  productGtin?: string
   existingListings: Array<{
     marketplace: string
     status: string
@@ -26,6 +28,55 @@ interface InfoModal {
   }
 }
 
+interface CategoryPrediction {
+  categoryId: string
+  categoryName: string
+  domainId: string
+  domainName: string
+}
+
+interface CategoryInfo {
+  id: string
+  name: string
+  path: string
+  requiresCatalog: boolean
+  catalogDomain?: string
+  listingAllowed: boolean
+}
+
+interface RequiredAttribute {
+  id: string
+  name: string
+  type: string
+  values: Array<{ id: string; name: string }>
+  hint?: string
+}
+
+interface CatalogProduct {
+  id: string
+  name: string
+  status: string
+  domainId: string
+  picture?: string
+  attributes: Array<{ id: string; name: string; value: string }>
+}
+
+interface ValidationResult {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+  info: string[]
+  categoryInfo?: {
+    id: string
+    name: string
+    requiresCatalog: boolean
+    catalogDomain?: string
+  }
+  productData?: {
+    suggestedCatalogId?: string
+  }
+}
+
 const MARKETPLACES = [
   { id: 'mercadolivre', name: 'Mercado Livre', color: 'yellow' },
   { id: 'shopee', name: 'Shopee', color: 'orange' },
@@ -33,7 +84,9 @@ const MARKETPLACES = [
 ]
 
 export default function PublishToMarketplaceButton({ 
-  productId, 
+  productId,
+  productName = '',
+  productGtin = '',
   existingListings 
 }: PublishToMarketplaceButtonProps) {
   const [showModal, setShowModal] = useState(false)
@@ -50,12 +103,236 @@ export default function PublishToMarketplaceButton({
     message: ''
   })
 
+  // ========== NOVOS ESTADOS PARA FLUXO INTELIGENTE ==========
+  const [currentStep, setCurrentStep] = useState(1)
+  const [categorySearch, setCategorySearch] = useState('')
+  const [categoryPredictions, setCategoryPredictions] = useState<CategoryPrediction[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<CategoryInfo | null>(null)
+  const [requiredAttributes, setRequiredAttributes] = useState<RequiredAttribute[]>([])
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([])
+  const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<CatalogProduct | null>(null)
+  const [searchingCategories, setSearchingCategories] = useState(false)
+  const [searchingCatalog, setSearchingCatalog] = useState(false)
+  const [loadingCategory, setLoadingCategory] = useState(false)
+  const [validation, setValidation] = useState<ValidationResult | null>(null)
+  const [validating, setValidating] = useState(false)
+
   const showInfoModal = (config: Omit<InfoModal, 'isOpen'>) => {
     setModal({ ...config, isOpen: true })
   }
 
   const closeInfoModal = () => {
     setModal({ ...modal, isOpen: false })
+  }
+
+  // ========== FUNÇÕES DO FLUXO INTELIGENTE ==========
+
+  // Resetar modal ao abrir
+  const resetModal = () => {
+    setCurrentStep(1)
+    setSelectedMarketplace('')
+    setCategorySearch('')
+    setCategoryPredictions([])
+    setSelectedCategory(null)
+    setRequiredAttributes([])
+    setCatalogProducts([])
+    setSelectedCatalogProduct(null)
+    setValidation(null)
+  }
+
+  // Buscar categorias por predição
+  const searchCategories = useCallback(async (query: string) => {
+    if (query.length < 3) {
+      setCategoryPredictions([])
+      return
+    }
+    
+    setSearchingCategories(true)
+    try {
+      const response = await fetch(`/api/admin/mercadolivre/categories?query=${encodeURIComponent(query)}`)
+      const data = await response.json()
+      
+      if (data.predictions) {
+        setCategoryPredictions(data.predictions)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar categorias:', error)
+    } finally {
+      setSearchingCategories(false)
+    }
+  }, [])
+
+  // Debounce para busca de categorias
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (categorySearch) {
+        searchCategories(categorySearch)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [categorySearch, searchCategories])
+
+  // Iniciar busca com nome do produto quando abre o modal
+  useEffect(() => {
+    if (showModal && productName && currentStep === 2 && categoryPredictions.length === 0) {
+      setCategorySearch(productName)
+      searchCategories(productName)
+    }
+  }, [showModal, productName, currentStep, searchCategories, categoryPredictions.length])
+
+  // Selecionar uma categoria e carregar seus detalhes
+  const selectCategory = async (categoryId: string) => {
+    setLoadingCategory(true)
+    try {
+      const response = await fetch(`/api/admin/mercadolivre/categories?categoryId=${categoryId}`)
+      const data = await response.json()
+      
+      if (data.category) {
+        setSelectedCategory(data.category)
+        setRequiredAttributes(data.requiredAttributes || [])
+        
+        // Se categoria exige catálogo, buscar automaticamente
+        if (data.category.requiresCatalog) {
+          searchCatalog()
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar categoria:', error)
+      showInfoModal({
+        type: 'error',
+        title: 'Erro ao Carregar Categoria',
+        message: 'Não foi possível carregar os detalhes da categoria.'
+      })
+    } finally {
+      setLoadingCategory(false)
+    }
+  }
+
+  // Buscar produtos no catálogo
+  const searchCatalog = async () => {
+    setSearchingCatalog(true)
+    try {
+      const response = await fetch('/api/admin/mercadolivre/catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gtin: productGtin,
+          title: productName,
+          categoryId: selectedCategory?.id,
+          domainId: selectedCategory?.catalogDomain
+        })
+      })
+      
+      const data = await response.json()
+      if (data.found && data.products) {
+        setCatalogProducts(data.products)
+      } else {
+        setCatalogProducts([])
+      }
+    } catch (error) {
+      console.error('Erro ao buscar catálogo:', error)
+    } finally {
+      setSearchingCatalog(false)
+    }
+  }
+
+  // Validar produto antes de publicar
+  const validateProduct = async () => {
+    setValidating(true)
+    try {
+      const response = await fetch('/api/admin/mercadolivre/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId,
+          categoryId: selectedCategory?.id,
+          catalogProductId: selectedCatalogProduct?.id
+        })
+      })
+      
+      const data = await response.json()
+      setValidation(data)
+      return data.valid
+    } catch (error) {
+      console.error('Erro ao validar:', error)
+      return false
+    } finally {
+      setValidating(false)
+    }
+  }
+
+  // Avançar para o próximo passo
+  const nextStep = async () => {
+    if (currentStep === 1) {
+      if (!selectedMarketplace) {
+        showInfoModal({
+          type: 'warning',
+          title: 'Selecione um Marketplace',
+          message: 'Escolha onde deseja publicar o produto.'
+        })
+        return
+      }
+      setCurrentStep(2)
+    } else if (currentStep === 2) {
+      if (!selectedCategory) {
+        showInfoModal({
+          type: 'warning',
+          title: 'Selecione uma Categoria',
+          message: 'Escolha a categoria do Mercado Livre para seu produto.'
+        })
+        return
+      }
+      // Se exige catálogo e não selecionou, mostrar aviso BLOQUEANTE
+      if (selectedCategory.requiresCatalog && !selectedCatalogProduct) {
+        if (catalogProducts.length > 0) {
+          // Tem produtos no catálogo, precisa selecionar
+          showInfoModal({
+            type: 'error',
+            title: 'Catálogo Obrigatório',
+            message: 'Esta categoria exige que você selecione um produto do catálogo do Mercado Livre.',
+            details: [
+              '• Selecione um dos produtos encontrados no catálogo',
+              '• Isso é obrigatório para esta categoria',
+              '• O Mercado Livre não aceita anúncios livres nesta categoria'
+            ]
+          })
+          return
+        } else {
+          // Não encontrou no catálogo - avisar que pode falhar
+          showInfoModal({
+            type: 'warning',
+            title: 'Produto Não Encontrado no Catálogo',
+            message: 'Esta categoria geralmente exige vinculação com o catálogo, mas não encontramos seu produto.',
+            details: [
+              '⚠️ A publicação pode falhar',
+              '',
+              '💡 Opções:',
+              '• Tente com uma categoria diferente que não exija catálogo',
+              '• Verifique se o GTIN/EAN está correto',
+              '• Continue e veja se o ML aceita (pode funcionar para alguns produtos)'
+            ],
+            action: {
+              label: 'Tentar mesmo assim',
+              onClick: () => {
+                closeInfoModal()
+                setCurrentStep(3)
+                validateProduct()
+              }
+            }
+          })
+          return
+        }
+      }
+      setCurrentStep(3)
+      validateProduct()
+    }
+  }
+
+  // Voltar para o passo anterior
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
+    }
   }
 
   // Função para traduzir erros da API para mensagens amigáveis
@@ -162,6 +439,17 @@ export default function PublishToMarketplaceButton({
       return
     }
 
+    // Verificar se a validação foi feita e se há erros
+    if (validation && !validation.valid) {
+      showInfoModal({
+        type: 'error',
+        title: 'Produto Não Validado',
+        message: 'O produto possui erros que impedem a publicação.',
+        details: validation.errors.map(e => `• ${e}`)
+      })
+      return
+    }
+
     if (loading) return
 
     try {
@@ -169,7 +457,12 @@ export default function PublishToMarketplaceButton({
       const response = await fetch(`/api/admin/products/${productId}/publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ marketplace: selectedMarketplace }),
+        body: JSON.stringify({ 
+          marketplace: selectedMarketplace,
+          // Passar a categoria e catálogo selecionados no modal
+          mlCategoryId: selectedCategory?.id,
+          catalogProductId: selectedCatalogProduct?.id
+        }),
       })
 
       const data = await response.json()
@@ -218,20 +511,68 @@ export default function PublishToMarketplaceButton({
           return
         }
 
+        // Verificar erro de campos inválidos (geralmente significa que precisa de catálogo)
+        const isInvalidFieldsError = data.message?.includes('invalid_fields') || 
+          data.cause?.some((c: any) => c.code?.includes('invalid_fields'))
+        
+        if (isInvalidFieldsError && selectedCategory?.requiresCatalog && !selectedCatalogProduct) {
+          showInfoModal({
+            type: 'error',
+            title: 'Catálogo Obrigatório',
+            message: 'Esta categoria do Mercado Livre exige que o produto seja vinculado ao catálogo.',
+            details: [
+              '📦 O que isso significa:',
+              '• O Mercado Livre exige que você selecione um produto do catálogo oficial',
+              '• Isso garante que o anúncio tenha informações padronizadas',
+              '',
+              '💡 Como resolver:',
+              '• Volte ao passo 2 (Categoria)',
+              '• Busque e selecione o produto correspondente no catálogo',
+              '• Se o produto não existir no catálogo, tente uma categoria diferente',
+              '',
+              '⚠️ Se o GTIN estiver correto e não encontrou no catálogo:',
+              '• O produto pode não estar cadastrado no catálogo do ML',
+              '• Tente usar outra categoria que não exija catálogo'
+            ],
+            action: {
+              label: 'Voltar e Selecionar Catálogo',
+              onClick: () => {
+                closeInfoModal()
+                setCurrentStep(2)
+              }
+            }
+          })
+          return
+        }
+
         // Erro genérico
+        const errorDetails = []
+        
+        // Adicionar mensagem principal
+        if (data.message) {
+          errorDetails.push(`• ${data.message}`)
+        }
+        
+        // Adicionar causa detalhada se disponível
+        if (data.cause && Array.isArray(data.cause)) {
+          data.cause.forEach((c: any) => {
+            if (c.code) errorDetails.push(`• Código: ${c.code}`)
+            if (c.message) errorDetails.push(`  ${c.message}`)
+          })
+        }
+        
+        // Dicas gerais
+        errorDetails.push('')
+        errorDetails.push('💡 Dicas:')
+        errorDetails.push('• Verifique se o marketplace está configurado')
+        errorDetails.push('• Certifique-se de que o produto tem todas as informações necessárias')
+        errorDetails.push('• Verifique se você tem autorização para publicar')
+        
         showInfoModal({
           type: 'error',
           title: 'Erro ao Publicar Produto',
-          message: data.message || 'Não foi possível publicar o produto no marketplace.',
-          details: data.error ? [
-            `• Erro: ${data.error}`,
-            '• Verifique se o marketplace está configurado',
-            '• Certifique-se de que o produto tem todas as informações necessárias'
-          ] : [
-            '• Verifique se o marketplace está configurado',
-            '• Certifique-se de que o produto tem todas as informações necessárias',
-            '• Verifique se você tem autorização para publicar'
-          ],
+          message: 'Não foi possível publicar o produto no marketplace.',
+          details: errorDetails,
           action: {
             label: 'OK',
             onClick: closeInfoModal
@@ -626,7 +967,10 @@ export default function PublishToMarketplaceButton({
   return (
     <>
       <button
-        onClick={() => setShowModal(true)}
+        onClick={() => {
+          resetModal()
+          setShowModal(true)
+        }}
         className="p-2 text-green-600 hover:bg-green-50 rounded-md"
         title="Publicar em marketplace"
       >
@@ -635,50 +979,92 @@ export default function PublishToMarketplaceButton({
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">Publicar em Marketplaces</h2>
-
-            {/* Listagens existentes */}
-            {existingListings.length > 0 && (
-              <div className="mb-6">
-                <h3 className="font-semibold mb-3">Anúncios Ativos</h3>
-                <div className="space-y-2">
-                  {existingListings.map((listing) => {
-                    const marketplace = MARKETPLACES.find(m => m.id === listing.marketplace)
-                    return (
-                      <div 
-                        key={listing.marketplace}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-md"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <span className="font-medium">{marketplace?.name}</span>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              listing.status === 'active'
-                                ? 'bg-green-100 text-green-800'
-                                : listing.status === 'paused'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {listing.status === 'active' ? 'Ativo' : 
-                             listing.status === 'paused' ? 'Pausado' : 
-                             listing.status}
-                          </span>
-                          {listing.lastSyncAt && (
-                            <span className="text-xs text-gray-500">
-                              Sync: {new Date(listing.lastSyncAt).toLocaleDateString()}
+          <div className="bg-white rounded-lg max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header com indicador de passos */}
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">Publicar em Marketplaces</h2>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+              
+              {/* Indicador de Passos */}
+              <div className="flex items-center justify-center space-x-2">
+                {[1, 2, 3].map((step) => (
+                  <div key={step} className="flex items-center">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                        currentStep >= step
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-gray-200 text-gray-500'
+                      }`}
+                    >
+                      {currentStep > step ? <FiCheck size={16} /> : step}
+                    </div>
+                    {step < 3 && (
+                      <div
+                        className={`w-12 h-1 mx-1 ${
+                          currentStep > step ? 'bg-primary-600' : 'bg-gray-200'
+                        }`}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-center text-xs text-gray-500 mt-2 space-x-8">
+                <span className={currentStep >= 1 ? 'text-primary-600 font-medium' : ''}>Marketplace</span>
+                <span className={currentStep >= 2 ? 'text-primary-600 font-medium' : ''}>Categoria</span>
+                <span className={currentStep >= 3 ? 'text-primary-600 font-medium' : ''}>Confirmar</span>
+              </div>
+            </div>
+            
+            {/* Conteúdo do Modal */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Listagens existentes - sempre visível */}
+              {existingListings.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-3">Anúncios Ativos</h3>
+                  <div className="space-y-2">
+                    {existingListings.map((listing) => {
+                      const marketplace = MARKETPLACES.find(m => m.id === listing.marketplace)
+                      return (
+                        <div 
+                          key={listing.marketplace}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-md"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <span className="font-medium">{marketplace?.name}</span>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs ${
+                                listing.status === 'active'
+                                  ? 'bg-green-100 text-green-800'
+                                  : listing.status === 'paused'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {listing.status === 'active' ? 'Ativo' : 
+                               listing.status === 'paused' ? 'Pausado' : 
+                               listing.status}
                             </span>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {listing.listingUrl && (
-                            <a
-                              href={listing.listingUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
-                              title="Ver anúncio"
+                            {listing.lastSyncAt && (
+                              <span className="text-xs text-gray-500">
+                                Sync: {new Date(listing.lastSyncAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {listing.listingUrl && (
+                              <a
+                                href={listing.listingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
+                                title="Ver anúncio"
                             >
                               <FiExternalLink size={16} />
                             </a>
@@ -736,75 +1122,345 @@ export default function PublishToMarketplaceButton({
               </div>
             )}
 
-            {/* Seletor de marketplace */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">
-                Selecione o Marketplace
-              </label>
-              <select
-                value={selectedMarketplace}
-                onChange={(e) => setSelectedMarketplace(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-4 py-2"
-              >
-                <option value="">Escolha uma plataforma...</option>
-                {MARKETPLACES.filter(m => !getListingStatus(m.id)).map((marketplace) => (
-                  <option key={marketplace.id} value={marketplace.id}>
-                    {marketplace.name}
-                  </option>
-                ))}
-              </select>
+{/* PASSO 1: Seletor de marketplace */}
+              {currentStep === 1 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-2">
+                    Selecione o Marketplace
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {MARKETPLACES.filter(m => !getListingStatus(m.id)).map((marketplace) => (
+                      <button
+                        key={marketplace.id}
+                        onClick={() => setSelectedMarketplace(marketplace.id)}
+                        className={`p-4 border-2 rounded-lg text-center transition-all ${
+                          selectedMarketplace === marketplace.id
+                            ? 'border-primary-600 bg-primary-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="font-medium">{marketplace.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {selectedMarketplace === 'mercadolivre' && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-md">
+                      <h4 className="font-semibold mb-2">✨ Publicação Inteligente</h4>
+                      <p className="text-sm text-gray-700">
+                        Vamos te ajudar a escolher a categoria correta e verificar se o produto 
+                        precisa de vinculação com o catálogo do Mercado Livre antes de publicar.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PASSO 2: Seleção de Categoria do ML */}
+              {currentStep === 2 && selectedMarketplace === 'mercadolivre' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Buscar Categoria do Mercado Livre
+                    </label>
+                    <div className="relative">
+                      <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={categorySearch}
+                        onChange={(e) => setCategorySearch(e.target.value)}
+                        placeholder="Digite o nome do produto para sugerir categorias..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      />
+                      {searchingCategories && (
+                        <FiRefreshCw className="absolute right-3 top-1/2 transform -translate-y-1/2 animate-spin text-gray-400" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Lista de categorias sugeridas */}
+                  {categoryPredictions.length > 0 && !selectedCategory && (
+                    <div className="border rounded-md max-h-60 overflow-y-auto">
+                      {categoryPredictions.map((prediction) => (
+                        <button
+                          key={prediction.categoryId}
+                          onClick={() => selectCategory(prediction.categoryId)}
+                          disabled={loadingCategory}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0 flex items-center justify-between"
+                        >
+                          <div>
+                            <p className="font-medium text-sm">{prediction.categoryName}</p>
+                            <p className="text-xs text-gray-500">{prediction.domainName}</p>
+                          </div>
+                          <FiChevronRight className="text-gray-400" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Categoria selecionada */}
+                  {selectedCategory && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium flex items-center">
+                            <FiCheckCircle className="text-green-600 mr-2" />
+                            Categoria Selecionada
+                          </p>
+                          <p className="text-sm text-gray-700 mt-1">{selectedCategory.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">{selectedCategory.path}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedCategory(null)
+                            setCatalogProducts([])
+                            setSelectedCatalogProduct(null)
+                          }}
+                          className="text-sm text-blue-600 hover:underline"
+                        >
+                          Alterar
+                        </button>
+                      </div>
+
+                      {/* Aviso se categoria exige catálogo */}
+                      {selectedCategory.requiresCatalog && (
+                        <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                          <p className="text-sm text-yellow-800 flex items-start">
+                            <FiAlertCircle className="mr-2 mt-0.5 flex-shrink-0" />
+                            Esta categoria geralmente requer vinculação com o catálogo do ML
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Busca de catálogo */}
+                  {selectedCategory?.requiresCatalog && (
+                    <div className="p-4 bg-gray-50 rounded-md">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium flex items-center">
+                          <FiPackage className="mr-2" />
+                          Produto no Catálogo ML
+                        </h4>
+                        <button
+                          onClick={searchCatalog}
+                          disabled={searchingCatalog}
+                          className="text-sm text-blue-600 hover:underline flex items-center"
+                        >
+                          {searchingCatalog ? (
+                            <>
+                              <FiRefreshCw className="animate-spin mr-1" size={14} />
+                              Buscando...
+                            </>
+                          ) : (
+                            'Buscar novamente'
+                          )}
+                        </button>
+                      </div>
+
+                      {catalogProducts.length > 0 ? (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {catalogProducts.map((product) => (
+                            <button
+                              key={product.id}
+                              onClick={() => setSelectedCatalogProduct(product)}
+                              className={`w-full p-3 text-left border rounded-md transition-all flex items-center gap-3 ${
+                                selectedCatalogProduct?.id === product.id
+                                  ? 'border-primary-600 bg-primary-50'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              {product.picture && (
+                                <img 
+                                  src={product.picture} 
+                                  alt={product.name}
+                                  className="w-12 h-12 object-cover rounded"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{product.name}</p>
+                                <p className="text-xs text-gray-500">ID: {product.id}</p>
+                              </div>
+                              {selectedCatalogProduct?.id === product.id && (
+                                <FiCheckCircle className="text-primary-600 flex-shrink-0" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">
+                          {searchingCatalog 
+                            ? 'Buscando produtos no catálogo...'
+                            : productGtin
+                            ? 'Nenhum produto encontrado com o GTIN informado.'
+                            : 'Informe o GTIN/EAN do produto para buscar no catálogo.'}
+                        </p>
+                      )}
+
+                      {catalogProducts.length === 0 && !searchingCatalog && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          Você pode continuar sem vincular ao catálogo, mas o anúncio pode ter menor visibilidade.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PASSO 3: Validação e Confirmação */}
+              {currentStep === 3 && (
+                <div className="space-y-4">
+                  {validating ? (
+                    <div className="text-center py-8">
+                      <FiRefreshCw className="animate-spin mx-auto text-primary-600" size={32} />
+                      <p className="mt-3 text-gray-600">Validando produto...</p>
+                    </div>
+                  ) : validation ? (
+                    <>
+                      {/* Resumo da validação */}
+                      <div className={`p-4 rounded-md ${validation.valid ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                        <h4 className={`font-medium flex items-center ${validation.valid ? 'text-green-800' : 'text-red-800'}`}>
+                          {validation.valid ? (
+                            <>
+                              <FiCheckCircle className="mr-2" />
+                              Produto pronto para publicação!
+                            </>
+                          ) : (
+                            <>
+                              <FiAlertCircle className="mr-2" />
+                              Existem problemas a resolver
+                            </>
+                          )}
+                        </h4>
+                      </div>
+
+                      {/* Erros */}
+                      {validation.errors.length > 0 && (
+                        <div className="p-4 bg-red-50 rounded-md">
+                          <h5 className="font-medium text-red-800 mb-2">Erros que impedem a publicação:</h5>
+                          <ul className="space-y-1">
+                            {validation.errors.map((error, i) => (
+                              <li key={i} className="text-sm text-red-700 flex items-start">
+                                <FiX className="mr-2 mt-0.5 flex-shrink-0" size={14} />
+                                {error}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Avisos */}
+                      {validation.warnings.length > 0 && (
+                        <div className="p-4 bg-yellow-50 rounded-md">
+                          <h5 className="font-medium text-yellow-800 mb-2">Avisos (não impedem publicação):</h5>
+                          <ul className="space-y-1">
+                            {validation.warnings.map((warning, i) => (
+                              <li key={i} className="text-sm text-yellow-700 flex items-start">
+                                <FiAlertCircle className="mr-2 mt-0.5 flex-shrink-0" size={14} />
+                                {warning}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Informações */}
+                      {validation.info.length > 0 && (
+                        <div className="p-4 bg-blue-50 rounded-md">
+                          <h5 className="font-medium text-blue-800 mb-2">Informações do produto:</h5>
+                          <ul className="space-y-1">
+                            {validation.info.map((info, i) => (
+                              <li key={i} className="text-sm text-blue-700">
+                                {info}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Resumo da categoria e catálogo selecionados */}
+                      {selectedCategory && (
+                        <div className="p-4 bg-gray-50 rounded-md">
+                          <h5 className="font-medium text-gray-800 mb-2">Configurações selecionadas:</h5>
+                          <ul className="text-sm text-gray-700 space-y-1">
+                            <li>• Categoria: {selectedCategory.name}</li>
+                            {selectedCatalogProduct && (
+                              <li>• Catálogo: {selectedCatalogProduct.name}</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-8">
+                      <FiAlertCircle className="mx-auto text-gray-400" size={32} />
+                      <p className="mt-3 text-gray-600">Não foi possível validar o produto</p>
+                      <button
+                        onClick={validateProduct}
+                        className="mt-2 text-primary-600 hover:underline"
+                      >
+                        Tentar novamente
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Informações sobre o marketplace selecionado */}
-            {selectedMarketplace === 'mercadolivre' && (
-              <div className="mb-6 p-4 bg-blue-50 rounded-md">
-                <h4 className="font-semibold mb-2">Requisitos Mercado Livre</h4>
-                <ul className="text-sm space-y-1 text-gray-700">
-                  <li>• Marca deve estar preenchida</li>
-                  <li>• Imagens de alta qualidade (mín. 500x500px)</li>
-                  <li>• Descrição detalhada do produto</li>
-                  <li className="text-gray-500 italic">• Código GTIN/EAN é opcional (pode usar "produto sem código universal")</li>
-                </ul>
-              </div>
-            )}
-
-            {selectedMarketplace === 'shopee' && (
-              <div className="mb-6 p-4 bg-orange-50 rounded-md">
-                <h4 className="font-semibold mb-2">Requisitos Shopee</h4>
-                <ul className="text-sm space-y-1 text-gray-700">
-                  <li>• Pelo menos 3 imagens do produto</li>
-                  <li>• Peso e dimensões devem estar preenchidos</li>
-                  <li>• Categoria correta é essencial</li>
-                </ul>
-              </div>
-            )}
-
-            {/* Botões de ação */}
-            <div className="flex justify-end space-x-3">
+            {/* Footer com botões de ação */}
+            <div className="border-t p-4 flex justify-between">
               <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                onClick={currentStep === 1 ? () => setShowModal(false) : prevStep}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md flex items-center"
                 disabled={loading}
               >
-                Cancelar
+                {currentStep > 1 && <FiChevronLeft className="mr-1" />}
+                {currentStep === 1 ? 'Cancelar' : 'Voltar'}
               </button>
-              <button
-                onClick={handlePublish}
-                disabled={!selectedMarketplace || loading}
-                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-              >
-                {loading ? (
-                  <>
-                    <FiRefreshCw className="animate-spin" size={18} />
-                    <span>Publicando...</span>
-                  </>
+              
+              <div className="flex space-x-3">
+                {currentStep < 3 ? (
+                  <button
+                    onClick={nextStep}
+                    disabled={
+                      (currentStep === 1 && !selectedMarketplace) ||
+                      (currentStep === 2 && !selectedCategory) ||
+                      loadingCategory
+                    }
+                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                  >
+                    {loadingCategory ? (
+                      <>
+                        <FiRefreshCw className="animate-spin mr-2" size={16} />
+                        Carregando...
+                      </>
+                    ) : (
+                      <>
+                        Próximo
+                        <FiChevronRight className="ml-1" />
+                      </>
+                    )}
+                  </button>
                 ) : (
-                  <>
-                    <FiUpload size={18} />
-                    <span>Publicar</span>
-                  </>
+                  <button
+                    onClick={handlePublish}
+                    disabled={!validation?.valid || loading}
+                    className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                  >
+                    {loading ? (
+                      <>
+                        <FiRefreshCw className="animate-spin mr-2" size={18} />
+                        Publicando...
+                      </>
+                    ) : (
+                      <>
+                        <FiUpload className="mr-2" size={18} />
+                        Publicar Agora
+                      </>
+                    )}
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
           </div>
         </div>
