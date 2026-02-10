@@ -98,7 +98,11 @@ export default function ProdutosPage() {
       params.set('page', resetPage ? '1' : page.toString())
       params.set('limit', productsPerPage.toString())
       
-      const response = await fetch(`/api/products/paginated?${params.toString()}`)
+      const response = await fetch(`/api/products/paginated?${params.toString()}`, {
+        headers: {
+          'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
+        }
+      })
       
       if (response.ok) {
         const data = await response.json()
