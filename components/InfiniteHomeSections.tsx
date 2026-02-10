@@ -68,7 +68,9 @@ export default function InfiniteHomeSections() {
   const [clientInterests, setClientInterests] = useState<string[]>([])
   const [noMoreProducts, setNoMoreProducts] = useState(false)
   
-  // Manter registro de todos os produtos já exibidos para evitar repetições
+  // Manter registro de todos os produtos carregados e já exibidos
+  const allProductsRef = useRef<Product[]>([])
+  const allProductsLoadedRef = useRef(false)
   const shownProductIds = useRef<Set<string>>(new Set())
   
   // Carregar interesses ao montar
@@ -77,18 +79,18 @@ export default function InfiniteHomeSections() {
   }, [])
 
   // Definir as seções que serão carregadas - apenas seções genéricas que fazem sentido
-  // Cada seção busca produtos diferentes e para quando acabarem os produtos novos
+  // Cada seção busca todos os produtos e filtra os já exibidos para não repetir
   const sectionDefinitions = [
-    { id: 'recommended', title: 'Acho que você vai gostar', emoji: '💡', type: 'products' as const, page: 1 },
-    { id: 'offers', title: 'Ofertas Imperdíveis', emoji: '🔥', type: 'offers' as const, page: 2 },
-    { id: 'new-arrivals', title: 'Novidades da Semana', emoji: '✨', type: 'products' as const, page: 3 },
-    { id: 'trending', title: 'Em Alta Agora', emoji: '📈', type: 'products' as const, page: 4 },
-    { id: 'best-sellers', title: 'Mais Vendidos', emoji: '🏆', type: 'products' as const, page: 5 },
-    { id: 'for-you', title: 'Selecionados Para Você', emoji: '🎁', type: 'products' as const, page: 6 },
-    { id: 'flash-sale', title: 'Promoção Relâmpago', emoji: '⚡', type: 'offers' as const, page: 7 },
-    { id: 'explore-more', title: 'Explore Mais', emoji: '🔍', type: 'products' as const, page: 8 },
-    { id: 'surprise', title: 'Surpresas do Dia', emoji: '🎲', type: 'products' as const, page: 9 },
-    { id: 'picks', title: 'Escolhas da Semana', emoji: '⭐', type: 'products' as const, page: 10 },
+    { id: 'recommended', title: 'Acho que você vai gostar', emoji: '💡', type: 'products' as const },
+    { id: 'offers', title: 'Ofertas Imperdíveis', emoji: '🔥', type: 'offers' as const },
+    { id: 'new-arrivals', title: 'Novidades', emoji: '✨', type: 'products' as const },
+    { id: 'trending', title: 'Em Alta Agora', emoji: '📈', type: 'products' as const },
+    { id: 'best-sellers', title: 'Mais Vendidos', emoji: '🏆', type: 'products' as const },
+    { id: 'for-you', title: 'Selecionados Para Você', emoji: '🎁', type: 'products' as const },
+    { id: 'flash-sale', title: 'Promoção Relâmpago', emoji: '⚡', type: 'offers' as const },
+    { id: 'explore-more', title: 'Explore Mais', emoji: '🔍', type: 'products' as const },
+    { id: 'surprise', title: 'Surpresas do Dia', emoji: '🎲', type: 'products' as const },
+    { id: 'picks', title: 'Escolhas da Semana', emoji: '⭐', type: 'products' as const },
   ]
 
   // Carregar próxima seção
@@ -102,91 +104,84 @@ export default function InfiniteHomeSections() {
       const sectionDef = sectionDefinitions[currentSectionIndex]
       console.log('🔄 Carregando seção:', sectionDef.title)
       
-      let endpoint = ''
-      let params = new URLSearchParams()
-      
-      // Adicionar parâmetros de diversificação e embaralhamento
-      params.set('shuffle', 'true')
-      params.set('diversify', 'true')
-      
-      // Adicionar interesses do cliente
-      if (clientInterests.length > 0) {
-        params.set('interests', clientInterests.join(','))
-      }
-      
-      // Usar a página definida na seção para buscar produtos diferentes em cada uma
-      endpoint = '/api/products/paginated'
-      params.set('page', String(sectionDef.page))
-      params.set('limit', '48')
-      
-      // Novidades não embaralha, mantém ordem de criação
-      if (sectionDef.id === 'new-arrivals') {
-        params.set('shuffle', 'false')
-      }
-      
-      const response = await fetch(`${endpoint}?${params.toString()}`, {
-        headers: {
-          'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        let products = data.products || data || []
+      // Na primeira seção, carregar TODOS os produtos de uma vez
+      if (!allProductsLoadedRef.current) {
+        console.log('📦 Carregando todos os produtos...')
         
-        console.log('📦 Produtos recebidos para', sectionDef.title, ':', products.length)
+        const params = new URLSearchParams()
+        params.set('shuffle', 'true')
+        params.set('diversify', 'true')
+        params.set('limit', '500') // Buscar até 500 produtos
         
-        // Filtrar produtos que já foram exibidos em outras seções
-        products = products.filter((p: Product) => !shownProductIds.current.has(p.id))
-        
-        console.log('📦 Produtos únicos (não repetidos):', products.length)
-        
-        // Se não sobrou nenhum produto novo, parar de mostrar seções
-        if (products.length === 0) {
-          console.log('⚠️ Sem produtos novos, parando de carregar seções')
-          setNoMoreProducts(true)
-          setCurrentSectionIndex(prev => prev + 1)
-          return
+        if (clientInterests.length > 0) {
+          params.set('interests', clientInterests.join(','))
         }
         
-        // Mínimo de 6 produtos para exibir uma seção (evita seções muito vazias)
-        if (products.length < 6) {
-          console.log('⚠️ Poucos produtos novos, parando de carregar seções')
-          setNoMoreProducts(true)
-          setCurrentSectionIndex(prev => prev + 1)
-          return
-        }
-        
-        // Embaralhamento adicional no cliente para garantir variedade
-        if (sectionDef.id !== 'new-arrivals') {
-          products = shuffleClientSide(products)
-        }
-        
-        // Registrar os IDs dos produtos que serão exibidos
-        products.forEach((p: Product) => {
-          shownProductIds.current.add(p.id)
-        })
-        
-        // Salvar categorias visualizadas como interesses
-        products.forEach((p: Product) => {
-          if (p.category?.id) {
-            addClientInterest(p.category.id)
+        const response = await fetch(`/api/products/paginated?${params.toString()}`, {
+          headers: {
+            'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
           }
         })
         
-        if (products.length > 0) {
-          setSections(prev => [...prev, {
-            id: sectionDef.id,
-            title: sectionDef.title,
-            emoji: sectionDef.emoji,
-            type: sectionDef.type,
-            products: products,
-            loaded: true
-          }])
+        if (response.ok) {
+          const data = await response.json()
+          allProductsRef.current = shuffleClientSide(data.products || data || [])
+          console.log('📦 Total de produtos carregados:', allProductsRef.current.length)
         }
         
-        setCurrentSectionIndex(prev => prev + 1)
+        allProductsLoadedRef.current = true
       }
+      
+      // Pegar produtos que ainda não foram exibidos
+      const availableProducts = allProductsRef.current.filter(p => !shownProductIds.current.has(p.id))
+      console.log('📦 Produtos disponíveis para', sectionDef.title, ':', availableProducts.length)
+      
+      // Se não há mais produtos disponíveis, parar
+      if (availableProducts.length === 0) {
+        console.log('⚠️ Sem mais produtos disponíveis')
+        setNoMoreProducts(true)
+        setCurrentSectionIndex(prev => prev + 1)
+        return
+      }
+      
+      // Pegar até 24 produtos para esta seção (menos por seção = mais seções)
+      const productsPerSection = 24
+      let products = availableProducts.slice(0, productsPerSection)
+      
+      // Mínimo de 4 produtos para exibir uma seção
+      if (products.length < 4) {
+        console.log('⚠️ Poucos produtos restantes, parando')
+        setNoMoreProducts(true)
+        setCurrentSectionIndex(prev => prev + 1)
+        return
+      }
+      
+      console.log('📦 Produtos para seção', sectionDef.title, ':', products.length)
+      
+      // Registrar os IDs dos produtos que serão exibidos
+      products.forEach((p: Product) => {
+        shownProductIds.current.add(p.id)
+      })
+      
+      // Salvar categorias visualizadas como interesses
+      products.forEach((p: Product) => {
+        if (p.category?.id) {
+          addClientInterest(p.category.id)
+        }
+      })
+      
+      // Adicionar seção
+      setSections(prev => [...prev, {
+        id: sectionDef.id,
+        title: sectionDef.title,
+        emoji: sectionDef.emoji,
+        type: sectionDef.type,
+        products: products,
+        loaded: true
+      }])
+      
+      setCurrentSectionIndex(prev => prev + 1)
+      
     } catch (error) {
       console.error('❌ Erro ao carregar seção:', error)
       setCurrentSectionIndex(prev => prev + 1)
