@@ -220,7 +220,7 @@ export async function POST(request: Request) {
                   amount: revenue,
                   balanceBefore,
                   balanceAfter,
-                  description: `Comissão do pedido #${pedido.orderNumber || pedido.id.slice(-8).toUpperCase()}`,
+                  description: `Comissão do pedido #${pedido.id.slice(-8).toUpperCase()}`,
                   reference: pedido.id,
                   referenceType: 'ORDER',
                   orderId: pedido.id,

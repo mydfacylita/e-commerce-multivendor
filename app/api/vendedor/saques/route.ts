@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
           status: 'ACTIVE',
           balance: seller.balance,
           blockedBalance: 0,
-          totalReceived: seller.totalEarnings || 0,
+          totalReceived: seller.totalEarned || 0,
           totalWithdrawn: seller.totalWithdrawn || 0
         }
       })
