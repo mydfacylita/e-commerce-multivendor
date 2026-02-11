@@ -298,34 +298,18 @@ export default function SellerFinancialPage() {
           </div>
         </div>
 
+        {/* Link para Conta Digital */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Status de Pagamentos</h2>
-          <div className="space-y-3">
-            <div className="flex justify-between py-2 border-b">
-              <span className="text-gray-600">Disponível para Saque:</span>
-              <span className="font-semibold text-green-600">
-                R$ {summary.availableForWithdrawal.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between py-2 border-b">
-              <span className="text-gray-600">Aguardando Processamento:</span>
-              <span className="font-semibold text-yellow-600">
-                R$ {summary.pendingPayment.toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-gray-600">Total Recebido:</span>
-              <span className="font-semibold">
-                R$ {summary.totalPaid.toFixed(2)}
-              </span>
-            </div>
-          </div>
-          <button 
-            onClick={() => setShowWithdrawalModal(true)}
-            className="w-full mt-4 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+          <h2 className="text-xl font-bold mb-4">Sua Conta Digital</h2>
+          <p className="text-gray-600 mb-4">
+            Gerencie seus saques, transferências e veja o extrato completo na sua conta digital.
+          </p>
+          <Link 
+            href="/vendedor/conta"
+            className="w-full block text-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
           >
-            Solicitar Saque
-          </button>
+            Acessar Minha Conta
+          </Link>
         </div>
       </div>
 

@@ -122,7 +122,10 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // Construir filtro
-    const where: any = { active: true }
+    const where: any = { 
+      active: true,
+      approvalStatus: 'APPROVED'  // Apenas produtos aprovados
+    }
     
     if (category) {
       where.categoryId = category

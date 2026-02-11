@@ -30,12 +30,14 @@ export async function GET(request: NextRequest) {
 
     // Construir filtros
     let where: any = {
-      // Pedidos que contêm produtos deste vendedor
+      // Pedidos que contêm produtos PRÓPRIOS deste vendedor (não dropshipping)
       items: {
         some: {
           product: {
             sellerId: seller.id
-          }
+          },
+          // ⚠️ EXCLUIR produtos dropshipping - eles são expedidos pelo ADMIN
+          itemType: 'STOCK'
         }
       },
       // Pedido pago
@@ -67,7 +69,9 @@ export async function GET(request: NextRequest) {
           where: {
             product: {
               sellerId: seller.id
-            }
+            },
+            // ⚠️ Só mostrar itens PRÓPRIOS (não dropshipping)
+            itemType: 'STOCK'
           },
           include: {
             product: {

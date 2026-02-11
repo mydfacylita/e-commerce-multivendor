@@ -167,6 +167,12 @@ export async function GET(request: Request) {
             }
 
             for (const [sellerId, revenue] of sellerBalances.entries()) {
+              // Buscar conta digital do vendedor
+              const sellerAccount = await tx.sellerAccount.findUnique({
+                where: { sellerId }
+              })
+
+              // Atualizar balance do seller
               await tx.seller.update({
                 where: { id: sellerId },
                 data: {
@@ -174,6 +180,37 @@ export async function GET(request: Request) {
                   totalEarned: { increment: revenue }
                 }
               })
+
+              // 💳 Registrar transação na conta digital do vendedor
+              if (sellerAccount) {
+                const balanceBefore = Number(sellerAccount.balance) || 0
+                const balanceAfter = balanceBefore + revenue
+
+                // Atualizar saldo da conta
+                await tx.sellerAccount.update({
+                  where: { id: sellerAccount.id },
+                  data: {
+                    balance: { increment: revenue }
+                  }
+                })
+
+                // Criar transação de VENDA
+                await tx.sellerAccountTransaction.create({
+                  data: {
+                    accountId: sellerAccount.id,
+                    type: 'SALE',
+                    amount: revenue,
+                    balanceBefore,
+                    balanceAfter,
+                    description: `Comissão do pedido #${pedido.orderNumber || pedido.id.slice(-8).toUpperCase()}`,
+                    reference: pedido.id,
+                    referenceType: 'ORDER',
+                    orderId: pedido.id,
+                    status: 'COMPLETED',
+                    processedAt: new Date()
+                  }
+                })
+              }
             }
           })
 

@@ -53,22 +53,52 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Cancelar saque (não precisa devolver saldo pois ainda não foi descontado)
-    const updatedWithdrawal = await prisma.withdrawal.update({
-      where: { id: withdrawalId },
-      data: {
-        status: 'CANCELLED',
-        updatedAt: new Date()
+    // Cancelar saque e liberar valor bloqueado
+    await prisma.$transaction(async (tx) => {
+      // 1. Cancelar saque
+      await tx.withdrawal.update({
+        where: { id: withdrawalId },
+        data: {
+          status: 'CANCELLED',
+          updatedAt: new Date()
+        }
+      })
+
+      // 2. Desbloquear o valor na conta digital
+      const sellerAccount = await tx.sellerAccount.findUnique({
+        where: { sellerId: seller.id }
+      })
+
+      if (sellerAccount) {
+        await tx.sellerAccount.update({
+          where: { sellerId: seller.id },
+          data: {
+            blockedBalance: { decrement: withdrawal.amount }
+          }
+        })
+
+        // 3. Cancelar a transação pendente
+        await tx.sellerAccountTransaction.updateMany({
+          where: {
+            withdrawalId: withdrawalId,
+            type: 'WITHDRAWAL',
+            status: 'PENDING'
+          },
+          data: {
+            status: 'CANCELLED',
+            processedAt: new Date()
+          }
+        })
       }
     })
 
     return NextResponse.json({ 
       success: true,
-      message: 'Saque cancelado com sucesso',
+      message: 'Saque cancelado com sucesso. O valor bloqueado foi liberado.',
       withdrawal: {
-        id: updatedWithdrawal.id,
-        status: updatedWithdrawal.status,
-        amount: updatedWithdrawal.amount
+        id: withdrawal.id,
+        status: 'CANCELLED',
+        amount: withdrawal.amount
       }
     })
 

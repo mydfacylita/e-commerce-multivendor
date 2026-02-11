@@ -36,6 +36,7 @@ export default async function CategoryPage({ params }: { params: { slug: string 
     where: { 
       categoryId: { in: categoryIds },
       active: true,
+      approvalStatus: 'APPROVED',  // Apenas produtos aprovados
     },
     include: {
       category: true,

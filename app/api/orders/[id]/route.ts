@@ -50,6 +50,15 @@ export async function GET(
     const order = await prisma.order.findUnique({
       where: { id: params.id },
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            cpf: true,
+          },
+        },
         items: {
           include: {
             product: {
@@ -93,7 +102,26 @@ export async function GET(
       match: order.userId === userId
     })
 
-    if (order.userId !== userId && userRole !== 'ADMIN') {
+    // Verificar permissão: dono do pedido, ADMIN ou SELLER com itens no pedido
+    let hasAccess = order.userId === userId || userRole === 'ADMIN'
+    
+    // Se é SELLER, verificar se tem produtos neste pedido
+    if (!hasAccess && userRole === 'SELLER') {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { seller: true, workForSeller: true }
+      })
+      const sellerId = user?.seller?.id || user?.workForSeller?.id
+      
+      if (sellerId) {
+        const hasSellerItems = order.items.some(item => item.sellerId === sellerId)
+        if (hasSellerItems) {
+          hasAccess = true
+        }
+      }
+    }
+
+    if (!hasAccess) {
       return NextResponse.json(
         { message: 'Não autorizado' },
         { status: 403 }

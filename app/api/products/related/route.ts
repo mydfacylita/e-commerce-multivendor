@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
       products = await prisma.product.findMany({
         where: {
           active: true,
+          approvalStatus: 'APPROVED',  // Apenas produtos aprovados
           categoryId: { in: categoryIds }
         },
         include: {
@@ -58,7 +59,10 @@ export async function GET(request: NextRequest) {
     } else {
       // Buscar produtos aleatórios como fallback
       products = await prisma.product.findMany({
-        where: { active: true },
+        where: { 
+          active: true,
+          approvalStatus: 'APPROVED'  // Apenas produtos aprovados
+        },
         include: {
           category: { select: { name: true } }
         },

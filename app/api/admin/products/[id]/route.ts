@@ -471,6 +471,14 @@ export async function PUT(
         acceptsCreditCard: data.acceptsCreditCard,
         maxInstallments: data.maxInstallments,
         installmentsFreeInterest: data.installmentsFreeInterest,
+        // 🔒 STATUS DE APROVAÇÃO
+        // Se for SELLER editando produto PRÓPRIO (não dropshipping), volta para PENDING
+        // Produtos dropshipping não precisam de aprovação pois o conteúdo já foi aprovado pelo admin
+        ...(session.user.role === 'SELLER' && !existingProduct.isDropshipping ? {
+          approvalStatus: 'PENDING',
+          approvedAt: null,
+          approvedBy: null,
+        } : {}),
       },
       include: {
         category: true,
@@ -479,6 +487,9 @@ export async function PUT(
     })
 
     console.log('✅ Produto atualizado com sucesso')
+    if (session.user.role === 'SELLER' && !existingProduct.isDropshipping) {
+      console.log('⏳ Produto enviado para reaprovação')
+    }
 
     // 🔄 SINCRONIZAR PRODUTOS DROPSHIPPING SE FOR ADMIN E PRODUTO ORIGINAL
     let syncResult = null
@@ -526,6 +537,14 @@ export async function PUT(
           inactivated: syncResult.inactivated,
           message: `${syncResult.synced} produtos sincronizados, ${syncResult.inactivated} inativados por preço abaixo do mínimo`
         }
+      })
+    }
+
+    // Mensagem personalizada para vendedores que editaram produto próprio
+    if (session.user.role === 'SELLER' && !existingProduct.isDropshipping) {
+      return NextResponse.json({
+        ...product,
+        message: 'Produto atualizado! Aguardando reaprovação do administrador para voltar a ser exibido na loja.'
       })
     }
 

@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
     const productsRaw = await prisma.product.findMany({
       where: {
         active: true,
+        approvalStatus: 'APPROVED',  // Apenas produtos aprovados
         OR: [
           {
             name: {

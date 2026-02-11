@@ -1,47 +1,38 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { PrismaClient } = require('@prisma/client')
+const prisma = new PrismaClient()
 
 async function check() {
-  try {
-    // Buscar últimos 10 pedidos com items
-    const allOrders = await prisma.order.findMany({
-      take: 10,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                isDropshipping: true,
-                supplierId: true
-              }
-            }
-          }
-        }
+  const items = await prisma.orderItem.findMany({
+    where: { sellerId: 'cmk4hal6j0009cxgjq662ziwc' },
+    select: {
+      id: true,
+      price: true,
+      quantity: true,
+      sellerRevenue: true,
+      commissionAmount: true,
+      itemType: true,
+      product: {
+        select: { name: true, supplierSku: true }
       }
-    });
-
-    console.log('Últimos 10 pedidos:\n');
-    for (const order of allOrders) {
-      console.log(`Pedido: ${order.id.substring(0, 12).toUpperCase()}`);
-      console.log(`  Data: ${order.createdAt}`);
-      console.log(`  Status: ${order.status}`);
-      console.log(`  Items:`);
-      for (const item of order.items) {
-        console.log(`    - ${item.product.name}`);
-        console.log(`      isDropshipping: ${item.product.isDropshipping}`);
-        console.log(`      supplierId: ${item.product.supplierId || 'N/A'}`);
-      }
-      console.log('---');
     }
+  })
 
-    await prisma.$disconnect();
-  } catch (error) {
-    console.error('Erro:', error);
-    await prisma.$disconnect();
-  }
+  console.log('\n=== ORDER ITEMS DO VENDEDOR ===\n')
+  let totalRevenue = 0
+  let totalCommission = 0
+  
+  items.forEach(i => {
+    const isDropship = !!i.product?.supplierSku
+    console.log(`${isDropship ? 'DROP' : 'STOCK'} | ${i.product?.name?.slice(0, 25).padEnd(25)} | R$${i.price.toFixed(2)} x ${i.quantity} | Revenue: R$${(i.sellerRevenue || 0).toFixed(2)} | Commission: R$${(i.commissionAmount || 0).toFixed(2)}`)
+    totalRevenue += i.sellerRevenue || 0
+    totalCommission += i.commissionAmount || 0
+  })
+  
+  console.log('\n--- TOTAIS ---')
+  console.log('Total Revenue:', totalRevenue.toFixed(2))
+  console.log('Total Commission:', totalCommission.toFixed(2))
+
+  await prisma.$disconnect()
 }
 
-check();
+check()

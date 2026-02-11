@@ -145,16 +145,18 @@ async function createLocalOrder(mlOrder: any, adminUserId: string) {
         let sellerRevenue = 0
 
         if (isDropshipping && product.supplierSku) {
-          // Buscar comissão do produto ORIGINAL
+          // DROP: Vendedor ganha markup + comissão % do custo base (product.price)
           const originalProduct = await prisma.product.findUnique({
             where: { id: product.supplierSku },
-            select: { dropshippingCommission: true }
+            select: { dropshippingCommission: true, price: true }
           })
           
           commissionRate = originalProduct?.dropshippingCommission || 0
-          commissionAmount = (itemTotal * commissionRate) / 100
-          const costBase = (product.costPrice || 0) * mlItem.quantity
-          sellerRevenue = (itemTotal - costBase) + commissionAmount
+          const vendorBaseCost = originalProduct?.price || product.price || 0
+          const costBase = vendorBaseCost * mlItem.quantity
+          commissionAmount = vendorBaseCost * commissionRate / 100 * mlItem.quantity
+          const markup = itemTotal - costBase
+          sellerRevenue = markup + commissionAmount
         } else {
           // Produto próprio: vendedor PAGA comissão
           commissionRate = product.seller?.commission || 0

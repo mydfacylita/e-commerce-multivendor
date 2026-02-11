@@ -552,12 +552,12 @@ export default function CarrinhoPage() {
 
   if (items.length === 0) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-        <h1 className="text-4xl font-bold mb-8">Carrinho de Compras</h1>
-        <p className="text-xl text-gray-500 mb-8">Seu carrinho está vazio</p>
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-8 sm:py-16 text-center">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-8">Carrinho de Compras</h1>
+        <p className="text-lg sm:text-xl text-gray-500 mb-6 sm:mb-8">Seu carrinho está vazio</p>
         <Link
           href="/produtos"
-          className="bg-primary-600 text-white px-8 py-3 rounded-md hover:bg-primary-700 inline-block"
+          className="bg-primary-600 text-white px-6 sm:px-8 py-3 rounded-md hover:bg-primary-700 inline-block text-sm sm:text-base"
         >
           Continuar Comprando
         </Link>
@@ -566,17 +566,17 @@ export default function CarrinhoPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-8">Carrinho de Compras</h1>
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-8">Carrinho de Compras</h1>
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
+        <div className="lg:col-span-2 order-2 lg:order-1">
           {/* Produtos Nacionais */}
           {itensNacionais.length > 0 && (
-            <div className={`bg-white rounded-lg shadow-md p-6 mb-6 ${tipoSelecionado === 'internacional' ? 'opacity-50' : ''}`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
+            <div className={`bg-white rounded-lg shadow-md p-3 sm:p-6 mb-4 sm:mb-6 ${tipoSelecionado === 'internacional' ? 'opacity-50' : ''}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                  <label className="flex items-center gap-2 sm:gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={todosNacionaisSelecionados}
@@ -585,35 +585,37 @@ export default function CarrinhoPage() {
                       className="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-green-500 disabled:opacity-50"
                     />
                     <FiHome className="text-green-600" />
-                    <span>Produtos Nacionais</span>
+                    <span className="text-sm sm:text-base">Produtos Nacionais</span>
                   </label>
-                  <span className="text-sm font-normal text-gray-500">({itensNacionais.length} {itensNacionais.length === 1 ? 'item' : 'itens'})</span>
+                  <span className="text-xs sm:text-sm font-normal text-gray-500">({itensNacionais.length} {itensNacionais.length === 1 ? 'item' : 'itens'})</span>
                 </h2>
               </div>
               
               {itensNacionais.map((item) => (
-                <div key={item.id} className={`flex flex-col md:flex-row md:items-center border-b py-4 last:border-b-0 gap-4 ${itensSelecionados.has(item.id) ? 'border-l-4 border-l-green-500 -mx-6 px-6 bg-white' : 'opacity-50 grayscale'}`}>
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={itensSelecionados.has(item.id)}
-                      onChange={() => toggleItemSelecionado(item.id, false)}
-                      disabled={tipoSelecionado === 'internacional'}
-                      className="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-green-500 disabled:opacity-50"
-                    />
-                  </label>
-                  <div className="relative h-32 w-32 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">
-                    <Image
-                      src={item.image}
-                      alt={item.name}
-                      fill
-                      className="object-cover"
-                    />
+                <div key={item.id} className={`flex flex-col sm:flex-row sm:items-start border-b py-3 sm:py-4 last:border-b-0 gap-3 sm:gap-4 ${itensSelecionados.has(item.id) ? 'border-l-4 border-l-green-500 -mx-3 sm:-mx-6 px-3 sm:px-6 bg-white' : 'opacity-50 grayscale'}`}>
+                  <div className="flex items-start gap-3">
+                    <label className="flex items-center cursor-pointer mt-1">
+                      <input
+                        type="checkbox"
+                        checked={itensSelecionados.has(item.id)}
+                        onChange={() => toggleItemSelecionado(item.id, false)}
+                        disabled={tipoSelecionado === 'internacional'}
+                        className="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-green-500 disabled:opacity-50"
+                      />
+                    </label>
+                    <div className="relative h-20 w-20 sm:h-32 sm:w-32 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">
+                      <Image
+                        src={item.image}
+                        alt={item.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
                   </div>
 
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <Link href={`/produtos/${item.slug || item.id}`} className="hover:text-primary-600">
-                      <h3 className="font-semibold text-lg mb-1">{item.name}</h3>
+                      <h3 className="font-semibold text-sm sm:text-lg mb-1 line-clamp-2">{item.name}</h3>
                     </Link>
                     
                     {/* Badge de origem do item - produtos de vendedor têm CEP próprio */}
@@ -624,23 +626,23 @@ export default function CarrinhoPage() {
                       </span>
                     )}
                     
-                    <div className="flex flex-wrap gap-3 mb-2">
+                    <div className="flex flex-wrap gap-2 sm:gap-3 mb-2">
                       {item.selectedSize && (
-                        <div className="flex items-center gap-1 text-sm">
+                        <div className="flex items-center gap-1 text-xs sm:text-sm">
                           <span className="font-medium text-gray-600">Tamanho:</span>
-                          <span className="bg-gray-100 px-2 py-1 rounded font-semibold">{item.selectedSize}</span>
+                          <span className="bg-gray-100 px-2 py-0.5 sm:py-1 rounded font-semibold">{item.selectedSize}</span>
                         </div>
                       )}
                       {item.selectedColor && (
-                        <div className="flex items-center gap-1 text-sm">
+                        <div className="flex items-center gap-1 text-xs sm:text-sm">
                           <span className="font-medium text-gray-600">Cor:</span>
-                          <span className="bg-gray-100 px-2 py-1 rounded font-semibold">{item.selectedColor}</span>
+                          <span className="bg-gray-100 px-2 py-0.5 sm:py-1 rounded font-semibold">{item.selectedColor}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-4">
-                      <p className="text-primary-600 font-bold text-xl">
+                    <div className="flex items-center gap-2 sm:gap-4">
+                      <p className="text-primary-600 font-bold text-base sm:text-xl">
                         R$ {formatarMoeda(item.price)}
                       </p>
                       {item.stock && (
@@ -698,19 +700,19 @@ export default function CarrinhoPage() {
               ))}
               
               {/* Subtotal Nacional */}
-              <div className="flex justify-between items-center pt-4 mt-4 border-t bg-green-50 -mx-6 px-6 py-3 -mb-6 rounded-b-lg">
-                <span className="font-semibold text-gray-700">Subtotal Nacional:</span>
-                <span className="font-bold text-lg text-green-700">R$ {formatarMoeda(subtotalNacional)}</span>
+              <div className="flex justify-between items-center pt-3 sm:pt-4 mt-3 sm:mt-4 border-t bg-green-50 -mx-3 sm:-mx-6 px-3 sm:px-6 py-2 sm:py-3 -mb-3 sm:-mb-6 rounded-b-lg">
+                <span className="font-semibold text-sm sm:text-base text-gray-700">Subtotal Nacional:</span>
+                <span className="font-bold text-base sm:text-lg text-green-700">R$ {formatarMoeda(subtotalNacional)}</span>
               </div>
             </div>
           )}
 
           {/* Produtos Internacionais */}
           {itensInternacionais.length > 0 && (
-            <div className={`bg-white rounded-lg shadow-md p-6 mb-6 ${tipoSelecionado === 'nacional' ? 'opacity-50' : ''}`}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
+            <div className={`bg-white rounded-lg shadow-md p-3 sm:p-6 mb-4 sm:mb-6 ${tipoSelecionado === 'nacional' ? 'opacity-50' : ''}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                  <label className="flex items-center gap-2 sm:gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={todosInternacionaisSelecionados}
@@ -719,54 +721,56 @@ export default function CarrinhoPage() {
                       className="w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-orange-500 disabled:opacity-50"
                     />
                     <FiGlobe className="text-orange-600" />
-                    <span>Produtos Importados</span>
+                    <span className="text-sm sm:text-base">Produtos Importados</span>
                   </label>
-                  <span className="text-sm font-normal text-gray-500">({itensInternacionais.length} {itensInternacionais.length === 1 ? 'item' : 'itens'})</span>
+                  <span className="text-xs sm:text-sm font-normal text-gray-500">({itensInternacionais.length} {itensInternacionais.length === 1 ? 'item' : 'itens'})</span>
                 </h2>
               </div>
               
               {itensInternacionais.map((item) => (
-                <div key={item.id} className={`flex flex-col md:flex-row md:items-center border-b py-4 last:border-b-0 gap-4 ${itensSelecionados.has(item.id) ? 'border-l-4 border-l-orange-500 -mx-6 px-6 bg-white' : 'opacity-50 grayscale'}`}>
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={itensSelecionados.has(item.id)}
-                      onChange={() => toggleItemSelecionado(item.id, true)}
-                      disabled={tipoSelecionado === 'nacional'}
-                      className="w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-orange-500 disabled:opacity-50"
-                    />
-                  </label>
-                  <div className="relative h-32 w-32 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">
-                    <Image
-                      src={item.image}
-                      alt={item.name}
-                      fill
-                      className="object-cover"
-                    />
+                <div key={item.id} className={`flex flex-col sm:flex-row sm:items-start border-b py-3 sm:py-4 last:border-b-0 gap-3 sm:gap-4 ${itensSelecionados.has(item.id) ? 'border-l-4 border-l-orange-500 -mx-3 sm:-mx-6 px-3 sm:px-6 bg-white' : 'opacity-50 grayscale'}`}>
+                  <div className="flex items-start gap-3">
+                    <label className="flex items-center cursor-pointer mt-1">
+                      <input
+                        type="checkbox"
+                        checked={itensSelecionados.has(item.id)}
+                        onChange={() => toggleItemSelecionado(item.id, true)}
+                        disabled={tipoSelecionado === 'nacional'}
+                        className="w-5 h-5 text-orange-600 rounded border-gray-300 focus:ring-orange-500 disabled:opacity-50"
+                      />
+                    </label>
+                    <div className="relative h-20 w-20 sm:h-32 sm:w-32 bg-gray-200 rounded-md overflow-hidden flex-shrink-0">
+                      <Image
+                        src={item.image}
+                        alt={item.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
                   </div>
 
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <Link href={`/produtos/${item.slug || item.id}`} className="hover:text-primary-600">
-                      <h3 className="font-semibold text-lg mb-1">{item.name}</h3>
+                      <h3 className="font-semibold text-sm sm:text-lg mb-1 line-clamp-2">{item.name}</h3>
                     </Link>
                     
-                    <div className="flex flex-wrap gap-3 mb-2">
+                    <div className="flex flex-wrap gap-2 sm:gap-3 mb-2">
                       {item.selectedSize && (
-                        <div className="flex items-center gap-1 text-sm">
+                        <div className="flex items-center gap-1 text-xs sm:text-sm">
                           <span className="font-medium text-gray-600">Tamanho:</span>
-                          <span className="bg-gray-100 px-2 py-1 rounded font-semibold">{item.selectedSize}</span>
+                          <span className="bg-gray-100 px-2 py-0.5 sm:py-1 rounded font-semibold">{item.selectedSize}</span>
                         </div>
                       )}
                       {item.selectedColor && (
-                        <div className="flex items-center gap-1 text-sm">
+                        <div className="flex items-center gap-1 text-xs sm:text-sm">
                           <span className="font-medium text-gray-600">Cor:</span>
-                          <span className="bg-gray-100 px-2 py-1 rounded font-semibold">{item.selectedColor}</span>
+                          <span className="bg-gray-100 px-2 py-0.5 sm:py-1 rounded font-semibold">{item.selectedColor}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-4">
-                      <p className="text-primary-600 font-bold text-xl">
+                    <div className="flex items-center gap-2 sm:gap-4">
+                      <p className="text-primary-600 font-bold text-base sm:text-xl">
                         R$ {formatarMoeda(item.price)}
                       </p>
                       {item.stock && (
@@ -777,16 +781,16 @@ export default function CarrinhoPage() {
                     </div>
                   </div>
 
-                  <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center gap-4">
+                  <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-center gap-3 sm:gap-4 mt-2 sm:mt-0">
                     <div className="flex items-center border rounded-md">
                       <button
                         onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
-                        className="p-2 hover:bg-gray-100 transition"
+                        className="p-1.5 sm:p-2 hover:bg-gray-100 transition"
                         disabled={item.quantity <= 1}
                       >
-                        <FiMinus />
+                        <FiMinus className="w-4 h-4" />
                       </button>
-                      <span className="px-4 py-2 border-x min-w-[60px] text-center font-semibold">{item.quantity}</span>
+                      <span className="px-3 sm:px-4 py-1.5 sm:py-2 border-x min-w-[50px] sm:min-w-[60px] text-center font-semibold text-sm sm:text-base">{item.quantity}</span>
                       <button
                         onClick={() => {
                           const maxStock = item.stock || 999
@@ -796,27 +800,27 @@ export default function CarrinhoPage() {
                           }
                           updateQuantity(item.id, item.quantity + 1)
                         }}
-                        className="p-2 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-1.5 sm:p-2 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={!!item.stock && item.quantity >= item.stock}
                       >
-                        <FiPlus />
+                        <FiPlus className="w-4 h-4" />
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <div className="text-right">
-                        <p className="text-xs text-gray-500">Subtotal</p>
-                        <p className="font-bold text-lg text-primary-600">
+                        <p className="text-xs text-gray-500 hidden sm:block">Subtotal</p>
+                        <p className="font-bold text-base sm:text-lg text-primary-600">
                           R$ {formatarMoeda(item.price * item.quantity)}
                         </p>
                       </div>
 
                       <button
                         onClick={() => removeItem(item.id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 sm:p-2 rounded transition"
                         title="Remover item"
                       >
-                        <FiTrash2 size={20} />
+                        <FiTrash2 size={18} />
                       </button>
                     </div>
                   </div>
@@ -824,22 +828,22 @@ export default function CarrinhoPage() {
               ))}
               
               {/* Subtotal Internacional */}
-              <div className="flex justify-between items-center pt-4 mt-4 border-t bg-orange-50 -mx-6 px-6 py-3 -mb-6 rounded-b-lg">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-3 sm:pt-4 mt-3 sm:mt-4 border-t bg-orange-50 -mx-3 sm:-mx-6 px-3 sm:px-6 py-2 sm:py-3 -mb-3 sm:-mb-6 rounded-b-lg gap-1">
                 <div>
-                  <span className="font-semibold text-gray-700">Subtotal Internacional:</span>
-                  <span className="text-xs text-orange-600 ml-2">(+ impostos no checkout)</span>
+                  <span className="font-semibold text-sm sm:text-base text-gray-700">Subtotal Internacional:</span>
+                  <span className="text-xs text-orange-600 ml-1 sm:ml-2">(+ impostos no checkout)</span>
                 </div>
-                <span className="font-bold text-lg text-orange-700">R$ {formatarMoeda(subtotalInternacional)}</span>
+                <span className="font-bold text-base sm:text-lg text-orange-700">R$ {formatarMoeda(subtotalInternacional)}</span>
               </div>
             </div>
           )}
 
           {/* Ações do Carrinho */}
-          <div className="bg-white rounded-lg shadow-md p-4">
-            <div className="flex justify-between items-center">
+          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
               <button
                 onClick={clearCart}
-                className="text-red-500 hover:text-red-700 font-semibold flex items-center gap-2"
+                className="text-red-500 hover:text-red-700 font-semibold flex items-center gap-2 text-sm sm:text-base order-2 sm:order-1"
               >
                 <FiTrash2 /> Limpar Carrinho
               </button>
@@ -853,44 +857,44 @@ export default function CarrinhoPage() {
           </div>
 
           {/* Cupom de Desconto */}
-          <div className="bg-white rounded-lg shadow-md p-6 mt-6">
-            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mt-4 sm:mt-6">
+            <h3 className="font-bold text-base sm:text-lg mb-3 flex items-center gap-2">
               <FiTag className="text-primary-600" /> Cupom de Desconto
             </h3>
             
             {cupomAplicado ? (
-              <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center justify-between p-2 sm:p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center gap-2">
-                  <FiTag className="text-green-600" />
+                  <FiTag className="text-green-600 flex-shrink-0" />
                   <div>
-                    <span className="font-semibold text-green-700">{cupomAplicado}</span>
-                    <p className="text-sm text-green-600">
+                    <span className="font-semibold text-green-700 text-sm sm:text-base">{cupomAplicado}</span>
+                    <p className="text-xs sm:text-sm text-green-600">
                       Desconto de R$ {formatarMoeda(desconto)}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={removerCupom}
-                  className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded transition"
+                  className="text-red-500 hover:text-red-700 p-1.5 sm:p-2 hover:bg-red-50 rounded transition flex-shrink-0"
                   title="Remover cupom"
                 >
-                  <FiTrash2 size={18} />
+                  <FiTrash2 size={16} />
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={cupom}
                   onChange={(e) => setCupom(e.target.value.toUpperCase())}
                   placeholder="Digite seu cupom"
                   disabled={cupomCarregando}
-                  className="flex-1 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50"
+                  className="flex-1 px-3 sm:px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 disabled:opacity-50 text-sm sm:text-base"
                 />
                 <button
                   onClick={aplicarCupom}
                   disabled={cupomCarregando || !cupom.trim()}
-                  className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 sm:px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base"
                 >
                   {cupomCarregando ? (
                     <>
@@ -907,11 +911,11 @@ export default function CarrinhoPage() {
           </div>
 
           {/* Calcular Frete */}
-          <div className="bg-white rounded-lg shadow-md p-6 mt-6">
-            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mt-4 sm:mt-6">
+            <h3 className="font-bold text-base sm:text-lg mb-3 flex items-center gap-2">
               <FiTruck className="text-primary-600" /> Calcular Frete
             </h3>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <FiMapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -920,13 +924,13 @@ export default function CarrinhoPage() {
                   onChange={(e) => setCep(e.target.value.replace(/\D/g, ''))}
                   placeholder="00000-000"
                   maxLength={8}
-                  className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                  className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 text-sm sm:text-base"
                 />
               </div>
               <button
                 onClick={calcularFrete}
                 disabled={freteCarregando}
-                className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 sm:px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 {freteCarregando ? (
                   <>
@@ -985,20 +989,20 @@ export default function CarrinhoPage() {
           </div>
         </div>
 
-        <div>
-          <div className="bg-white rounded-lg shadow-md p-6 sticky top-20">
-            <h2 className="text-2xl font-bold mb-6">💰 Resumo do Pedido</h2>
+        <div className="order-1 lg:order-2">
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 sticky top-4 lg:top-20">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">💰 Resumo do Pedido</h2>
             
             {/* Instrução para selecionar produtos */}
             {itensSelecionados.size === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-6xl mb-4">👆</div>
-                <p className="text-gray-600 font-medium mb-2">Selecione os produtos</p>
-                <p className="text-sm text-gray-500">
+              <div className="text-center py-6 sm:py-8">
+                <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">👆</div>
+                <p className="text-gray-600 font-medium mb-2 text-sm sm:text-base">Selecione os produtos</p>
+                <p className="text-xs sm:text-sm text-gray-500">
                   Marque os itens que deseja comprar para ver o resumo
                 </p>
                 {itensNacionais.length > 0 && itensInternacionais.length > 0 && (
-                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-xs text-yellow-700">
                       ⚠️ Produtos nacionais e internacionais devem ser comprados separadamente
                     </p>
@@ -1007,10 +1011,10 @@ export default function CarrinhoPage() {
               </div>
             ) : (
               <>
-                <div className="space-y-3 mb-4">
+                <div className="space-y-2 sm:space-y-3 mb-4">
                   {/* Tipo selecionado */}
-                  <div className={`flex justify-between items-center p-3 rounded-lg ${tipoSelecionado === 'nacional' ? 'bg-green-50' : 'bg-orange-50'}`}>
-                    <span className="flex items-center gap-2 font-medium">
+                  <div className={`flex justify-between items-center p-2 sm:p-3 rounded-lg ${tipoSelecionado === 'nacional' ? 'bg-green-50' : 'bg-orange-50'}`}>
+                    <span className="flex items-center gap-2 font-medium text-sm sm:text-base">
                       {tipoSelecionado === 'nacional' ? (
                         <>
                           <FiHome className="text-green-600" />

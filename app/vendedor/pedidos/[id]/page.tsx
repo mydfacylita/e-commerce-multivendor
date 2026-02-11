@@ -28,7 +28,7 @@ export default function OrderDetailPage() {
 
   const fetchOrder = async () => {
     try {
-      const response = await fetch(`/api/admin/orders/${params.id}`);
+      const response = await fetch(`/api/orders/${params.id}`);
       if (response.ok) {
         const data = await response.json();
         setOrder(data);
@@ -47,7 +47,7 @@ export default function OrderDetailPage() {
   };
 
   const handlePrintLabel = () => {
-    window.open(`/api/admin/orders/${params.id}/label`, '_blank');
+    window.open(`/api/vendedor/expedicao/${params.id}/etiqueta`, '_blank');
   };
 
   const handleUpdateStatus = async (newStatus: string) => {
@@ -55,10 +55,31 @@ export default function OrderDetailPage() {
     
     try {
       setUpdatingStatus(true);
-      const response = await fetch(`/api/admin/orders/${params.id}/status`, {
-        method: 'PUT',
+      
+      // Mapear status para endpoints de expedição do vendedor
+      let endpoint = '';
+      let method = 'POST';
+      
+      switch (newStatus) {
+        case 'PROCESSING':
+          endpoint = `/api/vendedor/expedicao/${params.id}/separar`;
+          break;
+        case 'SHIPPED':
+          endpoint = `/api/vendedor/expedicao/${params.id}/despachar`;
+          break;
+        case 'DELIVERED':
+          // Para marcar como entregue, usar outra lógica se necessário
+          toast.error('Marcar como entregue será feito automaticamente pelo rastreio');
+          return;
+        default:
+          toast.error('Status não suportado');
+          return;
+      }
+      
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({}),
       });
 
       if (response.ok) {
@@ -83,8 +104,8 @@ export default function OrderDetailPage() {
     }
 
     try {
-      const response = await fetch(`/api/admin/orders/${params.id}/tracking`, {
-        method: 'PUT',
+      const response = await fetch(`/api/vendedor/expedicao/${params.id}/despachar`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trackingCode }),
       });
@@ -181,51 +202,18 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Ações do Pedido */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <h3 className="font-semibold text-blue-900 mb-3">Ações do Pedido</h3>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={handlePrintLabel}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <FiPrinter size={18} />
-            Imprimir Etiqueta
-          </button>
-
-          {order.status === 'PENDING' && (
-            <button
-              onClick={() => handleUpdateStatus('PROCESSING')}
-              disabled={updatingStatus}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-            >
-              <FiCheck size={18} />
-              Iniciar Processamento
-            </button>
-          )}
-
-          {order.status === 'PROCESSING' && (
-            <button
-              onClick={() => setShowTrackingModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              <FiTruck size={18} />
-              Adicionar Rastreio
-            </button>
-          )}
-
-          {order.trackingCode && order.status === 'SHIPPED' && (
-            <button
-              onClick={() => handleUpdateStatus('DELIVERED')}
-              disabled={updatingStatus}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-            >
-              <FiCheck size={18} />
-              Marcar como Entregue
-            </button>
-          )}
+      {/* Aviso de Pagamento Pendente */}
+      {order.status === 'PENDING' && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-600 text-xl">⏳</span>
+            <div>
+              <h3 className="font-semibold text-yellow-800">Aguardando Pagamento</h3>
+              <p className="text-sm text-yellow-700">Este pedido ainda não foi pago. As ações estarão disponíveis na área de Expedição após a confirmação do pagamento.</p>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Coluna Principal */}
@@ -361,6 +349,11 @@ export default function OrderDetailPage() {
             <h2 className="text-xl font-bold mb-4">Cliente</h2>
             <div className="space-y-2">
               <p className="font-semibold">{order.user?.name || 'N/A'}</p>
+              {order.user?.cpf && (
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">CPF:</span> {order.user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
+                </p>
+              )}
               {order.user?.email && (
                 <p className="text-sm text-gray-600">{order.user.email}</p>
               )}

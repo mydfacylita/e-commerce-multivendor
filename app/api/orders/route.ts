@@ -264,20 +264,41 @@ export async function POST(req: NextRequest) {
       let sellerRevenue = 0
       let supplierCost = null
       
-      // Salvar o costPrice do produto no momento da venda
+      // Salvar o costPrice do produto no momento da venda (custo real do admin)
       const productCostPrice = product.costPrice || product.totalCost || 0
 
       if (isDropshipping) {
-        // DROP: vendedor tem DESCONTO de X% no preço base
-        // Ex: Produto R$1,00 com 15% desconto = Vendedor paga R$0,85
-        // Se vende por R$1,10, lucro = R$0,25
-        const costPrice = productCostPrice
-        commissionRate = product.dropshippingCommission || 0
-        const discount = (costPrice * commissionRate) / 100
-        const vendorCost = costPrice - discount // Custo do vendedor após desconto
-        supplierCost = vendorCost
-        sellerRevenue = (item.price * item.quantity) - (vendorCost * item.quantity) // Lucro = venda - custo
-        commissionAmount = discount * item.quantity // Desconto total
+        // DROP: Vendedor ganha:
+        // 1. A diferença entre preço de venda e custo base (markup)
+        // 2. + comissão % sobre o custo base (definida pelo admin)
+        // Buscar produto ORIGINAL (do admin) via supplierSku para obter custo base correto
+        let costPrice = 0
+        
+        if (product.supplierSku) {
+          const originalProduct = await prisma.product.findUnique({
+            where: { id: product.supplierSku },
+            select: { price: true, dropshippingCommission: true }
+          })
+          if (originalProduct) {
+            costPrice = originalProduct.price || 0
+            commissionRate = originalProduct.dropshippingCommission || 0
+          }
+        }
+        
+        // Fallback
+        if (!costPrice) {
+          costPrice = product.price || 0
+          commissionRate = product.dropshippingCommission || 0
+        }
+        
+        // Ex: Custo base R$162.50 (product original.price), comissão 16%, venda R$289.20
+        //     Markup: 289.20 - 162.50 = 126.70
+        //     Comissão: 162.50 * 16% = 26.00
+        //     Total vendedor: 126.70 + 26.00 = 152.70
+        commissionAmount = (costPrice * commissionRate) / 100 * item.quantity // Comissão total
+        const markup = (item.price * item.quantity) - (costPrice * item.quantity) // Diferença de preço
+        sellerRevenue = markup + commissionAmount // Total do vendedor
+        supplierCost = costPrice // Custo base do vendedor
       } else {
         // STOCK: vendedor paga taxa da plataforma definida no PLANO
         const activeSubscription = product.seller?.subscriptions?.[0]

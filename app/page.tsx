@@ -10,7 +10,8 @@ export default async function HomePage() {
     prisma.product.findMany({
       where: { 
         featured: true,
-        active: true  // Apenas produtos ativos
+        active: true,  // Apenas produtos ativos
+        approvalStatus: 'APPROVED'  // Apenas produtos aprovados
       },
       include: { 
         category: true,

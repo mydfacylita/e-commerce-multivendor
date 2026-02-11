@@ -82,9 +82,15 @@ export async function POST(
         externalId: withdrawalId
       })
 
-      // Marcar como concluído e deduzir saldo
-      const [updatedWithdrawal] = await prisma.$transaction([
-        prisma.withdrawal.update({
+      // Buscar conta digital do vendedor
+      const sellerAccount = await prisma.sellerAccount.findUnique({
+        where: { sellerId: withdrawal.sellerId }
+      })
+
+      // Marcar como concluído, deduzir saldo e desbloquear valor
+      const [updatedWithdrawal] = await prisma.$transaction(async (tx) => {
+        // 1. Atualizar saque para COMPLETED
+        const withdrawal_ = await tx.withdrawal.update({
           where: { id: withdrawalId },
           data: {
             status: 'COMPLETED',
@@ -106,15 +112,45 @@ export async function POST(
               }
             }
           }
-        }),
-        prisma.seller.update({
+        })
+
+        // 2. Deduzir saldo do vendedor
+        await tx.seller.update({
           where: { id: withdrawal.sellerId },
           data: {
             balance: { decrement: withdrawal.amount },
             totalWithdrawn: { increment: withdrawal.amount }
           }
         })
-      ])
+
+        // 3. Atualizar conta digital: decrementar balance e blockedBalance
+        if (sellerAccount) {
+          await tx.sellerAccount.update({
+            where: { sellerId: withdrawal.sellerId },
+            data: {
+              balance: { decrement: withdrawal.amount },
+              blockedBalance: { decrement: withdrawal.amount },
+              totalWithdrawn: { increment: withdrawal.amount }
+            }
+          })
+
+          // 4. Atualizar transação para COMPLETED
+          await tx.sellerAccountTransaction.updateMany({
+            where: {
+              withdrawalId: withdrawalId,
+              type: 'WITHDRAWAL',
+              status: 'PENDING'
+            },
+            data: {
+              status: 'COMPLETED',
+              processedAt: new Date(),
+              processedBy: session.user.id
+            }
+          })
+        }
+
+        return [withdrawal_]
+      })
 
       return NextResponse.json({ 
         success: true,

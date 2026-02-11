@@ -57,36 +57,69 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Rejeitar saque (sem devolver saldo pois nunca foi deduzido)
-    const updatedWithdrawal = await prisma.withdrawal.update({
-      where: { id: withdrawalId },
-      data: {
-        status: 'REJECTED',
-        rejectionReason,
-        adminNote,
-        processedBy: session.user.id,
-        processedAt: new Date(),
-        updatedAt: new Date()
-      },
-      include: {
-        seller: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                email: true
+    // Rejeitar saque e liberar valor bloqueado
+    const updatedWithdrawal = await prisma.$transaction(async (tx) => {
+      // 1. Rejeitar saque
+      const withdrawal_ = await tx.withdrawal.update({
+        where: { id: withdrawalId },
+        data: {
+          status: 'REJECTED',
+          rejectionReason,
+          adminNote,
+          processedBy: session.user.id,
+          processedAt: new Date(),
+          updatedAt: new Date()
+        },
+        include: {
+          seller: {
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  email: true
+                }
               }
             }
           }
         }
+      })
+
+      // 2. Desbloquear o valor na conta digital
+      const sellerAccount = await tx.sellerAccount.findUnique({
+        where: { sellerId: withdrawal.sellerId }
+      })
+
+      if (sellerAccount) {
+        await tx.sellerAccount.update({
+          where: { sellerId: withdrawal.sellerId },
+          data: {
+            blockedBalance: { decrement: withdrawal.amount }
+          }
+        })
+
+        // 3. Cancelar a transação pendente
+        await tx.sellerAccountTransaction.updateMany({
+          where: {
+            withdrawalId: withdrawalId,
+            type: 'WITHDRAWAL',
+            status: 'PENDING'
+          },
+          data: {
+            status: 'CANCELLED',
+            processedAt: new Date(),
+            processedBy: session.user.id
+          }
+        })
       }
+
+      return withdrawal_
     })
 
     // TODO: Enviar notificação/email para o vendedor
 
     return NextResponse.json({ 
       success: true,
-      message: 'Saque rejeitado com sucesso',
+      message: 'Saque rejeitado com sucesso. O valor bloqueado foi liberado.',
       withdrawal: updatedWithdrawal
     })
 

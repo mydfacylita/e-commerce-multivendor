@@ -53,9 +53,15 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Marcar como concluído, deduzir saldo e atualizar totalWithdrawn
-    const [updatedWithdrawal, updatedSeller] = await prisma.$transaction([
-      prisma.withdrawal.update({
+    // Buscar conta digital do vendedor
+    const sellerAccount = await prisma.sellerAccount.findUnique({
+      where: { sellerId: withdrawal.sellerId }
+    })
+
+    // Marcar como concluído, deduzir saldo, desbloquear valor e atualizar transação
+    const [updatedWithdrawal, updatedSeller] = await prisma.$transaction(async (tx) => {
+      // 1. Atualizar saque para COMPLETED
+      const withdrawal_ = await tx.withdrawal.update({
         where: { id: withdrawalId },
         data: {
           status: 'COMPLETED',
@@ -77,15 +83,45 @@ export async function POST(
             }
           }
         }
-      }),
-      prisma.seller.update({
+      })
+
+      // 2. Deduzir saldo do vendedor e atualizar totalWithdrawn
+      const seller_ = await tx.seller.update({
         where: { id: withdrawal.sellerId },
         data: {
           balance: { decrement: withdrawal.amount },
           totalWithdrawn: { increment: withdrawal.amount }
         }
       })
-    ])
+
+      // 3. Atualizar conta digital: decrementar balance e blockedBalance
+      if (sellerAccount) {
+        await tx.sellerAccount.update({
+          where: { sellerId: withdrawal.sellerId },
+          data: {
+            balance: { decrement: withdrawal.amount },
+            blockedBalance: { decrement: withdrawal.amount },
+            totalWithdrawn: { increment: withdrawal.amount }
+          }
+        })
+
+        // 4. Atualizar transação para COMPLETED
+        await tx.sellerAccountTransaction.updateMany({
+          where: {
+            withdrawalId: withdrawalId,
+            type: 'WITHDRAWAL',
+            status: 'PENDING'
+          },
+          data: {
+            status: 'COMPLETED',
+            processedAt: new Date(),
+            processedBy: session.user.id
+          }
+        })
+      }
+
+      return [withdrawal_, seller_]
+    })
 
     // TODO: Enviar notificação/email para o vendedor
 

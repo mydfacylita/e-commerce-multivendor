@@ -133,13 +133,30 @@ export async function PUT(
       let supplierCost = null
 
       if (isDropshipping) {
-        const costPrice = product.costPrice || product.totalCost || 0
-        commissionRate = product.dropshippingCommission || 0
-        const discount = (costPrice * commissionRate) / 100
-        const vendorCost = costPrice - discount
-        supplierCost = vendorCost
-        sellerRevenue = (item.price * item.quantity) - (vendorCost * item.quantity)
-        commissionAmount = discount * item.quantity
+        // DROP: Vendedor ganha markup + comissão % do custo base
+        // Buscar produto ORIGINAL (do admin) via supplierSku
+        let costPrice = 0
+        
+        if (product.supplierSku) {
+          const originalProduct = await prisma.product.findUnique({
+            where: { id: product.supplierSku },
+            select: { price: true, dropshippingCommission: true }
+          })
+          if (originalProduct) {
+            costPrice = originalProduct.price || 0
+            commissionRate = originalProduct.dropshippingCommission || 0
+          }
+        }
+        
+        if (!costPrice) {
+          costPrice = product.price || 0
+          commissionRate = product.dropshippingCommission || 0
+        }
+        
+        commissionAmount = (costPrice * commissionRate) / 100 * item.quantity
+        const markup = (item.price * item.quantity) - (costPrice * item.quantity)
+        sellerRevenue = markup + commissionAmount
+        supplierCost = costPrice
       } else {
         const activeSubscription = product.seller?.subscriptions?.[0]
         const planCommission = activeSubscription?.plan?.platformCommission || product.seller?.commission || 10

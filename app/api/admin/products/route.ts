@@ -329,10 +329,17 @@ export async function POST(req: Request) {
         active: data.active !== undefined ? data.active : true,
         // SKUs selecionados para produtos importados (variantes com preços)
         selectedSkus: data.selectedSkus ? (typeof data.selectedSkus === 'string' ? data.selectedSkus : JSON.stringify(data.selectedSkus)) : null,
+        // 🔒 STATUS DE APROVAÇÃO
+        // - ADMIN: produtos aprovados automaticamente
+        // - SELLER: produtos próprios ficam PENDING, dropshipping fica APPROVED
+        approvalStatus: session.user.role === 'ADMIN' 
+          ? 'APPROVED' 
+          : (data.isDropshipping ? 'APPROVED' : 'PENDING'),
       },
     })
 
     console.log('✅ Produto criado:', product.name)
+    console.log('📋 Status de aprovação:', product.approvalStatus)
 
     // 🔗 MARCAR EAN COMO USADO SE FORNECIDO
     if (data.gtin) {
@@ -348,7 +355,7 @@ export async function POST(req: Request) {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
     statusCode = 201
-    responseData = { id: product.id, name: product.name }
+    responseData = { id: product.id, name: product.name, approvalStatus: product.approvalStatus }
     await logApi({
       method: 'POST',
       endpoint: '/api/admin/products',
@@ -362,7 +369,14 @@ export async function POST(req: Request) {
       duration: Date.now() - startTime
     })
 
-    return NextResponse.json(product, { status: 201 })
+    // Retornar mensagem personalizada para vendedores com produto pendente
+    const isPending = product.approvalStatus === 'PENDING'
+    return NextResponse.json({
+      ...product,
+      message: isPending 
+        ? 'Produto criado! Aguardando aprovação do administrador para ser publicado na loja.'
+        : 'Produto criado com sucesso!'
+    }, { status: 201 })
   } catch (error: any) {
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     console.error('💥 [ERRO] Erro ao criar produto')

@@ -262,10 +262,13 @@ export async function middleware(request: NextRequest) {
         )
       }
       
-      if (token.role !== 'ADMIN') {
+      // ✅ Permitir ADMIN e SELLER nas rotas de API admin
+      // Sellers precisam acessar /api/admin/products, /api/admin/categories, etc
+      // A validação específica de permissões é feita em cada rota
+      if (token.role !== 'ADMIN' && token.role !== 'SELLER') {
         console.warn(`🚫 [Security] Acesso admin negado para role ${token.role}: ${pathname}`)
         return NextResponse.json(
-          { error: 'Forbidden - Admin access required' },
+          { error: 'Forbidden - Admin or Seller access required' },
           { status: 403 }
         )
       }

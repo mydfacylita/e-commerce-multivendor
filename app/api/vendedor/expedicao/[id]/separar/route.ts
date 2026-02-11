@@ -24,7 +24,7 @@ export async function POST(
       return NextResponse.json({ error: 'Vendedor não encontrado' }, { status: 404 })
     }
 
-    // Verificar se o pedido pertence a este vendedor
+    // Verificar se o pedido pertence a este vendedor E tem itens PRÓPRIOS (não dropshipping)
     const order = await prisma.order.findFirst({
       where: {
         id: params.id,
@@ -32,14 +32,18 @@ export async function POST(
           some: {
             product: {
               sellerId: seller.id
-            }
+            },
+            // ⚠️ Só permitir expedição de produtos PRÓPRIOS
+            itemType: 'STOCK'
           }
         }
       }
     })
 
     if (!order) {
-      return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
+      return NextResponse.json({ 
+        error: 'Pedido não encontrado ou contém apenas produtos de dropshipping (expedidos pelo admin)' 
+      }, { status: 404 })
     }
 
     // Marcar como separado

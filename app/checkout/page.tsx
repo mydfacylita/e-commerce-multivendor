@@ -1166,63 +1166,64 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-4xl font-bold">Finalizar Compra</h1>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold">Finalizar Compra</h1>
         <button
           onClick={() => router.push('/')}
-          className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium transition-colors"
+          className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium transition-colors text-sm sm:text-base"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          Adicionar mais produtos
+          <span className="hidden sm:inline">Adicionar mais produtos</span>
+          <span className="sm:hidden">Adicionar produtos</span>
         </button>
       </div>
 
-      <div className="mb-8">
-        <div className="flex items-center justify-center">
+      <div className="mb-6 sm:mb-8 overflow-x-auto">
+        <div className="flex items-center justify-center min-w-[300px]">
           {/* Step 1 - Carrinho (clicável para voltar) */}
           <button 
             onClick={() => router.push('/carrinho')}
             className="flex items-center text-green-600 hover:opacity-80 transition-opacity"
             title="Voltar ao carrinho"
           >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-green-600 bg-green-600 text-white">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 border-green-600 bg-green-600 text-white text-sm sm:text-base">
               ✓
             </div>
-            <span className="ml-2 font-medium">Carrinho</span>
+            <span className="ml-1 sm:ml-2 font-medium text-xs sm:text-sm">Carrinho</span>
           </button>
-          <div className="w-16 h-0.5 mx-2 bg-green-600"></div>
+          <div className="w-8 sm:w-16 h-0.5 mx-1 sm:mx-2 bg-green-600"></div>
           
           {/* Step 2 - Endereço */}
           <div className={`flex items-center ${step === 'address' ? 'text-primary-600' : 'text-green-600'}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 text-sm sm:text-base ${
               step === 'address' ? 'border-primary-600 bg-primary-600 text-white' : 'border-green-600 bg-green-600 text-white'
             }`}>
               {step === 'payment' ? '✓' : '2'}
             </div>
-            <span className="ml-2 font-medium">Endereço</span>
+            <span className="ml-1 sm:ml-2 font-medium text-xs sm:text-sm">Endereço</span>
           </div>
-          <div className={`w-16 h-0.5 mx-2 ${step === 'payment' ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
+          <div className={`w-8 sm:w-16 h-0.5 mx-1 sm:mx-2 ${step === 'payment' ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
           
           {/* Step 3 - Pagamento */}
           <div className={`flex items-center ${step === 'payment' ? 'text-primary-600' : 'text-gray-400'}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 text-sm sm:text-base ${
               step === 'payment' ? 'border-primary-600 bg-primary-600 text-white' : 'border-gray-300'
             }`}>
               3
             </div>
-            <span className="ml-2 font-medium">Pagamento</span>
+            <span className="ml-1 sm:ml-2 font-medium text-xs sm:text-sm">Pagamento</span>
           </div>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-8">
         {step === 'address' ? (
-          <form onSubmit={handleAddressSubmit} className="lg:col-span-3 space-y-6">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold mb-4">Endereço de Entrega</h2>
+          <form onSubmit={handleAddressSubmit} className="lg:col-span-3 space-y-4 sm:space-y-6 order-2 lg:order-1">
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold mb-4">Endereço de Entrega</h2>
 
               {/* Lista de endereços salvos */}
               {loadingAddresses ? (
@@ -1291,9 +1292,9 @@ export default function CheckoutPage() {
 
               {/* Formulário de endereço (novo ou quando não tem salvos) */}
               {(showNewAddressForm || savedAddresses.length === 0) && (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {savedAddresses.length > 0 && (
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                       <h3 className="font-medium text-gray-700">Novo Endereço</h3>
                       <button
                         type="button"
@@ -1310,9 +1311,9 @@ export default function CheckoutPage() {
                     </div>
                   )}
                   
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium mb-1 sm:mb-2">
                       Rua / Logradouro <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1320,12 +1321,12 @@ export default function CheckoutPage() {
                       required
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      className="w-full px-3 sm:px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 text-sm sm:text-base"
                       placeholder="Rua, Avenida, etc."
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-sm font-medium mb-1 sm:mb-2">
                       Número <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1333,25 +1334,25 @@ export default function CheckoutPage() {
                       required
                       value={formData.number}
                       onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      className="w-full px-3 sm:px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 text-sm sm:text-base"
                       placeholder="Nº"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Complemento</label>
+                    <label className="block text-sm font-medium mb-1 sm:mb-2">Complemento</label>
                     <input
                       type="text"
                       value={formData.complement}
                       onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      className="w-full px-3 sm:px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 text-sm sm:text-base"
                       placeholder="Apt, Bloco, etc. (opcional)"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-sm font-medium mb-1 sm:mb-2">
                       Bairro <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -1359,27 +1360,27 @@ export default function CheckoutPage() {
                       required
                       value={formData.neighborhood}
                       onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                      className="w-full px-3 sm:px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 text-sm sm:text-base"
                       placeholder="Bairro"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Ponto de Referência</label>
+                  <label className="block text-sm font-medium mb-1 sm:mb-2">Ponto de Referência</label>
                   <input
                     type="text"
                     value={formData.reference}
                     onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600"
+                    className="w-full px-3 sm:px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 text-sm sm:text-base"
                     placeholder="Próximo ao mercado, em frente à farmácia, etc. (opcional)"
                   />
                 </div>
 
                 {/* CEP PRIMEIRO - com validação automática */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-sm font-medium mb-1 sm:mb-2">
                       CEP <span className="text-red-500">*</span>
                     </label>
                     <input

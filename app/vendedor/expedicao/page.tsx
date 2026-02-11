@@ -51,6 +51,35 @@ interface Order {
 
 type ExpeditionStatus = 'all' | 'pending' | 'separated' | 'packed' | 'shipped'
 
+// Função para parsear endereço JSON para texto legível
+const parseAddress = (address: string): string => {
+  try {
+    const addr = JSON.parse(address)
+    const parts = []
+    
+    if (addr.street) parts.push(addr.street)
+    if (addr.number) parts.push(addr.number)
+    if (addr.complement) parts.push(addr.complement)
+    if (addr.neighborhood) parts.push(addr.neighborhood)
+    if (addr.city && addr.state) parts.push(`${addr.city} - ${addr.state}`)
+    if (addr.zipCode) parts.push(`CEP: ${addr.zipCode}`)
+    
+    return parts.join(', ') || addr.formatted || address
+  } catch {
+    // Se não for JSON, retorna como está
+    return address
+  }
+}
+
+// Extrair dados do endereço para exibição estruturada
+const getAddressData = (address: string) => {
+  try {
+    return JSON.parse(address)
+  } catch {
+    return null
+  }
+}
+
 export default function VendedorExpedicaoPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -375,10 +404,31 @@ export default function VendedorExpedicaoPage() {
 
                     {/* Endereço */}
                     <div className="mb-4 bg-blue-50 p-3 rounded">
-                      <h4 className="font-medium mb-1 flex items-center gap-2">
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
                         <MapPin size={16} /> Endereço de entrega
                       </h4>
-                      <p className="text-sm">{order.shippingAddress}</p>
+                      {(() => {
+                        const addr = getAddressData(order.shippingAddress)
+                        if (addr) {
+                          return (
+                            <div className="text-sm space-y-1">
+                              <p className="font-medium">
+                                {addr.street}{addr.number ? `, ${addr.number}` : ''}
+                                {addr.complement ? ` - ${addr.complement}` : ''}
+                              </p>
+                              <p>{addr.neighborhood} - {addr.city}/{addr.state}</p>
+                              <p className="font-medium">CEP: {addr.zipCode}</p>
+                              {addr.reference && (
+                                <p className="text-blue-700 italic">📍 Ref: {addr.reference}</p>
+                              )}
+                              {addr.phone && (
+                                <p className="text-gray-600">📞 {addr.phone}</p>
+                              )}
+                            </div>
+                          )
+                        }
+                        return <p className="text-sm">{order.shippingAddress}</p>
+                      })()}
                     </div>
 
                     {/* Ações */}

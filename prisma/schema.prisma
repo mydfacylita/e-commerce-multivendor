@@ -222,6 +222,11 @@ model Product {
   shipFromCountry          String?              // País de onde o produto é enviado
   deliveryDays             Int?                 // Prazo de entrega em dias (da API)
   active                   Boolean              @default(true)
+  // Status de aprovação para produtos de vendedores
+  approvalStatus           String               @default("APPROVED") // PENDING, APPROVED, REJECTED
+  approvalNote             String?              @db.Text  // Nota do admin ao aprovar/rejeitar
+  approvedAt               DateTime?            // Data da aprovação
+  approvedBy               String?              // ID do admin que aprovou
   bookAuthor               String?
   bookGenre                String?
   bookIsbn                 String?
@@ -268,9 +273,11 @@ model Product {
   @@index([featured])
   @@index([isDropshipping])
   @@index([active])
+  @@index([approvalStatus])
   @@index([categoryId, featured])
   @@index([categoryId, active])
   @@index([sellerId, active])
+  @@index([sellerId, approvalStatus])
   @@index([isDropshipping, availableForDropship])
   @@index([createdAt])
   @@map("product")

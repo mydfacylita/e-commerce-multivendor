@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { FiPlus, FiEdit2, FiTrash2, FiPackage, FiTruck, FiEye, FiEyeOff, FiSearch } from 'react-icons/fi'
+import { FiPlus, FiEdit2, FiTrash2, FiPackage, FiTruck, FiEye, FiEyeOff, FiSearch, FiClock, FiCheckCircle, FiXCircle, FiAlertCircle } from 'react-icons/fi'
 import NotificationModal from '@/components/ui/NotificationModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { useNotification } from '@/hooks/useNotification'
@@ -26,6 +26,8 @@ interface Product {
   supplierSku: string | null
   isDropshipping: boolean
   dropshippingCommission: number | null
+  approvalStatus: string
+  approvalNote: string | null
 }
 
 export default function VendedorProdutosPage() {
@@ -46,11 +48,26 @@ export default function VendedorProdutosPage() {
 
   const loadProducts = async () => {
     try {
-      const res = await fetch('/api/admin/products')
+      console.log('[VendedorProdutos] Carregando produtos...')
+      const res = await fetch('/api/admin/products', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
+      console.log('[VendedorProdutos] Status da resposta:', res.status)
+      
+      const data = await res.json()
+      console.log('[VendedorProdutos] Dados recebidos:', data)
+      
       if (res.ok) {
-        const data = await res.json()
         // API retorna array de produtos
-        setProducts(Array.isArray(data) ? data : data.products || [])
+        const productsData = Array.isArray(data) ? data : data.products || []
+        console.log('[VendedorProdutos] Produtos carregados:', productsData.length)
+        setProducts(productsData)
+      } else {
+        console.error('[VendedorProdutos] Erro da API:', data.message || data.error)
+        showError('Erro', data.message || 'Erro ao carregar produtos')
       }
     } catch (error) {
       console.error('Erro ao carregar produtos:', error)
@@ -128,7 +145,10 @@ export default function VendedorProdutosPage() {
     total: productsArray.length,
     own: productsArray.filter(p => !p.supplierSku).length,
     dropshipping: productsArray.filter(p => !!p.supplierSku).length,
-    active: productsArray.filter(p => p.active).length
+    active: productsArray.filter(p => p.active).length,
+    pending: productsArray.filter(p => !p.supplierSku && p.approvalStatus === 'PENDING').length,
+    approved: productsArray.filter(p => !p.supplierSku && p.approvalStatus === 'APPROVED').length,
+    rejected: productsArray.filter(p => !p.supplierSku && p.approvalStatus === 'REJECTED').length
   }
 
   return (
@@ -149,45 +169,108 @@ export default function VendedorProdutosPage() {
           </Link>
         </div>
 
+        {/* Alertas de Aprovação */}
+        {stats.pending > 0 && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-lg">
+            <div className="flex items-center">
+              <FiClock className="text-yellow-500 text-xl mr-3" />
+              <div>
+                <p className="font-semibold text-yellow-800">
+                  {stats.pending} produto{stats.pending > 1 ? 's' : ''} aguardando aprovação
+                </p>
+                <p className="text-sm text-yellow-700">
+                  Seus produtos próprios precisam ser aprovados pelo administrador antes de aparecerem na loja.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {stats.rejected > 0 && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-r-lg">
+            <div className="flex items-center">
+              <FiXCircle className="text-red-500 text-xl mr-3" />
+              <div>
+                <p className="font-semibold text-red-800">
+                  {stats.rejected} produto{stats.rejected > 1 ? 's' : ''} rejeitado{stats.rejected > 1 ? 's' : ''}
+                </p>
+                <p className="text-sm text-red-700">
+                  Passe o mouse sobre o status para ver o motivo da rejeição. Corrija e salve novamente para reenviar.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Estatísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+          <div className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total de Produtos</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                <p className="text-xs text-gray-600">Total</p>
+                <p className="text-xl font-bold text-gray-900">{stats.total}</p>
               </div>
-              <FiPackage className="text-3xl text-blue-500" />
+              <FiPackage className="text-2xl text-blue-500" />
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Produtos Próprios</p>
-                <p className="text-2xl font-bold text-green-600">{stats.own}</p>
+                <p className="text-xs text-gray-600">Próprios</p>
+                <p className="text-xl font-bold text-green-600">{stats.own}</p>
               </div>
-              <FiPackage className="text-3xl text-green-500" />
+              <FiPackage className="text-2xl text-green-500" />
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Dropshipping</p>
-                <p className="text-2xl font-bold text-purple-600">{stats.dropshipping}</p>
+                <p className="text-xs text-gray-600">Dropshipping</p>
+                <p className="text-xl font-bold text-purple-600">{stats.dropshipping}</p>
               </div>
-              <FiTruck className="text-3xl text-purple-500" />
+              <FiTruck className="text-2xl text-purple-500" />
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-4 rounded-lg shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Ativos</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.active}</p>
+                <p className="text-xs text-gray-600">Ativos</p>
+                <p className="text-xl font-bold text-blue-600">{stats.active}</p>
               </div>
-              <FiEye className="text-3xl text-blue-500" />
+              <FiEye className="text-2xl text-blue-500" />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-400">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600">Pendentes</p>
+                <p className="text-xl font-bold text-yellow-600">{stats.pending}</p>
+              </div>
+              <FiClock className="text-2xl text-yellow-500" />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-400">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600">Aprovados</p>
+                <p className="text-xl font-bold text-green-600">{stats.approved}</p>
+              </div>
+              <FiCheckCircle className="text-2xl text-green-500" />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow border-l-4 border-red-400">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600">Rejeitados</p>
+                <p className="text-xl font-bold text-red-600">{stats.rejected}</p>
+              </div>
+              <FiXCircle className="text-2xl text-red-500" />
             </div>
           </div>
         </div>
@@ -278,7 +361,7 @@ export default function VendedorProdutosPage() {
                     <th className="text-left py-4 px-6 font-semibold">Preço</th>
                     <th className="text-left py-4 px-6 font-semibold">Estoque</th>
                     <th className="text-left py-4 px-6 font-semibold">Tipo</th>
-                    <th className="text-left py-4 px-6 font-semibold">Comissão</th>
+                    <th className="text-left py-4 px-6 font-semibold">Aprovação</th>
                     <th className="text-left py-4 px-6 font-semibold">Status</th>
                     <th className="text-right py-4 px-6 font-semibold">Ações</th>
                   </tr>
@@ -339,15 +422,49 @@ export default function VendedorProdutosPage() {
                           )}
                         </td>
                         <td className="py-4 px-6">
-                          {isDropshipping && product.dropshippingCommission ? (
-                            <div>
-                              <p className="font-semibold text-green-600">{product.dropshippingCommission}%</p>
-                              <p className="text-xs text-gray-500">
-                                R$ {(product.price * product.dropshippingCommission / 100).toFixed(2)}
-                              </p>
-                            </div>
+                          {/* Status de aprovação - só para produtos próprios */}
+                          {isDropshipping ? (
+                            <span className="inline-flex items-center gap-1 text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
+                              <FiCheckCircle size={14} />
+                              Aprovado
+                            </span>
                           ) : (
-                            <span className="text-sm text-gray-400">-</span>
+                            <div className="relative group">
+                              {product.approvalStatus === 'PENDING' && (
+                                <span className="inline-flex items-center gap-1 text-sm bg-yellow-100 text-yellow-700 px-2 py-1 rounded cursor-help">
+                                  <FiClock size={14} />
+                                  Pendente
+                                </span>
+                              )}
+                              {product.approvalStatus === 'APPROVED' && (
+                                <span className="inline-flex items-center gap-1 text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
+                                  <FiCheckCircle size={14} />
+                                  Aprovado
+                                </span>
+                              )}
+                              {product.approvalStatus === 'REJECTED' && (
+                                <span className="inline-flex items-center gap-1 text-sm bg-red-100 text-red-700 px-2 py-1 rounded cursor-help">
+                                  <FiXCircle size={14} />
+                                  Rejeitado
+                                </span>
+                              )}
+                              {/* Tooltip com nota de rejeição */}
+                              {product.approvalStatus === 'REJECTED' && product.approvalNote && (
+                                <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+                                  <div className="bg-gray-900 text-white text-xs rounded p-2 max-w-xs">
+                                    <p className="font-semibold mb-1">Motivo da rejeição:</p>
+                                    <p>{product.approvalNote}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {product.approvalStatus === 'PENDING' && (
+                                <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+                                  <div className="bg-gray-900 text-white text-xs rounded p-2 max-w-xs">
+                                    <p>Aguardando aprovação do administrador</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="py-4 px-6">

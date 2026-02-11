@@ -39,41 +39,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
     }
 
-    // Calcular pagamentos DROP pendentes (valores que o vendedor DEVE)
-    const pendingDropPayments = await prisma.orderItem.findMany({
-      where: {
-        sellerId: seller.id,
-        itemType: 'DROPSHIPPING',
-        order: {
-          status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] } // Pedidos ativos
-        }
-      },
-      select: {
-        supplierCost: true
-      }
-    })
-
-    // Somar os valores que o vendedor deve pagar (supplierCost + comissão)
-    const totalPendingPayments = pendingDropPayments.reduce((total, item) => {
-      // Para DROP: vendedor deve pagar o supplierCost (que já inclui o desconto da comissão)
-      const amountOwed = item.supplierCost || 0
-      return total + amountOwed
-    }, 0)
-
-    // Saldo disponível REAL = saldo atual - valores devidos pendentes
-    const availableBalance = seller.balance - totalPendingPayments
-
-    // Verificar saldo disponível real
-    if (availableBalance < amount) {
-      return NextResponse.json({ 
-        error: 'Saldo insuficiente. Você possui pagamentos de dropshipping pendentes.', 
-        balance: seller.balance,
-        pendingPayments: totalPendingPayments,
-        availableBalance: Math.max(0, availableBalance),
-        requested: amount
-      }, { status: 400 })
-    }
-
     // Valor mínimo de saque (R$ 0,01)
     const MIN_WITHDRAWAL = 0.01
     if (amount < MIN_WITHDRAWAL) {
@@ -115,49 +80,110 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Criar solicitação de saque
-    const withdrawal = await prisma.withdrawal.create({
-      data: {
-        sellerId: seller.id,
-        amount,
-        status: 'PENDING',
-        paymentMethod,
-        pixKey,
-        pixKeyType,
-        bankName,
-        bankCode,
-        agencia,
-        conta,
-        contaTipo,
-        sellerNote
-      },
-      include: {
-        seller: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                email: true,
-                phone: true
+    // Buscar ou criar conta digital do vendedor
+    let sellerAccount = await prisma.sellerAccount.findUnique({
+      where: { sellerId: seller.id }
+    })
+
+    if (!sellerAccount) {
+      // Criar conta digital se não existir
+      sellerAccount = await prisma.sellerAccount.create({
+        data: {
+          sellerId: seller.id,
+          accountNumber: `SA${Date.now()}${seller.id.slice(-4)}`,
+          status: 'ACTIVE',
+          balance: seller.balance,
+          blockedBalance: 0,
+          totalReceived: seller.totalEarnings || 0,
+          totalWithdrawn: seller.totalWithdrawn || 0
+        }
+      })
+    }
+
+    // Verificar saldo disponível REAL (balance - blockedBalance)
+    const realAvailableBalance = sellerAccount.balance - sellerAccount.blockedBalance
+    if (realAvailableBalance < amount) {
+      return NextResponse.json({ 
+        error: 'Saldo disponível insuficiente', 
+        balance: sellerAccount.balance,
+        blockedBalance: sellerAccount.blockedBalance,
+        availableBalance: Math.max(0, realAvailableBalance),
+        requested: amount
+      }, { status: 400 })
+    }
+
+    // Usar transação para garantir consistência: criar saque, bloquear saldo e registrar transação
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Criar solicitação de saque
+      const withdrawal = await tx.withdrawal.create({
+        data: {
+          sellerId: seller.id,
+          amount,
+          status: 'PENDING',
+          paymentMethod,
+          pixKey,
+          pixKeyType,
+          bankName,
+          bankCode,
+          agencia,
+          conta,
+          contaTipo,
+          sellerNote
+        },
+        include: {
+          seller: {
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  email: true,
+                  phone: true
+                }
               }
             }
           }
         }
-      }
-    })
+      })
 
-    // NÃO desconta do saldo aqui - apenas quando admin aprovar!
+      // 2. Bloquear o valor na conta digital (incrementar blockedBalance)
+      const updatedAccount = await tx.sellerAccount.update({
+        where: { sellerId: seller.id },
+        data: {
+          blockedBalance: { increment: amount }
+        }
+      })
+
+      // 3. Criar transação de saque com status PENDING
+      await tx.sellerAccountTransaction.create({
+        data: {
+          accountId: sellerAccount!.id,
+          type: 'WITHDRAWAL',
+          amount: -amount, // Negativo pois é débito
+          balanceBefore: sellerAccount!.balance,
+          balanceAfter: sellerAccount!.balance - amount, // Saldo após conclusão
+          description: `Solicitação de saque via ${paymentMethod}`,
+          reference: withdrawal.id,
+          referenceType: 'WITHDRAWAL',
+          withdrawalId: withdrawal.id,
+          status: 'PENDING' // Será atualizado para COMPLETED quando concluir
+        }
+      })
+
+      return { withdrawal, updatedAccount }
+    })
 
     return NextResponse.json({ 
       success: true,
       withdrawal: {
-        id: withdrawal.id,
-        amount: withdrawal.amount,
-        status: withdrawal.status,
-        paymentMethod: withdrawal.paymentMethod,
-        createdAt: withdrawal.createdAt
+        id: result.withdrawal.id,
+        amount: result.withdrawal.amount,
+        status: result.withdrawal.status,
+        paymentMethod: result.withdrawal.paymentMethod,
+        createdAt: result.withdrawal.createdAt
       },
-      message: 'Solicitação de saque criada! Aguarde aprovação do administrador.'
+      blockedBalance: result.updatedAccount.blockedBalance,
+      availableBalance: result.updatedAccount.balance - result.updatedAccount.blockedBalance,
+      message: 'Solicitação de saque criada! O valor foi bloqueado e aguarda aprovação do administrador.'
     })
 
   } catch (error) {
