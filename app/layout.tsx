@@ -97,8 +97,7 @@ export const metadata: Metadata = {
     images: ['/logo.png'],
   },
   verification: {
-    // Adicione aqui o código de verificação do Google Search Console
-    // google: 'seu-codigo-google',
+    google: 'TbwjG6y-rTDcMZKkoBqKsbHsAeiK5-74M9cwoHD5QNA',
   },
 }
 
