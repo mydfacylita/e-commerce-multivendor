@@ -395,7 +395,7 @@ export async function POST(req: NextRequest) {
               } else if (nameLower.includes('priority')) {
                 return 'Envio Prioritário Internacional'
               }
-              return 'Envio Internacional'
+              return 'Logística MydShop Express'
             }
 
             return NextResponse.json({
@@ -461,12 +461,12 @@ export async function POST(req: NextRequest) {
           isFree: isFreeShipping,
           message: isFreeShipping ? 'Frete Grátis' : undefined,
           shippingMethod: 'dropshipping',
-          shippingService: shipFrom === 'BR' ? 'Envio Nacional' : 'Envio Internacional',
+          shippingService: shipFrom === 'BR' ? 'Envio Nacional' : 'Logística MydShop Express',
           shippingCarrier: dropshippingProduct.supplier?.name || 'Fornecedor Externo',
           isInternational: shipFrom !== 'BR',
           shipFrom,
           allOptions: [{
-            name: shipFrom === 'BR' ? 'Envio Nacional' : 'Envio Internacional',
+            name: shipFrom === 'BR' ? 'Envio Nacional' : 'Logística MydShop Express',
             price: isFreeShipping ? 0 : Math.round(estimatedShipping * 100) / 100,
             days: deliveryDays,
             icon: shipFrom === 'BR' ? '📦' : '🌍',

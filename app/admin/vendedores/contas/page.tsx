@@ -9,6 +9,7 @@ import { FiArrowLeft, FiDollarSign, FiUsers, FiCheckCircle, FiXCircle,
 interface SellerAccount {
   id: string;
   accountNumber: string;
+  accountType: string;
   status: string;
   kycStatus: string;
   balance: number;
@@ -20,7 +21,13 @@ interface SellerAccount {
     storeName: string;
     userName: string;
     userEmail: string;
-  };
+  } | null;
+  affiliate: {
+    id: string;
+    name: string;
+    email: string;
+    code: string;
+  } | null;
   transactionsCount: number;
   createdAt: string;
 }
@@ -117,8 +124,8 @@ export default function AdminSellerAccountsPage() {
             <FiArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Contas de Vendedores</h1>
-            <p className="text-gray-600">Gestão das contas digitais dos vendedores</p>
+            <h1 className="text-2xl font-bold text-gray-900">Contas de Vendedores / Afiliados</h1>
+            <p className="text-gray-600">Gestão das contas digitais dos vendedores e afiliados</p>
           </div>
         </div>
       </div>
@@ -249,7 +256,10 @@ export default function AdminSellerAccountsPage() {
                     Conta
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Vendedor
+                    Titular
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Tipo
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Status
@@ -284,12 +294,24 @@ export default function AdminSellerAccountsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {account.seller.storeName}
+                          {account.seller ? account.seller.storeName : account.affiliate?.name}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {account.seller.userName} • {account.seller.userEmail}
+                          {account.seller 
+                            ? `${account.seller.userName} • ${account.seller.userEmail}`
+                            : account.affiliate?.email
+                          }
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        account.accountType === 'AFFILIATE' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {account.accountType === 'AFFILIATE' ? 'Afiliado' : 'Vendedor'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusLabels[account.status]?.color || 'bg-gray-100 text-gray-800'}`}>

@@ -38,6 +38,7 @@ model User {
   shopeeAuth       ShopeeAuth?
   cashback         CustomerCashback?
   tiktokShopAuth   TikTokShopAuth?
+  affiliate        Affiliate?
   workForSeller    Seller?           @relation("SellerEmployees", fields: [workForSellerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([workForSellerId])
@@ -317,6 +318,19 @@ model CartItem {
   @@map("cartitem")
 }
 
+model CartNotification {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String   // Tipo: cart_abandoned, cart_reminder_1, cart_reminder_2
+  sentAt       DateTime @default(now())
+  emailSent    Boolean  @default(true)
+  whatsappSent Boolean  @default(false)
+
+  @@index([userId, type])
+  @@index([sentAt])
+  @@map("cart_notification")
+}
+
 model Order {
   id                    String          @id @default(cuid())
   userId                String?
@@ -388,6 +402,11 @@ model Order {
   deliveryNotes         String?         @db.Text // Observações da entrega
   deliveryPhoto         String?         @db.Text // Foto comprovante
   deliveryAttempts      Int?            @default(0) // Tentativas de entrega
+  affiliateId           String?         // ID do afiliado que gerou a venda
+  affiliateCode         String?         // Código do afiliado no momento da compra
+  awaitingShipmentNotifiedAt DateTime?   // Data/hora do email aguardando envio
+  deliveryNotifiedAt    DateTime?       // Data/hora do email de entrega
+  notificationsSent     Json?           // Histórico de notificações enviadas
   invoices              Invoice[]
   seller                Seller?         @relation("SellerOrders", fields: [sellerId], references: [id])
   soldBySeller          Seller?         @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
@@ -396,6 +415,7 @@ model Order {
   refunds               Refund[]
   returnRequests        ReturnRequest[]
   productReviews        ProductReview[]
+  affiliateSale         AffiliateSale?
 
   @@index([userId])
   @@index([sellerId])
@@ -408,6 +428,7 @@ model Order {
   @@index([parentOrderId])
   @@index([packagingBoxId])
   @@index([shippingMethod])
+  @@index([affiliateId])
   @@index([fraudScore], map: "idx_fraud_score")
   @@index([fraudStatus], map: "idx_fraud_status")
   @@index([correiosIdPrePostagem], map: "idx_correios_prepostagem")
@@ -1391,8 +1412,10 @@ enum DiscountType {
 
 model SellerAccount {
   id                  String                 @id @default(cuid())
-  sellerId            String                 @unique
+  sellerId            String?                @unique // Nullable - pode ser vendedor
+  affiliateId         String?                @unique // Ou afiliado
   accountNumber       String                 @unique // Número da conta digital (gerado automaticamente)
+  accountType         String                 @default("SELLER") // SELLER ou AFFILIATE
   status              SellerAccountStatus    @default(PENDING)
   balance             Float                  @default(0) // Saldo disponível
   blockedBalance      Float                  @default(0) // Saldo bloqueado (em liberação)
@@ -1426,12 +1449,15 @@ model SellerAccount {
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
   
-  seller              Seller                 @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  seller              Seller?                @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  affiliate           Affiliate?             @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
   transactions        SellerAccountTransaction[]
 
   @@index([sellerId])
+  @@index([affiliateId])
   @@index([status])
   @@index([accountNumber])
+  @@index([accountType])
   @@map("seller_account")
 }
 
@@ -1659,5 +1685,133 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_token")
+}
+
+// ========================================
+// SISTEMA DE AFILIADOS
+// ========================================
+
+model Affiliate {
+  id                String               @id @default(cuid())
+  userId            String               @unique
+  code              String               @unique  // Código único (ex: JOAO123)
+  name              String               // Nome do influenciador
+  email             String               @unique
+  phone             String?
+  cpf               String?
+  instagram         String?
+  youtube           String?
+  tiktok            String?
+  otherSocial       String?              @db.Text
+  commissionRate    Float                @default(5)  // % de comissão (padrão 5%)
+  status            AffiliateStatus      @default(PENDING)
+  isActive          Boolean              @default(true)
+  totalSales        Float                @default(0)   // Total de vendas geradas
+  totalCommission   Float                @default(0)   // Total de comissão acumulada
+  availableBalance  Float                @default(0)   // Saldo disponível para saque
+  totalWithdrawn    Float                @default(0)   // Total já sacado
+  banco             String?
+  agencia           String?
+  conta             String?
+  tipoConta         String?              // CORRENTE, POUPANCA
+  chavePix          String?
+  cookieDays        Int                  @default(30)  // Validade do cookie de rastreamento
+  notes             String?              @db.Text      // Observações internas
+  approvedAt        DateTime?
+  approvedBy        String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sales             AffiliateSale[]
+  withdrawals       AffiliateWithdrawal[]
+  clicks            AffiliateClick[]
+  account           SellerAccount?       // Conta digital MYD do afiliado (mesma estrutura dos vendedores)
+
+  @@index([code])
+  @@index([status])
+  @@index([userId])
+  @@index([isActive])
+  @@map("affiliate")
+}
+
+model AffiliateSale {
+  id                String    @id @default(cuid())
+  affiliateId       String
+  orderId           String    @unique
+  customerId        String?
+  customerName      String?
+  customerEmail     String?
+  orderTotal        Float
+  commissionRate    Float     // % no momento da venda
+  commissionAmount  Float     // Valor da comissão
+  status            AffiliateSaleStatus @default(PENDING)
+  availableAt       DateTime? // Data quando a comissão fica disponível (7 dias após entrega)
+  paidAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  affiliate         Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("affiliate_sale")
+}
+
+model AffiliateWithdrawal {
+  id          String              @id @default(cuid())
+  affiliateId String
+  amount      Float
+  status      WithdrawalStatus
+  method      String              // PIX, TED, BOLETO
+  pixKey      String?
+  bankInfo    String?             @db.Text  // JSON com dados bancários
+  notes       String?             @db.Text
+  proofUrl    String?             // Comprovante de pagamento
+  requestedAt DateTime            @default(now())
+  processedAt DateTime?
+  processedBy String?
+  rejectedAt  DateTime?
+  rejectionReason String?         @db.Text
+  affiliate   Affiliate           @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("affiliate_withdrawal")
+}
+
+model AffiliateClick {
+  id          String    @id @default(cuid())
+  affiliateId String
+  ipAddress   String?
+  userAgent   String?   @db.Text
+  referrer    String?   @db.Text
+  landingPage String?   @db.Text
+  converted   Boolean   @default(false)  // Se resultou em compra
+  convertedAt DateTime? // Quando foi convertido
+  orderId     String?
+  createdAt   DateTime  @default(now())
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([createdAt])
+  @@index([converted])
+  @@map("affiliate_click")
+}
+
+enum AffiliateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum AffiliateSaleStatus {
+  PENDING        // Aguardando confirmação do pedido
+  CONFIRMED      // Pedido confirmado, comissão disponível
+  PAID           // Comissão paga ao afiliado
+  CANCELLED      // Pedido cancelado/estornado
 }
 

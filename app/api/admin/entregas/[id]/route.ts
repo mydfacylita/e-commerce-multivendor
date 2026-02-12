@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { processAffiliateCommission } from '@/lib/affiliate-commission'
 
 // POST: Marcar como entregue
 export async function POST(
@@ -44,10 +45,22 @@ export async function POST(
       }
     })
 
+    // Processar comissão de afiliado se aplicável
+    let affiliateResult = null
+    try {
+      affiliateResult = await processAffiliateCommission(params.id)
+      console.log('📦 [ENTREGAS] Pedido marcado como DELIVERED')
+      console.log('💰 [AFILIADO] Resultado:', affiliateResult)
+    } catch (affiliateError) {
+      console.error('⚠️  [AFILIADO] Erro ao processar comissão:', affiliateError)
+      // Não bloqueia a confirmação de entrega se falhar
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Entrega confirmada com sucesso!',
-      order: updatedOrder
+      order: updatedOrder,
+      affiliate: affiliateResult
     })
   } catch (error: any) {
     console.error('Erro ao confirmar entrega:', error)

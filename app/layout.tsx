@@ -2,6 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import Script from 'next/script'
+import { Suspense } from 'react'
 import { Providers } from './providers'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
@@ -10,6 +11,7 @@ import DynamicStyles from '@/components/DynamicStyles'
 import { NavigationProvider } from '@/components/NavigationProvider'
 import LoadingScreen from '@/components/LoadingScreen'
 import AnalyticsTracker from '@/components/AnalyticsTracker'
+import AffiliateTracker from '@/components/AffiliateTracker'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
 import GoogleAds from '@/components/GoogleAds'
 import FacebookPixel from '@/components/FacebookPixel'
@@ -165,6 +167,9 @@ export default async function RootLayout({
             <DynamicStyles />
             <LoadingScreen />
             <AnalyticsTracker />
+            <Suspense fallback={null}>
+              <AffiliateTracker />
+            </Suspense>
             <div className="flex flex-col min-h-screen">
               <Navbar />
               <main className="flex-grow">{children}</main>

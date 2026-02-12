@@ -571,9 +571,12 @@ export default function EmailConfigPage() {
               { id: 'welcome', name: 'Boas-vindas', description: 'Enviado ao criar conta' },
               { id: 'order_confirmed', name: 'Pedido Confirmado', description: 'Enviado após confirmar pedido' },
               { id: 'payment_received', name: 'Pagamento Recebido', description: 'Enviado ao receber pagamento' },
+              { id: 'order_awaiting_shipment', name: 'Pedido Aguardando Envio', description: 'Enviado para pedidos prontos há mais de 2 dias' },
               { id: 'order_shipped', name: 'Pedido Enviado', description: 'Enviado ao despachar pedido' },
-              { id: 'password_reset', name: 'Recuperar Senha', description: 'Enviado ao solicitar nova senha' },
+              { id: 'order_delivered', name: 'Pedido Entregue', description: 'Enviado quando pedido é entregue' },
               { id: 'order_cancelled', name: 'Pedido Cancelado', description: 'Enviado ao cancelar pedido' },
+              { id: 'cart_abandoned', name: 'Carrinho Abandonado', description: 'Enviado após 3 dias de inatividade' },
+              { id: 'password_reset', name: 'Recuperar Senha', description: 'Enviado ao solicitar nova senha' },
             ].map((template) => (
               <div
                 key={template.id}

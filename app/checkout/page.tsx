@@ -464,7 +464,7 @@ export default function CheckoutPage() {
           let grupoPrazoMax = 0
           let grupoPrazoDesc = ''
           let grupoMethod = 'internacional'
-          let grupoService = 'Envio Internacional'
+          let grupoService = 'Logística MydShop Express'
           let grupoCarrier = 'Fornecedor Internacional'
           
           for (const item of grupo.itens) {
@@ -497,7 +497,7 @@ export default function CheckoutPage() {
                 itemPrazo = matchDias ? parseInt(matchDias[1]) : 10
                 // Capturar dados de transportadora do AliExpress
                 grupoMethod = maisBarata.method || 'internacional'
-                grupoService = maisBarata.name || maisBarata.service || 'Envio Internacional'
+                grupoService = maisBarata.name || maisBarata.service || 'Logística MydShop Express'
                 grupoCarrier = maisBarata.carrier || 'Fornecedor Internacional'
               } else {
                 itemFrete = data.shippingCost || 0
@@ -505,7 +505,7 @@ export default function CheckoutPage() {
                 const matchDias = String(data.deliveryDays || '').match(/(\d+)/)
                 itemPrazo = matchDias ? parseInt(matchDias[1]) : (typeof data.deliveryDays === 'number' ? data.deliveryDays : 10)
                 grupoMethod = data.shippingMethod || 'internacional'
-                grupoService = data.shippingService || 'Envio Internacional'
+                grupoService = data.shippingService || 'Logística MydShop Express'
                 grupoCarrier = data.shippingCarrier || 'Fornecedor Internacional'
               }
               
@@ -1105,9 +1105,19 @@ export default function CheckoutPage() {
       } else {
         // Criar novo pedido
         console.log('📦 Criando novo pedido')
+        
+        // Obter código de afiliado do localStorage (fallback se cookie não funcionar)
+        const affiliateRef = localStorage.getItem('affiliate_ref')
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        
+        if (affiliateRef) {
+          headers['x-affiliate-ref'] = affiliateRef
+          console.log('🎯 [AFILIADO] Enviando código via header:', affiliateRef)
+        }
+        
         response = await fetch('/api/orders', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(orderData),
         })
 
@@ -1756,7 +1766,7 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 order-1 lg:order-2">
           <div className="bg-white rounded-lg shadow-md p-6 sticky top-20">
             <h2 className="text-2xl font-bold mb-4">Resumo</h2>
 

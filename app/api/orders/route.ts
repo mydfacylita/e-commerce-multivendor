@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { validateApiKey, validateUserToken } from '@/lib/api-security'
 import { analyzeFraud } from '@/lib/fraud-detection'
 import { isValidCPF, validateCEPWithState } from '@/lib/validation'
+import { cookies } from 'next/headers'
+import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
 
 
 // Force dynamic - disable all caching
@@ -206,6 +208,14 @@ export async function POST(req: NextRequest) {
       select: { name: true, email: true },
     })
 
+    if (!user) {
+      console.warn('Usuário não encontrado para o pedido:', userId)
+      return NextResponse.json(
+        { message: 'Usuário inválido. Faça login novamente.' },
+        { status: 401 }
+      )
+    }
+
     // Buscar informações dos produtos
     const productIds = items.map((item: any) => item.productId)
     const products = await prisma.product.findMany({
@@ -373,6 +383,38 @@ export async function POST(req: NextRequest) {
         fraudAnalysis.reasons.forEach(r => console.log(`     - ${r}`))
       }
       
+      // 🔗 VERIFICAR AFILIADO
+      let affiliateId: string | null = null
+      let affiliateCode: string | null = null
+      
+      // Tentar obter de 3 fontes (ordem de prioridade):
+      const cookieStore = cookies()
+      const affiliateRefFromCookie = cookieStore.get('affiliate_ref')?.value
+      const affiliateRefFromHeader = req.headers.get('x-affiliate-ref') // Fallback do localStorage
+      
+      const affiliateRef = affiliateRefFromCookie || affiliateRefFromHeader
+      
+      if (affiliateRef) {
+        console.log('🎯 [AFILIADO] Código detectado:', affiliateRef, `(Fonte: ${affiliateRefFromCookie ? 'cookie' : 'header/localStorage'})`)
+        const affiliate = await prisma.affiliate.findUnique({
+          where: { 
+            code: affiliateRef,
+            status: 'APPROVED',
+            isActive: true
+          }
+        })
+        
+        if (affiliate) {
+          affiliateId = affiliate.id
+          affiliateCode = affiliate.code
+          console.log('   ✅ Afiliado válido encontrado:', affiliate.name)
+        } else {
+          console.log('   ⚠️ Código de afiliado inválido ou inativo')
+        }
+      } else {
+        console.log('🎯 [AFILIADO] Nenhum código encontrado (nem cookie nem header)')
+      }
+      
       const order = await prisma.order.create({
         data: {
           user: { connect: { id: userId } },
@@ -405,12 +447,82 @@ export async function POST(req: NextRequest) {
           fraudStatus: fraudAnalysis.shouldAlert ? 'pending' : null,
           ipAddress,
           userAgent,
+          // Afiliado
+          affiliateId,
+          affiliateCode,
           items: {
             create: orderItems
           },
         },
         include: { items: true },
       })
+      
+      // Registrar conversão do afiliado (não-bloqueante - não deve quebrar a criação do pedido)
+      if (affiliateId) {
+        try {
+          console.log('   🎯 Processando afiliado...', { affiliateId, orderId: order.id })
+          
+          // Marcar click como convertido
+          if (ipAddress) {
+            await prisma.affiliateClick.updateMany({
+              where: {
+                affiliateId,
+                ipAddress: ipAddress,
+                converted: false
+              },
+              data: {
+                converted: true,
+                convertedAt: new Date(),
+                orderId: order.id
+              }
+            })
+            console.log('   ✅ Click marcado como convertido')
+          }
+          
+          // Criar registro de venda do afiliado
+          const affiliate = await prisma.affiliate.findUnique({
+            where: { id: affiliateId },
+            select: { commissionRate: true, name: true }
+          })
+          
+          if (affiliate) {
+            const commissionAmount = (normalizedTotal * affiliate.commissionRate) / 100
+            
+            console.log('   📊 Criando AffiliateSale...', {
+              affiliateId,
+              orderId: order.id,
+              customerId: userId || null,
+              customerName: user?.name || 'Não informado',
+              orderTotal: normalizedTotal,
+              commissionRate: affiliate.commissionRate,
+              commissionAmount
+            })
+            
+            await prisma.affiliateSale.create({
+              data: {
+                affiliateId,
+                orderId: order.id,
+                customerId: userId || null,
+                customerName: user?.name || 'Não informado',
+                customerEmail: user?.email || null,
+                orderTotal: normalizedTotal,
+                commissionRate: affiliate.commissionRate,
+                commissionAmount,
+                status: 'PENDING'
+              }
+            })
+            
+            console.log('   🎯 Conversão de afiliado registrada para pedido:', order.id)
+            console.log(`   💰 Comissão calculada: R$ ${commissionAmount.toFixed(2)} (${affiliate.commissionRate}%)`)
+          } else {
+            console.log('   ⚠️ Afiliado não encontrado:', affiliateId)
+          }
+        } catch (conversionError: any) {
+          console.error('   ⚠️ ERRO ao registrar conversão de afiliado:', conversionError?.message || conversionError)
+          console.error('   Stack:', conversionError?.stack)
+          // NÃO propagar o erro - pedido já foi criado com sucesso
+        }
+      }
       
       console.log('✅ [SALVO] Pedido criado:', order.id)
       console.log('   Subtotal salvo:', order.subtotal)
@@ -449,6 +561,21 @@ export async function POST(req: NextRequest) {
 
       console.log(`   Pedido: ${order.id}`)
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+
+      // Enviar email de pedido confirmado (não-bloqueante)
+      if (user?.email) {
+        sendTemplateEmail(
+          EMAIL_TEMPLATES.ORDER_CONFIRMED,
+          user.email,
+          {
+            customerName: user.name || order.buyerName || 'Cliente',
+            orderId: order.id,
+            orderTotal: order.total.toFixed(2)
+          }
+        ).catch((error: any) => {
+          console.error('⚠️ Erro ao enviar email de pedido confirmado:', error?.message)
+        })
+      }
 
       return NextResponse.json(
         { message: 'Pedido criado com sucesso', orderId: order.id },
@@ -535,6 +662,24 @@ export async function POST(req: NextRequest) {
       console.log(`   ID Pai: ${parentOrderId}`)
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
 
+      // Enviar email de pedido confirmado (não-bloqueante)
+      if (user?.email) {
+        const totalValue = Array.from(itemsByDestination.values())
+          .reduce((sum, items) => sum + items.reduce((s, i) => s + (i.price * i.quantity), 0), 0)
+        
+        sendTemplateEmail(
+          EMAIL_TEMPLATES.ORDER_CONFIRMED,
+          user.email,
+          {
+            customerName: user.name || 'Cliente',
+            orderId: parentOrderId,
+            orderTotal: totalValue.toFixed(2)
+          }
+        ).catch((error: any) => {
+          console.error('⚠️ Erro ao enviar email de pedido confirmado:', error?.message)
+        })
+      }
+
       return NextResponse.json(
         { 
           message: 'Pedido híbrido criado',
@@ -545,10 +690,18 @@ export async function POST(req: NextRequest) {
         { status: 201 }
       )
     }
-  } catch (error) {
-    console.error('Erro ao criar pedido:', error)
+  } catch (error: any) {
+    console.error('❌ ERRO CRÍTICO ao criar pedido:', error)
+    console.error('   Mensagem:', error?.message)
+    console.error('   Stack:', error?.stack)
+    console.error('   Code:', error?.code)
+    
     return NextResponse.json(
-      { message: 'Erro ao criar pedido' },
+      { 
+        message: 'Erro ao criar pedido',
+        error: error?.message || 'Erro desconhecido',
+        details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+      },
       { status: 500 }
     )
   }

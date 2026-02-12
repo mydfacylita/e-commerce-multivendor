@@ -53,6 +53,9 @@ export default function CookieConsent() {
             <p className="text-gray-700 text-sm sm:text-base">
               Utilizamos cookies para melhorar sua experiência de navegação, personalizar conteúdo e analisar nosso tráfego.
             </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Cookies essenciais (autenticação, carrinho, afiliados) são sempre ativos.
+            </p>
             <a href="/politica-privacidade" className="text-primary-600 hover:underline text-sm">
               Saiba mais sobre nossa Política de Privacidade
             </a>

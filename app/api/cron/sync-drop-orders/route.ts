@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
+import { processAffiliateCommission } from '@/lib/affiliate-commission'
 
 /**
  * CRON/API: Sincronizar status de pedidos Dropshipping
@@ -463,6 +464,16 @@ export async function GET(request: NextRequest) {
             where: { id: order.id },
             data: updateData
           })
+
+          // Processar comissão de afiliado se foi marcado como entregue
+          if (updateData.status === 'DELIVERED' && order.affiliateId) {
+            try {
+              const affiliateResult = await processAffiliateCommission(order.id)
+              console.log(`[SYNC-DROP-ORDERS] 💰 Comissão processada:`, affiliateResult)
+            } catch (affiliateError) {
+              console.error(`[SYNC-DROP-ORDERS] ⚠️  Erro ao processar comissão:`, affiliateError)
+            }
+          }
 
           // Atualizar OrderItems - salvar o status real do AliExpress
           for (const item of order.items) {

@@ -21,6 +21,7 @@ interface Transaction {
 interface AccountDetails {
   id: string;
   accountNumber: string;
+  accountType: string;
   status: string;
   kycStatus: string;
   balance: number;
@@ -55,7 +56,20 @@ interface AccountDetails {
       email: string;
       phone: string | null;
     };
-  };
+  } | null;
+  affiliate: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    cpf: string | null;
+    code: string;
+    instagram: string | null;
+    youtube: string | null;
+    tiktok: string | null;
+    commissionRate: number;
+    status: string;
+  } | null;
   transactions: Transaction[];
   createdAt: string;
 }
@@ -222,7 +236,11 @@ export default function AccountDetailsPage() {
             <h1 className="text-2xl font-bold text-gray-900">
               Conta {account.accountNumber}
             </h1>
-            <p className="text-gray-600">{account.seller.storeName}</p>
+            <p className="text-gray-600">
+              {account.accountType === 'AFFILIATE' && account.affiliate 
+                ? account.affiliate.name 
+                : account.seller?.storeName}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -311,56 +329,102 @@ export default function AccountDetailsPage() {
             </div>
           </div>
 
-          {/* Dados do Vendedor */}
+          {/* Dados do Vendedor/Afiliado */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Vendedor</h3>
-              <Link
-                href={`/admin/vendedores/${account.seller.id}`}
-                className="text-primary-600 hover:text-primary-700 text-sm flex items-center gap-1"
-              >
-                Ver perfil <FiExternalLink size={14} />
-              </Link>
+              <h3 className="font-semibold text-gray-900">
+                {account.accountType === 'AFFILIATE' ? 'Afiliado' : 'Vendedor'}
+              </h3>
+              {account.accountType === 'AFFILIATE' && account.affiliate ? (
+                <Link
+                  href={`/admin/afiliados/${account.affiliate.id}`}
+                  className="text-primary-600 hover:text-primary-700 text-sm flex items-center gap-1"
+                >
+                  Ver perfil <FiExternalLink size={14} />
+                </Link>
+              ) : account.seller ? (
+                <Link
+                  href={`/admin/vendedores/${account.seller.id}`}
+                  className="text-primary-600 hover:text-primary-700 text-sm flex items-center gap-1"
+                >
+                  Ver perfil <FiExternalLink size={14} />
+                </Link>
+              ) : null}
             </div>
             <div className="space-y-3">
-              <div>
-                <p className="text-sm text-gray-600">Loja</p>
-                <p className="font-medium">{account.seller.storeName}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Responsável</p>
-                <p className="font-medium">{account.seller.user.name}</p>
-                <p className="text-sm text-gray-500">{account.seller.user.email}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Tipo</p>
-                <p className="font-medium">
-                  {account.seller.sellerType === 'PF' ? 'Pessoa Física' : 'Pessoa Jurídica'}
-                </p>
-              </div>
-              {account.seller.sellerType === 'PF' ? (
-                <div>
-                  <p className="text-sm text-gray-600">CPF</p>
-                  <p className="font-medium">{account.seller.cpf || '-'}</p>
-                </div>
-              ) : (
+              {account.accountType === 'AFFILIATE' && account.affiliate ? (
                 <>
                   <div>
-                    <p className="text-sm text-gray-600">CNPJ</p>
-                    <p className="font-medium">{account.seller.cnpj || '-'}</p>
+                    <p className="text-sm text-gray-600">Nome</p>
+                    <p className="font-medium">{account.affiliate.name}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Razão Social</p>
-                    <p className="font-medium">{account.seller.razaoSocial || '-'}</p>
+                    <p className="text-sm text-gray-600">Código</p>
+                    <p className="font-mono font-medium">{account.affiliate.code}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Email</p>
+                    <p className="font-medium">{account.affiliate.email}</p>
+                  </div>
+                  {account.affiliate.phone && (
+                    <div>
+                      <p className="text-sm text-gray-600">Telefone</p>
+                      <p className="font-medium">{account.affiliate.phone}</p>
+                    </div>
+                  )}
+                  {account.affiliate.cpf && (
+                    <div>
+                      <p className="text-sm text-gray-600">CPF</p>
+                      <p className="font-medium">{account.affiliate.cpf}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-gray-600">Comissão</p>
+                    <p className="font-medium">{account.affiliate.commissionRate}%</p>
                   </div>
                 </>
-              )}
-              <div>
-                <p className="text-sm text-gray-600">Localização</p>
-                <p className="font-medium">
-                  {account.seller.cidade}, {account.seller.estado}
-                </p>
-              </div>
+              ) : account.seller ? (
+                <>
+                  <div>
+                    <p className="text-sm text-gray-600">Loja</p>
+                    <p className="font-medium">{account.seller.storeName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Responsável</p>
+                    <p className="font-medium">{account.seller.user.name}</p>
+                    <p className="text-sm text-gray-500">{account.seller.user.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Tipo</p>
+                    <p className="font-medium">
+                      {account.seller.sellerType === 'PF' ? 'Pessoa Física' : 'Pessoa Jurídica'}
+                    </p>
+                  </div>
+                  {account.seller.sellerType === 'PF' ? (
+                    <div>
+                      <p className="text-sm text-gray-600">CPF</p>
+                      <p className="font-medium">{account.seller.cpf || '-'}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-sm text-gray-600">CNPJ</p>
+                        <p className="font-medium">{account.seller.cnpj || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Razão Social</p>
+                        <p className="font-medium">{account.seller.razaoSocial || '-'}</p>
+                      </div>
+                    </>
+                  )}
+                  <div>
+                    <p className="text-sm text-gray-600">Localização</p>
+                    <p className="font-medium">
+                      {account.seller.cidade}, {account.seller.estado}
+                    </p>
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
 

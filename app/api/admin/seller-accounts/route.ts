@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-// GET: Listar todas as contas de vendedores (Admin)
+// GET: Listar todas as contas de vendedores e afiliados (Admin)
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -41,7 +41,9 @@ export async function GET(req: NextRequest) {
         { accountNumber: { contains: search } },
         { seller: { storeName: { contains: search } } },
         { seller: { user: { name: { contains: search } } } },
-        { seller: { user: { email: { contains: search } } } }
+        { seller: { user: { email: { contains: search } } } },
+        { affiliate: { name: { contains: search } } },
+        { affiliate: { email: { contains: search } } }
       ];
     }
 
@@ -54,6 +56,14 @@ export async function GET(req: NextRequest) {
               user: {
                 select: { name: true, email: true }
               }
+            }
+          },
+          affiliate: {
+            select: { 
+              id: true,
+              name: true, 
+              email: true,
+              code: true 
             }
           },
           _count: {
@@ -92,18 +102,25 @@ export async function GET(req: NextRequest) {
       accounts: accounts.map(a => ({
         id: a.id,
         accountNumber: a.accountNumber,
+        accountType: a.accountType,
         status: a.status,
         kycStatus: a.kycStatus,
         balance: a.balance,
         blockedBalance: a.blockedBalance,
         totalReceived: a.totalReceived,
         totalWithdrawn: a.totalWithdrawn,
-        seller: {
+        seller: a.seller ? {
           id: a.seller.id,
           storeName: a.seller.storeName,
           userName: a.seller.user.name,
           userEmail: a.seller.user.email
-        },
+        } : null,
+        affiliate: a.affiliate ? {
+          id: a.affiliate.id,
+          name: a.affiliate.name,
+          email: a.affiliate.email,
+          code: a.affiliate.code
+        } : null,
         transactionsCount: a._count.transactions,
         createdAt: a.createdAt
       })),

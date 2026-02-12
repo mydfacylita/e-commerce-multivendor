@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
 
 
 // Force dynamic - disable all caching
@@ -47,17 +48,35 @@ export async function POST(
     }
 
     // Atualizar pedido
-    await prisma.order.update({
+    const updatedOrder = await prisma.order.update({
       where: { id },
       data: {
         shippedAt: new Date(),
         shippedBy: session.user.email || session.user.name || 'admin',
         trackingCode: trackingCode.trim().toUpperCase(),
         status: 'SHIPPED'
+      },
+      include: {
+        user: {
+          select: { email: true, name: true }
+        }
       }
     })
 
-    // TODO: Enviar e-mail para o cliente com o código de rastreio
+    // Enviar email de pedido enviado (não-bloqueante)
+    if (updatedOrder.user?.email) {
+      sendTemplateEmail(
+        EMAIL_TEMPLATES.ORDER_SHIPPED,
+        updatedOrder.user.email,
+        {
+          customerName: updatedOrder.user.name || updatedOrder.buyerName || 'Cliente',
+          orderId: updatedOrder.id,
+          trackingCode: updatedOrder.trackingCode || undefined
+        }
+      ).catch((error: any) => {
+        console.error('⚠️ Erro ao enviar email de pedido enviado:', error?.message)
+      })
+    }
 
     return NextResponse.json({ 
       success: true, 

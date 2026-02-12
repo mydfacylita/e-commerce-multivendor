@@ -1,5 +1,30 @@
 # 📋 Backlog - E-Commerce Moderno
 
+## ✅ Implementado - 11/02/2026
+
+### 🛍️ Google Shopping (Produtos Patrocinados)
+- [x] **Feed XML RSS 2.0** - Formato completo com namespace Google Shopping
+- [x] **Feed TXT/TSV** - Formato alternativo para Merchant Center
+- [x] **Google Ads integrado** - ID: AW-17927166534 configurado
+- [x] **Tracking de conversões** - Evento `purchase` automático no checkout
+- [x] **Tracking add-to-cart** - Evento `add_to_cart` ao adicionar produto
+- [x] **Mapeamento de categorias** - 16 categorias mapeadas para Google Category
+- [x] **GTIN/EAN support** - Campo gtin nos produtos
+- [x] **Imagens múltiplas** - Até 10 imagens adicionais por produto
+- [x] **Preços e promoções** - Sale_price quando tem comparePrice
+- [x] **Estoque em tempo real** - Availability: in_stock/out_of_stock
+- [x] **Cache otimizado** - 1 hora para não sobrecarregar servidor
+- [x] **Documentação completa** - Guias: GOOGLE-SHOPPING-SETUP.md e QUICKSTART
+- [x] **Script de teste** - test-google-shopping-feed.js para debug
+- [x] **Frete configurado** - Frete grátis no feed
+- [x] **Limite Google** - Máximo 5000 produtos por feed
+
+**URLs dos Feeds:**
+- XML: https://mydshop.com.br/api/feeds/google-shopping
+- TXT: https://mydshop.com.br/api/feeds/google-shopping-txt
+
+---
+
 ## ✅ Implementado - 28/01/2026
 
 ### 📦 Sistema de Variações Padronizado (Multi-Integração)

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { useAutomationPolling } from '@/hooks/useAutomationPolling'
 import { 
   FiHome, 
   FiPackage, 
@@ -39,13 +40,18 @@ import {
   FiGift,
   FiCpu,
   FiMessageSquare,
-  FiCheckCircle
+  FiCheckCircle,
+  FiUserPlus
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
   const router = useRouter()
   const pathname = usePathname()
+  
+  // Sistema de automação ativo
+  const { isRunning: automationRunning, activeJobsCount } = useAutomationPolling()
+  
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     catalogo: true,
     vendas: false,
@@ -241,6 +247,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiMessageSquare className="text-base" />
                   <span>Perguntas</span>
                 </Link>
+                <Link
+                  href="/admin/afiliados"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.startsWith('/admin/afiliados') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiUserPlus className="text-base" />
+                  <span>Afiliados</span>
+                </Link>
               </div>
             )}
           </div>
@@ -324,7 +337,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/vendedores/contas') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
                   <FiCreditCard className="text-base" />
-                  <span>Contas Digitais</span>
+                  <span>Contas Digitais (Vendedores/Afiliados)</span>
                 </Link>
                 <Link
                   href="/admin/cashback"
@@ -562,6 +575,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiCpu className="text-base" />
                   <span>Inteligência Artificial</span>
+                </Link>
+                <Link
+                  href="/admin/automation"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/automation' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiZap className="text-base" />
+                  <span className="flex items-center gap-2">
+                    Automações 
+                    {activeJobsCount > 0 && (
+                      <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">
+                        {activeJobsCount} ativo{activeJobsCount > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </span>
                 </Link>
               </div>
             )}

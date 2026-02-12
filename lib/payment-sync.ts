@@ -14,6 +14,7 @@
  */
 
 import { prisma } from './prisma'
+import { sendTemplateEmail, EMAIL_TEMPLATES } from './email'
 
 interface MercadoPagoPayment {
   id: number
@@ -193,7 +194,7 @@ async function approveOrder(orderId: string, payment: MercadoPagoPayment): Promi
   try {
     await prisma.$transaction(async (tx) => {
       // Atualizar pedido
-      await tx.order.update({
+      const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: {
           status: 'PROCESSING',
@@ -201,8 +202,29 @@ async function approveOrder(orderId: string, payment: MercadoPagoPayment): Promi
           paymentId: String(payment.id),
           paymentType: payment.payment_method_id,
           paymentApprovedAt: payment.date_approved ? new Date(payment.date_approved) : new Date()
+        },
+        include: {
+          user: {
+            select: { email: true, name: true }
+          }
         }
       })
+
+      // Enviar email de pagamento aprovado (não-bloqueante)
+      if (updatedOrder.user?.email) {
+        sendTemplateEmail(
+          EMAIL_TEMPLATES.PAYMENT_RECEIVED,
+          updatedOrder.user.email,
+          {
+            customerName: updatedOrder.user.name || updatedOrder.buyerName || 'Cliente',
+            orderId: updatedOrder.id,
+            orderTotal: updatedOrder.total.toFixed(2),
+            paymentMethod: payment.payment_method_id || 'Não informado'
+          }
+        ).catch((error: any) => {
+          console.error('⚠️ Erro ao enviar email de pagamento aprovado:', error?.message)
+        })
+      }
 
       // Buscar itens para atualizar balance dos vendedores
       const orderItems = await tx.orderItem.findMany({

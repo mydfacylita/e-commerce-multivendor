@@ -22,6 +22,7 @@
   "dependencies": {
     "@google/genai": "^1.39.0",
     "@google/generative-ai": "^0.24.1",
+    "@headlessui/react": "^2.2.9",
     "@imgly/background-removal": "^1.7.0",
     "@paralleldrive/cuid2": "^3.0.6",
     "@prisma/client": "^5.8.0",

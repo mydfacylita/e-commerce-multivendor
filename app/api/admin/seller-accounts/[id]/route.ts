@@ -33,6 +33,21 @@ export async function GET(
             }
           }
         },
+        affiliate: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            cpf: true,
+            code: true,
+            instagram: true,
+            youtube: true,
+            tiktok: true,
+            commissionRate: true,
+            status: true
+          }
+        },
         transactions: {
           orderBy: { createdAt: 'desc' },
           take: 50
@@ -48,6 +63,7 @@ export async function GET(
       account: {
         id: account.id,
         accountNumber: account.accountNumber,
+        accountType: account.accountType,
         status: account.status,
         kycStatus: account.kycStatus,
         balance: account.balance,
@@ -70,8 +86,8 @@ export async function GET(
         verifiedAt: account.verifiedAt,
         verifiedBy: account.verifiedBy,
         kycDocuments: account.kycDocuments ? JSON.parse(account.kycDocuments) : null,
-        // Vendedor
-        seller: {
+        // Vendedor ou Afiliado
+        seller: account.seller ? {
           id: account.seller.id,
           storeName: account.seller.storeName,
           storeSlug: account.seller.storeSlug,
@@ -82,7 +98,8 @@ export async function GET(
           cidade: account.seller.cidade,
           estado: account.seller.estado,
           user: account.seller.user
-        },
+        } : null,
+        affiliate: account.affiliate,
         transactions: account.transactions,
         createdAt: account.createdAt,
         updatedAt: account.updatedAt

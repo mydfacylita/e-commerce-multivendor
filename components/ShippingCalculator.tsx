@@ -91,20 +91,20 @@ export default function ShippingCalculator({
       else if (data.allOptions && Array.isArray(data.allOptions)) {
         data.allOptions.forEach((opt: any) => {
           options.push({
-            name: opt.name || 'Envio Internacional',
+            name: opt.name || 'Logística MydShop Express',
             price: opt.price || 0,
             days: opt.days || '15-30 dias',
-            icon: opt.isInternational ? "🌍" : "📦",
+            icon: opt.isInternational ? "🚚" : "📦",
             isFree: opt.isFree
           });
         });
       } else if (data.isInternational) {
         // Frete internacional único
         options.push({
-          name: data.shippingService || 'Envio Internacional',
+          name: data.shippingService || 'Logística MydShop Express',
           price: data.shippingCost || 0,
           days: data.deliveryDays || '15-30 dias',
-          icon: "🌍",
+          icon: "🚚",
           isFree: data.isFree
         });
       } else if (data.isFree || data.shippingCost === 0) {

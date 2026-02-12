@@ -8,6 +8,7 @@ import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiTruck, FiLock, FiAward
 import { FaFacebook, FaTwitter, FaYoutube, FaWhatsapp } from 'react-icons/fa'
 import { useCartStore } from '@/lib/store'
 import { useRouter } from 'next/navigation'
+import PartnerChoiceModal from './PartnerChoiceModal'
 
 interface SearchProduct {
   id: string
@@ -43,6 +44,7 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isPartnerModalOpen, setIsPartnerModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchProduct[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -58,11 +60,31 @@ export default function Navbar() {
   const [freeShippingMin, setFreeShippingMin] = useState(299)
   const [categories, setCategories] = useState<Category[]>([])
   const [isDepartmentsOpen, setIsDepartmentsOpen] = useState(false)
+  const [isAffiliate, setIsAffiliate] = useState(false)
   const departmentsRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const items = useCartStore((state) => state.items)
   const cartItemsCount = items.reduce((sum, item) => sum + item.quantity, 0)
+
+  // Verificar se o usuário é afiliado
+  useEffect(() => {
+    const checkAffiliate = async () => {
+      if (session?.user?.id) {
+        try {
+          const response = await fetch('/api/affiliate/me')
+          if (response.ok) {
+            setIsAffiliate(true)
+          } else {
+            setIsAffiliate(false)
+          }
+        } catch (error) {
+          setIsAffiliate(false)
+        }
+      }
+    }
+    checkAffiliate()
+  }, [session])
 
   // Buscar categorias
   useEffect(() => {
@@ -390,6 +412,15 @@ export default function Navbar() {
                           Painel Vendedor
                         </Link>
                       )}
+                      {isAffiliate && (
+                        <Link 
+                          href="/afiliado/dashboard" 
+                          className="block px-4 py-2 text-sm hover:bg-gray-100"
+                          onClick={() => setIsProfileOpen(false)}
+                        >
+                          Painel Afiliado
+                        </Link>
+                      )}
                       <button
                         onClick={() => {
                           setIsProfileOpen(false)
@@ -657,10 +688,13 @@ export default function Navbar() {
                 <FiMail size={20} />
                 <span>Contato</span>
               </Link>
-              <Link href="/vendedor/cadastro" className="flex items-center gap-2 hover:text-accent-500 font-semibold px-4 py-2">
+              <button 
+                onClick={() => setIsPartnerModalOpen(true)}
+                className="flex items-center gap-2 hover:text-accent-500 font-semibold px-4 py-2"
+              >
                 <FiUsers size={20} />
                 <span>Seja um Parceiro</span>
-              </Link>
+              </button>
             </div>
 
             <div className="flex items-center gap-4">
@@ -752,13 +786,15 @@ export default function Navbar() {
             <Link href="/contato" className="flex items-center gap-2 py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
               <FiMail size={18} /> Contato
             </Link>
-            <Link 
-              href="/vendedor/cadastro" 
-              className="flex items-center justify-center gap-2 bg-accent-500 text-white px-4 py-3 rounded-md hover:bg-accent-600 text-center mt-4 font-semibold"
-              onClick={() => setIsMenuOpen(false)}
+            <button 
+              onClick={() => {
+                setIsMenuOpen(false)
+                setIsPartnerModalOpen(true)
+              }}
+              className="flex items-center justify-center gap-2 bg-accent-500 text-white px-4 py-3 rounded-md hover:bg-accent-600 text-center mt-4 font-semibold w-full"
             >
               <FiUsers size={18} /> Seja um Parceiro
-            </Link>
+            </button>
             {!session && (
               <Link
                 href="/login"
@@ -771,6 +807,12 @@ export default function Navbar() {
           </div>
         </div>
       )}
+
+      {/* Modal de Escolha de Parceiro */}
+      <PartnerChoiceModal 
+        isOpen={isPartnerModalOpen} 
+        onClose={() => setIsPartnerModalOpen(false)} 
+      />
     </>
   )
 }
