@@ -37,7 +37,9 @@ import {
   FiPrinter,
   FiLogOut,
   FiGift,
-  FiCpu
+  FiCpu,
+  FiMessageSquare,
+  FiCheckCircle
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -122,6 +124,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiPackage className="text-base" />
                   <span>Produtos</span>
+                </Link>
+                <Link
+                  href="/admin/produtos/aprovacao"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/produtos/aprovacao' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiCheckCircle className="text-base" />
+                  <span>Aprovação de Produtos</span>
                 </Link>
                 <Link
                   href="/admin/categorias"
@@ -224,6 +233,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiZap className="text-base" />
                   <span>Marketing</span>
+                </Link>
+                <Link
+                  href="/admin/perguntas"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/perguntas' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiMessageSquare className="text-base" />
+                  <span>Perguntas</span>
                 </Link>
               </div>
             )}
