@@ -1626,9 +1626,6 @@ export default function CheckoutPage() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-gray-900 text-lg">{opcao.name}</span>
-                              <span className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600">
-                                {opcao.carrier}
-                              </span>
                             </div>
                             <p className="text-sm text-gray-600">
                               📦 Entrega em até <strong>{opcao.deliveryDays} dias úteis</strong>
