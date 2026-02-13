@@ -23,19 +23,21 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Remover sessões expiradas (> 30 dias)
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    
-    const deletedSessions = await prisma.session.deleteMany({
-      where: {
-        OR: [
-          { expiresAt: { lt: new Date() } }, // Já expiradas
-          { updatedAt: { lt: thirtyDaysAgo } } // Inativas há 30 dias
-        ]
-      }
-    })
-    results.sessionsDeleted = deletedSessions.count
+    // NOTA: Modelo Session não existe no Prisma - NextAuth gerencia isso automaticamente
+    // const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    // const deletedSessions = await prisma.session.deleteMany({
+    //   where: {
+    //     OR: [
+    //       { expiresAt: { lt: new Date() } },
+    //       { updatedAt: { lt: thirtyDaysAgo } }
+    //     ]
+    //   }
+    // })
+    // results.sessionsDeleted = deletedSessions.count
+    results.sessionsDeleted = 0
 
     // 2. Limpar carrinhos abandonados (> 30 dias sem atualização)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const deletedCarts = await prisma.cartItem.deleteMany({
       where: {
         updatedAt: { lt: thirtyDaysAgo }
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
     const oldCancelledOrders = await prisma.order.findMany({
       where: {
         status: 'CANCELLED',
-        cancelledAt: { lt: sixMonthsAgo }
+        updatedAt: { lt: sixMonthsAgo } // Usa updatedAt ao invés de cancelledAt
       },
       select: { id: true }
     })
@@ -79,16 +81,17 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Limpar tokens de redefinição de senha expirados
-    const expiredTokens = await prisma.user.updateMany({
-      where: {
-        resetPasswordToken: { not: null },
-        resetPasswordExpires: { lt: new Date() }
-      },
-      data: {
-        resetPasswordToken: null,
-        resetPasswordExpires: null
-      }
-    })
+    // NOTA: Campos resetPasswordToken não existem no modelo User
+    // const expiredTokens = await prisma.user.updateMany({
+    //   where: {
+    //     resetPasswordToken: { not: null },
+    //     resetPasswordExpires: { lt: new Date() }
+    //   },
+    //   data: {
+    //     resetPasswordToken: null,
+    //     resetPasswordExpires: null
+    //   }
+    // })
 
     // 6. Limpar imagens temporárias não utilizadas
     // TODO: Implementar limpeza de arquivos no sistema de arquivos
@@ -111,7 +114,6 @@ export async function POST(req: NextRequest) {
       success: true,
       message: `Limpeza concluída: ${results.sessionsDeleted} sessões + ${results.cartsDeleted} carrinhos removidos`,
       ...results,
-      expiredTokensCleared: expiredTokens.count,
       executionTime: Date.now() - startTime
     })
   } catch (error: any) {

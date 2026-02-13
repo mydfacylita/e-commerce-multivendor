@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
           processedAt: new Date(),
           metadata: JSON.stringify({
             destination: destinationAccount.accountNumber,
-            destinationName: destinationAccount.seller.storeName,
+            destinationName: destinationAccount.seller?.storeName || 'N/A',
             signature
           })
         }
@@ -307,7 +307,7 @@ export async function POST(request: NextRequest) {
       details: {
         transactionId,
         destination: destinationAccountNumber,
-        destinationName: destinationAccount.seller.storeName,
+        destinationName: destinationAccount.seller?.storeName || 'N/A',
         processingTime: Date.now() - startTime
       }
     });
@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
         id: transactionId,
         amount: numAmount,
         to: maskSensitiveData({ account: destinationAccountNumber }).account,
-        toName: destinationAccount.seller.storeName,
+        toName: destinationAccount.seller?.storeName || 'N/A',
         newBalance: result.sourceAccount.balance,
         timestamp: new Date().toISOString()
       }
@@ -394,8 +394,8 @@ export async function GET(request: NextRequest) {
       found: true,
       account: {
         accountNumber: account.accountNumber,
-        storeName: account.seller.storeName,
-        ownerName: account.seller.user.name?.split(' ')[0] || 'Vendedor', // Apenas primeiro nome
+        storeName: account.seller?.storeName || 'N/A',
+        ownerName: account.seller?.user.name?.split(' ')[0] || 'Vendedor', // Apenas primeiro nome
         status: account.status === 'ACTIVE' ? 'ACTIVE' : 'UNAVAILABLE'
       }
     });

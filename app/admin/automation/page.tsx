@@ -322,11 +322,11 @@ function NotificationsTab({ config, onToggle, onExecute, lastResult, loading }: 
           }}
         />
         <InfoBox>
-          <li>📧 Email para pedidos aguardando envio (> 2 dias)</li>
+          <li>📧 Email para pedidos aguardando envio (&gt; 2 dias)</li>
           <li>📧 Email de confirmação de entrega</li>
-          <li>📧 Lembrete de carrinho abandonado (> 3 dias)</li>
+          <li>📧 Lembrete de carrinho abandonado (&gt; 3 dias)</li>
           <li>📱 Mensagens WhatsApp (em breve)</li>
-          <li>🎨 Templates editáveis em Configurações > E-mail</li>
+          <li>🎨 Templates editáveis em Configurações &gt; E-mail</li>
         </InfoBox>
         {lastResult && (
           <div className="mt-4 p-4 bg-gray-50 rounded text-sm">

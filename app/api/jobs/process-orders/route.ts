@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         where: { id: order.id },
         data: {
           status: 'CANCELLED',
-          cancelledAt: new Date(),
+          // cancelledAt: new Date(), // Campo não existe no modelo Order
           cancelReason: 'Cancelado automaticamente: pagamento não confirmado em 3 dias'
         }
       })

@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
           await tx.sellerAccountTransaction.create({
             data: {
               accountId: account!.id,
-              type: 'CREDIT',
+              type: 'SALE',
               amount: totalAmount,
               balanceBefore: balanceBefore,
               balanceAfter: balanceAfter,

@@ -134,7 +134,9 @@ function getAgeGroup(categoryName: string, productName: string): string {
     return 'kids'
   }
   
- 
+  // Padrão: Adulto
+  return 'adult'
+}
 
 // Extrair cor do produto de múltiplas fontes
 function extractColor(product: any): string {
@@ -262,6 +264,4 @@ function extractSize(product: any): string | null {
   }
   
   return null
-} // Padrão: Adulto
-  return 'adult'
 }

@@ -319,7 +319,7 @@ export async function POST(
             reason: reason ? sanitizeInput(reason) : null, 
             adminId,
             signature,
-            sellerName: account.seller.storeName
+            sellerName: account.seller?.storeName || 'N/A'
           })
         }
       })
@@ -337,7 +337,7 @@ export async function POST(
         type,
         previousBalance: account.balance,
         newBalance,
-        sellerName: account.seller.storeName,
+        sellerName: account.seller?.storeName || 'N/A',
         processingTime: Date.now() - startTime
       }
     });

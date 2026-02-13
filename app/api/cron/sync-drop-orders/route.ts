@@ -297,6 +297,7 @@ export async function GET(request: NextRequest) {
         supplierOrderId: true,
         status: true,
         trackingCode: true,
+        affiliateId: true,
         items: {
           select: {
             id: true,
