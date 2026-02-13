@@ -89,10 +89,20 @@ async function fetchAliExpressProduct(
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
   
-  // 🔐 Verificar autorização CRON
-  if (!verifyCronAuth(request)) {
-    console.warn('[CRON] ⚠️ Tentativa de acesso não autorizada ao sync-aliexpress-stock')
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // 🔐 Verificar autorização CRON ou usuário admin autenticado
+  const isAuthorizedCron = verifyCronAuth(request)
+  
+  if (!isAuthorizedCron) {
+    // Se não for CRON autorizado, verificar se é chamada do admin (via referer)
+    const referer = request.headers.get('referer') || ''
+    const isAdminCall = referer.includes('/admin/integracao/aliexpress')
+    
+    if (!isAdminCall) {
+      console.warn('[CRON] ⚠️ Tentativa de acesso não autorizada ao sync-aliexpress-stock')
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
+    console.log('[SYNC] 👤 Sincronização manual iniciada pelo admin')
   }
 
   console.log('\n[SYNC] ========== INICIANDO SINCRONIZAÇÃO ==========')
