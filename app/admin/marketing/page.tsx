@@ -13,10 +13,12 @@ import { FiImage,
   FiPercent,
   FiShare2,
   FiExternalLink,
-  FiRefreshCw
+  FiRefreshCw,
+  FiSend
 } from 'react-icons/fi'
 import Image from 'next/image'
 import { toast } from 'react-hot-toast'
+import SocialPostModal from '@/components/admin/SocialPostModal'
 interface Product {
   id: string
   name: string
@@ -48,10 +50,15 @@ export default function MarketingPage() {
   
   // All products (loaded once, filtered client-side)
   const [allProducts, setAllProducts] = useState<Product[]>([])
+  
+  // Social Post Modal
+  const [postModalProduct, setPostModalProduct] = useState<Product | null>(null)
+  const [socialConnections, setSocialConnections] = useState<number>(0)
 
   useEffect(() => {
     fetchProducts()
     fetchCategories()
+    fetchSocialConnections()
   }, [])
 
   // Filtered products based on filters
@@ -110,6 +117,16 @@ export default function MarketingPage() {
       setCategories(data || [])
     } catch (error) {
       console.error('Erro ao buscar categorias:', error)
+    }
+  }
+
+  const fetchSocialConnections = async () => {
+    try {
+      const response = await fetch('/api/social/connections')
+      const data = await response.json()
+      setSocialConnections(data.filter((c: any) => c.isActive).length)
+    } catch (error) {
+      console.error('Erro ao buscar conexões sociais:', error)
     }
   }
 
@@ -473,14 +490,23 @@ export default function MarketingPage() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <FiImage className="text-primary-600" />
-          Central de Marketing
-        </h1>
-        <p className="text-gray-600 mt-1">
-          Gerencie imagens e crie materiais de divulgação para seus produtos
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <FiImage className="text-primary-600" />
+            Central de Marketing
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Gerencie imagens e crie materiais de divulgação para seus produtos
+          </p>
+        </div>
+        <a
+          href="/api/social/meta/auth"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all"
+        >
+          <FiShare2 />
+          {socialConnections > 0 ? `${socialConnections} Rede${socialConnections > 1 ? 's' : ''} Conectada${socialConnections > 1 ? 's' : ''}` : 'Conectar Redes Sociais'}
+        </a>
       </div>
 
       {/* Stats Cards */}
@@ -712,19 +738,19 @@ export default function MarketingPage() {
                   </div>
                   
                   {/* Actions */}
-                  <div className="flex gap-1 mt-3">
+                  <div className="grid grid-cols-5 gap-1 mt-3">
                     {images.length > 0 && (
                       <>
                         <button
                           onClick={() => copyAllImageUrls(product)}
-                          className="flex-1 p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded flex items-center justify-center gap-1"
+                          className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded flex items-center justify-center"
                           title={`Copiar ${images.length} URL(s)`}
                         >
                           {copiedId === product.id ? <FiCheck /> : <FiCopy />}
                         </button>
                         <button
                           onClick={() => downloadAllProductImages(product)}
-                          className="flex-1 p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded flex items-center justify-center gap-1"
+                          className="p-2 text-xs bg-gray-100 hover:bg-gray-200 rounded flex items-center justify-center"
                           title={`Baixar ${images.length} imagem(ns)`}
                         >
                           <FiDownload />
@@ -733,17 +759,24 @@ export default function MarketingPage() {
                     )}
                     <button
                       onClick={() => copyProductInfo(product)}
-                      className="flex-1 p-2 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded flex items-center justify-center gap-1"
+                      className="p-2 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded flex items-center justify-center"
                       title="Copiar para WhatsApp"
                     >
                       <FiShare2 />
                     </button>
                     <button
                       onClick={() => generateMarketingCard(product)}
-                      className="flex-1 p-2 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded flex items-center justify-center gap-1"
+                      className="p-2 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded flex items-center justify-center"
                       title="Gerar Card"
                     >
                       <FiExternalLink />
+                    </button>
+                    <button
+                      onClick={() => setPostModalProduct(product)}
+                      className="p-2 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 rounded flex items-center justify-center"
+                      title="Postar nas Redes"
+                    >
+                      <FiSend />
                     </button>
                   </div>
                 </div>
@@ -864,6 +897,13 @@ export default function MarketingPage() {
                         >
                           <FiExternalLink />
                         </button>
+                        <button
+                          onClick={() => setPostModalProduct(product)}
+                          className="p-2 hover:bg-purple-100 rounded text-purple-600"
+                          title="Postar nas Redes"
+                        >
+                          <FiSend />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -882,8 +922,21 @@ export default function MarketingPage() {
           <li>🎨 <strong>Card Marketing:</strong> Gere cards visuais prontos para Instagram e Facebook</li>
           <li>📥 <strong>Download em massa:</strong> Selecione vários produtos e baixe todas as imagens de uma vez</li>
           <li>🏷️ <strong>Ofertas:</strong> Use o filtro "Apenas Ofertas" para ver produtos com desconto</li>
+          <li>🚀 <strong>Redes Sociais:</strong> Clique no botão roxo para postar diretamente no Facebook/Instagram</li>
         </ul>
       </div>
+
+      {/* Social Post Modal */}
+      {postModalProduct && (
+        <SocialPostModal
+          product={postModalProduct}
+          onClose={() => setPostModalProduct(null)}
+          onSuccess={() => {
+            fetchSocialConnections()
+            toast.success('Post publicado com sucesso!')
+          }}
+        />
+      )}
     </div>
   )
 }

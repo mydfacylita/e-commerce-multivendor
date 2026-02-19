@@ -75,6 +75,7 @@ const BLOCKED_IN_PRODUCTION = [
 const ADMIN_REQUIRED_ROUTES = [
   '/api/admin/',
   '/api/cron/', // Cron jobs só via admin ou secret
+  '/api/social/', // Rotas de postagem em redes sociais (requer admin)
 ]
 
 // 🔒 Rotas que REQUEREM autenticação de USUÁRIO

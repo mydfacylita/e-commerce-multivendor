@@ -264,6 +264,7 @@ model Product {
   orderItems               OrderItem[]
   reviews                  ProductReview[]
   questions                ProductQuestion[]
+  socialPosts              SocialPost[]
   category                 Category             @relation(fields: [categoryId], references: [id])
   seller                   Seller?              @relation(fields: [sellerId], references: [id])
   supplier                 Supplier?            @relation(fields: [supplierId], references: [id])
@@ -1813,5 +1814,74 @@ enum AffiliateSaleStatus {
   CONFIRMED      // Pedido confirmado, comissão disponível
   PAID           // Comissão paga ao afiliado
   CANCELLED      // Pedido cancelado/estornado
+}
+
+// ========================================
+// SISTEMA DE POSTAGEM SOCIAL
+// ========================================
+
+model SocialConnection {
+  id            String   @id @default(cuid())
+  platform      SocialPlatform
+  name          String   // Nome da página/conta
+  platformId    String   // ID da página/conta na plataforma
+  accessToken   String   @db.Text
+  refreshToken  String?  @db.Text
+  expiresAt     DateTime?
+  isActive      Boolean  @default(true)
+  metadata      Json?    // Dados adicionais (profile pic, followers, etc)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  posts         SocialPost[]
+
+  @@unique([platform, platformId])
+  @@index([platform])
+  @@index([isActive])
+  @@map("social_connection")
+}
+
+model SocialPost {
+  id              String   @id @default(cuid())
+  connectionId    String
+  productId       String?
+  platform        SocialPlatform
+  status          PostStatus @default(DRAFT)
+  caption         String   @db.Text
+  images          Json     // Array of image URLs
+  scheduledFor    DateTime?
+  publishedAt     DateTime?
+  platformPostId  String?  // ID do post na plataforma
+  platformUrl     String?  // URL do post publicado
+  stats           Json?    // Likes, comments, shares, etc
+  errorMessage    String?  @db.Text
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  connection      SocialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  product         Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([connectionId])
+  @@index([productId])
+  @@index([platform])
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([createdAt])
+  @@map("social_post")
+}
+
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  TWITTER
+  PINTEREST
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
 }
 
