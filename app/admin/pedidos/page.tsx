@@ -6,6 +6,7 @@ import SendToSupplierButton from '@/components/admin/SendToSupplierButton'
 import PrintShippingLabelButton from '@/components/admin/PrintShippingLabelButton'
 import AutoFetchOrders from '@/components/admin/AutoFetchOrders'
 import { formatOrderNumber } from '@/lib/order'
+import ClientDate from '@/components/admin/ClientDate'
 
 
 // Force dynamic - disable all caching
@@ -389,10 +390,10 @@ export default async function AdminPedidosPage() {
                   </td>
                   <td className="py-4 px-6">
                     <p className="text-sm">
-                      {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                      <ClientDate date={order.createdAt} format="date" />
                     </p>
                     <p className="text-xs text-gray-500">
-                      {new Date(order.createdAt).toLocaleTimeString('pt-BR')}
+                      <ClientDate date={order.createdAt} format="time" />
                     </p>
                   </td>
                   <td className="py-4 px-6">

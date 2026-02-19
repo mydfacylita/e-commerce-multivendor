@@ -7,6 +7,7 @@ import UpdateOrderStatusButton from '@/components/admin/UpdateOrderStatusButton'
 import ResetSupplierStatusButton from '@/components/admin/ResetSupplierStatusButton'
 import AliExpressOrderStatus from '@/components/admin/AliExpressOrderStatus'
 import { formatOrderNumber } from '@/lib/order'
+import ClientDate from '@/components/admin/ClientDate'
 
 
 // Force dynamic - disable all caching
@@ -313,9 +314,9 @@ export default async function AdminOrderDetailPage({
                 </span>
               )}
             </div>
-            <p className="text-gray-600 mt-1" suppressHydrationWarning>
+            <p className="text-gray-600 mt-1">
               {order.marketplaceName && `Via ${order.marketplaceName} • `}
-              Criado em {new Date(order.createdAt).toLocaleString('pt-BR')}
+              Criado em <ClientDate date={order.createdAt} />
             </p>
             {order.isHybrid && (
               <div className="flex gap-2 mt-2">
@@ -428,8 +429,8 @@ export default async function AdminOrderDetailPage({
             {order.sentToSupplier && order.sentToSupplierAt && (
               <div>
                 <p className="text-sm text-gray-600 mb-1">Enviado ao fornecedor</p>
-                <p className="text-sm" suppressHydrationWarning>
-                  {new Date(order.sentToSupplierAt).toLocaleString('pt-BR')}
+                <p className="text-sm">
+                  <ClientDate date={order.sentToSupplierAt} />
                 </p>
               </div>
             )}
