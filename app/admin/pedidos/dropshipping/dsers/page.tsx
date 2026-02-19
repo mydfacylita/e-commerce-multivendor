@@ -149,7 +149,11 @@ export default function DSersLikePage() {
     }
 
     try {
-      const res = await fetch('/api/cron/sync-drop-orders')
+      const res = await fetch('/api/cron/sync-drop-orders', {
+        headers: {
+          'Authorization': 'Bearer 4f35bae7ab14e48d3490eacdb5e40bfc7a2b285690a9df6d8f8258ed314bc4b1'
+        }
+      })
       const data = await res.json()
 
       if (data.success) {
