@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       })
 
       if (existingProduct) {
-        // Atualiza preço, estoque e imagens
+        // Atualiza apenas preço, estoque e imagens — NÃO altera status de aprovação
         await prisma.product.update({
           where: { id: existingProduct.id },
           data: {
@@ -85,18 +85,19 @@ export async function POST(req: NextRequest) {
       } else {
         await prisma.product.create({
           data: {
-            name:        sp.title,
+            name:           sp.title,
             slug,
-            description: sp.body_html || '',
+            description:    sp.body_html || '',
             price,
             stock,
             images,
-            brand:       sp.vendor || null,
-            supplierSku: `shopify_${sp.id}`,   // identificador único Shopify
-            sellerId:    seller.id,
-            categoryId:  defaultCategory!.id,
-            active:      true,
-            lastSyncAt:  new Date(),
+            brand:          sp.vendor || null,
+            supplierSku:    `shopify_${sp.id}`,
+            sellerId:       seller.id,
+            categoryId:     defaultCategory!.id,
+            active:         false,       // inativo até aprovação
+            approvalStatus: 'PENDING',   // aguarda revisão do admin
+            lastSyncAt:     new Date(),
           },
         })
         results.imported++
