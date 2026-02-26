@@ -453,7 +453,18 @@ export default function PublishToMarketplaceButton({
       if (!response.ok) {
         // Tratar erros específicos usando tradução
         if (data.cause && Array.isArray(data.cause) && data.cause.length > 0) {
-          const errors = data.cause.map((err: any) => `• ${translateApiError(err)}`)
+          // Separar avisos ("ignored because it is not modifiable") de erros reais bloqueantes
+          const blocking = data.cause.filter((err: any) => 
+            !String(err.message || '').toLowerCase().includes('ignored because it is not modifiable')
+          )
+          const warnings = data.cause.filter((err: any) =>
+            String(err.message || '').toLowerCase().includes('ignored because it is not modifiable')
+          )
+          const causeList = blocking.length > 0 ? blocking : data.cause
+          const errors = [
+            ...causeList.map((err: any) => `• ${translateApiError(err)}`),
+            ...(warnings.length > 0 ? [`ℹ️ Avisos ignorados (não bloqueantes): ${warnings.length} atributo(s) não modificável(is)`] : [])
+          ]
           const hasAuthError = data.cause.some((err: any) => 
             err.code?.includes('unauthorized') || err.code?.includes('invalid_token')
           )

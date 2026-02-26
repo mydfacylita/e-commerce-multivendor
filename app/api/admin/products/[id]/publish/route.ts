@@ -1288,16 +1288,14 @@ async function publishToMercadoLivre(
     }
     const pkgWeight = product.weightWithPackage || product.weight
     // Peso: produto armazena em KG, ML espera gramas
-    if (pkgWeight && !attributes.find(a => a.id === 'PACKAGE_WEIGHT')) {
+    // NOTA: PACKAGE_WEIGHT, PACKAGE_HEIGHT etc. são "not modifiable" via API do ML
+    // Só enviar as variantes SELLER_PACKAGE_* que são aceitáveis
+    if (pkgWeight && !attributes.find(a => a.id === 'SELLER_PACKAGE_WEIGHT')) {
       const grams = Math.round(pkgWeight * 1000)
-      attributes.push({ id: 'PACKAGE_WEIGHT',        value_name: `${grams} g`, value_struct: { number: grams, unit: 'g' } })
       attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${grams} g`, value_struct: { number: grams, unit: 'g' } })
     }
-    autoAddDim('PACKAGE_HEIGHT',        product.height, 'cm')
     autoAddDim('SELLER_PACKAGE_HEIGHT', product.height, 'cm')
-    autoAddDim('PACKAGE_WIDTH',         product.width,  'cm')
     autoAddDim('SELLER_PACKAGE_WIDTH',  product.width,  'cm')
-    autoAddDim('PACKAGE_LENGTH',        product.length, 'cm')
     autoAddDim('SELLER_PACKAGE_LENGTH', product.length, 'cm')
     autoAddDim('TOTAL_HEIGHT',          product.height, 'cm')
     autoAddDim('TOTAL_WIDTH',           product.width,  'cm')
@@ -1584,7 +1582,6 @@ async function publishToMercadoLivre(
         condition: 'new',
         pictures,
         shipping: {
-          mode: 'me2',
           free_shipping: false,
           local_pick_up: false
         }
@@ -1607,10 +1604,9 @@ async function publishToMercadoLivre(
         pictures,
         attributes: finalAttributes,
         shipping: {
-          mode: 'me2',
+          // Não forçar 'mode' — ML usa o modo configurado na conta do vendedor
           free_shipping: finalPrice >= 79,
-          local_pick_up: false,
-          dimensions: null
+          local_pick_up: false
         }
       }
       
