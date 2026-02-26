@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getUserPermissions } from '@/lib/seller'
 import Link from 'next/link'
-import { FiShoppingBag, FiPackage, FiRefreshCw, FiShoppingCart } from 'react-icons/fi'
+import { FiShoppingBag, FiPackage, FiRefreshCw, FiShoppingCart, FiCheck } from 'react-icons/fi'
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -49,6 +49,12 @@ export default async function VendedorIntegracaoPage() {
   if (!seller) {
     redirect('/vendedor/cadastro');
   }
+
+  // Verificar conexão Shopify do usuário logado
+  const shopifyInstallation = await prisma.shopifyInstallation.findFirst({
+    where: { userId: session.user.id, isActive: true },
+    select: { shopDomain: true, shopName: true },
+  })
 
   // Buscar produtos do vendedor
   const products = await prisma.product.findMany({
@@ -166,6 +172,33 @@ export default async function VendedorIntegracaoPage() {
             className="block bg-white text-purple-600 text-center py-2 rounded-md font-semibold hover:bg-purple-50 transition-colors"
           >
             Configurar
+          </Link>
+        </div>
+
+        {/* Shopify */}
+        <div className="relative bg-gradient-to-br from-[#96bf48] to-[#5e8e3e] rounded-lg shadow-lg p-6 text-white">
+          {shopifyInstallation && (
+            <div className="absolute top-3 right-3 bg-white/20 backdrop-blur-sm rounded-full px-2 py-0.5 flex items-center gap-1 text-xs font-semibold">
+              <FiCheck size={10} /> Conectada
+            </div>
+          )}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold">Shopify</h3>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center font-bold text-lg">S</div>
+          </div>
+          <p className="text-sm mb-1 opacity-90">
+            {shopifyInstallation
+              ? `Conectada: ${shopifyInstallation.shopName ?? shopifyInstallation.shopDomain}`
+              : 'Conecte sua loja Shopify para sincronizar pedidos e produtos'}
+          </p>
+          {shopifyInstallation && (
+            <p className="text-xs opacity-70 mb-3">{shopifyInstallation.shopDomain}</p>
+          )}
+          <Link
+            href="/vendedor/integracao/shopify"
+            className="block bg-white text-[#5e8e3e] text-center py-2 rounded-md font-semibold hover:bg-green-50 transition-colors mt-4"
+          >
+            {shopifyInstallation ? 'Gerenciar' : 'Configurar'}
           </Link>
         </div>
       </div>
