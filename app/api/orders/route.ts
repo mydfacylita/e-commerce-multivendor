@@ -14,6 +14,30 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
+// Resolve warehouseCode automático pela UF do comprador
+async function resolveWarehouseCode(buyerState?: string | null): Promise<string | null> {
+  try {
+    const branches = await prisma.companyBranch.findMany({
+      where: { isActive: true },
+      select: { code: true, statesServed: true, isDefault: true },
+    })
+    if (!branches.length) return null
+
+    if (buyerState) {
+      const match = branches.find(b =>
+        b.statesServed && (b.statesServed as unknown as string[]).includes(buyerState.toUpperCase())
+      )
+      if (match) return match.code
+    }
+
+    // Fallback: filial padrão
+    const defaultBranch = branches.find(b => b.isDefault)
+    return defaultBranch?.code || null
+  } catch {
+    return null
+  }
+}
+
 // Função para extrair número de dias da string de prazo de entrega
 // Exemplos: "05 - 22 de Fev." -> 22, "5 dias úteis" -> 5, "10-15 dias" -> 15
 function parseDeliveryDays(value: any): number | null {
@@ -240,6 +264,7 @@ export async function POST(req: NextRequest) {
     // - ESTOQUE LOCAL do vendedor → Vendedor gerencia
     // - ESTOQUE LOCAL da plataforma → ADM gerencia
     const itemsByDestination: Map<string, any[]> = new Map()
+    const warehouseByDest: Map<string, string | null> = new Map() // warehouseCode por destino (do produto)
     
     for (const item of items) {
       const product = products.find((p) => p.id === item.productId)
@@ -266,6 +291,12 @@ export async function POST(req: NextRequest) {
 
       if (!itemsByDestination.has(destination)) {
         itemsByDestination.set(destination, [])
+      }
+      // Primeira filial não-nula prevalece para este destino
+      if (!warehouseByDest.has(destination)) {
+        warehouseByDest.set(destination, product.warehouseCode || null)
+      } else if (!warehouseByDest.get(destination) && product.warehouseCode) {
+        warehouseByDest.set(destination, product.warehouseCode)
       }
 
       // Calcular comissões
@@ -340,6 +371,14 @@ export async function POST(req: NextRequest) {
     console.log(`📦 Destinos: ${itemsByDestination.size}`)
     for (const [dest, destItems] of itemsByDestination.entries()) {
       console.log(`   - ${dest}: ${destItems.length} item(s)`)
+    }
+
+    // Resolver filial automaticamente a partir do produto (warehouseCode cadastrado no produto)
+    const autoWarehouseCode = warehouseByDest.size === 1
+      ? warehouseByDest.values().next().value
+      : null
+    if (autoWarehouseCode) {
+      console.log(`🏭 [FILIAL] Atribuído pelo produto: ${autoWarehouseCode}`)
     }
 
     // CASO 1: Pedido SIMPLES (apenas 1 destino)
@@ -450,6 +489,8 @@ export async function POST(req: NextRequest) {
           // Afiliado
           affiliateId,
           affiliateCode,
+          // Filial auto-atribuída
+          warehouseCode: autoWarehouseCode,
           items: {
             create: orderItems
           },
@@ -619,6 +660,8 @@ export async function POST(req: NextRequest) {
             // Impostos de importação (divididos proporcionalmente)
             importTax: importTax ? importTax / itemsByDestination.size : null,
             icmsTax: icmsTax ? icmsTax / itemsByDestination.size : null,
+            // Filial: usa o warehouseCode do produto deste destino
+            warehouseCode: warehouseByDest.get(destination) || null,
             items: {
               create: orderItems
             },

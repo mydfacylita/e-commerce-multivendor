@@ -61,6 +61,10 @@ const DEFAULT_CONFIGS: ConfigItem[] = [
   { key: 'social.whatsapp', value: '', category: 'social', label: 'WhatsApp Link', type: 'text', description: 'Número para link wa.me (Ex: 5511999999999)' },
   { key: 'social.tiktok', value: '', category: 'social', label: 'TikTok', type: 'text', description: 'URL completa do TikTok' },
   
+  // Facebook App para Postagem Automática
+  { key: 'social.facebookAppId', value: '2202661637209982', category: 'social', label: 'Facebook App ID', type: 'text', description: 'ID do App Facebook para postagens automáticas' },
+  { key: 'social.facebookAppSecret', value: 'b04aac3b91c90fb5472aa171778af122', category: 'social', label: 'Facebook App Secret', type: 'password', description: 'Secret do App Facebook (mantenha seguro)' },
+  
   // Loading / Mascote
   { key: 'loading.mascotTheme', value: 'default', category: 'loading', label: 'Tema do Mascote', type: 'select', description: 'Escolha o tema festivo para o mascote de carregamento' },
   { key: 'loading.message1', value: 'Carregando...', category: 'loading', label: 'Mensagem 1', type: 'text', description: 'Primeira mensagem de carregamento' },

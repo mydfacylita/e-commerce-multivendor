@@ -1,36 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { processAffiliateCommission } from '@/lib/affiliate-commission'
+import { correiosCWS } from '@/lib/correios-cws'
 
 /**
  * Job: Sincronização Automática de Rastreamento
- * 
- * Objetivo: Buscar atualizações de rastreamento dos Correios para pedidos em trânsito
- * 
- * Lógica:
- * 1. Busca pedidos com status IN_TRANSIT que possuem código de rastreamento
- * 2. Consulta API dos Correios para cada código
- * 3. Atualiza tracking_status e tracking_updated_at
- * 4. Se pedido foi entregue, atualiza status para DELIVERED
+ *
+ * O SISTEMA é responsável por monitorar e atualizar o status de entrega.
+ * O galpão/filial não marca pedidos como DELIVERED — isso é feito aqui
+ * com base nos eventos retornados pela API real dos Correios.
+ *
+ * Eventos que indicam entrega (status DELIVERED):
+ *   BDE — Objeto entregue ao destinatário
+ *   BDI — Objeto entregue na caixa postal
+ *
+ * Execução recomendada: a cada 2 horas via cron.
  */
 export async function POST(req: NextRequest) {
   try {
     const startTime = Date.now()
 
-    // Buscar pedidos enviados com código de rastreamento
+    // Buscar pedidos SHIPPED com código de rastreamento dos Correios
     const orders = await prisma.order.findMany({
       where: {
         status: 'SHIPPED',
-        trackingCode: {
-          not: null
-        }
+        trackingCode: { not: null }
       },
-      select: {
-        id: true,
-        trackingCode: true,
-        updatedAt: true
-      },
-      take: 50 // Limitar a 50 por execução para não sobrecarregar API dos Correios
+      select: { id: true, trackingCode: true, updatedAt: true },
+      take: 50
     })
 
     if (orders.length === 0) {
@@ -50,33 +47,51 @@ export async function POST(req: NextRequest) {
 
     for (const order of orders) {
       try {
-        // TODO: Integrar com API real dos Correios
-        // Por enquanto, simulação de atualização
-        const trackingInfo = await fetchCorreiosTracking(order.trackingCode!)
+        const result = await correiosCWS.rastrearObjeto(order.trackingCode!)
 
-        if (trackingInfo.updated) {
-          await prisma.order.update({
-            where: { id: order.id },
-            data: {
-              updatedAt: new Date(),
-              ...(trackingInfo.delivered && {
-                status: 'DELIVERED',
-                deliveredAt: new Date()
-              })
-            }
-          })
+        if (!result.success || !result.eventos?.length) continue
 
-          updated++
-          if (trackingInfo.delivered) {
-            delivered++
-            
-            // Processar comissão de afiliado
-            try {
-              const affiliateResult = await processAffiliateCommission(order.id)
-              console.log('💰 [TRACKING SYNC] Comissão processada:', affiliateResult)
-            } catch (affiliateError) {
-              console.error('⚠️  [TRACKING SYNC] Erro ao processar comissão:', affiliateError)
-            }
+        // Verificar se algum evento indica entrega ao destinatário
+        const isDelivered = result.eventos.some((evento: any) => {
+          const tipo = (evento.tipo || evento.codigo || '').toUpperCase()
+          const descricao = (evento.descricao || evento.status || '').toUpperCase()
+          return (
+            tipo === 'BDE' ||
+            tipo === 'BDI' ||
+            descricao.includes('ENTREGUE AO DESTINATÁRIO') ||
+            descricao.includes('ENTREGUE NA CAIXA POSTAL')
+          )
+        })
+
+        // Último evento = status atual
+        const ultimoEvento = result.eventos[0]
+        const statusDescricao = ultimoEvento?.descricao || ultimoEvento?.status || ''
+
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            updatedAt: new Date(),
+            ...(isDelivered && {
+              status: 'DELIVERED',
+              deliveredAt: new Date(),
+              deliveredBy: 'sistema:correios-tracking',
+              receiverName: ultimoEvento?.destinatario?.nome || null,
+              deliveryNotes: statusDescricao || null
+            })
+          }
+        })
+
+        updated++
+
+        if (isDelivered) {
+          delivered++
+          console.log(`📦 [TRACKING] Pedido ${order.id} marcado como DELIVERED (${order.trackingCode})`)
+
+          // Processar comissão de afiliado automaticamente
+          try {
+            await processAffiliateCommission(order.id)
+          } catch (affiliateError) {
+            console.error(`⚠️  [TRACKING] Erro ao processar comissão do pedido ${order.id}:`, affiliateError)
           }
         }
       } catch (error: any) {
@@ -84,7 +99,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Atualizar configuração com última execução
+    // Registrar última execução
     await prisma.systemConfig.upsert({
       where: { key: 'automation.orderTracking.lastRun' },
       update: { value: new Date().toISOString() },
@@ -99,7 +114,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Rastreamento atualizado: ${updated} de ${orders.length} pedidos`,
+      message: `Rastreamento atualizado: ${updated} de ${orders.length} pedidos (${delivered} entregues)`,
       processed: orders.length,
       updated,
       delivered,
@@ -112,23 +127,5 @@ export async function POST(req: NextRequest) {
       { error: error?.message || 'Erro ao sincronizar rastreamento' },
       { status: 500 }
     )
-  }
-}
-
-/**
- * Função auxiliar para buscar informações de rastreamento dos Correios
- * TODO: Implementar integração real com API dos Correios
- */
-async function fetchCorreiosTracking(trackingCode: string) {
-  // Simulação - substituir por chamada real à API dos Correios
-  // Exemplo: https://proxyapp.correios.com.br/v1/sro-rastro/{trackingCode}
-  
-  // Por enquanto, retorna aleatoriamente se houve atualização
-  const random = Math.random()
-  
-  return {
-    updated: random > 0.3, // 70% de chance de ter atualização
-    delivered: random > 0.8, // 20% de chance de estar entregue
-    status: random > 0.8 ? 'Objeto entregue ao destinatário' : 'Objeto em trânsito - por favor aguarde'
   }
 }

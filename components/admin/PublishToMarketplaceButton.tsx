@@ -113,6 +113,7 @@ export default function PublishToMarketplaceButton({
   const [selectedCatalogProduct, setSelectedCatalogProduct] = useState<CatalogProduct | null>(null)
   const [searchingCategories, setSearchingCategories] = useState(false)
   const [searchingCatalog, setSearchingCatalog] = useState(false)
+  const [catalogSearched, setCatalogSearched] = useState(false)
   const [loadingCategory, setLoadingCategory] = useState(false)
   const [validation, setValidation] = useState<ValidationResult | null>(null)
   const [validating, setValidating] = useState(false)
@@ -138,6 +139,7 @@ export default function PublishToMarketplaceButton({
     setCatalogProducts([])
     setSelectedCatalogProduct(null)
     setValidation(null)
+    setCatalogSearched(false)
   }
 
   // Buscar categorias por predição
@@ -191,10 +193,8 @@ export default function PublishToMarketplaceButton({
         setSelectedCategory(data.category)
         setRequiredAttributes(data.requiredAttributes || [])
         
-        // Se categoria exige catálogo, buscar automaticamente
-        if (data.category.requiresCatalog) {
-          searchCatalog()
-        }
+        // Sempre busca no catálogo automaticamente ao selecionar categoria
+        searchCatalog()
       }
     } catch (error) {
       console.error('Erro ao carregar categoria:', error)
@@ -211,6 +211,7 @@ export default function PublishToMarketplaceButton({
   // Buscar produtos no catálogo
   const searchCatalog = async () => {
     setSearchingCatalog(true)
+    setCatalogSearched(false)
     try {
       const response = await fetch('/api/admin/mercadolivre/catalog', {
         method: 'POST',
@@ -233,6 +234,7 @@ export default function PublishToMarketplaceButton({
       console.error('Erro ao buscar catálogo:', error)
     } finally {
       setSearchingCatalog(false)
+      setCatalogSearched(true)
     }
   }
 
@@ -282,43 +284,30 @@ export default function PublishToMarketplaceButton({
         })
         return
       }
-      // Se exige catálogo e não selecionou, mostrar aviso BLOQUEANTE
+      // Se exige catálogo e não selecionou nenhum produto
       if (selectedCategory.requiresCatalog && !selectedCatalogProduct) {
         if (catalogProducts.length > 0) {
-          // Tem produtos no catálogo, precisa selecionar
+          // Encontrou produtos mas não selecionou — obriga selecionar
           showInfoModal({
             type: 'error',
-            title: 'Catálogo Obrigatório',
-            message: 'Esta categoria exige que você selecione um produto do catálogo do Mercado Livre.',
-            details: [
-              '• Selecione um dos produtos encontrados no catálogo',
-              '• Isso é obrigatório para esta categoria',
-              '• O Mercado Livre não aceita anúncios livres nesta categoria'
-            ]
+            title: 'Selecione um Produto do Catálogo',
+            message: 'Encontramos produtos no catálogo do ML para esta categoria. Selecione um antes de avançar.',
+            details: ['• Clique no produto correto na lista', '• Depois clique em "Próximo" novamente']
           })
           return
-        } else {
-          // Não encontrou no catálogo - avisar que pode falhar
+        } else if (catalogSearched) {
+          // Não encontrou e já buscou — categoria incompatível com produto novo
           showInfoModal({
-            type: 'warning',
-            title: 'Produto Não Encontrado no Catálogo',
-            message: 'Esta categoria geralmente exige vinculação com o catálogo, mas não encontramos seu produto.',
+            type: 'error',
+            title: 'Categoria Incompatível',
+            message: `O Mercado Livre exige catálogo para "${selectedCategory.name}", mas seu produto não existe no catálogo deles.`,
             details: [
-              '⚠️ A publicação pode falhar',
-              '',
-              '💡 Opções:',
-              '• Tente com uma categoria diferente que não exija catálogo',
-              '• Verifique se o GTIN/EAN está correto',
-              '• Continue e veja se o ML aceita (pode funcionar para alguns produtos)'
+              '💡 Solução: troque de categoria.',
+              '• Clique em "Alterar" na categoria',
+              '• Busque por "Luminárias" ou "Iluminação Residencial"',
+              '• Escolha uma categoria que não exija catálogo'
             ],
-            action: {
-              label: 'Tentar mesmo assim',
-              onClick: () => {
-                closeInfoModal()
-                setCurrentStep(3)
-                validateProduct()
-              }
-            }
+            action: { label: 'Alterar Categoria', onClick: () => { closeInfoModal(); setSelectedCategory(null); setCatalogProducts([]); setSelectedCatalogProduct(null); setCatalogSearched(false) } }
           })
           return
         }
@@ -469,7 +458,7 @@ export default function PublishToMarketplaceButton({
 
       if (!response.ok) {
         // Tratar erros específicos usando tradução
-        if (data.cause && Array.isArray(data.cause)) {
+        if (data.cause && Array.isArray(data.cause) && data.cause.length > 0) {
           const errors = data.cause.map((err: any) => `• ${translateApiError(err)}`)
           const hasAuthError = data.cause.some((err: any) => 
             err.code?.includes('unauthorized') || err.code?.includes('invalid_token')
@@ -514,25 +503,26 @@ export default function PublishToMarketplaceButton({
         // Verificar erro de campos inválidos (geralmente significa que precisa de catálogo)
         const isInvalidFieldsError = data.message?.includes('invalid_fields') || 
           data.cause?.some((c: any) => c.code?.includes('invalid_fields'))
+
+        const isCatalogRequired =
+          isInvalidFieldsError ||
+          data.message?.toLowerCase().includes('catálogo') ||
+          data.message?.toLowerCase().includes('catalog') ||
+          data.details?.toLowerCase?.()?.includes('catalog_required')
         
-        if (isInvalidFieldsError && selectedCategory?.requiresCatalog && !selectedCatalogProduct) {
+        if (isCatalogRequired && !selectedCatalogProduct) {
           showInfoModal({
             type: 'error',
             title: 'Catálogo Obrigatório',
-            message: 'Esta categoria do Mercado Livre exige que o produto seja vinculado ao catálogo.',
+            message: data.message?.includes('invalid_fields')
+              ? 'Esta categoria exige que o produto seja vinculado ao catálogo do Mercado Livre.'
+              : (data.message || 'Esta categoria exige publicação via catálogo.'),
             details: [
-              '📦 O que isso significa:',
-              '• O Mercado Livre exige que você selecione um produto do catálogo oficial',
-              '• Isso garante que o anúncio tenha informações padronizadas',
-              '',
               '💡 Como resolver:',
-              '• Volte ao passo 2 (Categoria)',
-              '• Busque e selecione o produto correspondente no catálogo',
-              '• Se o produto não existir no catálogo, tente uma categoria diferente',
-              '',
-              '⚠️ Se o GTIN estiver correto e não encontrou no catálogo:',
-              '• O produto pode não estar cadastrado no catálogo do ML',
-              '• Tente usar outra categoria que não exija catálogo'
+              '• Feche este aviso',
+              '• Na etapa "Confirmar", clique em "Buscar no Catálogo ML"',
+              '• Encontre e selecione o produto correto',
+              '• Clique em "Publicar Agora" novamente',
             ],
             action: {
               label: 'Voltar e Selecionar Catálogo',
@@ -1215,6 +1205,7 @@ export default function PublishToMarketplaceButton({
                             setSelectedCategory(null)
                             setCatalogProducts([])
                             setSelectedCatalogProduct(null)
+                            setCatalogSearched(false)
                           }}
                           className="text-sm text-blue-600 hover:underline"
                         >
@@ -1288,19 +1279,31 @@ export default function PublishToMarketplaceButton({
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-500">
-                          {searchingCatalog 
-                            ? 'Buscando produtos no catálogo...'
-                            : productGtin
-                            ? 'Nenhum produto encontrado com o GTIN informado.'
-                            : 'Informe o GTIN/EAN do produto para buscar no catálogo.'}
-                        </p>
-                      )}
-
-                      {catalogProducts.length === 0 && !searchingCatalog && (
-                        <p className="text-xs text-gray-400 mt-2">
-                          Você pode continuar sem vincular ao catálogo, mas o anúncio pode ter menor visibilidade.
-                        </p>
+                        <>
+                          <p className="text-sm text-gray-500">
+                            {searchingCatalog
+                              ? 'Buscando produtos no catálogo...'
+                              : catalogSearched
+                              ? 'Nenhum produto encontrado no catálogo.'
+                              : 'Aguardando busca no catálogo...'}
+                          </p>
+                          {catalogProducts.length === 0 && !searchingCatalog && catalogSearched && selectedCategory?.requiresCatalog && (
+                            <div className="mt-3 p-3 bg-red-50 border border-red-300 rounded">
+                              <p className="text-sm font-semibold text-red-800">⛔ Categoria incompatível com seu produto</p>
+                              <p className="text-sm text-red-700 mt-1">
+                                O Mercado Livre exige catálogo para <strong>{selectedCategory.name}</strong>, mas seu produto não está no catálogo deles.
+                              </p>
+                              <p className="text-sm text-red-700 mt-1">
+                                <strong>Solução:</strong> clique em <strong>Alterar</strong> e escolha uma categoria que não exija catálogo, como <em>Luminárias</em> ou <em>Iluminação Residencial</em>.
+                              </p>
+                            </div>
+                          )}
+                          {catalogProducts.length === 0 && !searchingCatalog && catalogSearched && !selectedCategory?.requiresCatalog && (
+                            <p className="text-xs text-blue-500 mt-2">
+                              ℹ️ Publicação será feita sem catálogo. Normal para produtos novos ou exclusivos.
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

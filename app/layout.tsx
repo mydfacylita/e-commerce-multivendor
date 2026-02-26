@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import Script from 'next/script'
 import { Suspense } from 'react'
+import { headers } from 'next/headers'
 import { Providers } from './providers'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
@@ -108,6 +109,21 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // Detecta se é o portal de desenvolvedores (via header injetado pelo middleware)
+  const headersList = await headers()
+  const isDeveloperPage = headersList.get('x-page-type') === 'developer'
+
+  // Portal developer: layout mínimo, sem Navbar/Footer/scripts da loja
+  if (isDeveloperPage) {
+    return (
+      <html lang="pt-BR" className={inter.className}>
+        <body className="bg-gray-950 text-white antialiased">
+          <Providers>{children}</Providers>
+        </body>
+      </html>
+    )
+  }
+
   // Buscar IDs no server
   const gaId = await getGoogleAnalyticsId()
   const fbPixelId = await getFacebookPixelId()

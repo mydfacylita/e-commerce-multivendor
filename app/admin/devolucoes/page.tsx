@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { formatCurrency, formatDateTime } from '@/lib/format'
-import { ArrowLeft, Package, CheckCircle, XCircle, Clock, Eye } from 'lucide-react'
+import { ArrowLeft, Package, CheckCircle, XCircle, Clock, Eye, RefreshCw, Search, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface ReturnRequestItem {
@@ -37,13 +37,35 @@ interface ReturnRequestItem {
   }
 }
 
-const reasonLabels: Record<string, string> = {
-  PRODUTO_DANIFICADO: 'Produto danificado',
-  PRODUTO_INCORRETO: 'Produto incorreto',
-  NAO_ATENDE_EXPECTATIVA: 'Não atende expectativa',
-  DEFEITO_FABRICACAO: 'Defeito de fabricação',
-  ARREPENDIMENTO: 'Arrependimento',
-  OUTRO: 'Outro motivo'
+// Parses "[TROCA] motivo" or "[DEVOLUÇÃO] motivo" prefix from reason field
+const parseReason = (raw: string) => {
+  const troca = raw.match(/^\[TROCA\]\s*(.*)/i)
+  if (troca) return { type: 'TROCA' as const, reason: troca[1].trim() }
+  const dev = raw.match(/^\[DEVOLUÇÃO\]\s*(.*)/i)
+  if (dev) return { type: 'DEVOLUÇÃO' as const, reason: dev[1].trim() }
+  return { type: 'DEVOLUÇÃO' as const, reason: raw }
+}
+
+const typeBadge: Record<string, { label: string; color: string }> = {
+  TROCA:     { label: 'Troca',      color: 'bg-purple-100 text-purple-800' },
+  DEVOLUÇÃO: { label: 'Devolução',  color: 'bg-orange-100 text-orange-800' }
+}
+
+// Parses warehouse inspection data stored as [WAREHOUSE_INSPECTION]\n{json} in adminNotes
+const parseInspection = (adminNotes?: string | null) => {
+  if (!adminNotes?.includes('[WAREHOUSE_INSPECTION]')) return null
+  try {
+    const match = adminNotes.match(/\[WAREHOUSE_INSPECTION\]\n(\{[\s\S]*?\})(?:\n\n\[ADMIN_NOTES\]|$)/)
+    if (match) return JSON.parse(match[1])
+  } catch { /* ignore */ }
+  return null
+}
+
+const CONDITION_LABELS: Record<string, { label: string; color: string }> = {
+  GOOD:          { label: 'Bom estado',              color: 'bg-green-100 text-green-800' },
+  DAMAGED:       { label: 'Danificado',              color: 'bg-red-100 text-red-800' },
+  WRONG_PRODUCT: { label: 'Produto incorreto',       color: 'bg-orange-100 text-orange-800' },
+  INCOMPLETE:    { label: 'Incompleto',              color: 'bg-yellow-100 text-yellow-800' }
 }
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -61,6 +83,7 @@ export default function DevolucaoAdminPage() {
   const [selectedRequest, setSelectedRequest] = useState<ReturnRequestItem | null>(null)
   const [adminNotes, setAdminNotes] = useState('')
   const [processing, setProcessing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     loadReturnRequests()
@@ -68,7 +91,9 @@ export default function DevolucaoAdminPage() {
 
   const loadReturnRequests = async () => {
     try {
-      const response = await fetch(`/api/admin/returns?status=${filter}`)
+      const params = new URLSearchParams({ status: filter })
+      if (searchQuery) params.set('search', searchQuery)
+      const response = await fetch(`/api/admin/returns?${params}`)
       if (response.ok) {
         const data = await response.json()
         setRequests(data.requests)
@@ -80,32 +105,27 @@ export default function DevolucaoAdminPage() {
     }
   }
 
-  const handleAction = async (requestId: string, action: 'approve' | 'reject') => {
-    if (!selectedRequest) return
-
-    const confirmMessage = action === 'approve' 
-      ? 'Confirma a aprovação desta devolução?' 
-      : 'Confirma a rejeição desta devolução?'
-    
-    if (!confirm(confirmMessage)) return
+  const handleAction = async (requestId: string, action: 'approve' | 'reject' | 'complete') => {
+    const messages: Record<typeof action, string> = {
+      approve:  'Confirma a aprovação desta solicitação?',
+      reject:   'Confirma a rejeição desta solicitação?',
+      complete: 'Confirma a conclusão desta solicitação? O reembolso/troca foi processado?'
+    }
+    if (!confirm(messages[action])) return
 
     setProcessing(true)
-
     try {
-      const response = await fetch(`/api/admin/returns/${requestId}/${action}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          adminNotes: adminNotes.trim() || undefined
-        })
+      const response = await fetch(`/api/admin/returns/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, adminNotes: adminNotes.trim() || undefined })
       })
 
       const result = await response.json()
 
       if (response.ok) {
-        alert(`Solicitação ${action === 'approve' ? 'aprovada' : 'rejeitada'} com sucesso!`)
+        const labels = { approve: 'aprovada', reject: 'rejeitada', complete: 'concluída' }
+        alert(`Solicitação ${labels[action]} com sucesso!`)
         setSelectedRequest(null)
         setAdminNotes('')
         loadReturnRequests()
@@ -127,10 +147,8 @@ export default function DevolucaoAdminPage() {
     return selectedItems.reduce((total, item) => total + (item.price * item.quantity), 0)
   }
 
-  const filteredRequests = requests.filter(request => {
-    if (filter === 'all') return true
-    return request.status === filter.toUpperCase()
-  })
+  // Filtering is done server-side; keep local array as-is
+  const filteredRequests = requests
 
   if (loading) {
     return (
@@ -154,9 +172,27 @@ export default function DevolucaoAdminPage() {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold">Gerenciar Devoluções</h1>
-          <p className="text-gray-600">Aprovar ou rejeitar solicitações de devolução</p>
+          <h1 className="text-2xl font-bold">Trocas e Devoluções</h1>
+          <p className="text-gray-600">Gerenciar solicitações de troca e devolução</p>
         </div>
+      </div>
+
+      {/* Barra de Busca */}
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="Buscar por pedido, cliente ou e-mail..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && loadReturnRequests()}
+          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <button
+          onClick={loadReturnRequests}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium transition-colors"
+        >
+          Buscar
+        </button>
       </div>
 
       {/* Filtros */}
@@ -234,12 +270,20 @@ export default function DevolucaoAdminPage() {
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusLabels[request.status].color}`}>
                       {statusLabels[request.status].label}
                     </span>
+                    {(() => {
+                      const { type } = parseReason(request.reason)
+                      return (
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${typeBadge[type].color}`}>
+                          {typeBadge[type].label}
+                        </span>
+                      )
+                    })()}
                   </div>
                   
                   <div className="space-y-1 text-sm text-gray-600">
                     <p><strong>Pedido:</strong> #{request.orderId}</p>
                     <p><strong>Cliente:</strong> {request.user.name} ({request.user.email})</p>
-                    <p><strong>Motivo:</strong> {reasonLabels[request.reason]}</p>
+                    <p><strong>Motivo:</strong> {parseReason(request.reason).reason}</p>
                     <p><strong>Solicitado em:</strong> {formatDateTime(request.requestedAt)}</p>
                     <p><strong>Valor:</strong> {formatCurrency(calculateReturnValue(request))}</p>
                     <p><strong>Itens:</strong> {request.itemIds.length} item(s)</p>
@@ -260,24 +304,29 @@ export default function DevolucaoAdminPage() {
                   {request.status === 'PENDING' && (
                     <>
                       <button
+                        title="Aprovar"
                         className="px-3 py-2 text-sm font-medium text-green-700 bg-green-100 border border-green-300 rounded-md hover:bg-green-200 transition-colors"
-                        onClick={() => {
-                          setSelectedRequest(request)
-                          setAdminNotes('')
-                        }}
+                        onClick={() => { setSelectedRequest(request); setAdminNotes('') }}
                       >
                         <CheckCircle className="h-4 w-4" />
                       </button>
                       <button
+                        title="Rejeitar"
                         className="px-3 py-2 text-sm font-medium text-red-700 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 transition-colors"
-                        onClick={() => {
-                          setSelectedRequest(request)
-                          setAdminNotes('')
-                        }}
+                        onClick={() => { setSelectedRequest(request); setAdminNotes('') }}
                       >
                         <XCircle className="h-4 w-4" />
                       </button>
                     </>
+                  )}
+                  {request.status === 'APPROVED' && (
+                    <button
+                      title="Marcar como concluído"
+                      className="px-3 py-2 text-sm font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors"
+                      onClick={() => { setSelectedRequest(request); setAdminNotes('') }}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -291,9 +340,19 @@ export default function DevolucaoAdminPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg border border-gray-200 shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">
-                Solicitação de Devolução #{selectedRequest.id.slice(-8)}
-              </h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-semibold">
+                    Solicitação #{selectedRequest.id.slice(-8)}
+                  </h2>
+                  {(() => {
+                    const { type } = parseReason(selectedRequest.reason)
+                    return (
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${typeBadge[type].color}`}>
+                        {typeBadge[type].label}
+                      </span>
+                    )
+                  })()}
+                </div>
             </div>
             <div className="p-6 space-y-6">
               {/* Informações da Solicitação */}
@@ -305,7 +364,7 @@ export default function DevolucaoAdminPage() {
                       {statusLabels[selectedRequest.status].label}
                     </span>
                   </p>
-                  <p><strong>Motivo:</strong> {reasonLabels[selectedRequest.reason]}</p>
+                  <p><strong>Motivo:</strong> {parseReason(selectedRequest.reason).reason}</p>
                   <p><strong>Solicitado em:</strong> {formatDateTime(selectedRequest.requestedAt)}</p>
                   {selectedRequest.description && (
                     <p><strong>Descrição:</strong> {selectedRequest.description}</p>
@@ -353,8 +412,78 @@ export default function DevolucaoAdminPage() {
                 </div>
               </div>
 
+              {/* Laudo do Galpão */}
+              {(() => {
+                const inspection = parseInspection(selectedRequest.adminNotes)
+                if (inspection) {
+                  const cond = CONDITION_LABELS[inspection.condition] || { label: inspection.condition, color: 'bg-gray-100 text-gray-800' }
+                  return (
+                    <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Search className="h-4 w-4 text-blue-600" />
+                        <h4 className="font-semibold text-blue-900">Laudo de Inspeção — Galpão</h4>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-700">Condição:</span>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${cond.color}`}>
+                            {cond.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-700">Parecer:</span>
+                          <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
+                            inspection.recommendation === 'APPROVE'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {inspection.recommendation === 'APPROVE' ? '✔ Recomenda Aprovação' : '✖ Recomenda Rejeição'}
+                          </span>
+                        </div>
+                        {inspection.warehouseCode && (
+                          <p><span className="font-medium">Galpão:</span> {inspection.warehouseCode}</p>
+                        )}
+                        <p><span className="font-medium">Observações:</span> {inspection.notes}</p>
+                        <p className="text-xs text-gray-500">Inspecionado em: {inspection.inspectedAt ? new Date(inspection.inspectedAt).toLocaleString('pt-BR') : '-'}</p>
+                        {inspection.photos?.length > 0 && (
+                          <div>
+                            <p className="font-medium mb-1">Fotos:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {inspection.photos.map((url: string, i: number) => (
+                                <a key={i} href={url} target="_blank" rel="noreferrer"
+                                   className="text-blue-600 text-xs underline hover:text-blue-800">
+                                  Foto {i + 1}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+                // APPROVED but not yet inspected
+                if (selectedRequest.status === 'APPROVED') {
+                  return (
+                    <div className="border border-yellow-200 rounded-lg p-4 bg-yellow-50 flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-yellow-800">Aguardando inspeção do galpão</p>
+                        <p className="text-yellow-700 mt-1">
+                          O galpão deve registrar o laudo via API V1 antes de concluir esta solicitação.
+                        </p>
+                        <code className="block mt-2 text-xs bg-yellow-100 border border-yellow-300 rounded px-2 py-1 font-mono">
+                          POST /api/v1/returns/{selectedRequest.id}/inspect
+                        </code>
+                      </div>
+                    </div>
+                  )
+                }
+                return null
+              })()}
+
               {/* Ações do Admin */}
-              {selectedRequest.status === 'PENDING' && (
+              {(selectedRequest.status === 'PENDING' || selectedRequest.status === 'APPROVED') && (
                 <div>
                   <h4 className="font-semibold mb-2">Observações do Administrador</h4>
                   <textarea
@@ -365,27 +494,39 @@ export default function DevolucaoAdminPage() {
                     rows={4}
                     maxLength={500}
                   />
-                  <p className="text-xs text-gray-500 mb-4">
-                    {adminNotes.length}/500 caracteres
-                  </p>
-                  
+                  <p className="text-xs text-gray-500 mb-4">{adminNotes.length}/500 caracteres</p>
+
                   <div className="flex gap-3">
-                    <button
-                      onClick={() => handleAction(selectedRequest.id, 'approve')}
-                      disabled={processing}
-                      className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      {processing ? 'Processando...' : 'Aprovar Devolução'}
-                    </button>
-                    <button
-                      onClick={() => handleAction(selectedRequest.id, 'reject')}
-                      disabled={processing}
-                      className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      {processing ? 'Processando...' : 'Rejeitar'}
-                    </button>
+                    {selectedRequest.status === 'PENDING' && (
+                      <>
+                        <button
+                          onClick={() => handleAction(selectedRequest.id, 'approve')}
+                          disabled={processing}
+                          className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          {processing ? 'Processando...' : 'Aprovar'}
+                        </button>
+                        <button
+                          onClick={() => handleAction(selectedRequest.id, 'reject')}
+                          disabled={processing}
+                          className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          {processing ? 'Processando...' : 'Rejeitar'}
+                        </button>
+                      </>
+                    )}
+                    {selectedRequest.status === 'APPROVED' && (
+                      <button
+                        onClick={() => handleAction(selectedRequest.id, 'complete')}
+                        disabled={processing}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        {processing ? 'Processando...' : 'Marcar como Concluído'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

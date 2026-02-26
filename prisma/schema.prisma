@@ -18,27 +18,31 @@ model User {
   phone            String?
   cpf              String?
   role             Role              @default(USER)
-  isActive         Boolean           @default(true)
-  blockedAt        DateTime?
-  blockedReason    String?           @db.VarChar(255)
   workForSellerId  String?
   employeeRole     EmployeeRole?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  blockedAt        DateTime?
+  blockedReason    String?           @db.VarChar(255)
+  isActive         Boolean           @default(true)
   addresses        Address[]
+  affiliate        Affiliate?
   aliexpressAuth   AliExpressAuth?
   cartItems        CartItem[]
-  mercadoLivreAuth MercadoLivreAuth?
+  cashback         CustomerCashback?
+  developerApps    DeveloperApp[]    @relation("DeveloperApps")
+  oauthCodes           OAuthCode[]           @relation("UserOAuthCodes")
+  oauthConnections     OAuthConnection[]     @relation("UserOAuthConnections")
+  shopifyInstallations ShopifyInstallation[] @relation("UserShopifyInstallations")
+  mercadoLivreAuth     MercadoLivreAuth?
   orders           Order[]
-  returnRequests   ReturnRequest[]
-  productReviews   ProductReview[]
   productQuestions ProductQuestion[]
+  productReviews   ProductReview[]
+  returnRequests   ReturnRequest[]
   reviewHelpfuls   ReviewHelpful[]
   seller           Seller?           @relation("SellerOwner")
   shopeeAuth       ShopeeAuth?
-  cashback         CustomerCashback?
   tiktokShopAuth   TikTokShopAuth?
-  affiliate        Affiliate?
   workForSeller    Seller?           @relation("SellerEmployees", fields: [workForSellerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([workForSellerId])
@@ -106,18 +110,18 @@ model Seller {
   createdAt              DateTime                      @default(now())
   updatedAt              DateTime                      @updatedAt
   balance                Float                         @default(0)
+  nomeCompleto           String?
   totalEarned            Float                         @default(0)
   totalWithdrawn         Float                         @default(0)
   orders                 Order[]                       @relation("SellerOrders")
   ordersSold             Order[]                       @relation("SellerSoldOrders")
   products               Product[]
   user                   User                          @relation("SellerOwner", fields: [userId], references: [id], onDelete: Cascade)
+  account                SellerAccount?
   marketplaceCredentials SellerMarketplaceCredential[]
   subscriptions          Subscription[]
   employees              User[]                        @relation("SellerEmployees")
   withdrawals            Withdrawal[]
-  account                SellerAccount?
-  nomeCompleto           String?
 
   @@index([status])
   @@index([storeSlug])
@@ -163,9 +167,9 @@ model Category {
   slug        String     @unique
   description String?
   image       String?
-  parentId    String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  parentId    String?
   parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children    Category[] @relation("CategoryHierarchy")
   products    Product[]
@@ -198,11 +202,7 @@ model Product {
   supplierUrl              String?              @db.Text
   specifications           String?              @db.Text
   variants                 String?              @db.Text
-  selectedSkus             String?              @db.Text  // SKUs selecionados para venda (para produtos importados)
   attributes               String?              @db.Text
-  sizes                    String?              @db.Text
-  sizeType                 String?
-  sizeCategory             String?
   gtin                     String?
   brand                    String?
   model                    String?
@@ -219,55 +219,59 @@ model Product {
   supplierStock            Int?
   supplierStoreId          String?
   supplierStoreName        String?
-  supplierCountryCode      String?              // País do fornecedor (BR, CN, US)
-  shipFromCountry          String?              // País de onde o produto é enviado
-  deliveryDays             Int?                 // Prazo de entrega em dias (da API)
   active                   Boolean              @default(true)
-  // Status de aprovação para produtos de vendedores
-  approvalStatus           String               @default("APPROVED") // PENDING, APPROVED, REJECTED
-  approvalNote             String?              @db.Text  // Nota do admin ao aprovar/rejeitar
-  approvedAt               DateTime?            // Data da aprovação
-  approvedBy               String?              // ID do admin que aprovou
   bookAuthor               String?
   bookGenre                String?
   bookIsbn                 String?
   bookPublisher            String?
   bookTitle                String?
-  weight                   Float?
-  weightWithPackage        Float?
-  length                   Float?
-  width                    Float?
-  height                   Float?
-  lengthWithPackage        Float?
-  widthWithPackage         Float?
-  heightWithPackage        Float?
+  selectedSkus             String?              @db.Text
+  sizes                    String?              @db.Text
+  sizeType                 String?
+  sizeCategory             String?
   acceptsCreditCard        Boolean?
-  installmentsFreeInterest Int?
-  maxInstallments          Int?
   aliquotaCofins           Float?               @map("aliquota_cofins")
   aliquotaIcms             Float?               @map("aliquota_icms")
   aliquotaPis              Float?               @map("aliquota_pis")
+  approvalNote             String?              @db.Text
+  approvalStatus           String               @default("APPROVED")
+  approvedAt               DateTime?
+  approvedBy               String?
   cest                     String?
   cfopInterestadual        String?              @map("cfop_interestadual")
   cfopInterno              String?              @map("cfop_interno")
   cstCofins                String?              @map("cst_cofins")
   cstIcms                  String?              @map("cst_icms")
   cstPis                   String?              @map("cst_pis")
+  deliveryDays             Int?
+  height                   Float?
+  heightWithPackage        Float?
+  installmentsFreeInterest Int?
+  length                   Float?
+  lengthWithPackage        Float?
+  maxInstallments          Int?
   ncm                      String?
   origem                   String?              @default("0")
   reducaoBcIcms            Float?               @map("reducao_bc_icms")
+  shipFromCountry          String?
+  supplierCountryCode      String?
   tributacaoEspecial       String?              @default("normal") @map("tributacao_especial")
   unidadeComercial         String?              @default("UN") @map("unidade_comercial")
   unidadeTributavel        String?              @default("UN") @map("unidade_tributavel")
+  weight                   Float?
+  weightWithPackage        Float?
+  width                    Float?
+  widthWithPackage         Float?
+  warehouseCode            String?              @db.VarChar(100)
   cartItems                CartItem[]
   marketplaceListings      MarketplaceListing[]
   orderItems               OrderItem[]
-  reviews                  ProductReview[]
-  questions                ProductQuestion[]
-  socialPosts              SocialPost[]
   category                 Category             @relation(fields: [categoryId], references: [id])
   seller                   Seller?              @relation(fields: [sellerId], references: [id])
   supplier                 Supplier?            @relation(fields: [supplierId], references: [id])
+  questions                ProductQuestion[]
+  reviews                  ProductReview[]
+  socialPosts              SocialPost[]
 
   @@index([categoryId])
   @@index([sellerId])
@@ -282,6 +286,7 @@ model Product {
   @@index([sellerId, approvalStatus])
   @@index([isDropshipping, availableForDropship])
   @@index([createdAt])
+  @@index([warehouseCode], map: "idx_product_warehouse")
   @@map("product")
 }
 
@@ -322,101 +327,102 @@ model CartItem {
 model CartNotification {
   id           String   @id @default(cuid())
   userId       String
-  type         String   // Tipo: cart_abandoned, cart_reminder_1, cart_reminder_2
-  sentAt       DateTime @default(now())
+  type         String   @db.VarChar(50)
+  sentAt       DateTime @default(now()) @db.DateTime(0)
   emailSent    Boolean  @default(true)
   whatsappSent Boolean  @default(false)
 
-  @@index([userId, type])
-  @@index([sentAt])
+  @@index([sentAt], map: "idx_sent_at")
+  @@index([userId, type], map: "idx_user_type")
   @@map("cart_notification")
 }
 
 model Order {
-  id                    String          @id @default(cuid())
-  userId                String?
-  parentOrderId         String?
-  status                OrderStatus     @default(PENDING)
-  total                 Float
-  profit                Float?
-  shippingAddress       String          @db.Text
-  paymentIntentId       String?
-  supplierOrderId       String?
-  trackingCode          String?
-  correiosIdPrePostagem String?
-  marketplaceName       String?
-  marketplaceOrderId    String?         @unique
-  sentToSupplier        Boolean         @default(false)
-  sentToSupplierAt      DateTime?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  buyerEmail            String?
-  buyerName             String?
-  buyerPhone            String?
-  buyerCpf              String?
-  paymentMethod         String?
-  shippingCost          Float?
-  buyerMessages         String?         @db.Text
-  cancelReason          String?
-  commissionAmount      Float?
-  commissionRate        Float?
-  sellerRevenue         Float?
-  soldBySellerId        String?
-  sellerId              String?
-  paymentApprovedAt     DateTime?
-  paymentDetails        String?         @db.LongText
-  paymentId             String?
-  paymentStatus         String?
-  paymentType           String?
-  couponCode            String?
-  discountAmount        Float?
-  subtotal              Float?
-  deliveryDays          Int?
-  expeditionNotes       String?         @db.Text
-  labelPrintedAt        DateTime?
-  packagingBoxId        String?
-  packedAt              DateTime?
-  packedBy              String?
-  separatedAt           DateTime?
-  separatedBy           String?
-  shippedAt             DateTime?
-  shippedBy             String?
-  shippingCarrier       String?
-  shippingLabel         String?         @db.Text
-  shippingLabelType     String?
-  shippingMethod        String?
-  shippingService       String?
-  fraudScore            Int?
-  fraudReasons          String?         @db.Text
-  fraudStatus           String?         @db.VarChar(50)
-  fraudCheckedAt        DateTime?       @db.DateTime(0)
-  fraudCheckedBy        String?         @db.VarChar(255)
-  fraudNotes            String?         @db.Text
-  ipAddress             String?         @db.VarChar(100)
-  userAgent             String?         @db.Text
-  importTax             Float?          // Imposto de Importação (20%)
-  icmsTax               Float?          // ICMS estadual para produtos importados
-  deliveredAt           DateTime?       // Data/hora da entrega
-  deliveredBy           String?         // Quem entregou
-  receiverName          String?         // Nome de quem recebeu
-  receiverDocument      String?         // CPF/RG de quem recebeu
-  deliveryNotes         String?         @db.Text // Observações da entrega
-  deliveryPhoto         String?         @db.Text // Foto comprovante
-  deliveryAttempts      Int?            @default(0) // Tentativas de entrega
-  affiliateId           String?         // ID do afiliado que gerou a venda
-  affiliateCode         String?         // Código do afiliado no momento da compra
-  awaitingShipmentNotifiedAt DateTime?   // Data/hora do email aguardando envio
-  deliveryNotifiedAt    DateTime?       // Data/hora do email de entrega
-  notificationsSent     Json?           // Histórico de notificações enviadas
-  invoices              Invoice[]
-  seller                Seller?         @relation("SellerOrders", fields: [sellerId], references: [id])
-  soldBySeller          Seller?         @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
-  user                  User?           @relation(fields: [userId], references: [id])
-  items                 OrderItem[]
-  refunds               Refund[]
-  returnRequests        ReturnRequest[]
-  productReviews        ProductReview[]
-  affiliateSale         AffiliateSale?
+  id                         String          @id @default(cuid())
+  userId                     String?
+  status                     OrderStatus     @default(PENDING)
+  total                      Float
+  profit                     Float?
+  shippingAddress            String          @db.Text
+  paymentIntentId            String?
+  supplierOrderId            String?
+  trackingCode               String?
+  marketplaceName            String?
+  marketplaceOrderId         String?         @unique
+  sentToSupplier             Boolean         @default(false)
+  sentToSupplierAt           DateTime?
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+  buyerEmail                 String?
+  buyerName                  String?
+  buyerPhone                 String?
+  buyerCpf                   String?
+  paymentMethod              String?
+  shippingCost               Float?
+  buyerMessages              String?         @db.Text
+  cancelReason               String?
+  commissionAmount           Float?
+  commissionRate             Float?
+  sellerRevenue              Float?
+  soldBySellerId             String?
+  sellerId                   String?
+  paymentApprovedAt          DateTime?
+  paymentDetails             String?         @db.LongText
+  paymentId                  String?
+  paymentStatus              String?
+  paymentType                String?
+  parentOrderId              String?
+  correiosIdPrePostagem      String?
+  deliveryDays               Int?
+  expeditionNotes            String?         @db.Text
+  labelPrintedAt             DateTime?
+  packagingBoxId             String?
+  packedAt                   DateTime?
+  packedBy                   String?
+  separatedAt                DateTime?
+  separatedBy                String?
+  shippedAt                  DateTime?
+  shippedBy                  String?
+  shippingCarrier            String?
+  shippingLabel              String?         @db.Text
+  shippingLabelType          String?
+  shippingMethod             String?
+  shippingService            String?
+  fraudScore                 Int?
+  fraudReasons               String?         @db.Text
+  fraudStatus                String?         @db.VarChar(50)
+  fraudCheckedAt             DateTime?       @db.DateTime(0)
+  fraudCheckedBy             String?         @db.VarChar(255)
+  fraudNotes                 String?         @db.Text
+  ipAddress                  String?         @db.VarChar(100)
+  userAgent                  String?         @db.Text
+  importTax                  Float?
+  icmsTax                    Float?
+  deliveredAt                DateTime?
+  deliveredBy                String?
+  receiverName               String?
+  receiverDocument           String?
+  deliveryNotes              String?         @db.Text
+  deliveryPhoto              String?         @db.Text
+  deliveryAttempts           Int?            @default(0)
+  affiliateId                String?
+  affiliateCode              String?
+  couponCode                 String?
+  discountAmount             Float?
+  subtotal                   Float?
+  awaitingShipmentNotifiedAt DateTime?       @db.DateTime(0)
+  deliveryNotifiedAt         DateTime?       @db.DateTime(0)
+  notificationsSent          String?         @db.LongText
+  warehouseCode              String?         @db.VarChar(100)
+  affiliateSale              AffiliateSale?
+  invoices                   Invoice[]
+  seller                     Seller?         @relation("SellerOrders", fields: [sellerId], references: [id])
+  soldBySeller               Seller?         @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
+  user                       User?           @relation(fields: [userId], references: [id])
+  items                      OrderItem[]
+  productReviews             ProductReview[]
+  refunds                    Refund[]
+  returnRequests             ReturnRequest[]
 
   @@index([userId])
   @@index([sellerId])
@@ -433,6 +439,9 @@ model Order {
   @@index([fraudScore], map: "idx_fraud_score")
   @@index([fraudStatus], map: "idx_fraud_status")
   @@index([correiosIdPrePostagem], map: "idx_correios_prepostagem")
+  @@index([warehouseCode], map: "idx_warehouse_code")
+  @@index([awaitingShipmentNotifiedAt], map: "idx_awaiting_shipment_notified")
+  @@index([deliveryNotifiedAt], map: "idx_delivery_notified")
   @@map("order")
 }
 
@@ -443,20 +452,20 @@ model OrderItem {
   quantity         Int
   price            Float
   createdAt        DateTime     @default(now())
-  itemType         ItemType     @default(STOCK)
   commissionAmount Float?
   commissionRate   Float?
   sellerId         String?
   sellerRevenue    Float?
-  supplierOrderId  String?
-  supplierStatus   String?
-  supplierCost     Float?
-  costPrice        Float?            // Preço de custo no momento da venda
-  supplierSkuId    String?           // SUB-SKU da variação selecionada (ex: AliExpress sku_id)
-  trackingCode     String?
-  selectedSize     String?
-  selectedColor    String?
+  costPrice        Float?
+  itemType         ItemType     @default(STOCK)
   refundedAt       DateTime?
+  selectedColor    String?
+  selectedSize     String?
+  supplierCost     Float?
+  supplierOrderId  String?
+  supplierSkuId    String?
+  supplierStatus   String?
+  trackingCode     String?
   order            Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product          Product      @relation(fields: [productId], references: [id])
   refundItems      RefundItem[]
@@ -584,6 +593,42 @@ model CompanySettings {
   @@map("company_settings")
 }
 
+model CompanyBranch {
+  id                    String    @id @default(cuid()) @db.VarChar(36)
+  code                  String    @unique @db.VarChar(100)
+  name                  String    @db.VarChar(255)
+  cnpj                  String    @db.VarChar(18)
+  ie                    String?   @db.VarChar(20)
+  im                    String?   @db.VarChar(20)
+  street                String    @db.VarChar(255)
+  number                String    @db.VarChar(20)
+  complement            String?   @db.VarChar(100)
+  neighborhood          String    @db.VarChar(100)
+  city                  String    @db.VarChar(100)
+  cityCode              String?   @db.VarChar(7)
+  state                 String    @db.Char(2)
+  zipCode               String    @db.VarChar(9)
+  phone                 String?   @db.VarChar(20)
+  email                 String?   @db.VarChar(100)
+  statesServed          String?   @db.LongText
+  isDefault             Boolean   @default(false)
+  isActive              Boolean   @default(true)
+  nfSerie               String?   @db.VarChar(10)
+  nfAmbiente            String?   @db.VarChar(20)
+  nfNaturezaOperacao    String?   @db.VarChar(255)
+  nfCrt                 String?   @db.VarChar(2)
+  nfCertificadoArquivo  String?   @db.VarChar(500)
+  nfCertificadoSenha    String?   @db.Text
+  nfCertificadoValidade DateTime? @db.DateTime(0)
+  nfTaxRulesJson        String?   @db.LongText
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+
+  @@index([isActive], map: "idx_branch_active")
+  @@index([state], map: "idx_branch_state")
+  @@map("company_branch")
+}
+
 model MercadoLivreCredentials {
   id           String   @id @default(cuid())
   clientId     String
@@ -633,18 +678,14 @@ model Subscription {
   billingCycle    BillingCycle
   nextBillingDate DateTime?
   autoRenew       Boolean            @default(true)
-  
-  // Campos para histórico e renovação
-  contractNumber  String?            // Número do contrato para referência
-  previousId      String?            // Referência à assinatura anterior (renovação)
-  renewedToId     String?            // Referência à nova assinatura (quando renovada)
-  paymentId       String?            // ID do pagamento que ativou esta assinatura
-  invoiceUrl      String?            // URL da fatura/recibo
-  notes           String?            @db.Text // Observações do contrato
-  
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
-  
+  contractNumber  String?
+  invoiceUrl      String?
+  notes           String?            @db.Text
+  paymentId       String?
+  previousId      String?
+  renewedToId     String?
   plan            Plan               @relation(fields: [planId], references: [id])
   seller          Seller             @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
@@ -771,12 +812,12 @@ model ApiLog {
 
 model SyncLog {
   id         String   @id @default(cuid())
-  type       String   // ALIEXPRESS_STOCK, MARKETPLACE_ORDERS, etc
+  type       String
   totalItems Int      @default(0)
   synced     Int      @default(0)
   errors     Int      @default(0)
-  details    Json?
-  duration   Int      @default(0) // Duração em milissegundos
+  details    String?  @db.LongText
+  duration   Int      @default(0)
   createdAt  DateTime @default(now())
 
   @@index([type])
@@ -1125,6 +1166,557 @@ model states {
   cities   cities[]
 }
 
+model ProductReview {
+  id            String          @id @default(cuid())
+  productId     String
+  userId        String
+  orderId       String?
+  rating        Int
+  title         String?         @db.VarChar(200)
+  comment       String?         @db.Text
+  pros          String?         @db.Text
+  cons          String?         @db.Text
+  images        String?         @db.Text
+  isVerified    Boolean         @default(false)
+  isApproved    Boolean         @default(false)
+  isReported    Boolean         @default(false)
+  helpfulCount  Int             @default(0)
+  reportCount   Int             @default(0)
+  sellerReply   String?         @db.Text
+  sellerReplyAt DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  order         Order?          @relation(fields: [orderId], references: [id])
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  helpfulVotes  ReviewHelpful[]
+
+  @@unique([productId, userId, orderId])
+  @@index([productId])
+  @@index([userId])
+  @@index([orderId])
+  @@index([rating])
+  @@index([isApproved])
+  @@index([createdAt])
+  @@map("product_review")
+}
+
+model ProductQuestion {
+  id          String    @id @default(cuid())
+  productId   String
+  userId      String
+  question    String    @db.Text
+  answer      String?   @db.Text
+  answeredBy  String?
+  answeredAt  DateTime?
+  isPublic    Boolean   @default(true)
+  isApproved  Boolean   @default(false)
+  isReported  Boolean   @default(false)
+  reportCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([userId])
+  @@index([isApproved])
+  @@index([answeredAt])
+  @@index([createdAt])
+  @@map("product_question")
+}
+
+model ReviewHelpful {
+  id        String        @id @default(cuid())
+  reviewId  String
+  userId    String
+  isHelpful Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  review    ProductReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+  @@index([reviewId])
+  @@index([userId])
+  @@map("review_helpful")
+}
+
+model Coupon {
+  id                String        @id @default(cuid())
+  code              String        @unique
+  description       String?
+  discountType      DiscountType  @default(PERCENTAGE)
+  discountValue     Float
+  minOrderValue     Float?
+  maxDiscountValue  Float?
+  maxUses           Int?
+  maxUsesPerUser    Int?          @default(1)
+  usageCount        Int           @default(0)
+  validFrom         DateTime      @default(now())
+  validUntil        DateTime?
+  isActive          Boolean       @default(true)
+  allowedStates     String?       @db.Text
+  allowedCategories String?       @db.Text
+  excludedProducts  String?       @db.Text
+  firstPurchaseOnly Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  createdBy         String?
+  usages            CouponUsage[]
+
+  @@index([code])
+  @@index([isActive])
+  @@index([validFrom, validUntil])
+  @@map("coupon")
+}
+
+model CouponUsage {
+  id        String   @id @default(cuid())
+  couponId  String
+  orderId   String
+  userId    String?
+  discount  Float
+  createdAt DateTime @default(now())
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([userId])
+  @@index([orderId])
+  @@map("coupon_usage")
+}
+
+model SellerAccount {
+  id                  String                     @id @default(cuid())
+  sellerId            String?                    @unique
+  affiliateId         String?                    @unique
+  accountNumber       String                     @unique
+  accountType         String                     @default("SELLER")
+  status              SellerAccountStatus        @default(PENDING)
+  balance             Float                      @default(0)
+  blockedBalance      Float                      @default(0)
+  totalReceived       Float                      @default(0)
+  totalWithdrawn      Float                      @default(0)
+  pixKeyType          String?
+  pixKey              String?
+  bankCode            String?
+  bankName            String?
+  agencia             String?
+  conta               String?
+  contaTipo           String?
+  autoWithdrawal      Boolean                    @default(false)
+  autoWithdrawalDay   Int?
+  minWithdrawalAmount Float                      @default(50)
+  verifiedAt          DateTime?
+  verifiedBy          String?
+  kycStatus           KYCStatus                  @default(PENDING)
+  kycDocuments        String?                    @db.Text
+  transactionPin      String?
+  transactionPinSalt  String?
+  lastPinChange       DateTime?
+  failedPinAttempts   Int                        @default(0)
+  lockedUntil         DateTime?
+  metadata            String?                    @db.Text
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  affiliate           Affiliate?                 @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  seller              Seller?                    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  transactions        SellerAccountTransaction[]
+
+  @@index([sellerId])
+  @@index([affiliateId])
+  @@index([status])
+  @@index([accountNumber])
+  @@index([accountType])
+  @@map("seller_account")
+}
+
+model SellerAccountTransaction {
+  id            String                @id @default(cuid())
+  accountId     String
+  type          SellerTransactionType
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+  description   String
+  reference     String?
+  referenceType String?
+  orderId       String?
+  withdrawalId  String?
+  status        TransactionStatus     @default(COMPLETED)
+  metadata      String?               @db.Text
+  createdAt     DateTime              @default(now())
+  processedAt   DateTime?
+  processedBy   String?
+  account       SellerAccount         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderId])
+  @@index([withdrawalId])
+  @@map("seller_account_transaction")
+}
+
+model CashbackRule {
+  id                String       @id @default(cuid())
+  name              String
+  description       String?      @db.Text
+  type              CashbackType @default(PERCENTAGE)
+  value             Float
+  minOrderValue     Float?
+  maxCashback       Float?
+  categoryIds       String?      @db.Text
+  productIds        String?      @db.Text
+  sellerIds         String?      @db.Text
+  excludedProducts  String?      @db.Text
+  validFrom         DateTime     @default(now())
+  validUntil        DateTime?
+  isActive          Boolean      @default(true)
+  priority          Int          @default(0)
+  firstPurchaseOnly Boolean      @default(false)
+  forNewCustomers   Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  createdBy         String?
+
+  @@index([isActive])
+  @@index([validFrom, validUntil])
+  @@index([priority])
+  @@map("cashback_rule")
+}
+
+model CustomerCashback {
+  id             String                @id @default(cuid())
+  userId         String                @unique
+  balance        Float                 @default(0)
+  pendingBalance Float                 @default(0)
+  totalEarned    Float                 @default(0)
+  totalUsed      Float                 @default(0)
+  expirationDays Int                   @default(90)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  transactions   CashbackTransaction[]
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("customer_cashback")
+}
+
+model CashbackTransaction {
+  id            String                    @id @default(cuid())
+  cashbackId    String
+  type          CashbackTransactionType
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+  description   String
+  orderId       String?
+  ruleId        String?
+  expiresAt     DateTime?
+  status        CashbackTransactionStatus @default(PENDING)
+  availableAt   DateTime?
+  releasedAt    DateTime?
+  createdAt     DateTime                  @default(now())
+  processedAt   DateTime?
+  cashback      CustomerCashback          @relation(fields: [cashbackId], references: [id], onDelete: Cascade)
+
+  @@index([cashbackId])
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@map("cashback_transaction")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  resource   String?
+  resourceId String?
+  ipAddress  String?
+  userAgent  String?  @db.Text
+  status     String
+  details    String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, action, createdAt])
+  @@map("audit_log")
+}
+
+model TransactionToken {
+  id          String   @id @default(cuid())
+  accountId   String
+  token       String   @unique
+  amount      Decimal  @db.Decimal(10, 2)
+  destination String
+  used        Boolean  @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([token])
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("transaction_token")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_token")
+}
+
+model Affiliate {
+  id               String                @id @default(cuid())
+  userId           String                @unique
+  code             String                @unique
+  name             String
+  email            String                @unique
+  phone            String?
+  cpf              String?
+  instagram        String?
+  youtube          String?
+  tiktok           String?
+  otherSocial      String?               @db.Text
+  commissionRate   Float                 @default(5)
+  status           AffiliateStatus       @default(PENDING)
+  isActive         Boolean               @default(true)
+  totalSales       Float                 @default(0)
+  totalCommission  Float                 @default(0)
+  availableBalance Float                 @default(0)
+  totalWithdrawn   Float                 @default(0)
+  banco            String?
+  agencia          String?
+  conta            String?
+  tipoConta        String?
+  chavePix         String?
+  cookieDays       Int                   @default(30)
+  notes            String?               @db.Text
+  approvedAt       DateTime?
+  approvedBy       String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clicks           AffiliateClick[]
+  sales            AffiliateSale[]
+  withdrawals      AffiliateWithdrawal[]
+  account          SellerAccount?
+
+  @@index([code])
+  @@index([status])
+  @@index([userId])
+  @@index([isActive])
+  @@map("affiliate")
+}
+
+model AffiliateSale {
+  id               String              @id @default(cuid())
+  affiliateId      String
+  orderId          String              @unique
+  customerId       String?
+  customerName     String?
+  customerEmail    String?
+  orderTotal       Float
+  commissionRate   Float
+  commissionAmount Float
+  status           AffiliateSaleStatus @default(PENDING)
+  availableAt      DateTime?
+  paidAt           DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  affiliate        Affiliate           @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  order            Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("affiliate_sale")
+}
+
+model AffiliateWithdrawal {
+  id              String           @id @default(cuid())
+  affiliateId     String
+  amount          Float
+  status          WithdrawalStatus
+  method          String
+  pixKey          String?
+  bankInfo        String?          @db.Text
+  notes           String?          @db.Text
+  proofUrl        String?
+  requestedAt     DateTime         @default(now())
+  processedAt     DateTime?
+  processedBy     String?
+  rejectedAt      DateTime?
+  rejectionReason String?          @db.Text
+  affiliate       Affiliate        @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("affiliate_withdrawal")
+}
+
+model AffiliateClick {
+  id          String    @id @default(cuid())
+  affiliateId String
+  ipAddress   String?
+  userAgent   String?   @db.Text
+  referrer    String?   @db.Text
+  landingPage String?   @db.Text
+  converted   Boolean   @default(false)
+  convertedAt DateTime?
+  orderId     String?
+  createdAt   DateTime  @default(now())
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([createdAt])
+  @@index([converted])
+  @@map("affiliate_click")
+}
+
+model SocialConnection {
+  id           String         @id @default(cuid())
+  platform     SocialPlatform
+  name         String         @db.VarChar(255)
+  platformId   String         @db.VarChar(255)
+  accessToken  String         @db.Text
+  refreshToken String?        @db.Text
+  expiresAt    DateTime?
+  isActive     Boolean        @default(true)
+  metadata     String?        @db.LongText
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  posts        SocialPost[]
+
+  @@unique([platform, platformId])
+  @@index([platform])
+  @@index([isActive])
+  @@map("social_connection")
+}
+
+model SocialPost {
+  id             String           @id @default(cuid())
+  connectionId   String
+  productId      String?
+  platform       SocialPlatform
+  status         PostStatus       @default(DRAFT)
+  caption        String           @db.Text
+  images         String           @db.LongText
+  scheduledFor   DateTime?
+  publishedAt    DateTime?
+  platformPostId String?          @db.VarChar(255)
+  platformUrl    String?          @db.VarChar(500)
+  stats          String?          @db.LongText
+  errorMessage   String?          @db.Text
+  createdBy      String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  connection     SocialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  product        Product?         @relation(fields: [productId], references: [id])
+
+  @@index([connectionId])
+  @@index([productId])
+  @@index([platform])
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([createdAt])
+  @@map("social_post")
+}
+
+model DeveloperApp {
+  id           String             @id @default(cuid())
+  name         String             @db.VarChar(255)
+  description  String?            @db.Text
+  logoUrl      String?            @db.VarChar(500)
+  websiteUrl   String?            @db.VarChar(500)
+  redirectUris String             @db.LongText
+  status       DevAppStatus       @default(ACTIVE)
+  ownerId      String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  filterConfig String?            @db.LongText
+  apiLogs      DevApiLog[]
+  apiKeys      DeveloperApiKey[]
+  owner        User               @relation("DeveloperApps", fields: [ownerId], references: [id], onDelete: Cascade)
+  webhooks     DeveloperWebhook[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("developer_app")
+}
+
+model DeveloperApiKey {
+  id           String       @id @default(cuid())
+  appId        String
+  keyPrefix    String       @db.VarChar(20)
+  apiKey       String       @unique
+  apiSecret    String       @db.Text
+  scopes       String       @db.LongText
+  name         String?      @db.VarChar(100)
+  isActive     Boolean      @default(true)
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  requestCount Int          @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  app          DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@index([isActive])
+  @@map("developer_api_key")
+}
+
+model DeveloperWebhook {
+  id            String       @id @default(cuid())
+  appId         String
+  url           String       @db.VarChar(500)
+  events        String       @db.LongText
+  secret        String
+  isActive      Boolean      @default(true)
+  lastTriggered DateTime?
+  failCount     Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  app           DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@index([isActive])
+  @@map("developer_webhook")
+}
+
+model DevApiLog {
+  id           String       @id @default(cuid())
+  appId        String
+  keyPrefix    String       @db.VarChar(20)
+  method       String       @db.VarChar(10)
+  path         String       @db.VarChar(255)
+  statusCode   Int
+  latencyMs    Int
+  ipAddress    String?      @db.VarChar(100)
+  userAgent    String?      @db.Text
+  requestBody  String?      @db.LongText
+  responseBody String?      @db.LongText
+  error        String?      @db.Text
+  createdAt    DateTime     @default(now())
+  app          DeveloperApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@index([path])
+  @@index([statusCode])
+  @@index([createdAt])
+  @@map("dev_api_log")
+}
+
 enum EmployeeRole {
   MANAGER
   OPERATOR
@@ -1269,258 +1861,41 @@ enum invoice_event_type {
   ERRO
 }
 
-// ========================================
-// AVALIAÇÕES E PERGUNTAS DE PRODUTOS
-// ========================================
-
-model ProductReview {
-  id            String   @id @default(cuid())
-  productId     String
-  userId        String
-  orderId       String?  // Vincula à compra (só pode avaliar se comprou)
-  rating        Int      // 1-5 estrelas
-  title         String?  @db.VarChar(200)
-  comment       String?  @db.Text
-  pros          String?  @db.Text  // Pontos positivos
-  cons          String?  @db.Text  // Pontos negativos
-  images        String?  @db.Text  // JSON array de URLs
-  isVerified    Boolean  @default(false) // Compra verificada
-  isApproved    Boolean  @default(false) // Aprovado para exibição
-  isReported    Boolean  @default(false) // Denunciado
-  helpfulCount  Int      @default(0)     // Quantas pessoas acharam útil
-  reportCount   Int      @default(0)     // Quantas denúncias
-  sellerReply   String?  @db.Text        // Resposta do vendedor
-  sellerReplyAt DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  order         Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  helpfulVotes  ReviewHelpful[]
-
-  @@unique([productId, userId, orderId]) // Um usuário pode avaliar o mesmo produto várias vezes se comprou várias vezes
-  @@index([productId])
-  @@index([userId])
-  @@index([orderId])
-  @@index([rating])
-  @@index([isApproved])
-  @@index([createdAt])
-  @@map("product_review")
-}
-
-model ProductQuestion {
-  id           String    @id @default(cuid())
-  productId    String
-  userId       String
-  question     String    @db.Text
-  answer       String?   @db.Text
-  answeredBy   String?   // ID do vendedor ou admin que respondeu
-  answeredAt   DateTime?
-  isPublic     Boolean   @default(true)
-  isApproved   Boolean   @default(false)
-  isReported   Boolean   @default(false)
-  reportCount  Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([productId])
-  @@index([userId])
-  @@index([isApproved])
-  @@index([answeredAt])
-  @@index([createdAt])
-  @@map("product_question")
-}
-
-// Tabela para registrar votos de "útil" em avaliações
-model ReviewHelpful {
-  id        String   @id @default(cuid())
-  reviewId  String
-  userId    String
-  isHelpful Boolean  @default(true) // true = útil, false = não útil
-  createdAt DateTime @default(now())
-
-  review    ProductReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([reviewId, userId]) // Um usuário só pode votar uma vez por review
-  @@index([reviewId])
-  @@index([userId])
-  @@map("review_helpful")
-}
-
-// Cupons de Desconto
-model Coupon {
-  id                String       @id @default(cuid())
-  code              String       @unique // Código do cupom (ex: PRIMEIRACOMPRA)
-  description       String?      // Descrição interna
-  discountType      DiscountType @default(PERCENTAGE) // PERCENTAGE ou FIXED
-  discountValue     Float        // Valor do desconto (% ou R$)
-  minOrderValue     Float?       // Valor mínimo do pedido para usar
-  maxDiscountValue  Float?       // Valor máximo de desconto (para %)
-  maxUses           Int?         // Limite total de usos (null = ilimitado)
-  maxUsesPerUser    Int?         @default(1) // Limite por usuário
-  usageCount        Int          @default(0) // Contador de usos
-  validFrom         DateTime     @default(now()) // Data início da validade
-  validUntil        DateTime?    // Data fim da validade (null = sem fim)
-  isActive          Boolean      @default(true)
-  // Restrições
-  allowedStates     String?      @db.Text // Estados permitidos (JSON array: ["MA", "SP"])
-  allowedCategories String?      @db.Text // Categorias permitidas (JSON array de IDs)
-  excludedProducts  String?      @db.Text // Produtos excluídos (JSON array de IDs)
-  firstPurchaseOnly Boolean      @default(false) // Apenas primeira compra
-  // Auditoria
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  createdBy         String?      // ID do admin que criou
-  
-  usages            CouponUsage[]
-
-  @@index([code])
-  @@index([isActive])
-  @@index([validFrom, validUntil])
-  @@map("coupon")
-}
-
-// Registro de uso de cupons
-model CouponUsage {
-  id        String   @id @default(cuid())
-  couponId  String
-  orderId   String
-  userId    String?
-  discount  Float    // Valor do desconto aplicado
-  createdAt DateTime @default(now())
-
-  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
-
-  @@index([couponId])
-  @@index([userId])
-  @@index([orderId])
-  @@map("coupon_usage")
-}
-
 enum DiscountType {
   PERCENTAGE
   FIXED
 }
 
-// ========================================
-// CONTA DIGITAL DO VENDEDOR
-// ========================================
-
-model SellerAccount {
-  id                  String                 @id @default(cuid())
-  sellerId            String?                @unique // Nullable - pode ser vendedor
-  affiliateId         String?                @unique // Ou afiliado
-  accountNumber       String                 @unique // Número da conta digital (gerado automaticamente)
-  accountType         String                 @default("SELLER") // SELLER ou AFFILIATE
-  status              SellerAccountStatus    @default(PENDING)
-  balance             Float                  @default(0) // Saldo disponível
-  blockedBalance      Float                  @default(0) // Saldo bloqueado (em liberação)
-  totalReceived       Float                  @default(0) // Total já recebido
-  totalWithdrawn      Float                  @default(0) // Total já sacado
-  // Dados bancários para saque
-  pixKeyType          String?                // CPF, CNPJ, EMAIL, PHONE, RANDOM
-  pixKey              String?
-  bankCode            String?
-  bankName            String?
-  agencia             String?
-  conta               String?
-  contaTipo           String?                // CORRENTE, POUPANCA
-  // Configurações
-  autoWithdrawal      Boolean                @default(false) // Saque automático
-  autoWithdrawalDay   Int?                   // Dia do mês para saque automático
-  minWithdrawalAmount Float                  @default(50) // Valor mínimo para saque
-  // Verificação e segurança
-  verifiedAt          DateTime?
-  verifiedBy          String?
-  kycStatus           KYCStatus              @default(PENDING)
-  kycDocuments        String?                @db.Text // JSON com documentos enviados
-  // Segurança de transações
-  transactionPin      String?                // Hash do PIN de transação
-  transactionPinSalt  String?                // Salt do PIN
-  lastPinChange       DateTime?              // Última alteração do PIN
-  failedPinAttempts   Int                    @default(0)
-  lockedUntil         DateTime?              // Conta bloqueada até
-  metadata            String?                @db.Text // JSON com dados adicionais
-  // Auditoria
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  
-  seller              Seller?                @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  affiliate           Affiliate?             @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
-  transactions        SellerAccountTransaction[]
-
-  @@index([sellerId])
-  @@index([affiliateId])
-  @@index([status])
-  @@index([accountNumber])
-  @@index([accountType])
-  @@map("seller_account")
-}
-
-model SellerAccountTransaction {
-  id               String                       @id @default(cuid())
-  accountId        String
-  type             SellerTransactionType
-  amount           Float
-  balanceBefore    Float
-  balanceAfter     Float
-  description      String
-  reference        String?                      // ID do pedido, saque, etc
-  referenceType    String?                      // ORDER, WITHDRAWAL, REFUND, ADJUSTMENT, BONUS
-  orderId          String?                      // Pedido relacionado (se aplicável)
-  withdrawalId     String?                      // Saque relacionado (se aplicável)
-  status           TransactionStatus            @default(COMPLETED)
-  metadata         String?                      @db.Text // Dados extras em JSON
-  createdAt        DateTime                     @default(now())
-  processedAt      DateTime?
-  processedBy      String?
-
-  account          SellerAccount                @relation(fields: [accountId], references: [id], onDelete: Cascade)
-
-  @@index([accountId])
-  @@index([type])
-  @@index([status])
-  @@index([createdAt])
-  @@index([orderId])
-  @@index([withdrawalId])
-  @@map("seller_account_transaction")
-}
-
 enum SellerAccountStatus {
-  PENDING           // Aguardando ativação
-  ACTIVE            // Ativa e operacional
-  BLOCKED           // Bloqueada temporariamente
-  SUSPENDED         // Suspensa por violação
-  CLOSED            // Encerrada
+  PENDING
+  ACTIVE
+  BLOCKED
+  SUSPENDED
+  CLOSED
 }
 
 enum KYCStatus {
-  PENDING           // Aguardando documentos
-  SUBMITTED         // Documentos enviados
-  REVIEWING         // Em análise
-  APPROVED          // Aprovado
-  REJECTED          // Rejeitado
-  NEEDS_UPDATE      // Precisa atualizar documentos
+  PENDING
+  SUBMITTED
+  REVIEWING
+  APPROVED
+  REJECTED
+  NEEDS_UPDATE
 }
 
 enum SellerTransactionType {
-  SALE              // Venda (crédito)
-  WITHDRAWAL        // Saque (débito)
-  REFUND            // Reembolso (débito)
-  COMMISSION        // Comissão da plataforma (débito)
-  BONUS             // Bônus (crédito)
-  ADJUSTMENT_CREDIT // Ajuste manual (crédito)
-  ADJUSTMENT_DEBIT  // Ajuste manual (débito)
-  CHARGEBACK        // Estorno por disputa (débito)
-  FEE               // Taxa (débito)
-  TRANSFER_IN       // Transferência recebida (crédito)
-  TRANSFER_OUT      // Transferência enviada (débito)
-  MIGRATION         // Migração de saldo anterior (crédito)
+  SALE
+  WITHDRAWAL
+  REFUND
+  COMMISSION
+  BONUS
+  ADJUSTMENT_CREDIT
+  ADJUSTMENT_DEBIT
+  CHARGEBACK
+  FEE
+  TRANSFER_IN
+  TRANSFER_OUT
+  MIGRATION
 }
 
 enum TransactionStatus {
@@ -1531,275 +1906,26 @@ enum TransactionStatus {
   CANCELLED
 }
 
-// ========================================
-// SISTEMA DE CASHBACK PARA CLIENTES
-// ========================================
-
-model CashbackRule {
-  id                String           @id @default(cuid())
-  name              String
-  description       String?          @db.Text
-  type              CashbackType     @default(PERCENTAGE)
-  value             Float            // Porcentagem ou valor fixo
-  minOrderValue     Float?           // Valor mínimo do pedido
-  maxCashback       Float?           // Cashback máximo por pedido
-  // Restrições
-  categoryIds       String?          @db.Text // JSON array de IDs de categorias (null = todas)
-  productIds        String?          @db.Text // JSON array de IDs de produtos específicos
-  sellerIds         String?          @db.Text // JSON array de IDs de vendedores
-  excludedProducts  String?          @db.Text // Produtos excluídos
-  // Validade
-  validFrom         DateTime         @default(now())
-  validUntil        DateTime?
-  // Status
-  isActive          Boolean          @default(true)
-  priority          Int              @default(0) // Maior prioridade = aplicado primeiro
-  // Condições especiais
-  firstPurchaseOnly Boolean          @default(false)
-  forNewCustomers   Boolean          @default(false) // Clientes novos (30 dias)
-  // Auditoria
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  createdBy         String?
-
-  @@index([isActive])
-  @@index([validFrom, validUntil])
-  @@index([priority])
-  @@map("cashback_rule")
-}
-
-model CustomerCashback {
-  id               String                     @id @default(cuid())
-  userId           String                     @unique
-  balance          Float                      @default(0) // Saldo disponível
-  pendingBalance   Float                      @default(0) // Saldo pendente (aguardando liberação)
-  totalEarned      Float                      @default(0) // Total já ganho
-  totalUsed        Float                      @default(0) // Total já utilizado
-  // Configurações
-  expirationDays   Int                        @default(90) // Dias para expirar o cashback
-  // Auditoria
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
-
-  user             User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions     CashbackTransaction[]
-
-  @@index([userId])
-  @@map("customer_cashback")
-}
-
-model CashbackTransaction {
-  id               String                     @id @default(cuid())
-  cashbackId       String
-  type             CashbackTransactionType
-  amount           Float
-  balanceBefore    Float
-  balanceAfter     Float
-  description      String
-  orderId          String?                    // Pedido que gerou ou usou o cashback
-  ruleId           String?                    // Regra que gerou o cashback
-  expiresAt        DateTime?                  // Data de expiração (para créditos)
-  status           CashbackTransactionStatus  @default(PENDING)
-  // Liberação
-  availableAt      DateTime?                  // Data que ficará disponível
-  releasedAt       DateTime?                  // Data que foi liberado
-  // Auditoria
-  createdAt        DateTime                   @default(now())
-  processedAt      DateTime?
-
-  cashback         CustomerCashback           @relation(fields: [cashbackId], references: [id], onDelete: Cascade)
-
-  @@index([cashbackId])
-  @@index([orderId])
-  @@index([status])
-  @@index([createdAt])
-  @@index([expiresAt])
-  @@map("cashback_transaction")
-}
-
 enum CashbackType {
-  PERCENTAGE        // Porcentagem do valor do pedido
-  FIXED             // Valor fixo
+  PERCENTAGE
+  FIXED
 }
 
 enum CashbackTransactionType {
-  CREDIT            // Ganho de cashback
-  DEBIT             // Uso de cashback
-  EXPIRED           // Cashback expirado
-  ADJUSTMENT_CREDIT // Ajuste manual (crédito)
-  ADJUSTMENT_DEBIT  // Ajuste manual (débito)
-  REFUND            // Devolução de cashback usado
+  CREDIT
+  DEBIT
+  EXPIRED
+  ADJUSTMENT_CREDIT
+  ADJUSTMENT_DEBIT
+  REFUND
 }
 
 enum CashbackTransactionStatus {
-  PENDING           // Aguardando liberação (pedido não entregue)
-  AVAILABLE         // Disponível para uso
-  USED              // Utilizado
-  EXPIRED           // Expirado
-  CANCELLED         // Cancelado (pedido cancelado)
-}
-
-// ========================================
-// AUDITORIA E SEGURANÇA
-// ========================================
-
-model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String
-  action      String   // FINANCIAL_TRANSFER, FINANCIAL_WITHDRAWAL, etc
-  resource    String?  // SellerAccount, Order, etc
-  resourceId  String?  // ID do recurso afetado
-  ipAddress   String?
-  userAgent   String?  @db.Text
-  status      String   // SUCCESS, FAILED, BLOCKED, SUSPICIOUS
-  details     String?  @db.Text // JSON com detalhes da operação
-  createdAt   DateTime @default(now())
-
-  @@index([userId])
-  @@index([action])
-  @@index([status])
-  @@index([createdAt])
-  @@index([userId, action, createdAt])
-  @@map("audit_log")
-}
-
-model TransactionToken {
-  id            String   @id @default(cuid())
-  accountId     String
-  token         String   @unique
-  amount        Decimal  @db.Decimal(10, 2)
-  destination   String   // Conta destino ou tipo de operação
-  used          Boolean  @default(false)
-  expiresAt     DateTime
-  createdAt     DateTime @default(now())
-
-  @@index([token])
-  @@index([accountId])
-  @@index([expiresAt])
-  @@map("transaction_token")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verification_token")
-}
-
-// ========================================
-// SISTEMA DE AFILIADOS
-// ========================================
-
-model Affiliate {
-  id                String               @id @default(cuid())
-  userId            String               @unique
-  code              String               @unique  // Código único (ex: JOAO123)
-  name              String               // Nome do influenciador
-  email             String               @unique
-  phone             String?
-  cpf               String?
-  instagram         String?
-  youtube           String?
-  tiktok            String?
-  otherSocial       String?              @db.Text
-  commissionRate    Float                @default(5)  // % de comissão (padrão 5%)
-  status            AffiliateStatus      @default(PENDING)
-  isActive          Boolean              @default(true)
-  totalSales        Float                @default(0)   // Total de vendas geradas
-  totalCommission   Float                @default(0)   // Total de comissão acumulada
-  availableBalance  Float                @default(0)   // Saldo disponível para saque
-  totalWithdrawn    Float                @default(0)   // Total já sacado
-  banco             String?
-  agencia           String?
-  conta             String?
-  tipoConta         String?              // CORRENTE, POUPANCA
-  chavePix          String?
-  cookieDays        Int                  @default(30)  // Validade do cookie de rastreamento
-  notes             String?              @db.Text      // Observações internas
-  approvedAt        DateTime?
-  approvedBy        String?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sales             AffiliateSale[]
-  withdrawals       AffiliateWithdrawal[]
-  clicks            AffiliateClick[]
-  account           SellerAccount?       // Conta digital MYD do afiliado (mesma estrutura dos vendedores)
-
-  @@index([code])
-  @@index([status])
-  @@index([userId])
-  @@index([isActive])
-  @@map("affiliate")
-}
-
-model AffiliateSale {
-  id                String    @id @default(cuid())
-  affiliateId       String
-  orderId           String    @unique
-  customerId        String?
-  customerName      String?
-  customerEmail     String?
-  orderTotal        Float
-  commissionRate    Float     // % no momento da venda
-  commissionAmount  Float     // Valor da comissão
-  status            AffiliateSaleStatus @default(PENDING)
-  availableAt       DateTime? // Data quando a comissão fica disponível (7 dias após entrega)
-  paidAt            DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  affiliate         Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
-  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@index([affiliateId])
-  @@index([orderId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("affiliate_sale")
-}
-
-model AffiliateWithdrawal {
-  id          String              @id @default(cuid())
-  affiliateId String
-  amount      Float
-  status      WithdrawalStatus
-  method      String              // PIX, TED, BOLETO
-  pixKey      String?
-  bankInfo    String?             @db.Text  // JSON com dados bancários
-  notes       String?             @db.Text
-  proofUrl    String?             // Comprovante de pagamento
-  requestedAt DateTime            @default(now())
-  processedAt DateTime?
-  processedBy String?
-  rejectedAt  DateTime?
-  rejectionReason String?         @db.Text
-  affiliate   Affiliate           @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
-
-  @@index([affiliateId])
-  @@index([status])
-  @@index([requestedAt])
-  @@map("affiliate_withdrawal")
-}
-
-model AffiliateClick {
-  id          String    @id @default(cuid())
-  affiliateId String
-  ipAddress   String?
-  userAgent   String?   @db.Text
-  referrer    String?   @db.Text
-  landingPage String?   @db.Text
-  converted   Boolean   @default(false)  // Se resultou em compra
-  convertedAt DateTime? // Quando foi convertido
-  orderId     String?
-  createdAt   DateTime  @default(now())
-  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
-
-  @@index([affiliateId])
-  @@index([createdAt])
-  @@index([converted])
-  @@map("affiliate_click")
+  PENDING
+  AVAILABLE
+  USED
+  EXPIRED
+  CANCELLED
 }
 
 enum AffiliateStatus {
@@ -1810,63 +1936,10 @@ enum AffiliateStatus {
 }
 
 enum AffiliateSaleStatus {
-  PENDING        // Aguardando confirmação do pedido
-  CONFIRMED      // Pedido confirmado, comissão disponível
-  PAID           // Comissão paga ao afiliado
-  CANCELLED      // Pedido cancelado/estornado
-}
-
-// ========================================
-// SISTEMA DE POSTAGEM SOCIAL
-// ========================================
-
-model SocialConnection {
-  id            String   @id @default(cuid())
-  platform      SocialPlatform
-  name          String   // Nome da página/conta
-  platformId    String   // ID da página/conta na plataforma
-  accessToken   String   @db.Text
-  refreshToken  String?  @db.Text
-  expiresAt     DateTime?
-  isActive      Boolean  @default(true)
-  metadata      Json?    // Dados adicionais (profile pic, followers, etc)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  posts         SocialPost[]
-
-  @@unique([platform, platformId])
-  @@index([platform])
-  @@index([isActive])
-  @@map("social_connection")
-}
-
-model SocialPost {
-  id              String   @id @default(cuid())
-  connectionId    String
-  productId       String?
-  platform        SocialPlatform
-  status          PostStatus @default(DRAFT)
-  caption         String   @db.Text
-  images          Json     // Array of image URLs
-  scheduledFor    DateTime?
-  publishedAt     DateTime?
-  platformPostId  String?  // ID do post na plataforma
-  platformUrl     String?  // URL do post publicado
-  stats           Json?    // Likes, comments, shares, etc
-  errorMessage    String?  @db.Text
-  createdBy       String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  connection      SocialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  product         Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-
-  @@index([connectionId])
-  @@index([productId])
-  @@index([platform])
-  @@index([status])
-  @@index([scheduledFor])
-  @@index([createdAt])
-  @@map("social_post")
+  PENDING
+  CONFIRMED
+  PAID
+  CANCELLED
 }
 
 enum SocialPlatform {
@@ -1885,3 +1958,137 @@ enum PostStatus {
   FAILED
 }
 
+enum DevAppStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+// ─── OAuth 2.0 ────────────────────────────────────────────────────────────────
+// Apps externos (Shopify, Amazon, etc.) que conectam seus vendedores via OAuth
+
+model OAuthApp {
+  id           String            @id @default(cuid())
+  name         String            @db.VarChar(255)
+  description  String?           @db.Text
+  logoUrl      String?           @db.VarChar(500)
+  clientId     String            @unique @db.VarChar(100)
+  clientSecret String            @db.VarChar(255)
+  redirectUris String            @db.LongText   // JSON array de URIs permitidas
+  scopes       String            @db.LongText   // JSON array de scopes permitidos
+  appType      String            @default("EXTERNAL") @db.VarChar(50) // SHOPIFY, AMAZON, CUSTOM
+  status       String            @default("ACTIVE") @db.VarChar(20)
+  createdBy    String?           // userId do admin que criou
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  authCodes    OAuthCode[]
+  connections  OAuthConnection[]
+
+  @@index([clientId])
+  @@index([status])
+  @@map("oauth_app")
+}
+
+model OAuthCode {
+  id          String    @id @default(cuid())
+  code        String    @unique @db.VarChar(128)
+  appId       String
+  userId      String    // vendedor Mydshop que autorizou
+  scopes      String    @db.LongText  // JSON array de scopes aprovados
+  redirectUri String    @db.VarChar(500)
+  expiresAt   DateTime
+  used        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  app         OAuthApp  @relation(fields: [appId], references: [id], onDelete: Cascade)
+  user        User      @relation("UserOAuthCodes", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OAuthConnection {
+  id           String    @id @default(cuid())
+  appId        String
+  userId       String    // vendedor Mydshop conectado
+  accessToken  String    @unique @db.VarChar(512)
+  refreshToken String?   @unique @db.VarChar(512)
+  scopes       String    @db.LongText  // JSON array de scopes ativos
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  app          OAuthApp  @relation(fields: [appId], references: [id], onDelete: Cascade)
+  user         User      @relation("UserOAuthConnections", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// =====================================================
+// Shopify Partners App Integration
+// =====================================================
+
+model ShopifyInstallation {
+  id                   String               @id @default(cuid())
+  shopDomain           String               @unique
+  accessToken          String               @db.VarChar(500)
+  scope                String               @db.VarChar(1000)
+  userId               String?
+  shopName             String?
+  shopEmail            String?
+  shopPlan             String?
+  shopCurrency         String?              @default("BRL")
+  shopTimezone         String?
+  isActive             Boolean              @default(true)
+  installedAt          DateTime             @default(now())
+  uninstalledAt        DateTime?
+  lastSyncAt           DateTime?
+  syncOrdersEnabled    Boolean              @default(true)
+  syncProductsEnabled  Boolean              @default(true)
+  webhookSecret        String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  user                 User?                @relation("UserShopifyInstallations", fields: [userId], references: [id], onDelete: SetNull)
+  orderSyncs           ShopifyOrderSync[]
+  productSyncs         ShopifyProductSync[]
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("shopify_installation")
+}
+
+model ShopifyOrderSync {
+  id                  String              @id @default(cuid())
+  installationId      String
+  shopifyOrderId      String
+  shopifyOrderNumber  String?
+  mydOrderId          String?
+  status              ShopifySyncStatus   @default(pending)
+  errorMessage        String?             @db.Text
+  syncedAt            DateTime?
+  createdAt           DateTime            @default(now())
+  installation        ShopifyInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  @@unique([installationId, shopifyOrderId])
+  @@index([mydOrderId])
+  @@map("shopify_order_sync")
+}
+
+model ShopifyProductSync {
+  id                String              @id @default(cuid())
+  installationId    String
+  mydProductId      String
+  shopifyProductId  String?
+  shopifyVariantId  String?
+  status            ShopifySyncStatus   @default(pending)
+  errorMessage      String?             @db.Text
+  syncedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  installation      ShopifyInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+
+  @@unique([installationId, mydProductId])
+  @@index([shopifyProductId])
+  @@map("shopify_product_sync")
+}
+
+enum ShopifySyncStatus {
+  pending
+  synced
+  failed
+  skipped
+}

@@ -242,13 +242,13 @@ export async function POST(
     const tipoOperacao = ufEmitente === ufDestinatario ? 'interna' : 
                          ufDestinatario === 'EX' ? 'exportacao' : 'interestadual'
     
-    // Buscar a regra de tributação aplicável do banco
+    // Buscar regra de tributação da filial/matriz
     const taxRules = config.taxRules || []
     const regraAplicavel = taxRules.find((r: any) => r.ativo && r.tipoOperacao === tipoOperacao)
     
     if (!regraAplicavel) {
       return NextResponse.json(
-        { error: `Regra de tributação não encontrada para operação ${tipoOperacao}` },
+        { error: `Regra de tributação não encontrada para operação ${tipoOperacao}. Configure as regras fiscais na filial/matriz.` },
         { status: 400 }
       )
     }

@@ -69,6 +69,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
   const [categories, setCategories] = useState<Category[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [productTypes, setProductTypes] = useState<ProductType[]>([])
+  const [branches, setBranches] = useState<{id:string;code:string;name:string}[]>([])
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -129,17 +130,19 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
     unidadeComercial: 'UN',
     unidadeTributavel: 'UN',
     tributacaoEspecial: 'normal',
+    warehouseCode: '',
     attributes: [] as ProductAttribute[],
   })
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productRes, categoriesRes, suppliersRes, productTypesRes] = await Promise.all([
+        const [productRes, categoriesRes, suppliersRes, productTypesRes, branchesRes] = await Promise.all([
           fetch(`/api/admin/products/${params.id}`),
           fetch('/api/admin/categories'),
           fetch('/api/admin/suppliers'),
           fetch('/api/admin/product-types'),
+          fetch('/api/admin/company-branches'),
         ])
 
         if (!productRes.ok) throw new Error('Produto não encontrado')
@@ -149,9 +152,11 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
         const suppliersData = await suppliersRes.json()
         const productTypesData = await productTypesRes.json()
 
+        const branchesData = branchesRes.ok ? await branchesRes.json() : []
         setCategories(Array.isArray(categoriesData) ? categoriesData : [])
         setSuppliers(suppliersData?.suppliers || (Array.isArray(suppliersData) ? suppliersData : []))
         setProductTypes(Array.isArray(productTypesData) ? productTypesData : [])
+        setBranches(Array.isArray(branchesData) ? branchesData.filter((b:any) => b.isActive) : [])
 
         let techSpecs: any = {}
         try {
@@ -286,6 +291,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           unidadeComercial: product.unidadeComercial || 'UN',
           unidadeTributavel: product.unidadeTributavel || 'UN',
           tributacaoEspecial: product.tributacaoEspecial || 'normal',
+          warehouseCode: product.warehouseCode || '',
           attributes: (() => {
             try {
               if (product.attributes) {
@@ -420,6 +426,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           sizeType: formData.sizeType || null,
           sizeCategory: formData.sizeCategory || null,
           attributes: formData.attributes.length > 0 ? JSON.stringify(formData.attributes) : null,
+          warehouseCode: formData.warehouseCode || null,
         }),
       })
 
@@ -525,9 +532,32 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
       case 'dimensoes':
         return (
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold mb-4">📦 Peso e Dimensões</h3>
-            <p className="text-sm text-gray-600 mb-4">Informações importantes para cálculo de frete</p>
-            
+            <h3 className="text-lg font-semibold mb-4">📦 Peso, Dimensões e Localização</h3>
+            <p className="text-sm text-gray-600 mb-4">Informações para cálculo de frete e definição do galpão de origem</p>
+
+            {/* Filial/Galpão */}
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <h4 className="font-medium text-orange-900 mb-3">🏭 Filial / Galpão de Origem</h4>
+              <p className="text-xs text-orange-700 mb-3">
+                Define de qual filial/galpão este produto será enviado. Pedidos com este produto herdarão este código automaticamente.
+              </p>
+              <select
+                value={formData.warehouseCode}
+                onChange={(e) => setFormData({ ...formData, warehouseCode: e.target.value })}
+                className="w-full px-4 py-2 border border-orange-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+              >
+                <option value="">— Sem filial definida —</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.code}>{b.code} — {b.name}</option>
+                ))}
+              </select>
+              {formData.warehouseCode && (
+                <p className="text-xs text-orange-600 mt-2">
+                  Código atribuído ao pedido: <strong>{formData.warehouseCode}</strong>
+                </p>
+              )}
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-gray-50 p-4 rounded-lg border">
                 <h4 className="font-medium mb-4">📏 Produto (sem embalagem)</h4>

@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CD São Paulo — Sistema de Expedição</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+
+  /* ── CONNECTION SCREEN ── */
+  #connect-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%)}
+  .connect-box{background:#fff;border-radius:16px;padding:40px;width:420px;box-shadow:0 25px 60px rgba(0,0,0,.4)}
+  .connect-box h1{font-size:22px;font-weight:700;margin-bottom:4px}
+  .connect-box p{font-size:13px;color:#64748b;margin-bottom:28px}
+  .field label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+  .field input{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:13px;font-family:monospace;transition:.2s}
+  .field input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+  .field{margin-bottom:16px}
+  .btn-connect{width:100%;background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;transition:.2s}
+  .btn-connect:hover{background:#1e40af}
+  .btn-connect:disabled{background:#94a3b8;cursor:not-allowed}
+  .api-url{font-size:12px;color:#94a3b8;margin-bottom:16px}
+  .api-url input{background:#f8fafc;font-size:12px}
+  .connect-error{background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none}
+
+  /* ── MAIN APP ── */
+  #app{display:none}
+  .topbar{background:#1e3a5f;color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .topbar-left{display:flex;align-items:center;gap:12px}
+  .topbar h2{font-size:16px;font-weight:600}
+  .topbar .badge{background:#3b82f6;color:#fff;border-radius:6px;padding:2px 10px;font-size:12px;font-weight:600}
+  .topbar-right{display:flex;align-items:center;gap:16px;font-size:13px;color:#94d6ff}
+  .topbar-right span{cursor:default}
+  .btn-logout{background:transparent;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer}
+  .btn-logout:hover{background:rgba(255,255,255,.1)}
+
+  .subbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:50px}
+  .subbar-left{display:flex;gap:8px;align-items:center;font-size:13px;color:#64748b}
+  .btn-refresh{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:6px 16px;font-size:13px;cursor:pointer;color:#475569;font-weight:500}
+  .btn-refresh:hover{background:#e2e8f0}
+  .last-update{font-size:12px;color:#94a3b8}
+
+  /* ── PIPELINE ── */
+  .pipeline{display:flex;gap:16px;padding:20px 24px;overflow-x:auto;min-height:calc(100vh - 106px)}
+  .col{flex:0 0 300px;background:#fff;border-radius:12px;border:1px solid #e2e8f0;display:flex;flex-direction:column;max-height:calc(100vh - 130px)}
+  .col-header{padding:14px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+  .col-header h3{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .col-count{background:#f1f5f9;color:#64748b;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}
+  .col-body{overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;flex:1}
+
+  /* ── ORDER CARD ── */
+  .order-card{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;cursor:pointer;transition:.15s;position:relative}
+  .order-card:hover{border-color:#3b82f6;box-shadow:0 4px 12px rgba(59,130,246,.12);background:#fff}
+  .order-card .code{font-family:monospace;font-size:11px;color:#94a3b8;margin-bottom:4px}
+  .order-card .buyer{font-size:13px;font-weight:600;margin-bottom:2px}
+  .order-card .meta{font-size:12px;color:#64748b;display:flex;gap:8px;margin-top:6px}
+  .order-card .total{font-size:14px;font-weight:700;color:#1d4ed8;margin-top:6px}
+  .order-card .tracking-pill{background:#dcfce7;color:#16a34a;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600;margin-top:6px;display:inline-block}
+  .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+  .dot-pending{background:#f59e0b}
+  .dot-processing{background:#3b82f6}
+  .dot-shipped{background:#8b5cf6}
+  .dot-delivered{background:#10b981}
+  .dot-cancelled{background:#ef4444}
+
+  /* ── MODAL ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal-overlay.open{display:flex}
+  .modal{background:#fff;border-radius:16px;width:100%;max-width:620px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal-head{padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0}
+  .modal-head h2{font-size:18px;font-weight:700}
+  .modal-head .order-id{font-family:monospace;font-size:12px;color:#94a3b8;margin-top:2px}
+  .modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;line-height:1;padding:4px}
+  .modal-close:hover{color:#475569}
+  .modal-body{overflow-y:auto;padding:20px 24px;flex:1}
+  .modal-footer{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0;background:#f8fafc}
+
+  .info-row{display:flex;gap:8px;margin-bottom:8px;font-size:13px}
+  .info-label{color:#64748b;min-width:120px;flex-shrink:0}
+  .info-value{font-weight:500;word-break:break-word}
+  .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#94a3b8;margin:18px 0 10px}
+  .items-table{width:100%;border-collapse:collapse;font-size:13px}
+  .items-table th{text-align:left;padding:6px 10px;background:#f8fafc;color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+  .items-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9}
+  .address-box{background:#f8fafc;border-radius:8px;padding:12px;font-size:13px;line-height:1.7}
+
+  /* ── BUTTONS ── */
+  .btn{border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.2s;display:inline-flex;align-items:center;gap:6px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-primary{background:#1d4ed8;color:#fff}.btn-primary:hover:not(:disabled){background:#1e40af}
+  .btn-success{background:#16a34a;color:#fff}.btn-success:hover:not(:disabled){background:#15803d}
+  .btn-warning{background:#d97706;color:#fff}.btn-warning:hover:not(:disabled){background:#b45309}
+  .btn-purple{background:#7c3aed;color:#fff}.btn-purple:hover:not(:disabled){background:#6d28d9}
+  .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}.btn-ghost:hover:not(:disabled){background:#e2e8f0}
+
+  /* ── STATUS BADGE ── */
+  .status-badge{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600}
+  .badge-pending{background:#fef3c7;color:#92400e}
+  .badge-processing{background:#dbeafe;color:#1e40af}
+  .badge-shipped{background:#ede9fe;color:#5b21b6}
+  .badge-delivered{background:#dcfce7;color:#15803d}
+  .badge-cancelled{background:#fee2e2;color:#b91c1c}
+
+  /* ── TRACKING INPUT ── */
+  .tracking-input-wrap{display:flex;gap:8px;margin-top:6px}
+  .tracking-input-wrap input{flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 14px;font-size:13px;font-family:monospace}
+  .tracking-input-wrap input:focus{outline:none;border-color:#7c3aed}
+
+  /* ── EMPTY + LOADING ── */
+  .empty{text-align:center;padding:32px 16px;color:#94a3b8;font-size:13px}
+  .empty .icon{font-size:32px;margin-bottom:8px}
+  .spinner{width:20px;height:20px;border:2px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ── TOAST ── */
+  #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:12px 24px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.3);opacity:0;transition:.3s;pointer-events:none;z-index:999;white-space:nowrap}
+  #toast.show{opacity:1}
+
+  /* ── STEP INDICATOR ── */
+  .steps{display:flex;gap:0;margin-bottom:16px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0}
+  .step{flex:1;padding:8px 4px;text-align:center;font-size:11px;font-weight:600;background:#f8fafc;color:#94a3b8;border-right:1px solid #e2e8f0;position:relative}
+  .step:last-child{border-right:none}
+  .step.done{background:#dcfce7;color:#15803d}
+  .step.active{background:#dbeafe;color:#1d4ed8}
+
+  /* ── WORKFLOW STEPS ── */
+  .wf{display:flex;flex-direction:column;gap:0;margin-bottom:4px}
+  .wf-step{display:flex;gap:14px;position:relative}
+  .wf-step:not(:last-child)::before{content:'';position:absolute;left:17px;top:36px;bottom:0;width:2px;background:#e2e8f0;z-index:0}
+  .wf-num{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;z-index:1;margin-top:2px;transition:.2s}
+  .wf-num.active{background:#dbeafe;color:#1d4ed8;border:2px solid #3b82f6}
+  .wf-num.locked{background:#f1f5f9;color:#cbd5e1;border:2px solid #e2e8f0}
+  .wf-num.done{background:#dcfce7;color:#15803d;border:2px solid #86efac}
+  .wf-content{flex:1;padding-bottom:20px}
+  .wf-title{font-size:13px;font-weight:700;margin-bottom:2px;margin-top:6px}
+  .wf-sub{font-size:12px;color:#64748b;margin-bottom:10px}
+  .wf-body{background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;display:none}
+  .wf-body.open{display:block}
+  .wf-step.done-step .wf-body{border-color:#bbf7d0;background:#f0fdf4}
+  .wf-step.locked-step .wf-title{color:#94a3b8}
+  .wf-step.locked-step .wf-sub{color:#cbd5e1}
+  /* ── API TEST CONSOLE ── */
+  .api-console{border-top:1px solid #e2e8f0;background:#f8fafc;max-height:0;overflow:hidden;transition:max-height .3s ease}
+  .api-console.open{max-height:600px;overflow-y:auto}
+  .api-console-header{padding:12px 24px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;background:#fff}
+  .api-console-header h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b}
+  .api-console-body{padding:16px 24px;font-family:monospace;font-size:11px;max-height:500px;overflow-y:auto}
+  .api-test-item{margin-bottom:16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
+  .api-test-header{padding:10px 14px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;font-weight:700}
+  .api-test-method{background:#3b82f6;color:#fff;border-radius:4px;padding:2px 8px;font-size:10px;margin-right:8px}
+  .api-test-status{font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600}
+  .api-test-status.success{background:#dcfce7;color:#15803d}
+  .api-test-status.error{background:#fee2e2;color:#dc2626}
+  .api-test-body{padding:12px 14px;max-height:300px;overflow-y:auto}
+  .api-test-json{white-space:pre-wrap;word-break:break-all;color:#1e293b;line-height:1.6}  .wf-action-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .btn-wf{border-radius:7px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:.2s}
+  .btn-wf-primary{background:#1d4ed8;color:#fff}.btn-wf-primary:hover:not(:disabled){background:#1e40af}
+  .btn-wf-green{background:#16a34a;color:#fff}.btn-wf-green:hover:not(:disabled){background:#15803d}
+  .btn-wf-purple{background:#7c3aed;color:#fff}.btn-wf-purple:hover:not(:disabled){background:#6d28d9}
+  .btn-wf:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed}
+  .wf-done-badge{display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#15803d;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700}
+  .carrier-pill{background:#ede9fe;color:#5b21b6;border-radius:6px;padding:3px 10px;font-family:monospace;font-size:12px;font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     CONNECTION SCREEN
+════════════════════════════════════════════════════ -->
+<div id="connect-screen">
+  <div class="connect-box">
+    <h1>🏭 Centro de Distribuição</h1>
+    <p>Sistema de Expedição — Acesso via API Key</p>
+
+    <div id="connect-error" class="connect-error"></div>
+
+    <div class="field api-url">
+      <label>URL da API</label>
+      <input id="inp-url" type="text" value="http://localhost:3000" />
+    </div>
+    <div class="field">
+      <label>API Key</label>
+      <input id="inp-key" type="text" value="myd_live_1642f45a6ad0d1914a1c71da29f30dc8d4047e2a41164052" placeholder="myd_live_..." />
+    </div>
+    <div class="field">
+      <label>API Secret</label>
+      <input id="inp-secret" type="password" value="ce3224def91ab1527ef378ad02c73d38bd62ad1574f1b33bb26d1d9b25263194" placeholder="secret..." />
+    </div>
+    <button class="btn-connect" id="btn-connect" onclick="connect()">Conectar e Entrar</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════ -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span style="font-size:20px">🏭</span>
+      <div>
+        <h2 id="app-title">Centro de Distribuição</h2>
+      </div>
+      <span class="badge" id="app-scope-badge">expedição</span>
+    </div>
+    <div class="topbar-right">
+      <span id="app-key-info">—</span>
+      <button class="btn-logout" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <div class="subbar">
+    <div class="subbar-left">
+      <span>Pipeline de Pedidos</span>
+      <span id="total-orders-badge" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:1px 10px;font-size:12px;font-weight:600;color:#475569">—</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="last-update" id="last-update"></span>
+      <button class="btn-refresh" onclick="loadOrders()">↻ Atualizar</button>
+    </div>
+  </div>
+
+  <div class="pipeline">
+    <div class="col" id="col-PENDING">
+      <div class="col-header">
+        <h3><span class="status-dot dot-pending"></span> Aguardando Separação</h3>
+        <span class="col-count" id="count-PENDING">0</span>
+      </div>
+      <div class="col-body" id="cards-PENDING"><div class="empty"><div class="spinner"></div></div></div>
+    </div>
+    <div class="col" id="col-PROCESSING">
+      <div class="col-header">
+        <h3><span class="status-dot dot-processing"></span> Em Separação / Embalagem</h3>
+        <span class="col-count" id="count-PROCESSING">0</span>
+      </div>
+      <div class="col-body" id="cards-PROCESSING"><div class="empty"><div class="spinner"></div></div></div>
+    </div>
+    <div class="col" id="col-SHIPPED">
+      <div class="col-header">
+        <h3><span class="status-dot dot-shipped"></span> Enviados</h3>
+        <span class="col-count" id="count-SHIPPED">0</span>
+      </div>
+      <div class="col-body" id="cards-SHIPPED"><div class="empty"><div class="spinner"></div></div></div>
+    </div>
+    <div class="col" id="col-DELIVERED">
+      <div class="col-header">
+        <h3><span class="status-dot dot-delivered"></span> Entregues</h3>
+        <span class="col-count" id="count-DELIVERED">0</span>
+      </div>
+      <div class="col-body" id="cards-DELIVERED"><div class="empty"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     ORDER MODAL
+════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalIfBg(event)">
+  <div class="modal" id="modal">
+    <div class="modal-head">
+      <div>
+        <h2 id="modal-title">Pedido</h2>
+        <div class="order-id" id="modal-order-id"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"><!-- filled by JS --></div>
+    <div class="api-console" id="api-console">
+      <div class="api-console-header">
+        <h3>🔍 Console de Teste API v1</h3>
+        <button class="btn-ghost" style="padding:4px 12px;font-size:11px" onclick="toggleApiConsole()">Fechar</button>
+      </div>
+      <div class="api-console-body" id="api-console-body">
+        <div style="text-align:center;color:#94a3b8;padding:20px">Clique em "Testar APIs" para ver os dados</div>
+      </div>
+    </div>
+    <div class="modal-footer" id="modal-footer"><!-- filled by JS --></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════ STATE ══════════════
+let API_URL = 'http://localhost:3000'
+let API_KEY = ''
+let API_SECRET = ''
+let currentOrder = null
+let docSteps = { nf: false, label: false } // roteiro de expedição
+
+// ══════════════ HMAC (Web Crypto) ══════════════
+async function hmacSign(secret, message) {
+  const enc = new TextEncoder()
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name:'HMAC', hash:'SHA-256' }, false, ['sign'])
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message))
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2,'0')).join('')
+}
+
+async function apiHeaders() {
+  const ts = Date.now().toString()
+  const sig = await hmacSign(API_SECRET, ts)
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + API_KEY,
+    'X-Timestamp': ts,
+    'X-Api-Signature': sig,
+  }
+}
+
+async function apiGet(path) {
+  const h = await apiHeaders()
+  const r = await fetch(API_URL + path, { headers: h })
+  return r.json()
+}
+
+async function apiPatch(path, body) {
+  const h = await apiHeaders()
+  const r = await fetch(API_URL + path, { method: 'PATCH', headers: h, body: JSON.stringify(body) })
+  return { ok: r.ok, data: await r.json() }
+}
+
+async function apiPost(path, body = {}) {
+  const h = await apiHeaders()
+  const r = await fetch(API_URL + path, { method: 'POST', headers: h, body: JSON.stringify(body) })
+  return { ok: r.ok, status: r.status, data: await r.json() }
+}
+
+// ══════════════ CONNECT ══════════════
+async function connect() {
+  API_URL    = document.getElementById('inp-url').value.replace(/\/$/, '')
+  API_KEY    = document.getElementById('inp-key').value.trim()
+  API_SECRET = document.getElementById('inp-secret').value.trim()
+
+  const err = document.getElementById('connect-error')
+  const btn = document.getElementById('btn-connect')
+  err.style.display = 'none'
+  btn.disabled = true
+  btn.textContent = 'Conectando...'
+
+  try {
+    const d = await apiGet('/api/v1/orders?limit=1')
+    if (d.error) throw new Error(d.error)
+
+    document.getElementById('connect-screen').style.display = 'none'
+    document.getElementById('app').style.display = 'block'
+    document.getElementById('app-key-info').textContent = API_KEY.slice(0,20) + '...'
+
+    loadOrders()
+    setInterval(loadOrders, 30000) // auto-refresh 30s
+  } catch(e) {
+    err.textContent = '✗ ' + (e.message || 'Erro de conexão')
+    err.style.display = 'block'
+    btn.disabled = false
+    btn.textContent = 'Conectar e Entrar'
+  }
+}
+
+function logout() {
+  API_KEY = ''; API_SECRET = ''
+  document.getElementById('app').style.display = 'none'
+  document.getElementById('connect-screen').style.display = 'flex'
+  document.getElementById('btn-connect').disabled = false
+  document.getElementById('btn-connect').textContent = 'Conectar e Entrar'
+}
+
+// ══════════════ LOAD ORDERS ══════════════
+const COLS = ['PENDING','PROCESSING','SHIPPED','DELIVERED']
+
+async function loadOrders() {
+  try {
+    const d = await apiGet('/api/v1/orders?limit=100')
+    if (d.error) { toast('❌ ' + d.error); return }
+
+    const orders = d.data || []
+    document.getElementById('total-orders-badge').textContent = orders.length + ' pedido' + (orders.length !== 1 ? 's' : '')
+    document.getElementById('last-update').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR')
+
+    COLS.forEach(status => {
+      const list = orders.filter(o => o.status === status)
+      document.getElementById('count-' + status).textContent = list.length
+      const body = document.getElementById('cards-' + status)
+      if (list.length === 0) {
+        body.innerHTML = '<div class="empty"><div class="icon">📭</div>Nenhum pedido</div>'
+      } else {
+        body.innerHTML = list.map(o => orderCard(o)).join('')
+      }
+    })
+  } catch(e) {
+    toast('❌ Erro ao carregar pedidos')
+  }
+}
+
+function orderCard(o) {
+  const addr = parseAddress(o.shippingAddress)
+  const date = new Date(o.createdAt).toLocaleDateString('pt-BR')
+  const tracking = o.trackingCode ? `<div class="tracking-pill">📦 ${o.trackingCode}</div>` : ''
+  const paid = o.paymentStatus === 'APPROVED'
+  const payBadge = `<span style="display:inline-block;margin-top:5px;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600;
+    ${paid ? 'background:#dcfce7;color:#15803d' : 'background:#fef3c7;color:#92400e'}">
+    ${paid ? '✅ Pago' : '⏳ ' + (o.paymentStatus || 'Aguard. pagamento')}</span>`
+  return `<div class="order-card" onclick="openOrder('${o.id}')">
+    <div class="code">${o.id.slice(-10).toUpperCase()}</div>
+    <div class="buyer">${o.buyerName || 'Cliente'}</div>
+    <div style="font-size:12px;color:#64748b;">${addr.city || ''}${addr.state ? '/' + addr.state : ''}</div>
+    <div class="meta">
+      <span>📅 ${date}</span>
+      <span>🛍 ${(o.items||[]).length} item(s)</span>
+    </div>
+    <div class="total">R$ ${(+o.total).toFixed(2).replace('.',',')}</div>
+    ${payBadge}
+    ${tracking}
+  </div>`
+}
+
+function parseAddress(str) {
+  if (!str) return {}
+  try { return typeof str === 'string' ? JSON.parse(str) : str } catch { return {} }
+}
+
+// ══════════════ OPEN ORDER ══════════════
+async function openOrder(id) {
+  document.getElementById('modal-body').innerHTML = '<div style="text-align:center;padding:40px"><div class="spinner"></div></div>'
+  document.getElementById('modal-footer').innerHTML = ''
+  document.getElementById('modal-title').textContent = 'Carregando...'
+  document.getElementById('modal-order-id').textContent = ''
+  document.getElementById('modal-overlay').classList.add('open')
+  docSteps = { nf: false, label: false } // reset a cada pedido aberto
+
+  try {
+    const d = await apiGet('/api/v1/orders/' + id)
+    if (d.error) { toast('❌ ' + d.error); closeModal(); return }
+    currentOrder = d.data
+    renderModal(currentOrder)
+  } catch(e) {
+    toast('❌ Erro ao carregar pedido')
+    closeModal()
+  }
+}
+
+function renderModal(o) {
+  const addr = parseAddress(o.shippingAddress)
+  document.getElementById('modal-title').textContent = 'Pedido de ' + (o.buyerName || 'Cliente')
+  document.getElementById('modal-order-id').textContent = '#' + o.id
+  document.getElementById('api-console').classList.remove('open')
+
+  // Steps
+  const steps = ['PENDENTE','EM SEPARAÇÃO','ENVIADO','ENTREGUE']
+  const stepIdx = {PENDING:0,PROCESSING:1,SHIPPED:2,DELIVERED:3,CANCELLED:-1}[o.status] ?? 0
+  const stepsHtml = `<div class="steps">
+    ${steps.map((s,i) => `<div class="step ${i < stepIdx ? 'done' : i === stepIdx ? 'active' : ''}">${i < stepIdx ? '✓ ' : ''}${s}</div>`).join('')}
+  </div>`
+
+  // Status badge
+  const badgeClass = {PENDING:'badge-pending',PROCESSING:'badge-processing',SHIPPED:'badge-shipped',DELIVERED:'badge-delivered',CANCELLED:'badge-cancelled'}[o.status] || 'badge-pending'
+  const statusLabel = {PENDING:'Aguardando Separação',PROCESSING:'Em Separação',SHIPPED:'Enviado',DELIVERED:'Entregue',CANCELLED:'Cancelado'}[o.status] || o.status
+
+  // Items
+  const items = (o.items || []).map(i => `<tr>
+    <td>${(i.product?.name || i.productId || '—').slice(0,40)}</td>
+    <td style="text-align:center">${i.quantity}</td>
+    <td>R$ ${(+i.price).toFixed(2).replace('.',',')}</td>
+    <td>R$ ${(+i.price * i.quantity).toFixed(2).replace('.',',')}</td>
+  </tr>`).join('')
+
+  document.getElementById('modal-body').innerHTML = `
+    ${stepsHtml}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <span class="status-badge ${badgeClass}">${statusLabel}</span>
+      ${o.trackingCode ? `<span style="font-family:monospace;font-size:13px;background:#f1f5f9;padding:4px 10px;border-radius:6px">📦 ${o.trackingCode}</span>` : ''}
+    </div>
+
+    <div class="section-title">Pagamento</div>
+    ${(() => {
+      const paid = o.paymentStatus === 'APPROVED'
+      const pmLabel = { APPROVED:'Aprovado ✅', PENDING:'Aguardando ⏳', FAILED:'Falhou ❌', CANCELLED:'Cancelado ❌', REFUNDED:'Estornado ↩️' }[o.paymentStatus] || (o.paymentStatus || 'Não informado')
+      return `
+        <div class="info-row"><span class="info-label">Status</span><span class="info-value"><span style="border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600;${paid ? 'background:#dcfce7;color:#15803d' : 'background:#fef3c7;color:#92400e'}">${pmLabel}</span></span></div>
+        ${o.paymentMethod ? `<div class="info-row"><span class="info-label">Método</span><span class="info-value">${o.paymentMethod}</span></div>` : ''}
+        ${o.paymentApprovedAt ? `<div class="info-row"><span class="info-label">Aprovado em</span><span class="info-value">${new Date(o.paymentApprovedAt).toLocaleString('pt-BR')}</span></div>` : ''}
+        ${!paid ? '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e;margin-top:4px">⚠️ <strong>Atenção:</strong> Este pedido ainda não teve pagamento confirmado. A separação não será permitida até aprovação.</div>' : ''}
+      `
+    })()}
+
+    <div class="section-title">Comprador</div>
+    <div class="info-row"><span class="info-label">Nome</span><span class="info-value">${o.buyerName || '—'}</span></div>
+    <div class="info-row"><span class="info-label">E-mail</span><span class="info-value">${o.buyerEmail || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Telefone</span><span class="info-value">${o.buyerPhone || '—'}</span></div>
+    <div class="info-row"><span class="info-label">CPF</span><span class="info-value">${o.buyerCpf || '—'}</span></div>
+
+    <div class="section-title">Endereço de Entrega</div>
+    <div class="address-box">
+      ${addr.street ? `${addr.street}, ${addr.number}${addr.complement ? ' – ' + addr.complement : ''}` : '—'}<br>
+      ${addr.neighborhood ? addr.neighborhood + ' — ' : ''}${addr.city || ''}${addr.state ? '/' + addr.state : ''}<br>
+      ${addr.zipCode ? 'CEP: ' + addr.zipCode : ''}
+    </div>
+
+    <div class="section-title">Itens do Pedido</div>
+    <table class="items-table">
+      <thead><tr><th>Produto</th><th style="text-align:center">Qtd</th><th>Preço unit.</th><th>Total</th></tr></thead>
+      <tbody>${items || '<tr><td colspan="4" style="text-align:center;color:#94a3b8">Sem itens</td></tr>'}</tbody>
+    </table>
+
+    <div class="section-title">Resumo Financeiro</div>
+    <div class="info-row"><span class="info-label">Subtotal</span><span class="info-value">R$ ${(+(o.subtotal||o.total)).toFixed(2).replace('.',',')}</span></div>
+    ${o.shippingCost ? `<div class="info-row"><span class="info-label">Frete</span><span class="info-value">R$ ${(+o.shippingCost).toFixed(2).replace('.',',')}</span></div>` : ''}
+    ${o.discountAmount ? `<div class="info-row"><span class="info-label">Desconto</span><span class="info-value" style="color:#16a34a">– R$ ${(+o.discountAmount).toFixed(2).replace('.',',')}</span></div>` : ''}
+    <div class="info-row"><span class="info-label" style="font-weight:700">Total</span><span class="info-value" style="font-weight:700;font-size:15px;color:#1d4ed8">R$ ${(+o.total).toFixed(2).replace('.',',')}</span></div>
+
+    <div class="section-title">Logística</div>
+    <div class="info-row"><span class="info-label">Transportadora</span><span class="info-value">${o.shippingCarrier || o.shippingMethod || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Serviço</span><span class="info-value">${o.shippingService || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Prazo</span><span class="info-value">${o.deliveryDays ? o.deliveryDays + ' dias úteis' : '—'}</span></div>
+    <div class="info-row"><span class="info-label">Galp&atilde;o</span><span class="info-value"><span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 8px;font-family:monospace;font-size:12px">${o.warehouseCode || '—'}</span></span></div>
+
+    ${o.status === 'PROCESSING' ? `
+    <div class="section-title">Roteiro de Expedição</div>
+    <div class="wf" id="workflow">
+
+      <!-- PASSO 1: NF -->
+      <div class="wf-step" id="wf-step-nf">
+        <div class="wf-num active" id="wf-num-nf">1</div>
+        <div class="wf-content">
+          <div class="wf-title">📄 Nota Fiscal (DANFE)</div>
+          <div class="wf-sub">Emitir antes de gerar a etiqueta</div>
+          <div class="wf-body open" id="body-nf">
+            <div class="wf-action-row">
+              <button class="btn-wf btn-wf-primary" id="btn-fetch-nf" onclick="fetchInvoice()">Buscar / Emitir NF</button>
+              <span id="nf-done-badge" style="display:none" class="wf-done-badge">✓ Confirmada</span>
+            </div>
+            <div id="nf-content" style="color:#94a3b8;font-size:13px">Clique para buscar a nota fiscal deste pedido.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASSO 2: ETIQUETA -->
+      <div class="wf-step locked-step" id="wf-step-label">
+        <div class="wf-num locked" id="wf-num-label">2</div>
+        <div class="wf-content">
+          <div class="wf-title">🏷️ Etiqueta de Transporte</div>
+          <div class="wf-sub">Disponível após confirmação da NF</div>
+          <div class="wf-body" id="body-label">
+            <div class="wf-action-row">
+              <button class="btn-wf btn-wf-primary" id="btn-fetch-label" onclick="fetchLabel()" disabled>Buscar / Imprimir Etiqueta</button>
+              <span id="label-done-badge" style="display:none" class="wf-done-badge">✓ Impressa</span>
+            </div>
+            <div id="label-content" style="color:#94a3b8;font-size:13px">Aguardando confirmação da NF.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASSO 3: DESPACHO -->
+      <div class="wf-step locked-step" id="wf-step-ship">
+        <div class="wf-num locked" id="wf-num-ship">3</div>
+        <div class="wf-content">
+          <div class="wf-title">🚚 Despacho</div>
+          <div class="wf-sub">Disponível após NF + etiqueta confirmadas</div>
+          <div class="wf-body" id="body-ship">
+            <div class="info-row" style="margin-bottom:10px">
+              <span class="info-label">Transportadora</span>
+              <span class="info-value"><span class="carrier-pill" id="ship-carrier-display">${o.shippingCarrier || o.shippingMethod || 'A definir'}</span></span>
+            </div>
+            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">Código de Rastreamento</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <input id="inp-tracking" type="text" placeholder="Ex: BR123456789BR" style="flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;font-family:monospace" />
+              <select id="inp-carrier" style="border:1.5px solid #e2e8f0;border-radius:8px;padding:8px;font-size:12px">
+                <option value="${o.shippingCarrier || o.shippingMethod || ''}">${o.shippingCarrier || o.shippingMethod || 'Selecionar'}</option>
+                <option value="Correios">Correios</option>
+                <option value="Jadlog">Jadlog</option>
+                <option value="Total Express">Total Express</option>
+                <option value="Braspress">Braspress</option>
+                <option value="Mercado Envios">Mercado Envios</option>
+              </select>
+            </div>
+            <button class="btn-wf btn-wf-purple" id="btn-dispatch" disabled onclick="markShipped()">🚚 Confirmar Despacho</button>
+          </div>
+        </div>
+      </div>
+
+    </div>` : ''}
+
+    ${['SHIPPED','DELIVERED'].includes(o.status) ? `
+    <div class="section-title">Documentos</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="btn-wf btn-wf-primary" onclick="fetchInvoice()">📄 Ver NF</button>
+      <button class="btn-wf btn-wf-primary" onclick="fetchLabel()">🏷️ Ver Etiqueta</button>
+    </div>
+    <div id="body-nf" class="wf-body" style="margin-bottom:8px"><div id="nf-content" style="color:#94a3b8;font-size:13px">Clique em Ver NF para carregar.</div></div>
+    <div id="body-label" class="wf-body"><div id="label-content" style="color:#94a3b8;font-size:13px">Clique em Ver Etiqueta para carregar.</div></div>
+    <div class="section-title">Rastreamento</div>
+    <div class="info-row"><span class="info-label">Código</span><span class="info-value" style="font-family:monospace;font-size:14px;font-weight:700">${o.trackingCode || '—'}</span></div>
+    <div class="info-row"><span class="info-label">Transportadora</span><span class="info-value">${o.shippingCarrier || '—'}</span></div>` : ''}
+  `
+
+  renderFooter(o)
+}
+
+function renderFooter(o) {
+  const footer = document.getElementById('modal-footer')
+
+  if (o.status === 'PENDING') {
+    const paid = o.paymentStatus === 'APPROVED'
+    footer.innerHTML = `
+      <button class="btn btn-ghost" onclick="testAPIsv1()" style="margin-right:auto">🔍 Testar APIs v1</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      <button class="btn btn-primary" onclick="startProcessing()" ${!paid ? 'disabled title="Aguardando pagamento"' : ''}>
+        📋 Iniciar Separação${!paid ? ' (pagamento pendente)' : ''}
+      </button>
+    `
+  } else if (o.status === 'PROCESSING') {
+    footer.innerHTML = `
+      <button class="btn btn-ghost" onclick="testAPIsv1()" style="margin-right:auto">🔍 Testar APIs v1</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+    `
+  } else if (o.status === 'SHIPPED') {
+    footer.innerHTML = `
+      <button class="btn btn-ghost" onclick="testAPIsv1()" style="margin-right:auto">🔍 Testar APIs v1</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      <button class="btn btn-success" onclick="confirmDelivery()">✅ Confirmar Entrega</button>
+    `
+  } else {
+    footer.innerHTML = `
+      <button class="btn btn-ghost" onclick="testAPIsv1()" style="margin-right:auto">🔍 Testar APIs v1</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+    `
+  }
+}
+
+// ══════════════ ACTIONS ══════════════
+async function startProcessing() {
+  const btn = event.target
+  btn.disabled = true; btn.textContent = 'Verificando...'
+  const r = await apiPatch('/api/v1/orders/' + currentOrder.id, { status: 'PROCESSING' })
+  if (r.ok) {
+    toast('✅ Pedido iniciado — em separação')
+    closeModal()
+    loadOrders()
+  } else if (r.data?.paymentStatus) {
+    toast('🔒 Pagamento não aprovado — status: ' + r.data.paymentStatus)
+    btn.disabled = true; btn.textContent = '📋 Iniciar Separação (pagamento pendente)'
+  } else {
+    toast('❌ ' + (r.data?.error || 'Erro'))
+    btn.disabled = false; btn.textContent = '📋 Iniciar Separação'
+  }
+}
+
+// showShipForm removido — input agora fica inline no passo 3 do roteiro
+
+async function markShipped() {
+  const tracking = (document.getElementById('inp-tracking')?.value || '').trim()
+  const carrier  = (document.getElementById('inp-carrier')?.value || '').trim()
+  if (!tracking) { toast('⚠️ Informe o código de rastreamento'); return }
+
+  const btn = document.getElementById('btn-dispatch')
+  btn.disabled = true; btn.textContent = 'Despachando...'
+
+  const r = await apiPatch('/api/v1/orders/' + currentOrder.id, {
+    status: 'SHIPPED',
+    trackingCode: tracking,
+    ...(carrier && { shippingCarrier: carrier })
+  })
+  if (r.ok) {
+    toast('✅ Pedido despachado — código: ' + tracking)
+    closeModal()
+    loadOrders()
+  } else {
+    toast('❌ ' + (r.data?.error || 'Erro'))
+    btn.disabled = false; btn.textContent = '🚚 Confirmar Despacho'
+  }
+}
+
+async function confirmDelivery() {
+  if (!confirm('Confirmar que o pedido foi entregue ao cliente?')) return
+  const btn = event.target
+  btn.disabled = true; btn.textContent = 'Confirmando...'
+
+  const r = await apiPatch('/api/v1/orders/' + currentOrder.id, { status: 'DELIVERED' })
+  if (r.ok) {
+    toast('🎉 Entrega confirmada!')
+    closeModal()
+    loadOrders()
+  } else {
+    toast('❌ ' + (r.data?.error || 'Erro'))
+    btn.disabled = false; btn.textContent = '✅ Confirmar Entrega'
+  }
+}
+
+// ══════════════ ETIQUETA & NF ══════════════
+function togglePanel(key) {
+  const body = document.getElementById('body-' + key)
+  if (body) body.classList.toggle('open')
+}
+
+// Atualiza visualmente os passos do roteiro após cada confirmação
+function updateWorkflowUI() {
+  const step1done = docSteps.nf
+  const step2done = docSteps.label
+
+  // Passo 1 — NF
+  const numNF = document.getElementById('wf-num-nf')
+  const stepNF = document.getElementById('wf-step-nf')
+  if (numNF) { numNF.className = 'wf-num ' + (step1done ? 'done' : 'active'); numNF.textContent = step1done ? '✓' : '1' }
+  if (stepNF) stepNF.classList.toggle('done-step', step1done)
+
+  // Passo 2 — Etiqueta (libera só após NF)
+  const numLabel = document.getElementById('wf-num-label')
+  const stepLabel = document.getElementById('wf-step-label')
+  const btnLabel = document.getElementById('btn-fetch-label')
+  const bodyLabel = document.getElementById('body-label')
+  if (numLabel) { numLabel.className = 'wf-num ' + (step2done ? 'done' : step1done ? 'active' : 'locked'); numLabel.textContent = step2done ? '✓' : '2' }
+  if (stepLabel) { stepLabel.classList.toggle('locked-step', !step1done); stepLabel.classList.toggle('done-step', step2done) }
+  if (btnLabel) btnLabel.disabled = !step1done
+  if (bodyLabel && step1done) bodyLabel.classList.add('open')
+  const subLabel = stepLabel?.querySelector('.wf-sub')
+  if (subLabel) subLabel.textContent = step1done ? (step2done ? 'Etiqueta confirmada' : 'NF confirmada — imprima a etiqueta') : 'Disponível após confirmação da NF'
+
+  // Passo 3 — Despacho (libera só após NF + etiqueta)
+  const numShip = document.getElementById('wf-num-ship')
+  const stepShip = document.getElementById('wf-step-ship')
+  const btnDispatch = document.getElementById('btn-dispatch')
+  const bodyShip = document.getElementById('body-ship')
+  const allDone = step1done && step2done
+  if (numShip) { numShip.className = 'wf-num ' + (allDone ? 'active' : 'locked'); numShip.textContent = '3' }
+  if (stepShip) stepShip.classList.toggle('locked-step', !allDone)
+  if (btnDispatch) btnDispatch.disabled = !allDone
+  if (bodyShip && allDone) bodyShip.classList.add('open')
+  const subShip = stepShip?.querySelector('.wf-sub')
+  if (subShip) subShip.textContent = allDone ? 'Pronto para despacho — informe o código de rastreamento' : 'Disponível após NF + etiqueta confirmadas'
+}
+
+function renderLabelContent(d, content, btn) {
+  const label = d.data?.label
+  const tracking = d.data?.trackingCode || d.data?.tracking
+  let html = ''
+  if (tracking) html += `<div class="info-row"><span class="info-label">Código de Rastreio</span><span class="info-value" style="font-family:monospace;font-weight:700">${tracking}</span></div>`
+  if (label) {
+    // Detectar tipo de etiqueta
+    const isBase64PDF = label.length > 200 && (label.startsWith('JVBE') || label.startsWith('JVBERi'))
+    const isImg = label.startsWith('data:image') || (!isBase64PDF && /^[A-Za-z0-9+/=]{100,}$/.test(label.replace(/\s/g,'')))
+    if (isImg) {
+      const src = label.startsWith('data:') ? label : 'data:image/png;base64,' + label
+      html += `<img src="${src}" alt="Etiqueta" style="max-width:100%;border:1px solid #e2e8f0;border-radius:6px;margin:8px 0" />`
+      html += `<a href="${src}" download="etiqueta-${currentOrder.id}.png" class="btn-wf btn-wf-primary" style="text-decoration:none">⬇️ Baixar PNG</a>`
+    } else if (isBase64PDF) {
+      const src = 'data:application/pdf;base64,' + label
+      html += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;color:#166534;margin-bottom:8px">✅ Etiqueta PDF gerada com sucesso!</div>`
+      html += `<a href="${src}" target="_blank" class="btn-wf btn-wf-primary" style="text-decoration:none;margin-right:6px">👁️ Visualizar PDF</a>`
+      html += `<a href="${src}" download="etiqueta-${currentOrder.id}.pdf" class="btn-wf btn-wf-primary" style="text-decoration:none">⬇️ Baixar PDF</a>`
+    } else {
+      html += `<pre style="background:#0f172a;color:#7dd3fc;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;max-height:180px;margin:8px 0">${label.slice(0,2000)}</pre>`
+      html += `<button onclick="copyText(this)" data-text="${label.replace(/"/g,'&quot;')}" class="btn-wf btn-wf-primary">📋 Copiar ZPL</button>`
+    }
+  }
+  html += `<div style="margin-top:10px"><button class="btn-wf btn-wf-green" onclick="confirmLabelManual()">✓ Confirmar que etiqueta foi impressa</button></div>`
+  content.innerHTML = html
+  btn.textContent = 'Recarregar'; btn.disabled = false
+  if (tracking) {
+    const inp = document.getElementById('inp-tracking')
+    if (inp && !inp.value) inp.value = tracking
+  }
+}
+
+async function fetchLabel() {
+  const btn = document.getElementById('btn-fetch-label')
+  const content = document.getElementById('label-content')
+  if (!btn || !content) return
+  if (btn.disabled) { toast('⚠️ Confirme a Nota Fiscal primeiro'); return }
+  btn.disabled = true; btn.textContent = 'Buscando...'
+
+  const panel = document.getElementById('body-label')
+  if (panel) panel.classList.add('open')
+
+  try {
+    const d = await apiGet('/api/v1/labels/' + currentOrder.id)
+    console.log('🏷️ GET /api/v1/labels/' + currentOrder.id, d)
+    if (!d.error) {
+      renderLabelContent(d, content, btn)
+      return
+    }
+
+    // Etiqueta não existe → tentar gerar automaticamente via Correios
+    content.innerHTML = `<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e">
+      ⚙️ <strong>Gerando etiqueta nos Correios...</strong><br>Criando pré-postagem e obtendo rótulo de transporte.
+    </div>`
+    btn.textContent = 'Gerando...'
+
+    const gen = await apiPost('/api/v1/labels/' + currentOrder.id + '/generate')
+    console.log('📤 POST /api/v1/labels/' + currentOrder.id + '/generate', gen)
+    if (gen.ok && !gen.data?.error) {
+      currentOrder = { ...currentOrder, trackingCode: gen.data?.data?.trackingCode || currentOrder.trackingCode }
+      renderLabelContent(gen, content, btn)
+      toast('✅ Etiqueta gerada com sucesso!')
+      return
+    }
+
+    // Falhou — mostrar erro com fallback manual
+    const errMsg = gen.data?.error || 'Falha ao gerar etiqueta nos Correios'
+    content.innerHTML = `
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:13px;color:#dc2626;margin-bottom:8px">
+        ❌ <strong>Não foi possível gerar automaticamente:</strong><br>${errMsg}
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:10px">Você pode confirmar manualmente que a etiqueta foi impressa por outro meio.</div>
+      <button class="btn-wf btn-wf-green" onclick="confirmLabelManual()">✓ Etiqueta impressa manualmente</button>`
+    btn.textContent = 'Tentar novamente'; btn.disabled = false
+
+  } catch(e) {
+    content.innerHTML = `<div style="color:#dc2626;font-size:13px;margin-bottom:8px">❌ Erro de conexão</div>
+      <button class="btn-wf btn-wf-green" onclick="confirmLabelManual()">✓ Etiqueta impressa manualmente</button>`
+    btn.textContent = 'Tentar novamente'; btn.disabled = false
+  }
+}
+
+function confirmLabelManual() {
+  docSteps.label = true
+  document.getElementById('label-done-badge') && (document.getElementById('label-done-badge').style.display = 'inline-flex')
+  updateWorkflowUI()
+  toast('🏷️ Etiqueta confirmada — passo 3 liberado')
+}
+
+function renderNFContent(nf, content, btn, alreadyIssued) {
+  const statusNF = { ISSUED:'Emitida ✅', PENDING:'Aguardando ⏳', PROCESSING:'Processando ⏳', CANCELLED:'Cancelada ❌', ERROR:'Erro ⚠️' }[nf?.status] || (nf?.status || '—')
+  const isIssued = nf?.status === 'ISSUED'
+  let html = ''
+  if (alreadyIssued) html += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;font-size:13px;color:#166534;margin-bottom:8px">✅ Nota fiscal emitida com sucesso!</div>`
+  if (nf?.status === 'ERROR') html += `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:13px;color:#dc2626;margin-bottom:8px">⚠️ Emissão junto à SEFAZ falhou. Verifique o certificado e tente novamente, ou confirme manualmente.</div>`
+  html += `<div class="info-row"><span class="info-label">Situação</span><span class="info-value">${statusNF}</span></div>`
+  html += `<div class="info-row"><span class="info-label">Número / Série</span><span class="info-value">${nf?.number || '—'} / ${nf?.series || '—'}</span></div>`
+  if (nf?.issuedAt) html += `<div class="info-row"><span class="info-label">Emissão</span><span class="info-value">${new Date(nf.issuedAt).toLocaleString('pt-BR')}</span></div>`
+  if (nf?.protocolo) html += `<div class="info-row"><span class="info-label">Protocolo</span><span class="info-value" style="font-family:monospace">${nf.protocolo}</span></div>`
+  if (nf?.key) {
+    html += `<div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;margin-top:8px">Chave de Acesso</div>`
+    html += `<div style="font-family:monospace;font-size:11px;background:#f1f5f9;padding:6px 10px;border-radius:6px;word-break:break-all">${nf.key}</div>`
+    html += `<button onclick="copyText(this)" data-text="${nf.key}" class="btn-wf btn-wf-primary" style="margin-top:6px">📋 Copiar Chave</button>`
+  }
+  if (nf?.url) html += `<div style="margin-top:8px"><a href="${nf.url}" target="_blank" class="btn-wf btn-wf-primary" style="text-decoration:none;display:inline-block">🔗 Abrir DANFE</a></div>`
+  if (isIssued) {
+    html += `<div style="margin-top:12px"><button class="btn-wf btn-wf-green" onclick="confirmNFManual()">✓ Prosseguir para Etiqueta →</button></div>`
+  } else {
+    html += `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">`
+    html += `<button class="btn-wf btn-wf-primary" onclick="retryEmitNF()">🔄 Tentar emitir novamente</button>`
+    html += `<button class="btn-wf btn-wf-green" onclick="confirmNFManual()">✓ Confirmar NF manualmente</button>`
+    html += `</div>`
+  }
+  content.innerHTML = html
+  if (isIssued) {
+    btn.textContent = 'Atualizar'; btn.disabled = false
+    // auto-avança se acabou de emitir
+    if (alreadyIssued) { setTimeout(confirmNFManual, 600) }
+  } else {
+    btn.textContent = 'Recarregar'; btn.disabled = false
+  }
+}
+
+async function fetchInvoice() {
+  const btn = document.getElementById('btn-fetch-nf')
+  const content = document.getElementById('nf-content')
+  if (!btn || !content) return
+  btn.disabled = true; btn.textContent = 'Buscando...'
+
+  const panel = document.getElementById('body-nf')
+  if (panel) panel.classList.add('open')
+
+  try {
+    const d = await apiGet('/api/v1/invoices/' + currentOrder.id)
+    console.log('📝 GET /api/v1/invoices/' + currentOrder.id, d)
+    if (!d.error) {
+      renderNFContent(d.data, content, btn, false)
+      return
+    }
+
+    // NF não existe → emitir automaticamente via SEFAZ
+    content.innerHTML = `<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e">
+      ⚙️ <strong>Emitindo Nota Fiscal...</strong><br>Gerando NF-e junto à SEFAZ, aguarde.
+    </div>`
+    btn.textContent = 'Emitindo...'
+
+    const emit = await apiPost('/api/v1/invoices/' + currentOrder.id + '/emit')
+    console.log('📤 POST /api/v1/invoices/' + currentOrder.id + '/emit', emit)
+    if (emit.ok && !emit.data?.error) {
+      renderNFContent(emit.data?.data, content, btn, true)
+      toast('✅ NF emitida com sucesso!')
+      return
+    }
+
+    // Falhou → mostrar erro com fallback manual
+    const errMsg = emit.data?.error || 'Falha na emissão da NF-e'
+    content.innerHTML = `
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:13px;color:#dc2626;margin-bottom:8px">
+        ❌ <strong>Não foi possível emitir automaticamente:</strong><br>${errMsg}
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:10px">Você pode emitir manualmente no sistema fiscal e confirmar aqui.</div>
+      <button class="btn-wf btn-wf-green" onclick="confirmNFManual()">✓ Confirmar NF emitida manualmente</button>`
+    btn.textContent = 'Tentar novamente'; btn.disabled = false
+  } catch(e) {
+    content.innerHTML = `<div style="color:#dc2626;font-size:13px;margin-bottom:8px">❌ Erro de conexão</div>
+      <button class="btn-wf btn-wf-green" onclick="confirmNFManual()">✓ Confirmar NF manualmente</button>`
+    btn.textContent = 'Tentar novamente'; btn.disabled = false
+  }
+}
+
+function confirmNFManual() {
+  docSteps.nf = true
+  document.getElementById('nf-done-badge') && (document.getElementById('nf-done-badge').style.display = 'inline-flex')
+  updateWorkflowUI()
+  toast('📄 NF confirmada — passo 2 liberado')
+}
+
+async function retryEmitNF() {
+  const btn = document.getElementById('btn-fetch-nf')
+  const content = document.getElementById('nf-content')
+  if (!btn || !content || !currentOrder) return
+  btn.disabled = true; btn.textContent = 'Emitindo...'
+  content.innerHTML = `<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e">
+    ⚙️ <strong>Tentando re-emitir NF-e...</strong><br>Aguarde.
+  </div>`
+  try {
+    const emit = await apiPost('/api/v1/invoices/' + currentOrder.id + '/emit')
+    console.log('🔁 POST /api/v1/invoices/' + currentOrder.id + '/emit (retry)', emit)
+    if (emit.ok && !emit.data?.error) {
+      renderNFContent(emit.data?.data, content, btn, true)
+      toast('✅ NF emitida com sucesso!')
+    } else {
+      const errMsg = emit.data?.error || 'Falha na re-emissão'
+      content.innerHTML = `
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:13px;color:#dc2626;margin-bottom:8px">
+          ❌ <strong>Re-emissão falhou:</strong><br>${errMsg}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-wf btn-wf-primary" onclick="retryEmitNF()">🔄 Tentar novamente</button>
+          <button class="btn-wf btn-wf-green" onclick="confirmNFManual()">✓ Confirmar NF manualmente</button>
+        </div>`
+      btn.textContent = 'Recarregar'; btn.disabled = false
+    }
+  } catch(e) {
+    content.innerHTML = `<div style="color:#dc2626;font-size:13px;margin-bottom:8px">❌ Erro de conexão</div>
+      <button class="btn-wf btn-wf-green" onclick="confirmNFManual()">✓ Confirmar NF manualmente</button>`
+    btn.textContent = 'Recarregar'; btn.disabled = false
+  }
+}
+
+function copyText(btn) {
+  const text = btn.getAttribute('data-text')
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent
+    btn.textContent = '✓ Copiado!'; setTimeout(() => btn.textContent = orig, 2000)
+  })
+}
+
+// ══════════════ MODAL UTILS ══════════════
+function closeModal() { 
+  document.getElementById('modal-overlay').classList.remove('open')
+  document.getElementById('api-console').classList.remove('open')
+  currentOrder = null 
+}
+function closeModalIfBg(e) { if (e.target.id === 'modal-overlay') closeModal() }
+
+function toggleApiConsole() {
+  document.getElementById('api-console').classList.toggle('open')
+}
+
+async function testAPIsv1() {
+  if (!currentOrder) { toast('⚠️ Nenhum pedido aberto'); return }
+  
+  const consoleBody = document.getElementById('api-console-body')
+  consoleBody.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner"></div> Testando APIs...</div>'
+  document.getElementById('api-console').classList.add('open')
+  
+  const results = []
+  
+  // Test 1: GET /api/v1/invoices/:id
+  try {
+    const r1 = await apiGet('/api/v1/invoices/' + currentOrder.id)
+    results.push({
+      method: 'GET',
+      endpoint: '/api/v1/invoices/' + currentOrder.id,
+      status: r1.ok ? '200 OK' : r1.status + ' ' + (r1.statusText || 'ERROR'),
+      success: r1.ok,
+      data: r1.data || r1.error || 'Sem dados'
+    })
+  } catch(e) {
+    results.push({
+      method: 'GET',
+      endpoint: '/api/v1/invoices/' + currentOrder.id,
+      status: 'EXCEPTION',
+      success: false,
+      data: { error: e.message }
+    })
+  }
+  
+  // Test 2: GET /api/v1/labels/:id
+  try {
+    const r2 = await apiGet('/api/v1/labels/' + currentOrder.id)
+    results.push({
+      method: 'GET',
+      endpoint: '/api/v1/labels/' + currentOrder.id,
+      status: r2.ok ? '200 OK' : r2.status + ' ' + (r2.statusText || 'ERROR'),
+      success: r2.ok,
+      data: r2.data || r2.error || 'Sem dados'
+    })
+  } catch(e) {
+    results.push({
+      method: 'GET',
+      endpoint: '/api/v1/labels/' + currentOrder.id,
+      status: 'EXCEPTION',
+      success: false,
+      data: { error: e.message }
+    })
+  }
+  
+  // Test 3: GET /api/v1/orders/:id
+  try {
+    const r3 = await apiGet('/api/v1/orders/' + currentOrder.id)
+    results.push({
+      method: 'GET',
+      endpoint: '/api/v1/orders/' + currentOrder.id,
+      status: r3.ok ? '200 OK' : r3.status + ' ' + (r3.statusText || 'ERROR'),
+      success: r3.ok,
+      data: r3.data || r3.error || 'Sem dados'
+    })
+  } catch(e) {
+    results.push({
+      method: 'GET',
+      endpoint: '/api/v1/orders/' + currentOrder.id,
+      status: 'EXCEPTION',
+      success: false,
+      data: { error: e.message }
+    })
+  }
+  
+  console.log('📋 API v1 Test Results:', results)
+  
+  const html = results.map(r => `
+    <div class="api-test-item">
+      <div class="api-test-header">
+        <div>
+          <span class="api-test-method">${r.method}</span>
+          <span style="color:#64748b">${r.endpoint}</span>
+        </div>
+        <span class="api-test-status ${r.success ? 'success' : 'error'}">${r.status}</span>
+      </div>
+      <div class="api-test-body">
+        <div class="api-test-json">${JSON.stringify(r.data, null, 2)}</div>
+      </div>
+    </div>
+  `).join('')
+  
+  consoleBody.innerHTML = html + '<div style="text-align:center;padding:12px;color:#64748b;font-size:11px">✅ Testes completos — verifique o console do navegador para mais detalhes (F12)</div>'
+  
+  toast('✅ Testes de API concluídos — ' + results.filter(r => r.success).length + ' de ' + results.length + ' sucesso')
+}
+
+// ══════════════ TOAST ══════════════
+let toastTimer
+function toast(msg) {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3500)
+}
+
+// ══════════════ KEYBOARD ══════════════
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal() })
+</script>
+</body>
+</html>

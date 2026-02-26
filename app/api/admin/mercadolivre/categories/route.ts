@@ -83,24 +83,15 @@ export async function GET(request: NextRequest) {
       }
 
       // Verificar se a categoria exige catálogo
-      const technicalSpecsUrl = `https://api.mercadolibre.com/categories/${categoryId}/technical_specs`
+      // catalog_domain = domínio existe (opcional ou obrigatório)
+      // listing_strategy = 'catalog_required' | 'catalog_only' = de fato obrigatório
       let requiresCatalog = false
       let catalogDomain = null
-      
-      try {
-        const specsResponse = await fetch(technicalSpecsUrl, {
-          headers: { Authorization: `Bearer ${integration.accessToken}` }
-        })
-        if (specsResponse.ok) {
-          const specs = await specsResponse.json()
-          // Verificar se tem catalog_domain
-          if (specs.catalog_domain || category.settings?.catalog_domain) {
-            requiresCatalog = true
-            catalogDomain = specs.catalog_domain || category.settings?.catalog_domain
-          }
-        }
-      } catch (e) {
-        console.log('Erro ao verificar specs:', e)
+
+      const listingStrategy = category.settings?.listing_strategy
+      catalogDomain = category.settings?.catalog_domain || null
+      if (listingStrategy === 'catalog_required' || listingStrategy === 'catalog_only') {
+        requiresCatalog = true
       }
 
       // Separar atributos obrigatórios e opcionais
@@ -118,6 +109,7 @@ export async function GET(request: NextRequest) {
           path: category.path_from_root?.map((p: any) => p.name).join(' > '),
           requiresCatalog,
           catalogDomain,
+          listingStrategy: listingStrategy || null,
           listingAllowed: category.settings?.listing_allowed !== false,
           pictureConfig: category.settings?.picture_config,
         },

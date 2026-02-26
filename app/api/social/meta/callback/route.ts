@@ -12,22 +12,26 @@ export async function GET(request: NextRequest) {
     const code = searchParams.get('code')
     const state = searchParams.get('state') || 'FACEBOOK' // platform
     const error = searchParams.get('error')
+    
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://gerencial-sys.mydshop.com.br'
 
     if (error) {
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/admin/marketing?error=${error}`
-      )
+      return NextResponse.redirect(`${baseUrl}/admin/marketing?error=${error}`)
     }
 
     if (!code) {
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/admin/marketing?error=no_code`
-      )
+      return NextResponse.redirect(`${baseUrl}/admin/marketing?error=no_code`)
     }
 
-    const appId = process.env.FACEBOOK_APP_ID
-    const appSecret = process.env.FACEBOOK_APP_SECRET
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/meta/callback`
+    // Buscar credenciais do Facebook no banco de dados
+    const [appIdConfig, appSecretConfig] = await Promise.all([
+      prisma.systemConfig.findUnique({ where: { key: 'social.facebookAppId' } }),
+      prisma.systemConfig.findUnique({ where: { key: 'social.facebookAppSecret' } })
+    ])
+    
+    const appId = appIdConfig?.value || process.env.FACEBOOK_APP_ID
+    const appSecret = appSecretConfig?.value || process.env.FACEBOOK_APP_SECRET
+    const redirectUri = `${baseUrl}/api/social/meta/callback`
 
     if (!appId || !appSecret) {
       throw new Error('Credenciais do Facebook não configuradas')
@@ -112,10 +116,10 @@ export async function GET(request: NextRequest) {
           accessToken: page.access_token,
           expiresAt,
           isActive: true,
-          metadata: {
+          metadata: JSON.stringify({
             category: page.category,
             tasks: page.tasks
-          }
+          })
         },
         create: {
           id: `fb_${page.id}_${Date.now()}`,
@@ -125,10 +129,10 @@ export async function GET(request: NextRequest) {
           accessToken: page.access_token,
           expiresAt,
           isActive: true,
-          metadata: {
+          metadata: JSON.stringify({
             category: page.category,
             tasks: page.tasks
-          }
+          })
         }
       })
       
@@ -147,10 +151,10 @@ export async function GET(request: NextRequest) {
             accessToken: page.access_token, // Usa o token da página
             expiresAt,
             isActive: true,
-            metadata: {
+            metadata: JSON.stringify({
               username: instagramUsername,
               facebookPageId: page.id
-            }
+            })
           },
           create: {
             id: `ig_${instagramId}_${Date.now()}`,
@@ -160,10 +164,10 @@ export async function GET(request: NextRequest) {
             accessToken: page.access_token,
             expiresAt,
             isActive: true,
-            metadata: {
+            metadata: JSON.stringify({
               username: instagramUsername,
               facebookPageId: page.id
-            }
+            })
           }
         })
         

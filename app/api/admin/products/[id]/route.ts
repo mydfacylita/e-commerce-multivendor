@@ -413,6 +413,7 @@ export async function PUT(
         costPrice: data.costPrice,
         margin: data.margin,
         stock: data.stock,
+        warehouseCode: data.warehouseCode ?? undefined,
         categoryId: data.categoryId,
         supplierId: data.supplierId,
         supplierSku: data.supplierSku,

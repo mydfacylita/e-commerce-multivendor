@@ -277,10 +277,10 @@ async function publishToMercadoLivre(
         if (checkDigit !== providedCheckDigit) {
           console.log('[ML Publish] ⚠️ GTIN com dígito verificador inválido')
           console.log('[ML Publish]    Esperado:', checkDigit, 'Recebido:', providedCheckDigit)
-          // Corrige o dígito verificador
-          const corrected = cleaned.substring(0, 12) + checkDigit
-          console.log('[ML Publish] ✅ GTIN corrigido:', cleaned, '→', corrected)
-          return corrected
+          // NÃO corrige automaticamente — usar o original conforme cadastrado pelo usuário
+          // Corrigir geraria um ISBN diferente que pode mapear para outro produto
+          console.log('[ML Publish] ⚠️ Usando GTIN original sem correção para evitar mapeamento errado')
+          return cleaned
         }
       }
       
@@ -479,55 +479,33 @@ async function publishToMercadoLivre(
     
     console.log('[ML Publish] Categoria final:', categoryId)
     
-    // Verifica se a categoria requer catálogo
-    // PRIORIDADE 1: Catálogo selecionado no modal
-    // PRIORIDADE 2: Busca automática por GTIN
-    let finalCatalogProductId: string | null = catalogProductId || null
-    let requiresCatalog = false
-    
-    if (catalogProductId) {
-      console.log('[ML Publish] ✅ Usando catálogo selecionado no modal:', catalogProductId)
-    }
-    
+    // DEBUG: Consultar configuração da categoria no ML
+    let categoryCatalogDomain: string | null = null
     try {
-      const categoryResponse = await fetchWithRetry(
+      const catDebugResp = await fetchWithRetry(
         `https://api.mercadolibre.com/categories/${categoryId}`,
-        {
-          headers: { 'Authorization': `Bearer ${accessToken}` }
-        }
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
       )
-      
-      if (categoryResponse.ok) {
-        const categoryData = await categoryResponse.json()
-        if (categoryData.settings?.catalog_domain) {
-          requiresCatalog = true
-          console.log('[ML Publish] ⚠️ Categoria requer catálogo:', categoryData.settings.catalog_domain)
-          
-          // Só busca automaticamente se não veio do modal
-          if (!finalCatalogProductId && product.gtin) {
-            console.log('[ML Publish] Buscando produto no catálogo pelo GTIN:', product.gtin)
-            
-            const catalogSearchResponse = await fetchWithRetry(
-              `https://api.mercadolibre.com/products/search?site_id=MLB&gtin=${product.gtin}`,
-              {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
-              }
-            )
-            
-            if (catalogSearchResponse.ok) {
-              const catalogData = await catalogSearchResponse.json()
-              if (catalogData.results && catalogData.results.length > 0) {
-                finalCatalogProductId = catalogData.results[0].id
-                console.log('[ML Publish] ✅ Produto encontrado no catálogo:', finalCatalogProductId)
-              } else {
-                console.log('[ML Publish] ⚠️ Produto NÃO encontrado no catálogo do ML')
-              }
-            }
-          }
-        }
+      if (catDebugResp.ok) {
+        const catDebug = await catDebugResp.json()
+        categoryCatalogDomain = catDebug.settings?.catalog_domain || null
+        console.log('[ML Publish] ===== DEBUG CATEGORIA =====')
+        console.log('[ML Publish] Nome:', catDebug.name)
+        console.log('[ML Publish] listing_strategy:', catDebug.settings?.listing_strategy || 'não definido')
+        console.log('[ML Publish] catalog_domain:', categoryCatalogDomain || 'não tem')
+        console.log('[ML Publish] listing_allowed:', catDebug.settings?.listing_allowed)
+        console.log('[ML Publish] ===========================')
       }
     } catch (e) {
-      console.log('[ML Publish] ⚠️ Erro ao verificar categoria:', e)
+      console.log('[ML Publish] Erro ao debug categoria:', e)
+    }
+    
+    const finalCatalogProductId: string | null = catalogProductId || null
+
+    if (finalCatalogProductId) {
+      console.log('[ML Publish] Catálogo selecionado no modal:', finalCatalogProductId)
+    } else {
+      console.log('[ML Publish] Publicando como anúncio normal (sem catálogo)')
     }
     
     // Busca os atributos permitidos para esta categoria
@@ -628,17 +606,16 @@ async function publishToMercadoLivre(
       }
     }
     if (familyName) {
-      // Adiciona tanto LINE (ID correto) quanto FAMILY_NAME (para compatibilidade)
+      // LINE é o atributo correto para família/linha do produto
+      // FAMILY_NAME não é um ID de atributo válido no ML — só existe como campo do body
       attributes.push({ id: 'LINE', value_name: familyName })
-      attributes.push({ id: 'FAMILY_NAME', value_name: familyName })
-      console.log('[ML Publish] ✅ LINE/FAMILY_NAME adicionado:', familyName)
+      console.log('[ML Publish] ✅ LINE adicionado:', familyName)
     }
     
     if (product.model) {
       attributes.push({ id: 'MODEL', value_name: product.model })
-      // ML pode pedir ALPHANUMERIC_MODEL (singular) ou ALPHANUMERIC_MODELS (plural)
-      // Mas não aceita ambos - vamos tentar singular primeiro que é mais comum
-      attributes.push({ id: 'ALPHANUMERIC_MODEL', value_name: product.model })
+      // ML usa ALPHANUMERIC_MODELS (plural) — singular é inválido e causa body.invalid_fields
+      attributes.push({ id: 'ALPHANUMERIC_MODELS', value_name: product.model })
     }
     
     if (product.color) {
@@ -788,6 +765,71 @@ async function publishToMercadoLivre(
       // Operadora
       'operadora': 'CARRIER',
       'carrier': 'CARRIER',
+      
+      // === LUMINÁRIAS - Campos obrigatórios ===
+      'com_usb': 'WITH_USB',
+      'with_usb': 'WITH_USB',
+      'usb': 'WITH_USB',
+      'tem_usb': 'WITH_USB',
+      
+      'com_wifi': 'WITH_WI_FI', 
+      'with_wi_fi': 'WITH_WI_FI',
+      'wifi': 'WITH_WI_FI',
+      'tem_wifi': 'WITH_WI_FI',
+      
+      'voltagem': 'VOLTAGE',
+      'voltage': 'VOLTAGE',
+      'tensao': 'VOLTAGE',
+      
+      'cor_estrutura': 'STRUCTURE_COLOR',
+      'structure_color': 'STRUCTURE_COLOR',
+      'cor_da_estrutura': 'STRUCTURE_COLOR',
+      
+      'cor_cupula': 'SCREEN_COLOR',
+      'screen_color': 'SCREEN_COLOR', 
+      'cor_da_cupula': 'SCREEN_COLOR',
+      'cor_tela': 'SCREEN_COLOR',
+      
+      'tecnologia_iluminacao': 'LIGHTING_TECHNOLOGY',
+      'lighting_technology': 'LIGHTING_TECHNOLOGY',
+      'tipo_led': 'LIGHTING_TECHNOLOGY',
+      
+      'material_estrutura': 'STRUCTURE_MATERIAL',
+      'structure_material': 'STRUCTURE_MATERIAL',
+      'material_da_estrutura': 'STRUCTURE_MATERIAL',
+      
+      'material_tela': 'SCREEN_MATERIAL',
+      'screen_material': 'SCREEN_MATERIAL', 
+      'material_cupula': 'SCREEN_MATERIAL',
+      
+      'eficiencia_energetica': 'ENERGY_EFFICIENCY',
+      'energy_efficiency': 'ENERGY_EFFICIENCY',
+      'consumo': 'ENERGY_EFFICIENCY',
+      
+      'largura_total': 'TOTAL_WIDTH',
+      'total_width': 'TOTAL_WIDTH',
+      'largura': 'TOTAL_WIDTH',
+      
+      'diametro_total': 'TOTAL_DIAMETER',
+      'total_diameter': 'TOTAL_DIAMETER', 
+      'diametro': 'TOTAL_DIAMETER',
+      
+      'altura_total': 'TOTAL_HEIGHT',
+      'total_height': 'TOTAL_HEIGHT',
+      'altura': 'TOTAL_HEIGHT',
+      
+      'altura_embalagem': 'PACKAGE_HEIGHT',
+      'package_height': 'PACKAGE_HEIGHT',
+      
+      'largura_embalagem': 'PACKAGE_WIDTH',
+      'package_width': 'PACKAGE_WIDTH',
+      
+      'comprimento_embalagem': 'PACKAGE_LENGTH',
+      'package_length': 'PACKAGE_LENGTH',
+      
+      'peso_embalagem': 'PACKAGE_WEIGHT',
+      'package_weight': 'PACKAGE_WEIGHT',
+      'peso': 'PACKAGE_WEIGHT',
     }
 
     // Adiciona atributos das especificações
@@ -806,7 +848,7 @@ async function publishToMercadoLivre(
         continue
       }
       
-      const mlAttributeId = specMapping[key]
+      const mlAttributeId = specMapping[key] || specMapping[key.toLowerCase()] || specMapping[key.toLowerCase().replace(/\s+/g, '_')]
       if (mlAttributeId && value) {
         // Evita duplicados
         if (!attributes.find(attr => attr.id === mlAttributeId)) {
@@ -816,6 +858,36 @@ async function publishToMercadoLivre(
             value_name: String(value)
           })
         }
+      }
+    }
+
+    // Adiciona atributos personalizados do produto (product.attributes)
+    // Formato: [{ nome: "COM USB", valor: "Não" }]
+    if (product.attributes) {
+      try {
+        const customAttrs = typeof product.attributes === 'string'
+          ? JSON.parse(product.attributes)
+          : product.attributes
+        console.log('[ML Publish] Atributos personalizados encontrados:', customAttrs)
+        if (Array.isArray(customAttrs)) {
+          for (const attr of customAttrs) {
+            const attrName: string = attr.nome || attr.name || ''
+            const attrValue: string = attr.valor || attr.value || ''
+            if (!attrName || !attrValue) continue
+            const keyNorm = attrName.toLowerCase().replace(/\s+/g, '_')
+            const mlAttributeId = specMapping[attrName] || specMapping[attrName.toLowerCase()] || specMapping[keyNorm]
+            if (mlAttributeId) {
+              if (!attributes.find(a => a.id === mlAttributeId)) {
+                console.log(`[ML Publish] Atributo personalizado mapeado: "${attrName}" -> ${mlAttributeId}: ${attrValue}`)
+                attributes.push({ id: mlAttributeId, value_name: String(attrValue) })
+              }
+            } else {
+              console.log(`[ML Publish] ⚠️ Atributo personalizado sem mapeamento: "${attrName}" = "${attrValue}"`)
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[ML Publish] Erro ao parsear atributos personalizados:', e)
       }
     }
 
@@ -846,6 +918,23 @@ async function publishToMercadoLivre(
     }
 
     console.log('[ML Publish] Atributos montados:', JSON.stringify(attributes, null, 2))
+
+    // ── Filtrar atributos: só envia o que a categoria aceita ──────────────
+    let finalAttributes = attributes
+    if (categoryAttributes.length > 0) {
+      const allowedIds = new Set(categoryAttributes.map((a: any) => a.id))
+      const before = attributes.length
+      finalAttributes = attributes.filter(attr => allowedIds.has(attr.id))
+      const removed = attributes
+        .filter(attr => !allowedIds.has(attr.id))
+        .map(attr => attr.id)
+      if (removed.length > 0) {
+        console.log(`[ML Publish] ⚠️ ${removed.length} atributos inválidos para a categoria removidos: ${removed.join(', ')}`)
+        console.log(`[ML Publish] Atributos: ${before} → ${finalAttributes.length}`)
+      }
+    } else {
+      console.log('[ML Publish] ⚠️ Sem lista de atributos da categoria — enviando todos')
+    }
 
     // Monta descrição detalhada com especificações
     console.log('[ML Publish] Descrição original do produto:', product.description)
@@ -992,18 +1081,16 @@ async function publishToMercadoLivre(
     // Monta o payload para criar o anúncio
     let listingData: any
     
-    // Verifica se a categoria exige catálogo e não temos
-    if (requiresCatalog && !finalCatalogProductId) {
-      console.log('[ML Publish] ⚠️ ATENÇÃO: Categoria exige catálogo mas não foi encontrado/selecionado!')
-      console.log('[ML Publish] Tentando publicar mesmo assim (pode falhar com body.invalid_fields)')
-    }
-    
-    // Se encontrou produto no catálogo, usa catalog_product_id em vez de title livre
+    // Se o usuário selecionou produto no catálogo, usa catalog_product_id em vez de title livre
     if (finalCatalogProductId) {
       console.log('[ML Publish] ✅ Usando catálogo do ML com product_id:', finalCatalogProductId)
       
       listingData = {
+        site_id: 'MLB',
+        category_id: categoryId,
         catalog_product_id: finalCatalogProductId,
+        catalog_listing: true,
+        family_name: familyName || product.name.substring(0, 60),
         price: finalPrice,
         currency_id: 'BRL',
         available_quantity: product.stock,
@@ -1019,33 +1106,61 @@ async function publishToMercadoLivre(
       }
     } else {
       // Anúncio normal sem catálogo
+      // ATENÇÃO: categorias com catalog_domain podem exigir family_name OBRIGATÓRIO
+      // mesmo sem catalog_product_id (ex: MLB1586 Luminárias de Mesa)
       listingData = {
-        title: product.name.substring(0, 60), // ML tem limite de 60 caracteres
-        category_id: categoryId, // Categoria baseada no tipo de produto
-        price: finalPrice, // Preço com exatamente 2 casas decimais
+        category_id: categoryId,
+        price: finalPrice,
         currency_id: 'BRL',
         available_quantity: product.stock,
         buying_mode: 'buy_it_now',
-        listing_type_id: 'gold_special', // Ou 'gold_pro', 'gold_premium'
+        listing_type_id: 'gold_special',
         condition: 'new',
-        // family_name é obrigatório para algumas categorias (smartwatches, etc.)
-        family_name: familyName || product.model || product.name.split(' ').slice(-2).join(' '),
         description: {
           plain_text: detailedDescription
         },
         pictures,
-        attributes,
+        attributes: finalAttributes,
         shipping: {
           mode: 'me2',
           free_shipping: false,
           local_pick_up: false,
-          dimensions: null // Remove dimensões automáticas que podem causar problemas
+          dimensions: null
         }
       }
       
-      console.log('[ML Publish] family_name adicionado ao body:', listingData.family_name)
+      // Montar título limpo: nome + marca + modelo
+      const titleParts = [
+        product.name,
+        product.brand && product.brand !== product.name ? product.brand : null,
+        product.model && product.model !== product.name ? product.model : null
+      ].filter(Boolean)
+      const builtTitle = titleParts.join(' ').substring(0, 60)
+
+      if (categoryCatalogDomain && familyName) {
+        // Categoria com catalog_domain: ML rejeita 'title' quando family_name presente
+        // Enviar SÓ family_name, sem title — mas family_name precisa ser descritivo
+        // Usa: nome do produto + modelo (para ser rico o suficiente)
+        const descriptiveFamilyName = [
+          product.name,
+          product.brand && product.brand !== product.name ? product.brand : null,
+          familyName !== product.name ? familyName : null
+        ].filter(Boolean).join(' ').substring(0, 60)
+        listingData.family_name = descriptiveFamilyName
+        console.log('[ML Publish] ✅ family_name:', descriptiveFamilyName, '(catalog_domain - SEM title)')
+      } else {
+        // Categoria tradicional OR sem familyName: enviar title
+        listingData.title = builtTitle
+        console.log('[ML Publish] ✅ title:', listingData.title)
+        // family_name adicional apenas se categoria NÃO tiver catalog_domain
+        if (familyName && !categoryCatalogDomain) {
+          listingData.family_name = familyName
+          console.log('[ML Publish] ✅ family_name:', familyName)
+        }
+      }
+
     }
-    
+
     // Adiciona SKU se disponível (seller_custom_field)
     if (product.supplierSku || product.id) {
       listingData.seller_custom_field = product.supplierSku || product.id
@@ -1065,6 +1180,9 @@ async function publishToMercadoLivre(
     console.log('[ML Publish] Atributos:', listingData.attributes?.length || 0, 'atributos')
     console.log('[ML Publish] Descrição (primeiros 300 chars):', listingData.description?.plain_text?.substring(0, 300))
     console.log('[ML Publish] ========================')
+    console.log('[ML Publish] PAYLOAD JSON COMPLETO:')
+    console.log(JSON.stringify(listingData, null, 2))
+    console.log('[ML Publish] ========================')
 
     // Faz a requisição para a API do Mercado Livre
     const response = await fetchWithRetry('https://api.mercadolibre.com/items', {
@@ -1080,24 +1198,10 @@ async function publishToMercadoLivre(
 
     if (!response.ok) {
       console.error('[ML Publish] Erro da API:', JSON.stringify(data, null, 2))
-      
-      // Verificar campos inválidos específicos
-      if (data.cause) {
-        console.error('[ML Publish] Causa detalhada:')
-        data.cause.forEach((c: any, i: number) => {
-          console.error(`[ML Publish]   ${i + 1}. Código: ${c.code}, Mensagem: ${c.message}`)
-          if (c.references) {
-            console.error(`[ML Publish]      Referências: ${JSON.stringify(c.references)}`)
-          }
-        })
-      }
-      
-      const { message, details } = formatMLErrors(data)
-      
       return {
         success: false,
-        message,
-        details,
+        message: data.message || 'Erro ao publicar',
+        details: data.error || null,
         cause: data.cause || []
       }
     }

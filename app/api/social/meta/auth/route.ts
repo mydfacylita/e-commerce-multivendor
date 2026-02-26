@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 
 /**
  * Inicia o fluxo OAuth do Facebook/Instagram
@@ -9,12 +10,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const platform = searchParams.get('platform') || 'FACEBOOK'
     
-    const appId = process.env.FACEBOOK_APP_ID
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/meta/callback`
+    // Buscar credenciais do Facebook no banco de dados
+    const [appIdConfig, appSecretConfig] = await Promise.all([
+      prisma.systemConfig.findUnique({ where: { key: 'social.facebookAppId' } }),
+      prisma.systemConfig.findUnique({ where: { key: 'social.facebookAppSecret' } })
+    ])
     
-    if (!appId) {
+    const appId = appIdConfig?.value || process.env.FACEBOOK_APP_ID
+    const appSecret = appSecretConfig?.value || process.env.FACEBOOK_APP_SECRET
+    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'https://gerencial-sys.mydshop.com.br'}/api/social/meta/callback`
+    
+    if (!appId || !appSecret) {
       return NextResponse.json(
-        { error: 'Facebook App ID não configurado' },
+        { error: 'Facebook App ID ou Secret não configurado. Configure em: Admin > Configurações > Redes Sociais' },
         { status: 500 }
       )
     }

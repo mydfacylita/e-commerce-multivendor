@@ -19,6 +19,7 @@ const ALLOWED_ORIGINS = [
   'https://www.mydshop.com.br',
   'https://app.mydshop.com.br',
   'https://admin.mydshop.com.br',
+  'https://developer.mydshop.com.br',
   // Desenvolvimento
   ...(process.env.NODE_ENV === 'development' ? [
     'http://localhost:3000',
@@ -63,6 +64,7 @@ const PUBLIC_API_ROUTES = [
   '/api/feeds/',
   '/api/image/',
   '/api/analytics/track',
+  '/api/v1/', // Portal de desenvolvedores — validação feita nas próprias rotas via dev-auth
 ]
 
 // 🚫 Rotas BLOQUEADAS em produção (debug, teste)
@@ -134,7 +136,7 @@ function setCorsHeaders(response: NextResponse, origin: string | null) {
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin)
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-api-key')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-api-key, X-Api-Signature, X-Timestamp')
     response.headers.set('Access-Control-Allow-Credentials', 'true')
     response.headers.set('Access-Control-Max-Age', '86400') // 24 horas
   }
@@ -165,6 +167,45 @@ export async function middleware(request: NextRequest) {
   const origin = request.headers.get('origin')
   const host = request.headers.get('host') || ''
   const isAdminSubdomain = host.startsWith('gerencial-sys.')
+  const isDeveloperSubdomain = host.startsWith('developer.')
+
+  // 🔀 SUBDOMÍNIO DEVELOPER: reescreve requests para /developer/*
+  if (isDeveloperSubdomain) {
+    // Bloqueia rotas que não pertencem ao portal de desenvolvedores
+    const allowedDevPaths = ['/developer', '/api/developer', '/api/v1', '/api/auth', '/_next', '/favicon', '/logo', '/login', '/registro']
+    const isDevAllowed = allowedDevPaths.some(p => pathname.startsWith(p)) || pathname === '/'
+
+    if (!isDevAllowed) {
+      return new NextResponse(null, { status: 404 })
+    }
+
+    // No subdomínio developer: redireciona /login para /developer/login
+    if (pathname === '/login' || pathname.startsWith('/login')) {
+      return NextResponse.redirect(new URL('/developer/login', request.url))
+    }
+
+    // Monta headers com x-page-type para o layout raiz pular Navbar/Footer
+    // /registro mantém layout da loja; tudo mais no subdomínio developer usa tema dark
+    const reqHeaders = new Headers(request.headers)
+    if (!pathname.startsWith('/registro')) reqHeaders.set('x-page-type', 'developer')
+
+    // Reescreve / → /developer, /dashboard → /developer/dashboard, etc.
+    // Exclui /registro (rota que existe no root, não em /developer)
+    if (!pathname.startsWith('/developer') && !pathname.startsWith('/api') && !pathname.startsWith('/_next') && !pathname.startsWith('/registro')) {
+      const rewriteUrl = new URL(`/developer${pathname === '/' ? '' : pathname}`, request.url)
+      rewriteUrl.search = request.nextUrl.search
+      return NextResponse.rewrite(rewriteUrl, { request: { headers: reqHeaders } })
+    }
+
+    return NextResponse.next({ request: { headers: reqHeaders } })
+  }
+
+  // Injeta x-page-type: developer também para acesso direto via /developer
+  if (pathname.startsWith('/developer')) {
+    const reqHeaders = new Headers(request.headers)
+    reqHeaders.set('x-page-type', 'developer')
+    return NextResponse.next({ request: { headers: reqHeaders } })
+  }
 
   // 🔒 SEGURANÇA: Bloquear /admin no domínio principal
   // Apenas permite acesso via subdomínio gerencial-sys.mydshop.com.br
@@ -181,7 +222,6 @@ export async function middleware(request: NextRequest) {
     const allowedPaths = ['/admin', '/api/', '/_next/', '/favicon', '/logo', '/login']
     const isAllowed = allowedPaths.some(p => pathname.startsWith(p)) || pathname === '/'
     if (!isAllowed) {
-      // Redireciona para /admin se tentar acessar outra rota no subdomínio admin
       return NextResponse.redirect(new URL('/admin', request.url))
     }
   }
@@ -194,7 +234,7 @@ export async function middleware(request: NextRequest) {
 
   // 🔧 MODO MANUTENÇÃO (não verifica em rotas especiais ou no subdomínio admin)
   // Subdomínio admin nunca entra em manutenção para permitir gerenciamento
-  const skipMaintenance = isAdminSubdomain || [
+  const skipMaintenance = isAdminSubdomain || isDeveloperSubdomain || [
     '/manutencao',
     '/_next',
     '/favicon.ico',
@@ -235,6 +275,15 @@ export async function middleware(request: NextRequest) {
     
     // 🔓 Verificar se é rota pública (webhooks, auth, etc)
     const isPublicApiRoute = PUBLIC_API_ROUTES.some(route => pathname.startsWith(route))
+
+    // 🌐 /api/v1/ — API pública de desenvolvedores (CORS aberto, auth via dev-auth.ts)
+    if (pathname.startsWith('/api/v1/')) {
+      const response = NextResponse.next()
+      response.headers.set('Access-Control-Allow-Origin', '*')
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Api-Signature, X-Timestamp')
+      return response
+    }
     
     // 🔒 Verificar rotas de CRON (requerem secret OU admin)
     if (pathname.startsWith('/api/cron/')) {
