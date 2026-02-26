@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       const slug = `${seller.storeSlug}-shopify-${sp.id}`
 
       const existingProduct = await prisma.product.findFirst({
-        where: { supplierSku: `shopify_${sp.id}`, sellerId: seller.id },
+        where: { slug, sellerId: seller.id },
         select: { id: true },
       })
 
@@ -92,7 +92,9 @@ export async function POST(req: NextRequest) {
             stock,
             images,
             brand:          sp.vendor || null,
-            supplierSku:    `shopify_${sp.id}`,
+            supplierSku:    sku || null,   // SKU real do produto (não o ID interno Shopify)
+            supplierUrl:    `https://${cleanShop}/admin/products/${sp.id}`, // link para rastreabilidade
+            isDropshipping: false,         // produto próprio do vendedor
             sellerId:       seller.id,
             categoryId:     defaultCategory!.id,
             active:         false,       // inativo até aprovação

@@ -135,20 +135,20 @@ export default function VendedorProdutosPage() {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesFilter = 
       filterType === 'all' ? true :
-      filterType === 'own' ? !product.supplierSku :
-      filterType === 'dropshipping' ? !!product.supplierSku : true
+      filterType === 'own' ? !product.isDropshipping :
+      filterType === 'dropshipping' ? product.isDropshipping : true
 
     return matchesSearch && matchesFilter
   })
 
   const stats = {
     total: productsArray.length,
-    own: productsArray.filter(p => !p.supplierSku).length,
-    dropshipping: productsArray.filter(p => !!p.supplierSku).length,
+    own: productsArray.filter(p => !p.isDropshipping).length,
+    dropshipping: productsArray.filter(p => p.isDropshipping).length,
     active: productsArray.filter(p => p.active).length,
-    pending: productsArray.filter(p => !p.supplierSku && p.approvalStatus === 'PENDING').length,
-    approved: productsArray.filter(p => !p.supplierSku && p.approvalStatus === 'APPROVED').length,
-    rejected: productsArray.filter(p => !p.supplierSku && p.approvalStatus === 'REJECTED').length
+    pending: productsArray.filter(p => p.approvalStatus === 'PENDING').length,
+    approved: productsArray.filter(p => p.approvalStatus === 'APPROVED').length,
+    rejected: productsArray.filter(p => p.approvalStatus === 'REJECTED').length
   }
 
   return (
@@ -372,7 +372,7 @@ export default function VendedorProdutosPage() {
                       ? JSON.parse(product.images)
                       : product.images
                     const firstImage = Array.isArray(images) ? images[0] : '/placeholder.jpg'
-                    const isDropshipping = !!product.supplierSku
+                    const isDropshipping = product.isDropshipping
 
                     return (
                       <tr key={product.id} className="border-b hover:bg-gray-50">
@@ -422,14 +422,7 @@ export default function VendedorProdutosPage() {
                           )}
                         </td>
                         <td className="py-4 px-6">
-                          {/* Status de aprovação - só para produtos próprios */}
-                          {isDropshipping ? (
-                            <span className="inline-flex items-center gap-1 text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
-                              <FiCheckCircle size={14} />
-                              Aprovado
-                            </span>
-                          ) : (
-                            <div className="relative group">
+                          <div className="relative group">
                               {product.approvalStatus === 'PENDING' && (
                                 <span className="inline-flex items-center gap-1 text-sm bg-yellow-100 text-yellow-700 px-2 py-1 rounded cursor-help">
                                   <FiClock size={14} />
@@ -465,7 +458,6 @@ export default function VendedorProdutosPage() {
                                 </div>
                               )}
                             </div>
-                          )}
                         </td>
                         <td className="py-4 px-6">
                           <button
