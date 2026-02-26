@@ -6,6 +6,7 @@ import SendToSupplierButton from '@/components/admin/SendToSupplierButton'
 import UpdateOrderStatusButton from '@/components/admin/UpdateOrderStatusButton'
 import ResetSupplierStatusButton from '@/components/admin/ResetSupplierStatusButton'
 import AliExpressOrderStatus from '@/components/admin/AliExpressOrderStatus'
+import MLOrderActionsButton from '@/components/admin/MLOrderActionsButton'
 import { formatOrderNumber } from '@/lib/order'
 import ClientDate from '@/components/admin/ClientDate'
 
@@ -677,6 +678,16 @@ export default async function AdminOrderDetailPage({
 
       {/* Itens por Fornecedor */}
       <div className="mt-6 space-y-6">
+        {/* Ações Mercado Livre (se pedido veio do ML) */}
+        {order.marketplaceOrderId &&
+          order.marketplaceName?.toLowerCase().includes('mercado') && (
+            <MLOrderActionsButton
+              orderId={order.id}
+              mlOrderId={order.marketplaceOrderId}
+              currentTrackingCode={order.trackingCode}
+            />
+          )}
+
         {/* Status AliExpress (se houver pedido AliExpress) */}
         {order.supplierOrderId && order.items.some(item => 
           item.product.supplier?.name?.toLowerCase().includes('aliexpress')
