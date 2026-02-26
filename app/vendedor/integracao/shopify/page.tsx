@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { FiArrowLeft, FiExternalLink, FiCheck, FiAlertCircle, FiLoader, FiRefreshCw, FiTrash2, FiPackage, FiShoppingCart } from 'react-icons/fi'
+import { FiArrowLeft, FiExternalLink, FiCheck, FiAlertCircle, FiLoader, FiTrash2, FiPackage, FiShoppingCart, FiDownload, FiUpload } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
 interface ShopifyStatus {
@@ -27,7 +27,7 @@ export default function VendedorShopifyPage() {
   const [loading, setLoading] = useState(true)
   const [shopInput, setShopInput] = useState('')
   const [connecting, setConnecting] = useState(false)
-  const [syncing, setSyncing] = useState<'orders' | 'products' | null>(null)
+  const [syncing, setSyncing] = useState<'orders' | 'products' | 'import-products' | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
 
   useEffect(() => {
@@ -92,10 +92,32 @@ export default function VendedorShopifyPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        toast.success(`${data.synced ?? 0} produtos sincronizados`)
+        toast.success(`${(data.synced ?? 0) + (data.updated ?? 0)} produtos enviados para Shopify`)
         fetchStatus()
       } else {
-        toast.error(data.error ?? 'Erro ao sincronizar produtos')
+        toast.error(data.error ?? 'Erro ao enviar produtos')
+      }
+    } finally {
+      setSyncing(null)
+    }
+  }
+
+  const handleImportProducts = async () => {
+    if (!status?.installation?.shopDomain) return
+    setSyncing('import-products')
+    try {
+      const res = await fetch('/api/shopify/import-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shop: status.installation.shopDomain }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        const total = (data.imported ?? 0) + (data.updated ?? 0)
+        toast.success(`${total} produto${total !== 1 ? 's' : ''} importado${total !== 1 ? 's' : ''} da Shopify`)
+        fetchStatus()
+      } else {
+        toast.error(data.error ?? 'Erro ao importar produtos')
       }
     } finally {
       setSyncing(null)
@@ -192,25 +214,38 @@ export default function VendedorShopifyPage() {
           {/* Ações de sync */}
           <div className="bg-white border rounded-xl p-5 mb-6">
             <h3 className="font-semibold text-gray-900 mb-4">Sincronização manual</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
+              {/* Pedidos: Shopify → MydShop */}
               <button
                 onClick={handleSyncOrders}
                 disabled={syncing !== null}
                 className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50"
               >
-                {syncing === 'orders' ? <FiLoader className="animate-spin" /> : <FiShoppingCart size={16} />}
-                Importar pedidos
+                {syncing === 'orders' ? <FiLoader className="animate-spin" /> : <FiDownload size={16} />}
+                Importar pedidos da Shopify → MydShop
               </button>
+
+              {/* Produtos: Shopify → MydShop */}
+              <button
+                onClick={handleImportProducts}
+                disabled={syncing !== null}
+                className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50"
+              >
+                {syncing === 'import-products' ? <FiLoader className="animate-spin" /> : <FiDownload size={16} />}
+                Importar produtos da Shopify → MydShop
+              </button>
+
+              {/* Produtos: MydShop → Shopify */}
               <button
                 onClick={handleSyncProducts}
                 disabled={syncing !== null}
                 className="flex items-center justify-center gap-2 bg-[#96bf48] hover:bg-[#7fa03c] text-white py-3 px-4 rounded-lg font-semibold transition-colors disabled:opacity-50"
               >
-                {syncing === 'products' ? <FiLoader className="animate-spin" /> : <FiPackage size={16} />}
-                Enviar produtos
+                {syncing === 'products' ? <FiLoader className="animate-spin" /> : <FiUpload size={16} />}
+                Enviar produtos MydShop → Shopify
               </button>
             </div>
-            <p className="text-xs text-gray-400 mt-3">A sincronização também ocorre automaticamente via webhooks da Shopify.</p>
+            <p className="text-xs text-gray-400 mt-3">A sincronização de pedidos também ocorre automaticamente via webhooks da Shopify.</p>
           </div>
 
           {/* Link para admin Shopify */}

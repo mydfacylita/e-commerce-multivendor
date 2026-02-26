@@ -39,10 +39,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Loja sem vendedor Mydshop vinculado' }, { status: 400 })
   }
 
-  // Buscar produtos Mydshop do vendedor
+  // Buscar o Seller pelo userId da instalação
+  const seller = await prisma.seller.findUnique({ where: { userId: installation.userId } })
+  if (!seller) {
+    return NextResponse.json({ error: 'Vendedor não encontrado' }, { status: 404 })
+  }
+
+  // Buscar produtos ativos do vendedor
   const where: any = {
-    seller: { userId: installation.userId },
-    isActive: true,
+    sellerId: seller.id,
+    active: true,
   }
   if (productIds?.length) {
     where.id = { in: productIds }
@@ -50,6 +56,7 @@ export async function POST(req: NextRequest) {
 
   const products = await prisma.product.findMany({
     where,
+    include: { category: { select: { name: true } } },
     take: 100,
   })
 
@@ -69,9 +76,9 @@ export async function POST(req: NextRequest) {
 
       const payload = {
         title:        product.name,
-        body_html:    (product as any).description || '',
-        vendor:       (product as any).brand       || 'Mydshop',
-        product_type: (product as any).category    || '',
+        body_html:    product.description || '',
+        vendor:       product.brand       || 'Mydshop',
+        product_type: product.category?.name || '',
         status:       'active' as const,
         variants: [{
           price:                String(product.price || 0),

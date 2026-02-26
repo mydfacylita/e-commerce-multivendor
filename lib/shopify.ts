@@ -259,6 +259,40 @@ export interface ShopifyProductPayload {
   status?: 'active' | 'draft' | 'archived'
 }
 
+export interface ShopifyProduct {
+  id: number
+  title: string
+  body_html: string | null
+  vendor: string
+  product_type: string
+  status: string
+  created_at: string
+  updated_at: string
+  images: { id: number; src: string }[]
+  variants: {
+    id: number
+    title: string
+    price: string
+    sku: string | null
+    inventory_quantity: number
+    requires_shipping: boolean
+  }[]
+}
+
+export async function getShopifyProducts(
+  shop: string,
+  accessToken: string,
+  params: { limit?: number; since_id?: string; status?: string } = {}
+): Promise<ShopifyProduct[]> {
+  const qs = new URLSearchParams({
+    limit: String(params.limit || 250),
+    status: params.status || 'active',
+    ...(params.since_id ? { since_id: params.since_id } : {}),
+  })
+  const data = await shopifyAdminFetch<{ products: ShopifyProduct[] }>(shop, accessToken, `products.json?${qs}`)
+  return data.products
+}
+
 export async function createShopifyProduct(
   shop: string,
   accessToken: string,
