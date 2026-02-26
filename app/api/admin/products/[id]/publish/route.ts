@@ -1270,128 +1270,153 @@ async function publishToMercadoLivre(
       console.log('[ML Publish] ⚠️ Sem lista de atributos da categoria — enviando todos')
     }
 
-    // Monta descrição detalhada com especificações
+    // ══════════════════════════════════════════════════════════════════
+    // MONTAGEM DE DESCRIÇÃO RICA E COMPLETA
+    // ══════════════════════════════════════════════════════════════════
     console.log('[ML Publish] Descrição original do produto:', product.description)
     console.log('[ML Publish] Especificações do produto:', product.specifications)
-    
-    let detailedDescription = ''
-    
-    // Começa com a descrição do produto se existir
-    if (product.description && product.description.trim()) {
-      detailedDescription = product.description.trim()
-    } else {
-      detailedDescription = product.name
-    }
-    
-    // Se tiver specifications (descrição do AliExpress), adiciona
-    if (product.specifications) {
-      try {
-        const specifications = typeof product.specifications === 'string'
-          ? JSON.parse(product.specifications)
-          : product.specifications
-        
-        // Se specifications tiver uma descrição textual
-        if (specifications.description) {
-          detailedDescription = specifications.description
-        } else if (specifications.detail) {
-          detailedDescription = specifications.detail
-        }
-      } catch (e) {
-        console.log('[ML Publish] Erro ao parsear specifications:', e)
-      }
-    }
-    
-    // Adiciona informações principais do produto
-    if (product.brand || product.model || product.gtin) {
-      detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-      detailedDescription += '\n📦 INFORMAÇÕES DO PRODUTO\n'
-      if (product.brand) detailedDescription += `\n🏷️ Marca: ${product.brand}`
-      if (product.model) detailedDescription += `\n📱 Modelo: ${product.model}`
-      if (product.color) detailedDescription += `\n🎨 Cor: ${product.color}`
-      if (product.gtin) detailedDescription += `\n🔢 Código de Barras: ${product.gtin}`
-    }
-    
-    // Adiciona especificações técnicas (excluindo ae_item_property)
-    const simpleSpecs = Object.entries(specs).filter(([key]) => 
-      !['product_type', 'ae_item_property', 'ml_category_id'].includes(key)
-    )
-    
-    if (simpleSpecs.length > 0) {
-      detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-      detailedDescription += '\n⚙️ ESPECIFICAÇÕES TÉCNICAS\n'
-      
-      for (const [key, value] of simpleSpecs) {
-        const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-        detailedDescription += `\n• ${fieldName}: ${value}`
-      }
-    }
-    
-    // Adiciona propriedades do AliExpress se disponível
-    if (specs.ae_item_property && Array.isArray(specs.ae_item_property)) {
-      // Agrupa por categoria de atributo
-      const groupedAttrs: Record<string, string[]> = {}
-      
-      for (const prop of specs.ae_item_property) {
-        const attrName = prop.attr_name || 'Outros'
-        const attrValue = prop.attr_value
-        
-        if (!groupedAttrs[attrName]) {
-          groupedAttrs[attrName] = []
-        }
-        if (!groupedAttrs[attrName].includes(attrValue)) {
-          groupedAttrs[attrName].push(attrValue)
-        }
-      }
-      
-      // Adiciona as propriedades agrupadas de forma mais visual
-      const categories = Object.keys(groupedAttrs)
-      if (categories.length > 0) {
-        detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-        detailedDescription += '\n✨ CARACTERÍSTICAS DETALHADAS\n'
-        
-        // Separa por categorias importantes
-        const importantCategories = ['Nome da marca', 'Sistema', 'Função', 'Tamanho da Tela', 'Resolução', 'Material']
-        const otherCategories = categories.filter(c => !importantCategories.includes(c))
-        
-        // Mostra categorias importantes primeiro
-        for (const category of importantCategories) {
-          if (groupedAttrs[category]) {
-            const values = groupedAttrs[category]
-            if (values.length === 1) {
-              detailedDescription += `\n\n🔹 ${category}:\n   ${values[0]}`
-            } else if (values.length <= 5) {
-              detailedDescription += `\n\n🔹 ${category}:\n   ${values.join('\n   ')}`
-            } else {
-              detailedDescription += `\n\n🔹 ${category}:\n   ${values.slice(0, 5).join('\n   ')}\n   ... e mais ${values.length - 5}`
-            }
-          }
-        }
-        
-        // Mostra outras categorias de forma compacta
-        if (otherCategories.length > 0) {
-          detailedDescription += '\n\n🔹 Outras Características:'
-          for (const category of otherCategories.slice(0, 10)) {
-            const values = groupedAttrs[category]
-            if (values.length === 1) {
-              detailedDescription += `\n   • ${category}: ${values[0]}`
-            } else if (values.length <= 3) {
-              detailedDescription += `\n   • ${category}: ${values.join(', ')}`
-            }
-          }
-        }
-      }
-    }
-    
-    // Adiciona informações de estoque e garantia
-    detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-    detailedDescription += '\n📦 ENTREGA E GARANTIA\n'
-    detailedDescription += `\n✅ Produto Novo, Lacrado e com Garantia`
-    detailedDescription += `\n📦 Enviamos para todo o Brasil`
-    if (product.stock > 0) {
-      detailedDescription += `\n✅ Pronta Entrega - ${product.stock} unidade(s) disponível(is)`
+
+    // --- 1. Texto base da descrição ---
+    let descBase = ''
+    if (product.description && product.description.trim().length > 20) {
+      descBase = product.description.trim()
     }
 
-    console.log('[ML Publish] Descrição gerada:', detailedDescription.substring(0, 200) + '...')
+    // Tenta enriquecer com texto das specifications do AliExpress
+    if (product.specifications) {
+      try {
+        const specObj = typeof product.specifications === 'string'
+          ? JSON.parse(product.specifications)
+          : product.specifications
+        if (specObj?.description && specObj.description.trim().length > descBase.length) {
+          descBase = specObj.description.trim()
+        } else if (specObj?.detail && specObj.detail.trim().length > descBase.length) {
+          descBase = specObj.detail.trim()
+        }
+      } catch { /* ignorar */ }
+    }
+
+    if (!descBase) descBase = product.name
+
+    let detailedDescription = descBase
+
+    // --- 2. Bloco: INFORMAÇÕES DO PRODUTO ---
+    const infoLines: string[] = []
+    if (product.brand)  infoLines.push(`🏷️  Marca: ${product.brand}`)
+    if (product.model)  infoLines.push(`📋  Modelo: ${product.model}`)
+    if (product.color)  infoLines.push(`🎨  Cor: ${product.color}`)
+    if ((product as any).material) infoLines.push(`🔩  Material: ${(product as any).material}`)
+    if (product.gtin)   infoLines.push(`🔢  Código de Barras (EAN/GTIN): ${product.gtin}`)
+    if ((product as any).sku) infoLines.push(`🏷️  SKU: ${(product as any).sku}`)
+    if ((product as any).warranty || (product as any).warrantyMonths) {
+      const w = (product as any).warranty || `${(product as any).warrantyMonths} meses`
+      infoLines.push(`🛡️  Garantia: ${w}`)
+    }
+
+    if (infoLines.length > 0) {
+      detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      detailedDescription += '\n📦 INFORMAÇÕES DO PRODUTO\n'
+      detailedDescription += infoLines.map(l => `\n${l}`).join('')
+    }
+
+    // --- 3. Bloco: ATRIBUTOS PERSONALIZADOS (product.attributes) ---
+    // Ex: [{ nome: "Processador", valor: "Intel Celeron" }, ...]
+    const customAttrLines: string[] = []
+    if (product.attributes) {
+      try {
+        const customAttrs = typeof product.attributes === 'string'
+          ? JSON.parse(product.attributes)
+          : product.attributes
+        if (Array.isArray(customAttrs)) {
+          for (const ca of customAttrs) {
+            const name  = (ca.nome  || ca.name  || '').trim()
+            const value = (ca.valor || ca.value || '').toString().trim()
+            if (name && value) customAttrLines.push(`• ${name}: ${value}`)
+          }
+        }
+      } catch { /* ignorar */ }
+    }
+
+    if (customAttrLines.length > 0) {
+      detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      detailedDescription += '\n⚙️ ESPECIFICAÇÕES TÉCNICAS\n'
+      detailedDescription += customAttrLines.map(l => `\n${l}`).join('')
+    }
+
+    // --- 4. Bloco: SPECS (product.specifications chave-valor simples) ---
+    const simpleSpecs = Object.entries(specs).filter(([key]) =>
+      !['product_type', 'ae_item_property', 'ml_category_id'].includes(key)
+    )
+    if (simpleSpecs.length > 0) {
+      // Só adiciona se ainda não foi colocado via customAttrs
+      const alreadyAdded = new Set(customAttrLines.map(l => l.toLowerCase()))
+      const extraLines: string[] = []
+      for (const [key, value] of simpleSpecs) {
+        const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+        const line = `• ${fieldName}: ${value}`
+        if (!alreadyAdded.has(line.toLowerCase())) extraLines.push(line)
+      }
+      if (extraLines.length > 0) {
+        if (customAttrLines.length === 0) {
+          detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+          detailedDescription += '\n⚙️ ESPECIFICAÇÕES TÉCNICAS\n'
+        }
+        detailedDescription += extraLines.map(l => `\n${l}`).join('')
+      }
+    }
+
+    // --- 5. Bloco: PROPRIEDADES DO ALIEXPRESS (ae_item_property) - TODAS ---
+    if (specs.ae_item_property && Array.isArray(specs.ae_item_property)) {
+      const grouped: Record<string, string[]> = {}
+      for (const prop of specs.ae_item_property) {
+        const attrName  = (prop.attr_name  || 'Outros').trim()
+        const attrValue = (prop.attr_value || '').toString().trim()
+        if (!attrValue) continue
+        if (!grouped[attrName]) grouped[attrName] = []
+        if (!grouped[attrName].includes(attrValue)) grouped[attrName].push(attrValue)
+      }
+
+      const groupedKeys = Object.keys(grouped)
+      if (groupedKeys.length > 0) {
+        detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+        detailedDescription += '\n✨ CARACTERÍSTICAS COMPLETAS\n'
+        for (const cat of groupedKeys) {
+          const vals = grouped[cat]
+          detailedDescription += `\n• ${cat}: ${vals.join(' | ')}`
+        }
+      }
+    }
+
+    // --- 6. Bloco: DIMENSÕES / PESO ---
+    const dimLines: string[] = []
+    if (product.weight)  dimLines.push(`⚖️  Peso: ${product.weight} kg`)
+    if (product.width)   dimLines.push(`📐  Largura: ${product.width} cm`)
+    if (product.height)  dimLines.push(`📐  Altura: ${product.height} cm`)
+    if (product.length)  dimLines.push(`📐  Profundidade: ${product.length} cm`)
+    if (dimLines.length > 0) {
+      detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      detailedDescription += '\n📏 DIMENSÕES E PESO\n'
+      detailedDescription += dimLines.map(l => `\n${l}`).join('')
+    }
+
+    // --- 7. Bloco: ENTREGA, GARANTIA E ESTOQUE ---
+    detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    detailedDescription += '\n🚚 ENTREGA E GARANTIA\n'
+    detailedDescription += '\n✅ Produto 100% Original, Novo e Lacrado'
+    detailedDescription += '\n📦 Enviamos para todo o Brasil com rastreamento'
+    detailedDescription += '\n🛡️ Garantia do fabricante inclusa'
+    if (product.stock > 0) {
+      detailedDescription += `\n✅ Pronta Entrega — ${product.stock} unidade(s) em estoque`
+    }
+    detailedDescription += '\n\n✉️ Dúvidas? Entre em contato pelo chat do Mercado Livre!'
+
+    // Trunca no limite do ML (50.000 chars)
+    if (detailedDescription.length > 50000) {
+      detailedDescription = detailedDescription.substring(0, 49997) + '...'
+    }
+
+    console.log('[ML Publish] Descrição gerada:', detailedDescription.substring(0, 300) + '...')
+    console.log('[ML Publish] Tamanho da descrição:', detailedDescription.length, 'chars')
 
     // Garante que o preço tenha exatamente 2 casas decimais (ML não aceita mais que isso para BRL)
     let finalPrice = Number(product.price.toFixed(2))
