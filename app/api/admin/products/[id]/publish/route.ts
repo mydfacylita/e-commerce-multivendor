@@ -627,7 +627,11 @@ async function publishToMercadoLivre(
     }
     
     if (product.color) {
-      attributes.push({ id: 'COLOR', value_name: product.color })
+      // COLOR é filtrado em muitas categorias, mas STRUCTURE_COLOR, FILTRABLE_COLOR e SCREEN_COLOR são aceitos
+      attributes.push({ id: 'COLOR',           value_name: product.color })
+      attributes.push({ id: 'STRUCTURE_COLOR', value_name: product.color })
+      attributes.push({ id: 'FILTRABLE_COLOR', value_name: product.color })
+      attributes.push({ id: 'SCREEN_COLOR',    value_name: product.color })
     }
 
     // ===== CAMPOS DE LIVROS (MLB437616 e similares) =====
@@ -1275,6 +1279,30 @@ async function publishToMercadoLivre(
 
     console.log('[ML Publish] Atributos montados:', JSON.stringify(attributes, null, 2))
 
+    // ── Auto-preenche atributos de dimensões / peso da embalagem ─────────────
+    // ML usa number_unit: value_name="500 g" + value_struct={number:500,unit:"g"}
+    const autoAddDim = (id: string, value: number | null | undefined, unit: string) => {
+      if (!value || attributes.find(a => a.id === id)) return
+      const rounded = Math.round(value * 10) / 10
+      attributes.push({ id, value_name: `${rounded} ${unit}`, value_struct: { number: rounded, unit } })
+    }
+    const pkgWeight = product.weightWithPackage || product.weight
+    // Peso: produto armazena em KG, ML espera gramas
+    if (pkgWeight && !attributes.find(a => a.id === 'PACKAGE_WEIGHT')) {
+      const grams = Math.round(pkgWeight * 1000)
+      attributes.push({ id: 'PACKAGE_WEIGHT',        value_name: `${grams} g`, value_struct: { number: grams, unit: 'g' } })
+      attributes.push({ id: 'SELLER_PACKAGE_WEIGHT', value_name: `${grams} g`, value_struct: { number: grams, unit: 'g' } })
+    }
+    autoAddDim('PACKAGE_HEIGHT',        product.height, 'cm')
+    autoAddDim('SELLER_PACKAGE_HEIGHT', product.height, 'cm')
+    autoAddDim('PACKAGE_WIDTH',         product.width,  'cm')
+    autoAddDim('SELLER_PACKAGE_WIDTH',  product.width,  'cm')
+    autoAddDim('PACKAGE_LENGTH',        product.length, 'cm')
+    autoAddDim('SELLER_PACKAGE_LENGTH', product.length, 'cm')
+    autoAddDim('TOTAL_HEIGHT',          product.height, 'cm')
+    autoAddDim('TOTAL_WIDTH',           product.width,  'cm')
+    autoAddDim('TOTAL_DIAMETER',        product.width,  'cm')
+
     // ── Filtrar atributos: só envia o que a categoria aceita ──────────────
     let finalAttributes = attributes
     if (categoryAttributes.length > 0) {
@@ -1580,19 +1608,40 @@ async function publishToMercadoLivre(
         attributes: finalAttributes,
         shipping: {
           mode: 'me2',
-          free_shipping: false,
+          free_shipping: finalPrice >= 79,
           local_pick_up: false,
           dimensions: null
         }
       }
       
-      // Montar título limpo: nome + marca + modelo
-      const titleParts = [
-        product.name,
-        product.brand && product.brand !== product.name ? product.brand : null,
-        product.model && product.model !== product.name ? product.model : null
-      ].filter(Boolean)
-      const builtTitle = titleParts.join(' ').substring(0, 60)
+      // Título rico: nome + specs-chave (RAM, armazenamento, tela, voltagem, etc.)
+      const keySpecIds = ['RAM','INTERNAL_MEMORY','DISPLAY_SIZE','SCREEN_SIZE','VOLTAGE','STORAGE_CAPACITY','PROCESSOR_BRAND','PROCESSOR_MODEL']
+      const keySpecParts: string[] = []
+      for (const sid of keySpecIds) {
+        const found = finalAttributes.find((a: any) => a.id === sid)
+        if (found) keySpecParts.push(found.value_name)
+      }
+      // Também tenta pegar specs relevantes do customAttrs não mapeados
+      const TITLE_SPEC_KEYS = ['ram','memoria_ram','armazenamento','storage','tela','display','voltagem','voltage']
+      if (product.attributes) {
+        try {
+          const ca = typeof product.attributes === 'string' ? JSON.parse(product.attributes) : product.attributes
+          if (Array.isArray(ca)) {
+            for (const a of ca) {
+              const k = normalizeAttrKey(a.nome || a.name || '')
+              if (TITLE_SPEC_KEYS.includes(k) && a.valor && !keySpecParts.includes(String(a.valor))) {
+                keySpecParts.push(String(a.valor))
+              }
+            }
+          }
+        } catch { /* ignorar */ }
+      }
+      const specSuffix = keySpecParts.slice(0, 3).join(' ')
+      const titleBase = [product.name, product.brand !== product.name ? product.brand : null].filter(Boolean).join(' ')
+      const builtTitle = (specSuffix
+        ? `${titleBase} ${specSuffix}`
+        : titleBase
+      ).substring(0, 60).trim()
 
       if (categoryCatalogDomain && familyName) {
         // Categoria com catalog_domain: ML rejeita 'title' quando family_name presente

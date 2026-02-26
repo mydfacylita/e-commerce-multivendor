@@ -5,7 +5,9 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
-// POST - Buscar produto no catálogo do ML por GTIN ou título
+// POST - Buscar templates de catálogo disponíveis para uma categoria/domínio ML
+// Lógica correta: busca por domínio/categoria + query (nome do produto), NÃO apenas por GTIN
+// GTIN é apenas refinamento para pré-selecionar o template correto
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -14,11 +16,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { gtin, title, categoryId, domainId } = body
+    const { gtin, title, categoryId, domainId, query } = body
 
-    if (!gtin && !title) {
-      return NextResponse.json({ error: 'GTIN ou título é obrigatório' }, { status: 400 })
-    }
+    // query pode ser enviado pelo frontend (caixa de busca manual)
+    const searchQuery = query || title || ''
 
     // Buscar configuração do ML - usar mercadoLivreAuth
     const integration = await prisma.mercadoLivreAuth.findFirst({
@@ -32,141 +33,138 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Primeiro tenta buscar por GTIN no catálogo
-    if (gtin) {
-      const cleanGtin = gtin.replace(/\D/g, '')
-      console.log('[Catalog] Buscando por GTIN:', cleanGtin)
+    const headers = { Authorization: `Bearer ${integration.accessToken}` }
 
-      // Helper para buscar detalhes de produtos do catálogo
-      const fetchProductDetails = async (ids: string[]) => {
-        const products = await Promise.all(
-          ids.slice(0, 5).map(async (productId: string) => {
-            try {
-              const r = await fetch(`https://api.mercadolibre.com/products/${productId}`, {
-                headers: { Authorization: `Bearer ${integration.accessToken}` }
-              })
-              if (r.ok) {
-                const p = await r.json()
-                return {
-                  id: p.id,
-                  name: p.name,
-                  status: p.status,
-                  domainId: p.domain_id,
-                  picture: p.pictures?.[0]?.url,
-                  attributes: p.attributes?.slice(0, 10).map((a: any) => ({
-                    id: a.id, name: a.name,
-                    value: a.value_name || a.value_struct?.number
-                  }))
-                }
-              }
-            } catch (e) { /* ignore */ }
-            return null
-          })
-        )
-        return products.filter(Boolean)
-      }
+    // Helper: mapeia objeto de produto da resposta ML para o nosso formato
+    const mapProduct = (p: any, gtinMatch = false) => ({
+      id: p.id,
+      name: p.name,
+      status: p.status,
+      domainId: p.domain_id,
+      picture: p.pictures?.[0]?.url,
+      attributes: p.attributes?.slice(0, 10).map((a: any) => ({
+        id: a.id, name: a.name, value: a.value_name || a.value_struct?.number
+      })),
+      ...(gtinMatch ? { gtinMatch: true } : {})
+    })
 
-      // Estratégia: product_identifier é o parâmetro correto conforme docs ML (buscador-de-produtos)
-      // Ref: GET /products/search?status=active&site_id=MLB&product_identifier=GTIN
-      let found = false
-      for (const url of [
-        `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&product_identifier=${cleanGtin}`,
-        `https://api.mercadolibre.com/products/search?site_id=MLB&product_identifier=${cleanGtin}`,
-        `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&gtin=${cleanGtin}`,
-      ]) {
-        try {
-          console.log('[Catalog] Tentando:', url)
-          const response = await fetch(url, {
-            headers: { Authorization: `Bearer ${integration.accessToken}` }
-          })
-          if (response.ok) {
-            const data = await response.json()
-            const ids: string[] = data.results || []
-            if (ids.length > 0) {
-              console.log('[Catalog] ✅ Encontrou', ids.length, 'resultado(s) via GTIN')
-              const validProducts = await fetchProductDetails(ids)
-              if (validProducts.length > 0) {
-                return NextResponse.json({ found: true, searchType: 'gtin', products: validProducts })
-              }
-            }
-          }
-        } catch (e) { /* try next strategy */ }
-      }
-      if (!found) {
-        console.log('[Catalog] ⚠️ GTIN não encontrou em nenhuma estratégia')
-      }
-    } // end if (gtin)
+    const allResults: any[] = []
 
-    // Se não achou por GTIN ou só tem título, busca por título
-    if (title) {
-      // Buscar no catálogo por título (com domínio se disponível)
-      let searchUrl = `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(title)}`
-      if (domainId) {
-        searchUrl += `&domain_id=${domainId}`
-      }
-
-      const response = await fetch(searchUrl, {
-        headers: { Authorization: `Bearer ${integration.accessToken}` }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.results && data.results.length > 0) {
-          const products = await Promise.all(
-            data.results.slice(0, 8).map(async (productId: string) => {
-              try {
-                const productUrl = `https://api.mercadolibre.com/products/${productId}`
-                const productResponse = await fetch(productUrl, {
-                  headers: { Authorization: `Bearer ${integration.accessToken}` }
-                })
-                if (productResponse.ok) {
-                  const product = await productResponse.json()
-                  return {
-                    id: product.id,
-                    name: product.name,
-                    status: product.status,
-                    domainId: product.domain_id,
-                    picture: product.pictures?.[0]?.url,
-                    attributes: product.attributes?.slice(0, 10).map((a: any) => ({
-                      id: a.id,
-                      name: a.name,
-                      value: a.value_name || a.value_struct?.number
-                    }))
-                  }
-                }
-              } catch (e) {
-                console.log('Erro ao buscar produto:', e)
-              }
-              return null
-            })
-          )
-
-          const validProducts = products.filter(Boolean)
-          if (validProducts.length > 0) {
-            return NextResponse.json({
-              found: true,
-              searchType: 'title',
-              products: validProducts
-            })
+    // ─── ESTRATÉGIA 1: domain_id + query ───
+    // A API retorna objetos completos em results[], não IDs
+    if (domainId && searchQuery) {
+      try {
+        const url = `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&domain_id=${encodeURIComponent(domainId)}&q=${encodeURIComponent(searchQuery)}&limit=20`
+        console.log('[Catalog] domain+query:', url)
+        const r = await fetch(url, { headers })
+        if (r.ok) {
+          const data = await r.json()
+          const products: any[] = data.results || []
+          if (products.length > 0) {
+            console.log('[Catalog] ✅ domain+query =>', products.length)
+            allResults.push(...products.map((p: any) => mapProduct(p)))
           }
         }
-      }
+      } catch { /* continue */ }
     }
 
-    // Não encontrou nada
+    // ─── ESTRATÉGIA 2: domain_id sem query ───
+    if (domainId && allResults.length === 0) {
+      try {
+        const url = `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&domain_id=${encodeURIComponent(domainId)}&limit=20`
+        console.log('[Catalog] domain-only:', url)
+        const r = await fetch(url, { headers })
+        if (r.ok) {
+          const data = await r.json()
+          const products: any[] = data.results || []
+          if (products.length > 0) {
+            console.log('[Catalog] ✅ domain-only =>', products.length)
+            allResults.push(...products.map((p: any) => mapProduct(p)))
+          }
+        }
+      } catch { /* continue */ }
+    }
+
+    // ─── ESTRATÉGIA 3: categoryId + query ───
+    if (categoryId && allResults.length === 0 && searchQuery) {
+      try {
+        const url = `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&category=${categoryId}&q=${encodeURIComponent(searchQuery)}&limit=20`
+        console.log('[Catalog] category+query:', url)
+        const r = await fetch(url, { headers })
+        if (r.ok) {
+          const data = await r.json()
+          const products: any[] = data.results || []
+          if (products.length > 0) {
+            console.log('[Catalog] ✅ category+query =>', products.length)
+            allResults.push(...products.map((p: any) => mapProduct(p)))
+          }
+        }
+      } catch { /* continue */ }
+    }
+
+    // ─── ESTRATÉGIA 4: query pura (último recurso) ───
+    if (allResults.length === 0 && searchQuery) {
+      try {
+        const url = `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&q=${encodeURIComponent(searchQuery)}&limit=20`
+        console.log('[Catalog] query-only:', url)
+        const r = await fetch(url, { headers })
+        if (r.ok) {
+          const data = await r.json()
+          const products: any[] = data.results || []
+          if (products.length > 0) {
+            console.log('[Catalog] ✅ query-only =>', products.length)
+            allResults.push(...products.map((p: any) => mapProduct(p)))
+          }
+        }
+      } catch { /* continue */ }
+    }
+
+    // ─── Refinamento: GTIN via product_identifier → move match para o topo ───
+    let gtinMatchId: string | null = null
+    if (gtin) {
+      const cleanGtin = gtin.replace(/\D/g, '')
+      try {
+        const url = `https://api.mercadolibre.com/products/search?status=active&site_id=MLB&product_identifier=${cleanGtin}`
+        const r = await fetch(url, { headers })
+        if (r.ok) {
+          const data = await r.json()
+          const products: any[] = data.results || []
+          if (products.length > 0) {
+            gtinMatchId = products[0].id
+            const existing = allResults.findIndex((p: any) => p.id === gtinMatchId)
+            if (existing > 0) {
+              const [match] = allResults.splice(existing, 1)
+              allResults.unshift({ ...match, gtinMatch: true })
+            } else if (existing === -1) {
+              allResults.unshift(mapProduct(products[0], true))
+            } else {
+              allResults[0].gtinMatch = true
+            }
+          }
+        }
+      } catch { /* continue */ }
+    }
+
+    if (allResults.length > 0) {
+      return NextResponse.json({
+        found: true,
+        products: allResults.slice(0, 15),
+        gtinMatchId,
+        total: allResults.length
+      })
+    }
+
     return NextResponse.json({
       found: false,
-      message: 'Nenhum produto encontrado no catálogo do Mercado Livre',
-      suggestion: gtin 
-        ? 'O GTIN informado não foi encontrado. A categoria pode permitir publicação sem catálogo.'
-        : 'Tente usar o código GTIN/EAN do produto para uma busca mais precisa.'
+      products: [],
+      message: 'Nenhum template encontrado no catálogo para esta categoria.',
+      hint: domainId
+        ? 'Tente digitar um termo diferente na caixa de busca.'
+        : 'Verifique se a categoria selecionada suporta publicação via catálogo.'
     })
 
   } catch (error) {
-    console.error('Erro na busca de catálogo ML:', error)
-    return NextResponse.json(
-      { error: 'Erro interno ao buscar catálogo' },
-      { status: 500 }
-    )
+    console.error('[Catalog] Erro:', error)
+    return NextResponse.json({ error: 'Erro interno ao buscar catálogo' }, { status: 500 })
   }
 }

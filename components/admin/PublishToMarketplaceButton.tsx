@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { FiUpload, FiRefreshCw, FiCheck, FiX, FiExternalLink, FiTrash2, FiPause, FiPlay, FiAlertCircle, FiCheckCircle, FiInfo, FiSearch, FiChevronRight, FiChevronLeft, FiPackage } from 'react-icons/fi'
+import { FiUpload, FiRefreshCw, FiCheck, FiX, FiXCircle, FiExternalLink, FiTrash2, FiPause, FiPlay, FiAlertCircle, FiCheckCircle, FiInfo, FiSearch, FiChevronRight, FiChevronLeft, FiPackage } from 'react-icons/fi'
 import { getStatusInfo, formatMLErrors } from '@/lib/mercadolivre'
 
 interface PublishToMarketplaceButtonProps {
@@ -39,7 +39,8 @@ interface CategoryInfo {
   id: string
   name: string
   path: string
-  requiresCatalog: boolean
+  requiresCatalog: boolean   // listing_strategy = catalog_required | catalog_only
+  catalogAvailable?: boolean // categoria TEM catálogo mas não é obrigatório
   catalogDomain?: string
   listingAllowed: boolean
 }
@@ -114,6 +115,7 @@ export default function PublishToMarketplaceButton({
   const [searchingCategories, setSearchingCategories] = useState(false)
   const [searchingCatalog, setSearchingCatalog] = useState(false)
   const [catalogSearched, setCatalogSearched] = useState(false)
+  const [catalogQuery, setCatalogQuery] = useState('')
   const [loadingCategory, setLoadingCategory] = useState(false)
   const [validation, setValidation] = useState<ValidationResult | null>(null)
   const [validating, setValidating] = useState(false)
@@ -140,6 +142,7 @@ export default function PublishToMarketplaceButton({
     setSelectedCatalogProduct(null)
     setValidation(null)
     setCatalogSearched(false)
+    setCatalogQuery('')
   }
 
   // Buscar categorias por predição
@@ -193,8 +196,12 @@ export default function PublishToMarketplaceButton({
         setSelectedCategory(data.category)
         setRequiredAttributes(data.requiredAttributes || [])
         
-        // Sempre busca no catálogo automaticamente ao selecionar categoria
-        searchCatalog()
+        // Busca catálogo automaticamente APENAS quando é obrigatório
+        // Quando é opcional (catalogAvailable mas !requiresCatalog), o usuário escolhe se quer usar
+        if (data.category.requiresCatalog) {
+          setCatalogQuery(productName)
+          searchCatalog(data.category.id, data.category.catalogDomain, productName)
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar categoria:', error)
@@ -209,9 +216,12 @@ export default function PublishToMarketplaceButton({
   }
 
   // Buscar produtos no catálogo
-  const searchCatalog = async () => {
+  const searchCatalog = async (catId?: string, domId?: string, customQuery?: string) => {
     setSearchingCatalog(true)
     setCatalogSearched(false)
+    const resolvedCatId = catId || selectedCategory?.id
+    const resolvedDomId = domId || selectedCategory?.catalogDomain
+    const resolvedQuery = customQuery ?? catalogQuery
     try {
       const response = await fetch('/api/admin/mercadolivre/catalog', {
         method: 'POST',
@@ -219,8 +229,9 @@ export default function PublishToMarketplaceButton({
         body: JSON.stringify({
           gtin: productGtin,
           title: productName,
-          categoryId: selectedCategory?.id,
-          domainId: selectedCategory?.catalogDomain
+          categoryId: resolvedCatId,
+          domainId: resolvedDomId,
+          query: resolvedQuery || productName
         })
       })
       
@@ -284,34 +295,17 @@ export default function PublishToMarketplaceButton({
         })
         return
       }
-      // Se exige catálogo e não selecionou nenhum produto
-      if (selectedCategory.requiresCatalog && !selectedCatalogProduct) {
-        if (catalogProducts.length > 0) {
-          // Encontrou produtos mas não selecionou — obriga selecionar
-          showInfoModal({
-            type: 'error',
-            title: 'Selecione um Produto do Catálogo',
-            message: 'Encontramos produtos no catálogo do ML para esta categoria. Selecione um antes de avançar.',
-            details: ['• Clique no produto correto na lista', '• Depois clique em "Próximo" novamente']
-          })
-          return
-        } else if (catalogSearched) {
-          // Não encontrou e já buscou — categoria incompatível com produto novo
-          showInfoModal({
-            type: 'error',
-            title: 'Categoria Incompatível',
-            message: `O Mercado Livre exige catálogo para "${selectedCategory.name}", mas seu produto não existe no catálogo deles.`,
-            details: [
-              '💡 Solução: troque de categoria.',
-              '• Clique em "Alterar" na categoria',
-              '• Busque por "Luminárias" ou "Iluminação Residencial"',
-              '• Escolha uma categoria que não exija catálogo'
-            ],
-            action: { label: 'Alterar Categoria', onClick: () => { closeInfoModal(); setSelectedCategory(null); setCatalogProducts([]); setSelectedCatalogProduct(null); setCatalogSearched(false) } }
-          })
-          return
-        }
+      // Só bloqueia se catálogo for OBRIGATÓRIO e encontrou produtos mas não selecionou
+      if (selectedCategory.requiresCatalog && !selectedCatalogProduct && catalogProducts.length > 0) {
+        showInfoModal({
+          type: 'warning',
+          title: 'Selecione um Produto do Catálogo',
+          message: 'Esta categoria exige vinculação com o catálogo do ML. Selecione o produto correto antes de avançar.',
+          details: ['• Clique no produto correto na lista abaixo', '• Depois clique em "Próximo" novamente']
+        })
+        return
       }
+      // Catálogo opcional ou não encontrado — avança normalmente
       setCurrentStep(3)
       validateProduct()
     }
@@ -1206,6 +1200,7 @@ export default function PublishToMarketplaceButton({
                             setCatalogProducts([])
                             setSelectedCatalogProduct(null)
                             setCatalogSearched(false)
+                            setCatalogQuery('')
                           }}
                           className="text-sm text-blue-600 hover:underline"
                         >
@@ -1213,97 +1208,153 @@ export default function PublishToMarketplaceButton({
                         </button>
                       </div>
 
-                      {/* Aviso se categoria exige catálogo */}
+                      {/* Aviso se catálogo OBRIGATÓRIO */}
                       {selectedCategory.requiresCatalog && (
                         <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
                           <p className="text-sm text-yellow-800 flex items-start">
                             <FiAlertCircle className="mr-2 mt-0.5 flex-shrink-0" />
-                            Esta categoria geralmente requer vinculação com o catálogo do ML
+                            Esta categoria <strong>exige</strong> vinculação com o catálogo do ML
+                          </p>
+                        </div>
+                      )}
+                      {/* Aviso catálogo DISPONÍVEL mas opcional */}
+                      {!selectedCategory.requiresCatalog && selectedCategory.catalogAvailable && (
+                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                          <p className="text-sm text-blue-800 flex items-start">
+                            <FiAlertCircle className="mr-2 mt-0.5 flex-shrink-0" />
+                            Esta categoria tem catálogo disponível, mas você pode publicar com <strong>seu próprio título e fotos</strong> sem usar o catálogo.
                           </p>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* Busca de catálogo */}
-                  {selectedCategory?.requiresCatalog && (
+                  {/* Busca de catálogo — mostra quando obrigatório OU quando disponível e usuário quer usar */}
+                  {(selectedCategory?.requiresCatalog || selectedCategory?.catalogAvailable) && (
                     <div className="p-4 bg-gray-50 rounded-md">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium flex items-center">
+                        <h4 className="font-medium flex items-center text-gray-800">
                           <FiPackage className="mr-2" />
-                          Produto no Catálogo ML
+                          {selectedCategory?.requiresCatalog ? 'Selecionar no Catálogo ML (obrigatório)' : 'Usar Catálogo ML (opcional)'}
                         </h4>
-                        <button
-                          onClick={searchCatalog}
-                          disabled={searchingCatalog}
-                          className="text-sm text-blue-600 hover:underline flex items-center"
-                        >
-                          {searchingCatalog ? (
-                            <>
-                              <FiRefreshCw className="animate-spin mr-1" size={14} />
-                              Buscando...
-                            </>
-                          ) : (
-                            'Buscar novamente'
+                        {selectedCatalogProduct && (
+                          <button
+                            onClick={() => { setSelectedCatalogProduct(null) }}
+                            className="text-xs text-red-500 hover:underline"
+                          >
+                            Remover seleção
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Produto selecionado */}
+                      {selectedCatalogProduct && (
+                        <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-300 rounded-md mb-3">
+                          {selectedCatalogProduct.picture && (
+                            <img src={selectedCatalogProduct.picture} alt={selectedCatalogProduct.name} className="w-12 h-12 object-cover rounded" />
                           )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate text-green-800">{selectedCatalogProduct.name}</p>
+                            <p className="text-xs text-gray-500">ID: {selectedCatalogProduct.id}</p>
+                          </div>
+                          <FiCheckCircle className="text-green-600 flex-shrink-0" size={20} />
+                        </div>
+                      )}
+
+                      {/* Campo de busca */}
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          type="text"
+                          placeholder={`Buscar modelo no catálogo ML...`}
+                          value={catalogQuery}
+                          onChange={(e) => setCatalogQuery(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') searchCatalog(undefined, undefined, catalogQuery) }}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={() => searchCatalog(undefined, undefined, catalogQuery)}
+                          disabled={searchingCatalog}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {searchingCatalog ? <FiRefreshCw className="animate-spin" size={14} /> : <FiSearch size={14} />}
+                          {searchingCatalog ? 'Buscando...' : 'Buscar'}
                         </button>
                       </div>
 
-                      {catalogProducts.length > 0 ? (
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {catalogProducts.map((product) => (
+                      {/* Lista de resultados */}
+                      {searchingCatalog && (
+                        <div className="text-center py-4 text-sm text-blue-600 flex items-center justify-center gap-2">
+                          <FiRefreshCw className="animate-spin" size={14} /> Buscando templates no catálogo...
+                        </div>
+                      )}
+
+                      {!searchingCatalog && catalogProducts.length > 0 && (
+                        <div className="space-y-2 max-h-56 overflow-y-auto">
+                          <p className="text-xs text-gray-500 mb-1">{catalogProducts.length} template(s) encontrado(s). Selecione o que corresponde ao seu produto:</p>
+                          {catalogProducts.map((product: any) => (
                             <button
                               key={product.id}
                               onClick={() => setSelectedCatalogProduct(product)}
                               className={`w-full p-3 text-left border rounded-md transition-all flex items-center gap-3 ${
                                 selectedCatalogProduct?.id === product.id
-                                  ? 'border-primary-600 bg-primary-50'
-                                  : 'border-gray-200 hover:border-gray-300'
+                                  ? 'border-green-500 bg-green-50'
+                                  : product.gtinMatch
+                                  ? 'border-blue-400 bg-blue-50'
+                                  : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                               }`}
                             >
                               {product.picture && (
-                                <img 
-                                  src={product.picture} 
-                                  alt={product.name}
-                                  className="w-12 h-12 object-cover rounded"
-                                />
+                                <img src={product.picture} alt={product.name} className="w-12 h-12 object-cover rounded flex-shrink-0" />
                               )}
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">{product.name}</p>
-                                <p className="text-xs text-gray-500">ID: {product.id}</p>
+                                <p className="text-xs text-gray-400">ID: {product.id}</p>
+                                {product.gtinMatch && (
+                                  <span className="text-xs text-blue-600 font-semibold">✓ Corresponde ao GTIN do produto</span>
+                                )}
                               </div>
                               {selectedCatalogProduct?.id === product.id && (
-                                <FiCheckCircle className="text-primary-600 flex-shrink-0" />
+                                <FiCheckCircle className="text-green-600 flex-shrink-0" size={18} />
                               )}
                             </button>
                           ))}
                         </div>
-                      ) : (
-                        <>
-                          <p className="text-sm text-gray-500">
-                            {searchingCatalog
-                              ? 'Buscando produtos no catálogo...'
-                              : catalogSearched
-                              ? 'Nenhum produto encontrado no catálogo.'
-                              : 'Aguardando busca no catálogo...'}
+                      )}
+
+                      {!searchingCatalog && catalogSearched && catalogProducts.length === 0 && (
+                        <div className="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded p-3">
+                          <p className="font-semibold">Nenhum template encontrado.</p>
+                          <p className="mt-1">Tente buscar pelo nome do modelo exato (ex: "Galaxy Watch 7") ou por uma palavra-chave diferente.</p>
+                          <p className="mt-1 text-xs text-gray-500">Você também pode avançar sem selecionar catálogo e o sistema tentará publicar normalmente.</p>
+                        </div>
+                      )}
+
+                      {!catalogSearched && !searchingCatalog && (
+                        <p className="text-xs text-gray-400 text-center py-2">Digite um termo e clique em Buscar para ver os templates disponíveis nesta categoria.</p>
+                      )}
+
+                      {/* Opção de PULAR catálogo — só aparece quando não é obrigatório */}
+                      {!selectedCategory?.requiresCatalog && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <p className="text-xs text-gray-500 mb-2">
+                            Não quer usar o catálogo? Publique com <strong>seu próprio título, fotos e descrição</strong>:
                           </p>
-                          {catalogProducts.length === 0 && !searchingCatalog && catalogSearched && selectedCategory?.requiresCatalog && (
-                            <div className="mt-3 p-3 bg-red-50 border border-red-300 rounded">
-                              <p className="text-sm font-semibold text-red-800">⛔ Categoria incompatível com seu produto</p>
-                              <p className="text-sm text-red-700 mt-1">
-                                O Mercado Livre exige catálogo para <strong>{selectedCategory.name}</strong>, mas seu produto não está no catálogo deles.
-                              </p>
-                              <p className="text-sm text-red-700 mt-1">
-                                <strong>Solução:</strong> clique em <strong>Alterar</strong> e escolha uma categoria que não exija catálogo, como <em>Luminárias</em> ou <em>Iluminação Residencial</em>.
-                              </p>
-                            </div>
-                          )}
-                          {catalogProducts.length === 0 && !searchingCatalog && catalogSearched && !selectedCategory?.requiresCatalog && (
-                            <p className="text-xs text-blue-500 mt-2">
-                              ℹ️ Publicação será feita sem catálogo. Normal para produtos novos ou exclusivos.
-                            </p>
-                          )}
-                        </>
+                          <button
+                            onClick={() => {
+                              setSelectedCatalogProduct(null)
+                              setCatalogProducts([])
+                              setCatalogSearched(false)
+                              setCatalogQuery('')
+                              // Avança direto para step 3 sem catálogo
+                              setCurrentStep(3)
+                              validateProduct()
+                            }}
+                            className="w-full py-2 px-4 border border-gray-400 text-gray-700 rounded-md text-sm hover:bg-gray-100 flex items-center justify-center gap-2"
+                          >
+                            <FiXCircle size={14} />
+                            Publicar sem catálogo (usar minhas fotos e descrição)
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -1381,6 +1432,100 @@ export default function PublishToMarketplaceButton({
                         </div>
                       )}
 
+                      {/* Seleção de catálogo no Step 3 — apenas se exige OU se ainda quer escolher */}
+                      {selectedCategory?.requiresCatalog && (
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                          <h5 className="font-medium text-blue-800 flex items-center mb-3">
+                            <FiPackage className="mr-2" />
+                            {selectedCatalogProduct ? 'Catálogo vinculado' : 'Vincular ao Catálogo ML (obrigatório)'}
+                          </h5>
+
+                          {/* Produto selecionado */}
+                          {selectedCatalogProduct && (
+                            <div className="flex items-center gap-3 p-3 bg-white border border-green-300 rounded-md mb-3">
+                              {selectedCatalogProduct.picture && (
+                                <img src={selectedCatalogProduct.picture} alt={selectedCatalogProduct.name} className="w-12 h-12 object-cover rounded" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate text-green-800">{selectedCatalogProduct.name}</p>
+                                <p className="text-xs text-gray-500">ID: {selectedCatalogProduct.id}</p>
+                              </div>
+                              <FiCheckCircle className="text-green-600 flex-shrink-0" size={20} />
+                              <button
+                                onClick={() => { setSelectedCatalogProduct(null); setTimeout(validateProduct, 300) }}
+                                className="text-xs text-red-500 hover:underline ml-2"
+                              >
+                                Remover
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Campo de busca */}
+                          <div className="flex gap-2 mb-3">
+                            <input
+                              type="text"
+                              placeholder="Buscar modelo no catálogo ML..."
+                              value={catalogQuery}
+                              onChange={(e) => setCatalogQuery(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') searchCatalog(undefined, undefined, catalogQuery) }}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <button
+                              onClick={() => searchCatalog(undefined, undefined, catalogQuery)}
+                              disabled={searchingCatalog}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {searchingCatalog ? <FiRefreshCw className="animate-spin" size={14} /> : <FiSearch size={14} />}
+                              {searchingCatalog ? 'Buscando...' : 'Buscar'}
+                            </button>
+                          </div>
+
+                          {/* Lista de resultados */}
+                          {!searchingCatalog && catalogProducts.length > 0 && (
+                            <div className="space-y-2 max-h-52 overflow-y-auto">
+                              <p className="text-xs text-gray-500 mb-1">{catalogProducts.length} template(s). Selecione o que corresponde ao seu produto:</p>
+                              {catalogProducts.map((cp: any) => (
+                                <button
+                                  key={cp.id}
+                                  onClick={() => { setSelectedCatalogProduct(cp); setTimeout(validateProduct, 300) }}
+                                  className={`w-full p-3 text-left border rounded-md transition-all flex items-center gap-3 ${
+                                    selectedCatalogProduct?.id === cp.id
+                                      ? 'border-green-500 bg-green-50'
+                                      : cp.gtinMatch
+                                      ? 'border-blue-400 bg-blue-50'
+                                      : 'border-gray-200 hover:border-blue-300 hover:bg-white'
+                                  }`}
+                                >
+                                  {cp.picture && <img src={cp.picture} alt={cp.name} className="w-12 h-12 object-cover rounded flex-shrink-0" />}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{cp.name}</p>
+                                    <p className="text-xs text-gray-400">ID: {cp.id}</p>
+                                    {cp.gtinMatch && <span className="text-xs text-blue-600 font-semibold">✓ Corresponde ao GTIN do produto</span>}
+                                  </div>
+                                  {selectedCatalogProduct?.id === cp.id && <FiCheckCircle className="text-green-600 flex-shrink-0" size={18} />}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {searchingCatalog && (
+                            <p className="text-sm text-blue-600 flex items-center gap-2">
+                              <FiRefreshCw className="animate-spin" size={14} /> Buscando no catálogo ML...
+                            </p>
+                          )}
+
+                          {!searchingCatalog && catalogSearched && catalogProducts.length === 0 && (
+                            <p className="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-3">
+                              Nenhum template encontrado. Tente buscar pelo nome do modelo exato (ex: "Galaxy Watch 7").
+                            </p>
+                          )}
+
+                          {!catalogSearched && !searchingCatalog && (
+                            <p className="text-xs text-gray-400 text-center">Digite um termo e clique em Buscar.</p>
+                          )}
+                        </div>
+                      )}
+
                       {/* Resumo da categoria e catálogo selecionados */}
                       {selectedCategory && (
                         <div className="p-4 bg-gray-50 rounded-md">
@@ -1388,7 +1533,10 @@ export default function PublishToMarketplaceButton({
                           <ul className="text-sm text-gray-700 space-y-1">
                             <li>• Categoria: {selectedCategory.name}</li>
                             {selectedCatalogProduct && (
-                              <li>• Catálogo: {selectedCatalogProduct.name}</li>
+                              <li>• Catálogo: {selectedCatalogProduct.name} <span className="text-green-600">(vinculado)</span></li>
+                            )}
+                            {selectedCategory.requiresCatalog && !selectedCatalogProduct && (
+                              <li className="text-yellow-700">• Catálogo: não selecionado (recomendado para esta categoria)</li>
                             )}
                           </ul>
                         </div>

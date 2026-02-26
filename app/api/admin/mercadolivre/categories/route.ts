@@ -83,15 +83,22 @@ export async function GET(request: NextRequest) {
       }
 
       // Verificar se a categoria exige catálogo
-      // catalog_domain = domínio existe (opcional ou obrigatório)
-      // listing_strategy = 'catalog_required' | 'catalog_only' = de fato obrigatório
+      // listing_strategy = 'catalog_required' | 'catalog_only' = de fato OBRIGATÓRIO
+      // catalog_domain presente mas listing_strategy = 'open'/'buybox' = OPCIONAL (usuário escolhe)
       let requiresCatalog = false
+      let catalogAvailable = false // catálogo existe mas não é obrigatório
       let catalogDomain = null
 
       const listingStrategy = category.settings?.listing_strategy
       catalogDomain = category.settings?.catalog_domain || null
+
       if (listingStrategy === 'catalog_required' || listingStrategy === 'catalog_only') {
         requiresCatalog = true
+        catalogAvailable = true
+      } else if (catalogDomain) {
+        // Tem catálogo disponível mas NÃO é obrigatório - usuário pode escolher
+        requiresCatalog = false
+        catalogAvailable = true
       }
 
       // Separar atributos obrigatórios e opcionais
@@ -108,6 +115,7 @@ export async function GET(request: NextRequest) {
           name: category.name,
           path: category.path_from_root?.map((p: any) => p.name).join(' > '),
           requiresCatalog,
+          catalogAvailable,
           catalogDomain,
           listingStrategy: listingStrategy || null,
           listingAllowed: category.settings?.listing_allowed !== false,
