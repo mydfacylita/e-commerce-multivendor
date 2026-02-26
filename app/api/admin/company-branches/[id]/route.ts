@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       ...(zipCode !== undefined && { zipCode: zipCode.replace(/\D/g, '') }),
       ...(phone !== undefined && { phone: phone?.replace(/\D/g, '') || null }),
       ...(email !== undefined && { email: email?.trim() || null }),
-      ...(statesServed !== undefined && { statesServed }),
+      ...(statesServed !== undefined && { statesServed: statesServed ? JSON.stringify(Array.isArray(statesServed) ? statesServed : [statesServed]) : null }),
       ...(isDefault !== undefined && { isDefault }),
       ...(isActive !== undefined && { isActive }),
     },

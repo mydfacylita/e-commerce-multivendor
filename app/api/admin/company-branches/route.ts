@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       zipCode: zipCode.replace(/\D/g, ''),
       phone: phone?.replace(/\D/g, '') || null,
       email: email?.trim() || null,
-      statesServed: statesServed || null,
+      statesServed: statesServed ? JSON.stringify(Array.isArray(statesServed) ? statesServed : [statesServed]) : null,
       isDefault: isDefault ?? false,
     },
   })
