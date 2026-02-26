@@ -6,19 +6,20 @@ import {
   sanitizeShopDomain,
   getShopifyConfig,
 } from '@/lib/shopify'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import crypto from 'crypto'
 
 /**
- * GET /api/shopify/callback?shop=...&code=...&state=...&hmac=...
+ * GET /api/shopify/callback
  *
- * Shopify redireciona aqui após o lojista autorizar o app.
- * 1. Valida HMAC dos query params
- * 2. Valida state (anti-CSRF)
- * 3. Troca code por access_token
- * 4. Busca info da loja
- * 5. Salva/atualiza instalação no banco (ShopifyInstallation)
- * 6. Vincula conta Mydshop pelo e-mail (hybrid: auto-link ou auto-create)
- * 7. Redireciona para página de boas-vindas
+ * Fluxo correto:
+ * 1. Valida HMAC + state (anti-CSRF)
+ * 2. Troca code por access_token
+ * 3. Verifica se o usuário está logado na MydShop
+ *    - NÃO logado: salva dados em cookie seguro → redireciona para /login?callbackUrl=/api/shopify/finalize
+ *    - Logado: verifica se é vendedor ATIVO com assinatura vigente → salva instalação → sucesso
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -30,22 +31,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Parâmetros insuficientes' }, { status: 400 })
   }
 
-  // Carregar config do banco antes de validar HMAC
   const config = await getShopifyConfig()
-
   if (!config.apiKey) {
-    return NextResponse.json({ error: 'Shopify app não configurado. Configure em Admin > Integração > Shopify.' }, { status: 500 })
+    return NextResponse.json({ error: 'Shopify app não configurado.' }, { status: 500 })
   }
 
   // 1. Validar HMAC
   const query: Record<string, string> = {}
   searchParams.forEach((v, k) => { query[k] = v })
-
   if (!validateShopifyHmac(query, config.apiSecret)) {
     return NextResponse.json({ error: 'HMAC inválido' }, { status: 403 })
   }
 
-  // 2. Validar state (anti-CSRF)
+  // 2. Validar state (CSRF)
   const cookieState = req.cookies.get('shopify_state')?.value
   if (!cookieState || cookieState !== state) {
     return NextResponse.json({ error: 'State inválido — possível ataque CSRF' }, { status: 403 })
@@ -57,90 +55,119 @@ export async function GET(req: NextRequest) {
     // 3. Trocar code por access_token
     const tokenData = await exchangeAccessToken(cleanShop, code, config)
 
-    // 4. Buscar informações da loja
-    let shopInfo
-    try {
-      shopInfo = await getShopInfo(cleanShop, tokenData.access_token)
-    } catch {
-      shopInfo = null
-    }
+    // 4. Buscar info da loja Shopify
+    let shopInfo: any = null
+    try { shopInfo = await getShopInfo(cleanShop, tokenData.access_token) } catch {}
 
-    // 5. Vincular conta Mydshop pelo e-mail (hybrid account linking)
-    let userId: string | null = null
-    const shopEmail = shopInfo?.email || tokenData.associated_user?.email || null
+    // 5. Verificar sessão MydShop
+    const session = await getServerSession(authOptions)
 
-    if (shopEmail) {
-      // Tentar encontrar usuário existente
-      const existingUser = await prisma.user.findUnique({ where: { email: shopEmail } })
-
-      if (existingUser) {
-        userId = existingUser.id
-      } else {
-        // Auto-criar conta de vendedor Mydshop
-        try {
-          const newUser = await prisma.user.create({
-            data: {
-              email:    shopEmail,
-              name:     shopInfo?.name || `Loja ${cleanShop}`,
-              role:     'USER',
-              isActive: true,
-            },
-          })
-          userId = newUser.id
-        } catch {
-          // Se falhar criação (ex: race condition), tentar buscar novamente
-          const retry = await prisma.user.findUnique({ where: { email: shopEmail } })
-          userId = retry?.id || null
-        }
-      }
-    }
-
-    // 6. Salvar/atualizar instalação
-    const existing = await (prisma as any).shopifyInstallation.findUnique({
-      where: { shopDomain: cleanShop },
-    })
-
-    if (existing) {
-      await (prisma as any).shopifyInstallation.update({
-        where: { shopDomain: cleanShop },
-        data: {
-          accessToken:   tokenData.access_token,
-          scope:         tokenData.scope,
-          userId:        userId || existing.userId,
-          shopName:      shopInfo?.name     || existing.shopName,
-          shopEmail:     shopEmail          || existing.shopEmail,
-          shopPlan:      shopInfo?.plan_name || existing.shopPlan,
-          shopCurrency:  shopInfo?.currency  || existing.shopCurrency,
-          shopTimezone:  shopInfo?.iana_timezone || existing.shopTimezone,
-          isActive:      true,
-          uninstalledAt: null,
-          installedAt:   new Date(),
-        },
+    if (!session?.user?.id) {
+      // Usuário NÃO está logado na MydShop
+      // Salvar dados da instalação pendente em cookie assinado (30 min)
+      const pendingPayload = JSON.stringify({
+        shop:         cleanShop,
+        accessToken:  tokenData.access_token,
+        scope:        tokenData.scope,
+        shopName:     shopInfo?.name          || null,
+        shopEmail:    shopInfo?.email         || null,
+        shopPlan:     shopInfo?.plan_name     || null,
+        shopCurrency: shopInfo?.currency      || 'BRL',
+        shopTimezone: shopInfo?.iana_timezone || null,
+        exp:          Date.now() + 30 * 60 * 1000,
       })
-    } else {
-      await (prisma as any).shopifyInstallation.create({
-        data: {
-          shopDomain:   cleanShop,
-          accessToken:  tokenData.access_token,
-          scope:        tokenData.scope,
-          userId:       userId,
-          shopName:     shopInfo?.name      || null,
-          shopEmail:    shopEmail           || null,
-          shopPlan:     shopInfo?.plan_name || null,
-          shopCurrency: shopInfo?.currency  || 'BRL',
-          shopTimezone: shopInfo?.iana_timezone || null,
-          isActive:     true,
-        },
+      const sig = crypto.createHmac('sha256', config.apiSecret).update(pendingPayload).digest('hex')
+      const pendingValue = Buffer.from(pendingPayload).toString('base64') + '.' + sig
+
+      const loginUrl = `${config.appUrl}/login?callbackUrl=${encodeURIComponent('/api/shopify/finalize')}`
+      const res = NextResponse.redirect(loginUrl)
+      res.cookies.set('shopify_pending', pendingValue, {
+        httpOnly: true,
+        secure:   process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge:   1800,
+        path:     '/',
+        domain:   process.env.NODE_ENV === 'production' ? '.mydshop.com.br' : undefined,
       })
+      res.cookies.set('shopify_state', '', { maxAge: 0, path: '/' })
+      return res
     }
 
-    // 7. Redirecionar para boas-vindas (limpar cookie)
-    const redirect = NextResponse.redirect(`${config.appUrl}/shopify/connect?shop=${cleanShop}`)
-    redirect.cookies.set('shopify_state', '', { maxAge: 0, path: '/' })
-    return redirect
+    // 6. Usuário está logado — verificar se é vendedor ativo com assinatura
+    const errorBase = `${config.appUrl}/shopify/connect`
+    const validationError = await validateSeller(session.user.id, config.appUrl)
+    if (validationError) {
+      const res = NextResponse.redirect(`${errorBase}?error=${validationError}&shop=${cleanShop}`)
+      res.cookies.set('shopify_state', '', { maxAge: 0, path: '/' })
+      return res
+    }
+
+    // 7. Salvar instalação vinculada ao vendedor
+    await upsertInstallation(cleanShop, tokenData, shopInfo, session.user.id)
+
+    const res = NextResponse.redirect(`${config.appUrl}/shopify/connect?shop=${cleanShop}`)
+    res.cookies.set('shopify_state', '', { maxAge: 0, path: '/' })
+    return res
 
   } catch (err: any) {
     console.error('[Shopify Callback]', err)
     return NextResponse.json({ error: 'Erro ao processar instalação', detail: err.message }, { status: 500 })
+  }
+}
+
+/**
+ * Verifica se o usuário é um vendedor ATIVO com assinatura vigente.
+ * Retorna null se ok, ou uma string de erro se não.
+ */
+async function validateSeller(userId: string, appUrl: string): Promise<string | null> {
+  const seller = await prisma.seller.findUnique({
+    where: { userId },
+    include: {
+      subscriptions: {
+        where: {
+          status:  { in: ['ACTIVE', 'TRIAL'] },
+          endDate: { gt: new Date() },
+        },
+        orderBy: { endDate: 'desc' },
+        take: 1,
+      },
+    },
+  })
+
+  if (!seller)                        return 'no_seller'
+  if (seller.status !== 'ACTIVE')     return `seller_${seller.status.toLowerCase()}`
+  if (seller.subscriptions.length === 0) return 'no_subscription'
+  return null
+}
+
+/** Cria ou atualiza o registro de instalação Shopify. */
+async function upsertInstallation(
+  cleanShop: string,
+  tokenData: any,
+  shopInfo: any,
+  userId: string,
+) {
+  const data = {
+    accessToken:   tokenData.access_token,
+    scope:         tokenData.scope,
+    userId,
+    shopName:      shopInfo?.name          || null,
+    shopEmail:     shopInfo?.email         || null,
+    shopPlan:      shopInfo?.plan_name     || null,
+    shopCurrency:  shopInfo?.currency      || 'BRL',
+    shopTimezone:  shopInfo?.iana_timezone || null,
+    isActive:      true,
+    uninstalledAt: null,
+    installedAt:   new Date(),
+  }
+
+  const existing = await (prisma as any).shopifyInstallation.findUnique({
+    where: { shopDomain: cleanShop },
+  })
+
+  if (existing) {
+    await (prisma as any).shopifyInstallation.update({ where: { shopDomain: cleanShop }, data })
+  } else {
+    await (prisma as any).shopifyInstallation.create({ data: { shopDomain: cleanShop, ...data } })
   }
 }
