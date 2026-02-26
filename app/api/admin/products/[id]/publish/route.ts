@@ -612,10 +612,18 @@ async function publishToMercadoLivre(
       console.log('[ML Publish] ✅ LINE adicionado:', familyName)
     }
     
-    if (product.model) {
-      attributes.push({ id: 'MODEL', value_name: product.model })
+    // MODEL — tenta product.model, depois sku, depois extrai últimas palavras do nome
+    const modelValue = product.model
+      || product.sku
+      || (() => {
+          const parts = (product.name || '').trim().split(/\s+/)
+          return parts.length >= 3 ? parts.slice(-3).join(' ') : parts.join(' ')
+        })()
+    if (modelValue) {
+      attributes.push({ id: 'MODEL', value_name: modelValue })
       // ML usa ALPHANUMERIC_MODELS (plural) — singular é inválido e causa body.invalid_fields
-      attributes.push({ id: 'ALPHANUMERIC_MODELS', value_name: product.model })
+      attributes.push({ id: 'ALPHANUMERIC_MODELS', value_name: modelValue })
+      console.log('[ML Publish] ✅ MODEL adicionado:', modelValue)
     }
     
     if (product.color) {
@@ -1163,8 +1171,20 @@ async function publishToMercadoLivre(
 
     // Adiciona atributos das especificações
     console.log('[ML Publish] Especificações encontradas:', specs)
-    
-    // Ignora atributos específicos de celular se não for celular
+
+    // IDs de atributos de medida que exigem unidade numérica — formata valor automaticamente
+    const SIZE_UNIT_ATTRS = new Set([
+      'DISPLAY_SIZE', 'SCREEN_SIZE', 'MONITOR_SIZE', 'TV_RESOLUTION_SIZE',
+      'WHEEL_SIZE', 'TIRE_SIZE', 'DIAGONAL'
+    ])
+    // Formata valor numérico puro para atributos de tamanho: "14" -> "14\""
+    const formatAttrValue = (mlId: string, val: string): string => {
+      if (SIZE_UNIT_ATTRS.has(mlId)) {
+        const n = val.trim().replace(',', '.')
+        if (/^\d+(\.\d+)?$/.test(n)) return n + '"'
+      }
+      return val
+    }
     const isCellphone = productType.toLowerCase() === 'celular' || productType.toLowerCase() === 'smartphone'
     // Atributos exclusivos de celular (não mapear em outros tipos)
     const CELLPHONE_ONLY_ATTRS = ['dual_sim', 'dual_chip', 'dois_chips', 'operadora', 'carrier', 'anatel', 'homologacao_anatel', 'numero_anatel', 'certificacao_anatel', 'numero_homologacao']
@@ -1186,8 +1206,9 @@ async function publishToMercadoLivre(
         const mlIds = Array.isArray(mlAttributeId) ? mlAttributeId : [mlAttributeId]
         for (const mlId of mlIds) {
           if (!attributes.find(attr => attr.id === mlId)) {
-            console.log(`[ML Publish] Mapeando ${key} -> ${mlId}: ${value}`)
-            attributes.push({ id: mlId, value_name: String(value) })
+            const formattedVal = formatAttrValue(mlId, String(value))
+            console.log(`[ML Publish] Mapeando ${key} -> ${mlId}: ${formattedVal}`)
+            attributes.push({ id: mlId, value_name: formattedVal })
           }
         }
       }
@@ -1211,12 +1232,13 @@ async function publishToMercadoLivre(
               const mlIds = Array.isArray(mappedId) ? mappedId : [mappedId]
               for (const mlId of mlIds) {
                 if (!attributes.find(a => a.id === mlId)) {
-                  console.log(`[ML Publish] Atributo personalizado mapeado: "${attrName}" -> ${mlId}: ${attrValue}`)
-                  attributes.push({ id: mlId, value_name: String(attrValue) })
+                  const formattedVal = formatAttrValue(mlId, String(attrValue))
+                  console.log(`[ML Publish] Atributo personalizado mapeado: "${attrName}" -> ${mlId}: ${formattedVal}`)
+                  attributes.push({ id: mlId, value_name: formattedVal })
                 }
               }
             } else {
-              console.log(`[ML Publish] ⚠️ Atributo personalizado sem mapeamento: "${attrName}" = "${attrValue}"`)
+              console.log(`[ML Publish] ⚠️ Atributo personalizado sem mapeamento: "${attrName}" = "${attrValue}"`)  
             }
           }
         }
@@ -1606,9 +1628,9 @@ async function publishToMercadoLivre(
     }
 
     // Envia descrição separadamente via PUT /items/{id}/description
-    // O ML trata a descrição como recurso separado e o PUT garante criação ou atualização
+    // Catalog listings gerenciam sua própria descrição — não é permitido customizar via API
     const itemId = data.id
-    if (itemId && detailedDescription) {
+    if (itemId && detailedDescription && !finalCatalogProductId) {
       try {
         const descResponse = await fetchWithRetry(
           `https://api.mercadolibre.com/items/${itemId}/description`,
