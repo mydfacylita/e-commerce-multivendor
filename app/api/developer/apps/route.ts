@@ -46,9 +46,9 @@ export async function POST(request: NextRequest) {
     const app = await prisma.developerApp.create({
       data: {
         name: name.trim(),
-        description,
-        websiteUrl,
-        redirectUris: redirectUris || [],
+        description: description || null,
+        websiteUrl: websiteUrl || null,
+        redirectUris: JSON.stringify(Array.isArray(redirectUris) ? redirectUris : []),
         ownerId: session.user.id,
         updatedAt: new Date()
       }
