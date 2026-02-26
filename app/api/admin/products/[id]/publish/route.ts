@@ -1276,10 +1276,47 @@ async function publishToMercadoLivre(
     console.log('[ML Publish] Descrição original do produto:', product.description)
     console.log('[ML Publish] Especificações do produto:', product.specifications)
 
+    // Helper: limpa HTML e entidades HTML para plain_text
+    const htmlToPlainText = (html: string): string => {
+      if (!html) return ''
+      return html
+        // Remove tags HTML
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<\/li>/gi, '\n')
+        .replace(/<li[^>]*>/gi, '• ')
+        .replace(/<[^>]+>/g, ' ')
+        // Decode entidades HTML comuns
+        .replace(/&ccedil;/gi, 'ç')
+        .replace(/&atilde;/gi, 'ã')
+        .replace(/&otilde;/gi, 'õ')
+        .replace(/&aacute;/gi, 'á')
+        .replace(/&eacute;/gi, 'é')
+        .replace(/&iacute;/gi, 'í')
+        .replace(/&oacute;/gi, 'ó')
+        .replace(/&uacute;/gi, 'ú')
+        .replace(/&acirc;/gi, 'â')
+        .replace(/&ecirc;/gi, 'ê')
+        .replace(/&ocirc;/gi, 'ô')
+        .replace(/&agrave;/gi, 'à')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/&[a-z]+;/gi, ' ')
+        // Limpa espaços e linhas extras
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+    }
+
     // --- 1. Texto base da descrição ---
     let descBase = ''
     if (product.description && product.description.trim().length > 20) {
-      descBase = product.description.trim()
+      descBase = htmlToPlainText(product.description.trim())
     }
 
     // Tenta enriquecer com texto das specifications do AliExpress
@@ -1288,10 +1325,10 @@ async function publishToMercadoLivre(
         const specObj = typeof product.specifications === 'string'
           ? JSON.parse(product.specifications)
           : product.specifications
-        if (specObj?.description && specObj.description.trim().length > descBase.length) {
-          descBase = specObj.description.trim()
-        } else if (specObj?.detail && specObj.detail.trim().length > descBase.length) {
-          descBase = specObj.detail.trim()
+        const specText = specObj?.description || specObj?.detail || ''
+        const specPlain = htmlToPlainText(specText)
+        if (specPlain.length > descBase.length) {
+          descBase = specPlain
         }
       } catch { /* ignorar */ }
     }
@@ -1456,6 +1493,9 @@ async function publishToMercadoLivre(
         buying_mode: 'buy_it_now',
         listing_type_id: 'gold_special',
         condition: 'new',
+        description: {
+          plain_text: detailedDescription
+        },
         pictures,
         shipping: {
           mode: 'me2',
@@ -1562,6 +1602,33 @@ async function publishToMercadoLivre(
         message: data.message || 'Erro ao publicar',
         details: data.error || null,
         cause: data.cause || []
+      }
+    }
+
+    // Envia descrição separadamente via PUT /items/{id}/description
+    // O ML trata a descrição como recurso separado e o PUT garante criação ou atualização
+    const itemId = data.id
+    if (itemId && detailedDescription) {
+      try {
+        const descResponse = await fetchWithRetry(
+          `https://api.mercadolibre.com/items/${itemId}/description`,
+          {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ plain_text: detailedDescription })
+          }
+        )
+        if (descResponse.ok) {
+          console.log('[ML Publish] \u2705 Descri\u00e7\u00e3o publicada via PUT /items/' + itemId + '/description')
+        } else {
+          const descErr = await descResponse.json()
+          console.warn('[ML Publish] \u26a0\ufe0f Erro ao atualizar descri\u00e7\u00e3o:', JSON.stringify(descErr))
+        }
+      } catch (e) {
+        console.warn('[ML Publish] \u26a0\ufe0f Exce\u00e7\u00e3o ao enviar descri\u00e7\u00e3o:', e)
       }
     }
 
