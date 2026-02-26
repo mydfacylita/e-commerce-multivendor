@@ -107,6 +107,8 @@ export async function POST(req: NextRequest) {
         // Buscar detalhes completos do produto se tiver credenciais
         let allImages: string[] = [product.product_main_image_url]
         let fullDescription = ''
+        let aeItemDetailActivity: any = null
+        let details: any = null
         let attributes: string[] = []
         let productTitle = product.product_title
         let skuList: any[] = []
@@ -127,7 +129,7 @@ export async function POST(req: NextRequest) {
 
         if (auth?.accessToken) {
           console.log(`📦 Buscando detalhes de: ${product.product_id}`)
-          const details = await fetchProductDetails(product.product_id, auth)
+          details = await fetchProductDetails(product.product_id, auth)
           
           if (details) {
             const baseInfo = details.ae_item_base_info_dto
@@ -188,11 +190,16 @@ export async function POST(req: NextRequest) {
               }
             })
 
-            // Descrição HTML
+            // Descrição HTML — salva o HTML real do AliExpress
             if (baseInfo?.detail) {
               fullDescription = baseInfo.detail
             } else if (baseInfo?.mobile_detail) {
               fullDescription = baseInfo.mobile_detail
+            }
+
+            // Guardar ae_item_detail_activity para uso posterior (ex: publish no ML)
+            if (details.ae_item_detail_activity) {
+              aeItemDetailActivity = details.ae_item_detail_activity
             }
 
             // Atributos/Características - FILTRAR APENAS OS IMPORTANTES
@@ -294,7 +301,8 @@ ${attributesHtml}
           data: {
             name: productTitle,
             slug: slug,
-            description: description,
+            // Usa o HTML real do AliExpress; se não tiver, usa o template
+            description: fullDescription || description,
             price: Math.round(price * 100) / 100,
             comparePrice: Math.round(comparePrice * 100) / 100,
             costPrice: costPrice,
@@ -323,6 +331,11 @@ ${attributesHtml}
             // Variantes e SKUs selecionados - usando estrutura padronizada
             variants: variantsJson || undefined,
             selectedSkus: selectedSkusJson || undefined,
+            // Salvar ae_item_properties e ae_item_detail_activity para uso no publish
+            specifications: aeItemDetailActivity ? JSON.stringify({
+              ae_item_detail_activity: aeItemDetailActivity,
+              ae_item_properties: details?.ae_item_properties,
+            }) : undefined,
           }
         })
 

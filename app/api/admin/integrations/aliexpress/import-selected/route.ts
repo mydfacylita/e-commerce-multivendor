@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
           data: {
             name: product.title.substring(0, 200),
             slug: generateSlug(product.title),
-            description: `Produto importado - ${product.nicho || 'AliExpress'}`,
+            description: null,
             price: parseFloat(sellingPrice.toFixed(2)),
             comparePrice: parseFloat(comparePrice.toFixed(2)),
             costPrice: parseFloat(costPrice.toFixed(2)),

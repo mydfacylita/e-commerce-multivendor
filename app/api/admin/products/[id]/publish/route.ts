@@ -1329,6 +1329,12 @@ async function publishToMercadoLivre(
         .replace(/&quot;/gi, '"')
         .replace(/&#39;/gi, "'")
         .replace(/&[a-z]+;/gi, ' ')
+        // Remove formatação markdown que ML rejeita como "não plain text"
+        .replace(/\*\*([^*]+)\*\*/g, '$1')   // **negrito** → negrito
+        .replace(/\*([^*]+)\*/g, '$1')        // *itálico* → itálico
+        .replace(/__([^_]+)__/g, '$1')         // __texto__ → texto
+        .replace(/#{1,6}\s+/g, '')            // # Títulos → remove #
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) → link
         // Limpa espaços e linhas extras
         .replace(/[ \t]+/g, ' ')
         .replace(/\n{3,}/g, '\n\n')
@@ -1336,9 +1342,22 @@ async function publishToMercadoLivre(
     }
 
     // --- 1. Texto base da descrição ---
+    // Ignora textos genéricos de placeholder vindos da importação
+    const PLACEHOLDER_PATTERNS = [
+      /^produto importado/i,
+      /^importado.*aliexpress/i,
+      /^sem descri/i,
+    ]
     let descBase = ''
     if (product.description && product.description.trim().length > 20) {
-      descBase = htmlToPlainText(product.description.trim())
+      const raw = product.description.trim()
+      const isPlaceholder = PLACEHOLDER_PATTERNS.some(r => r.test(raw.replace(/<[^>]+>/g, '').trim()))
+      if (!isPlaceholder) {
+        descBase = htmlToPlainText(raw)
+        console.log('[ML Publish] ✅ description do produto usada: ' + descBase.length + ' chars')
+      } else {
+        console.log('[ML Publish] ⚠️ description ignorada (placeholder): ' + raw.substring(0, 60))
+      }
     }
 
     // Extrai descrição das specifications do AliExpress
@@ -1373,29 +1392,31 @@ async function publishToMercadoLivre(
 
     if (!descBase) descBase = product.name
 
+    // ML plain_text NAO aceita emojis nem Unicode especial (box drawing, etc.)
+    // Usa apenas ASCII + caracteres portugueses basicos
+    const SEP = '\n\n--------------------------------'
+
     let detailedDescription = descBase
 
-    // --- 2. Bloco: INFORMAÇÕES DO PRODUTO ---
+    // --- 2. Bloco: INFORMACOES DO PRODUTO ---
     const infoLines: string[] = []
-    if (product.brand)  infoLines.push(`🏷️  Marca: ${product.brand}`)
-    if (product.model)  infoLines.push(`📋  Modelo: ${product.model}`)
-    if (product.color)  infoLines.push(`🎨  Cor: ${product.color}`)
-    if ((product as any).material) infoLines.push(`🔩  Material: ${(product as any).material}`)
-    if (product.gtin)   infoLines.push(`🔢  Código de Barras (EAN/GTIN): ${product.gtin}`)
-    if ((product as any).sku) infoLines.push(`🏷️  SKU: ${(product as any).sku}`)
+    if (product.brand)  infoLines.push(`Marca: ${product.brand}`)
+    if (product.model)  infoLines.push(`Modelo: ${product.model}`)
+    if (product.color)  infoLines.push(`Cor: ${product.color}`)
+    if ((product as any).material) infoLines.push(`Material: ${(product as any).material}`)
+    if (product.gtin)   infoLines.push(`Codigo de Barras (EAN/GTIN): ${product.gtin}`)
     if ((product as any).warranty || (product as any).warrantyMonths) {
       const w = (product as any).warranty || `${(product as any).warrantyMonths} meses`
-      infoLines.push(`🛡️  Garantia: ${w}`)
+      infoLines.push(`Garantia: ${w}`)
     }
 
     if (infoLines.length > 0) {
-      detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-      detailedDescription += '\n📦 INFORMAÇÕES DO PRODUTO\n'
-      detailedDescription += infoLines.map(l => `\n${l}`).join('')
+      detailedDescription += SEP
+      detailedDescription += '\nINFORMACOES DO PRODUTO\n'
+      detailedDescription += infoLines.map(l => `\n- ${l}`).join('')
     }
 
     // --- 3. Bloco: ATRIBUTOS PERSONALIZADOS (product.attributes) ---
-    // Ex: [{ nome: "Processador", valor: "Intel Celeron" }, ...]
     const customAttrLines: string[] = []
     if (product.attributes) {
       try {
@@ -1406,41 +1427,45 @@ async function publishToMercadoLivre(
           for (const ca of customAttrs) {
             const name  = (ca.nome  || ca.name  || '').trim()
             const value = (ca.valor || ca.value || '').toString().trim()
-            if (name && value) customAttrLines.push(`• ${name}: ${value}`)
+            if (name && value) customAttrLines.push(`- ${name}: ${value}`)
           }
         }
       } catch { /* ignorar */ }
     }
 
     if (customAttrLines.length > 0) {
-      detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-      detailedDescription += '\n⚙️ ESPECIFICAÇÕES TÉCNICAS\n'
+      detailedDescription += SEP
+      detailedDescription += '\nESPECIFICAÇOES TECNICAS\n'
       detailedDescription += customAttrLines.map(l => `\n${l}`).join('')
     }
 
-    // --- 4. Bloco: SPECS (product.specifications chave-valor simples) ---
+    // --- 4. Bloco: SPECS simples do produto ---
+    const SPEC_DESCRIPTION_EXCLUDE = new Set([
+      'product_type', 'ae_item_property', 'ml_category_id',
+      'dual_sim', 'dual_chip', 'dois_chips', 'operadora', 'carrier',
+      'anatel', 'homologacao_anatel', 'numero_anatel', 'certificacao_anatel', 'numero_homologacao'
+    ])
     const simpleSpecs = Object.entries(specs).filter(([key]) =>
-      !['product_type', 'ae_item_property', 'ml_category_id'].includes(key)
+      !SPEC_DESCRIPTION_EXCLUDE.has(key) && !SPEC_DESCRIPTION_EXCLUDE.has(normalizeAttrKey(key))
     )
     if (simpleSpecs.length > 0) {
-      // Só adiciona se ainda não foi colocado via customAttrs
       const alreadyAdded = new Set(customAttrLines.map(l => l.toLowerCase()))
       const extraLines: string[] = []
       for (const [key, value] of simpleSpecs) {
         const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-        const line = `• ${fieldName}: ${value}`
+        const line = `- ${fieldName}: ${value}`
         if (!alreadyAdded.has(line.toLowerCase())) extraLines.push(line)
       }
       if (extraLines.length > 0) {
         if (customAttrLines.length === 0) {
-          detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-          detailedDescription += '\n⚙️ ESPECIFICAÇÕES TÉCNICAS\n'
+          detailedDescription += SEP
+          detailedDescription += '\nESPECIFICAÇOES TECNICAS\n'
         }
         detailedDescription += extraLines.map(l => `\n${l}`).join('')
       }
     }
 
-    // --- 5. Bloco: PROPRIEDADES DO ALIEXPRESS (ae_item_property) - TODAS ---
+    // --- 5. Bloco: PROPRIEDADES DO ALIEXPRESS (ae_item_property) ---
     if (specs.ae_item_property && Array.isArray(specs.ae_item_property)) {
       const grouped: Record<string, string[]> = {}
       for (const prop of specs.ae_item_property) {
@@ -1450,40 +1475,38 @@ async function publishToMercadoLivre(
         if (!grouped[attrName]) grouped[attrName] = []
         if (!grouped[attrName].includes(attrValue)) grouped[attrName].push(attrValue)
       }
-
       const groupedKeys = Object.keys(grouped)
       if (groupedKeys.length > 0) {
-        detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-        detailedDescription += '\n✨ CARACTERÍSTICAS COMPLETAS\n'
+        detailedDescription += SEP
+        detailedDescription += '\nCARACTERISTICAS\n'
         for (const cat of groupedKeys) {
-          const vals = grouped[cat]
-          detailedDescription += `\n• ${cat}: ${vals.join(' | ')}`
+          detailedDescription += `\n- ${cat}: ${grouped[cat].join(' / ')}`
         }
       }
     }
 
-    // --- 6. Bloco: DIMENSÕES / PESO ---
+    // --- 6. Bloco: DIMENSOES / PESO ---
     const dimLines: string[] = []
-    if (product.weight)  dimLines.push(`⚖️  Peso: ${product.weight} kg`)
-    if (product.width)   dimLines.push(`📐  Largura: ${product.width} cm`)
-    if (product.height)  dimLines.push(`📐  Altura: ${product.height} cm`)
-    if (product.length)  dimLines.push(`📐  Profundidade: ${product.length} cm`)
+    if (product.weight)  dimLines.push(`Peso: ${product.weight} kg`)
+    if (product.width)   dimLines.push(`Largura: ${product.width} cm`)
+    if (product.height)  dimLines.push(`Altura: ${product.height} cm`)
+    if (product.length)  dimLines.push(`Profundidade: ${product.length} cm`)
     if (dimLines.length > 0) {
-      detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-      detailedDescription += '\n📏 DIMENSÕES E PESO\n'
-      detailedDescription += dimLines.map(l => `\n${l}`).join('')
+      detailedDescription += SEP
+      detailedDescription += '\nDIMENSOES E PESO\n'
+      detailedDescription += dimLines.map(l => `\n- ${l}`).join('')
     }
 
-    // --- 7. Bloco: ENTREGA, GARANTIA E ESTOQUE ---
-    detailedDescription += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-    detailedDescription += '\n🚚 ENTREGA E GARANTIA\n'
-    detailedDescription += '\n✅ Produto 100% Original, Novo e Lacrado'
-    detailedDescription += '\n📦 Enviamos para todo o Brasil com rastreamento'
-    detailedDescription += '\n🛡️ Garantia do fabricante inclusa'
+    // --- 7. Bloco: ENTREGA E GARANTIA ---
+    detailedDescription += SEP
+    detailedDescription += '\nENTREGA E GARANTIA\n'
+    detailedDescription += '\n- Produto 100% Original, Novo e Lacrado'
+    detailedDescription += '\n- Enviamos para todo o Brasil com rastreamento'
+    detailedDescription += '\n- Garantia do fabricante inclusa'
     if (product.stock > 0) {
-      detailedDescription += `\n✅ Pronta Entrega — ${product.stock} unidade(s) em estoque`
+      detailedDescription += `\n- Pronta Entrega - ${product.stock} unidade(s) em estoque`
     }
-    detailedDescription += '\n\n✉️ Dúvidas? Entre em contato pelo chat do Mercado Livre!'
+    detailedDescription += '\n\nDuvidas? Entre em contato pelo chat do Mercado Livre!'
 
     // Trunca no limite do ML (50.000 chars)
     if (detailedDescription.length > 50000) {
@@ -1641,10 +1664,14 @@ async function publishToMercadoLivre(
     }
 
     // Envia descrição separadamente via PUT /items/{id}/description
-    // Catalog listings gerenciam sua própria descrição — não é permitido customizar via API
+    // Só pula quando é um catalog listing real (finalCatalogProductId definido = MLBU)
+    // catalog_domain na categoria NAO significa que é catalog listing
     const itemId = data.id
-    if (itemId && detailedDescription && !finalCatalogProductId) {
+    if (itemId && detailedDescription && detailedDescription.length > 50 && !finalCatalogProductId) {
+      console.log(`[ML Publish] Enviando descrição (${detailedDescription.length} chars) via PUT para item ${itemId}`)
       try {
+        // Espera 1s para o item ser indexado antes de enviar a descrição
+        await new Promise(r => setTimeout(r, 1000))
         const descResponse = await fetchWithRetry(
           `https://api.mercadolibre.com/items/${itemId}/description`,
           {
@@ -1653,18 +1680,22 @@ async function publishToMercadoLivre(
               'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ plain_text: detailedDescription })
+            body: JSON.stringify({ plain_text: detailedDescription.substring(0, 50000) })
           }
         )
         if (descResponse.ok) {
-          console.log('[ML Publish] \u2705 Descri\u00e7\u00e3o publicada via PUT /items/' + itemId + '/description')
+          console.log(`[ML Publish] ✅ Descrição enviada com sucesso para ${itemId}`)
         } else {
           const descErr = await descResponse.json()
-          console.warn('[ML Publish] \u26a0\ufe0f Erro ao atualizar descri\u00e7\u00e3o:', JSON.stringify(descErr))
+          console.warn(`[ML Publish] ⚠️ Erro ao enviar descrição para ${itemId}:`, JSON.stringify(descErr))
         }
       } catch (e) {
-        console.warn('[ML Publish] \u26a0\ufe0f Exce\u00e7\u00e3o ao enviar descri\u00e7\u00e3o:', e)
+        console.warn('[ML Publish] ⚠️ Exceção ao enviar descrição:', e)
       }
+    } else if (finalCatalogProductId) {
+      console.log('[ML Publish] ℹ️ Anúncio de catálogo (MLBU) — descrição gerenciada pelo ML')
+    } else {
+      console.log('[ML Publish] ⚠️ Descrição vazia ou muito curta, não enviada')
     }
 
     return {
