@@ -555,7 +555,7 @@ async function publishToMercadoLivre(
     }
     
     // Monta os atributos mapeando especificações para IDs do ML
-    const attributes = []
+    const attributes: any[] = []
     
     // Log detalhado dos campos do produto antes de montar atributos
     console.log('[ML Publish] ===== DADOS DO PRODUTO =====')
