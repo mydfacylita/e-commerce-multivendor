@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
   const installUrl = buildInstallUrl(cleanShop, state, config)
 
   // Salvar state em cookie (1h)
+  // domain com ponto cobre tanto mydshop.com.br quanto www.mydshop.com.br
   const response = NextResponse.redirect(installUrl)
   response.cookies.set('shopify_state', state, {
     httpOnly: true,
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
     sameSite: 'lax',
     maxAge: 3600,
     path: '/',
+    domain: process.env.NODE_ENV === 'production' ? '.mydshop.com.br' : undefined,
   })
 
   return response
