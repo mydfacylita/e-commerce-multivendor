@@ -285,10 +285,14 @@ export async function POST(request: NextRequest) {
                 'HDMI_PORTS':     ['portas_hdmi', 'hdmi_ports', 'quantidade_hdmi', 'hdmi'],
                 'USB_PORTS':      ['portas_usb', 'usb_ports', 'quantidade_usb'],
                 'WITH_USB':       ['com_usb', 'with_usb', 'tem_usb', 'carregamento_usb'],
-                // NOTEBOOKS/LAPTOPS
-                'CPU_MODEL':      ['processador', 'processor', 'cpu', 'cpu_model', 'modelo_do_processador', 'chip', 'chipset'],
-                'CPU_BRAND':      ['marca_do_processador', 'marca_processador', 'cpu_brand', 'processor_brand', 'fabricante_processador'],
-                'SCREEN_SIZE':    ['tamanho_da_tela', 'tamanho_de_tela', 'screen_size', 'tela', 'display', 'tamanho_display'],
+                // NOTEBOOKS/LAPTOPS - IDs reais do ML para notebooks (MLB1652 e similares)
+                'PROCESSOR_MODEL': ['processador', 'processor', 'cpu', 'cpu_model', 'modelo_do_processador', 'chip', 'chipset'],
+                'CPU_MODEL':      ['processador', 'processor', 'cpu', 'cpu_model', 'modelo_do_processador'],  // alias para outras categorias
+                'PROCESSOR_BRAND': ['marca_do_processador', 'marca_processador', 'cpu_brand', 'processor_brand', 'fabricante_processador'],
+                'CPU_BRAND':      ['marca_do_processador', 'marca_processador', 'cpu_brand', 'processor_brand'],  // alias
+                'PROCESSOR_LINE': ['linha_do_processador', 'linha_processador'],
+                'DISPLAY_SIZE':   ['tamanho_da_tela', 'tamanho_de_tela', 'screen_size', 'tela', 'display', 'tamanho_display', 'tamanho_do_monitor'],
+                'SCREEN_SIZE':    ['tamanho_da_tela', 'tamanho_de_tela', 'screen_size', 'tela', 'display'],  // alias
                 'RAM':            ['memoria_ram', 'ram', 'memoria', 'memory'],
                 'INTERNAL_MEMORY': ['armazenamento', 'storage', 'hd', 'ssd', 'hdd', 'nvme', 'capacidade_armazenamento'],
                 'OPERATING_SYSTEM': ['sistema_operacional', 'operating_system', 'sistema', 'os'],

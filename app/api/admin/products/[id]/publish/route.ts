@@ -737,7 +737,9 @@ async function publishToMercadoLivre(
 
     // Mapeia especificações técnicas e atributos personalizados para IDs do Mercado Livre
     // Chaves já estão normalizadas (lowercase, sem acentos, underscores)
-    const specMapping: Record<string, string> = {
+    // Valor pode ser string (ID único) ou string[] (múltiplos IDs possíveis para categorias distintas)
+    // O filtro allowedIds da categoria eliminará automaticamente os IDs inválidos
+    const specMapping: Record<string, string | string[]> = {
 
       // ─── GERAL / UNIVERSAL ────────────────────────────────────────────────
       'cor':                          'COLOR',
@@ -873,30 +875,33 @@ async function publishToMercadoLivre(
       'carregamento_usb':             'WITH_USB',
 
       // ─── NOTEBOOKS / LAPTOPS / PCS ─────────────────────────────────────────
-      'processador':                  'CPU_MODEL',
-      'processor':                    'CPU_MODEL',
-      'cpu':                          'CPU_MODEL',
-      'cpu_model':                    'CPU_MODEL',
-      'modelo_do_processador':        'CPU_MODEL',
-      'chip':                         'CPU_MODEL',
-      'chipset':                      'CPU_MODEL',
+      // IDs válidos para notebooks ML: PROCESSOR_MODEL e CPU_MODEL (depende da categoria)
+      'processador':                  ['PROCESSOR_MODEL', 'CPU_MODEL'],
+      'processor':                    ['PROCESSOR_MODEL', 'CPU_MODEL'],
+      'cpu':                          ['PROCESSOR_MODEL', 'CPU_MODEL'],
+      'cpu_model':                    ['PROCESSOR_MODEL', 'CPU_MODEL'],
+      'modelo_do_processador':        ['PROCESSOR_MODEL', 'CPU_MODEL'],
+      'chip':                         ['PROCESSOR_MODEL', 'CPU_MODEL'],
+      'chipset':                      ['PROCESSOR_MODEL', 'CPU_MODEL'],
 
-      'marca_do_processador':         'CPU_BRAND',
-      'marca_processador':            'CPU_BRAND',
-      'cpu_brand':                    'CPU_BRAND',
-      'processor_brand':              'CPU_BRAND',
-      'fabricante_processador':       'CPU_BRAND',
+      'marca_do_processador':         ['PROCESSOR_BRAND', 'CPU_BRAND'],
+      'marca_processador':            ['PROCESSOR_BRAND', 'CPU_BRAND'],
+      'cpu_brand':                    ['PROCESSOR_BRAND', 'CPU_BRAND'],
+      'processor_brand':              ['PROCESSOR_BRAND', 'CPU_BRAND'],
+      'fabricante_processador':       ['PROCESSOR_BRAND', 'CPU_BRAND'],
 
-      'linha_do_processador':         'LINE',
-      'linha_processador':            'LINE',
+      // PROCESSOR_LINE = linha do processador (ex: Celeron, Core i5) - diferente de LINE (familia do produto)
+      'linha_do_processador':         'PROCESSOR_LINE',
+      'linha_processador':            'PROCESSOR_LINE',
 
-      'tamanho_da_tela':              'SCREEN_SIZE',
-      'tamanho_de_tela':              'SCREEN_SIZE',
-      'screen_size':                  'SCREEN_SIZE',
-      'tela':                         'SCREEN_SIZE',
-      'display':                      'SCREEN_SIZE',
-      'tamanho_display':              'SCREEN_SIZE',
-      'tamanho_do_monitor':           'SCREEN_SIZE',
+      // DISPLAY_SIZE = tamanho da tela para notebooks/monitores, SCREEN_SIZE para outros
+      'tamanho_da_tela':              ['DISPLAY_SIZE', 'SCREEN_SIZE'],
+      'tamanho_de_tela':              ['DISPLAY_SIZE', 'SCREEN_SIZE'],
+      'screen_size':                  ['DISPLAY_SIZE', 'SCREEN_SIZE'],
+      'tela':                         ['DISPLAY_SIZE', 'SCREEN_SIZE'],
+      'display':                      ['DISPLAY_SIZE', 'SCREEN_SIZE'],
+      'tamanho_display':              ['DISPLAY_SIZE', 'SCREEN_SIZE'],
+      'tamanho_do_monitor':           ['DISPLAY_SIZE', 'SCREEN_SIZE'],
 
       'memoria_ram':                  'RAM',
       'ram':                          'RAM',
@@ -1177,13 +1182,13 @@ async function publishToMercadoLivre(
 
       const mlAttributeId = specMapping[normalizeAttrKey(key)] || specMapping[key] || specMapping[key.toLowerCase()] || specMapping[key.toLowerCase().replace(/\s+/g, '_')]
       if (mlAttributeId && value) {
-        // Evita duplicados
-        if (!attributes.find(attr => attr.id === mlAttributeId)) {
-          console.log(`[ML Publish] Mapeando ${key} -> ${mlAttributeId}: ${value}`)
-          attributes.push({
-            id: mlAttributeId,
-            value_name: String(value)
-          })
+        // Suporta ID único (string) ou múltiplos IDs (string[])
+        const mlIds = Array.isArray(mlAttributeId) ? mlAttributeId : [mlAttributeId]
+        for (const mlId of mlIds) {
+          if (!attributes.find(attr => attr.id === mlId)) {
+            console.log(`[ML Publish] Mapeando ${key} -> ${mlId}: ${value}`)
+            attributes.push({ id: mlId, value_name: String(value) })
+          }
         }
       }
     }
@@ -1201,11 +1206,14 @@ async function publishToMercadoLivre(
             const attrName: string = attr.nome || attr.name || ''
             const attrValue: string = attr.valor || attr.value || ''
             if (!attrName || !attrValue) continue
-            const mlAttributeId = specMapping[normalizeAttrKey(attrName)] || specMapping[attrName] || specMapping[attrName.toLowerCase()] || specMapping[attrName.toLowerCase().replace(/\s+/g, '_')]
-            if (mlAttributeId) {
-              if (!attributes.find(a => a.id === mlAttributeId)) {
-                console.log(`[ML Publish] Atributo personalizado mapeado: "${attrName}" -> ${mlAttributeId}: ${attrValue}`)
-                attributes.push({ id: mlAttributeId, value_name: String(attrValue) })
+            const mappedId = specMapping[normalizeAttrKey(attrName)] || specMapping[attrName] || specMapping[attrName.toLowerCase()] || specMapping[attrName.toLowerCase().replace(/\s+/g, '_')]
+            if (mappedId) {
+              const mlIds = Array.isArray(mappedId) ? mappedId : [mappedId]
+              for (const mlId of mlIds) {
+                if (!attributes.find(a => a.id === mlId)) {
+                  console.log(`[ML Publish] Atributo personalizado mapeado: "${attrName}" -> ${mlId}: ${attrValue}`)
+                  attributes.push({ id: mlId, value_name: String(attrValue) })
+                }
               }
             } else {
               console.log(`[ML Publish] ⚠️ Atributo personalizado sem mapeamento: "${attrName}" = "${attrValue}"`)
