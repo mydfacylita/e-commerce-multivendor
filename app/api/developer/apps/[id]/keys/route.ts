@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       keyPrefix: prefix,
       apiKey: hashedKey,
       apiSecret: rawSecret, // Armazenamos o raw secret para validar HMAC
-      scopes,
+      scopes: JSON.stringify(Array.isArray(scopes) ? scopes : []),
       name: name || null,
       updatedAt: new Date()
     }
