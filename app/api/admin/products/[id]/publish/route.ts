@@ -1341,19 +1341,35 @@ async function publishToMercadoLivre(
       descBase = htmlToPlainText(product.description.trim())
     }
 
-    // Tenta enriquecer com texto das specifications do AliExpress
+    // Extrai descrição das specifications do AliExpress
+    // A estrutura real: specObj.ae_item_detail_activity.detail (HTML com texto do produto)
     if (product.specifications) {
       try {
         const specObj = typeof product.specifications === 'string'
           ? JSON.parse(product.specifications)
           : product.specifications
-        const specText = specObj?.description || specObj?.detail || ''
-        const specPlain = htmlToPlainText(specText)
+
+        // Tenta todos os caminhos possíveis onde o AliExpress guarda a descrição
+        const rawHtml =
+          specObj?.ae_item_detail_activity?.detail ||
+          specObj?.detail ||
+          specObj?.description ||
+          specObj?.ae_item_base_info?.subject ||
+          ''
+
+        console.log('[ML Publish] HTML da descrição (primeiros 300 chars):', String(rawHtml).substring(0, 300))
+
+        const specPlain = htmlToPlainText(rawHtml)
         if (specPlain.length > descBase.length) {
           descBase = specPlain
+          console.log('[ML Publish] ✅ descBase atualizado via specifications (' + descBase.length + ' chars)')
         }
-      } catch { /* ignorar */ }
+      } catch (e) {
+        console.error('[ML Publish] Erro ao parsear specifications para descrição:', e)
+      }
     }
+
+    console.log('[ML Publish] descBase final (' + descBase.length + ' chars):', descBase.substring(0, 200))
 
     if (!descBase) descBase = product.name
 
@@ -1515,9 +1531,6 @@ async function publishToMercadoLivre(
         buying_mode: 'buy_it_now',
         listing_type_id: 'gold_special',
         condition: 'new',
-        description: {
-          plain_text: detailedDescription
-        },
         pictures,
         shipping: {
           mode: 'me2',
