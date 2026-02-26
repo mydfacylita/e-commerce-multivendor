@@ -728,108 +728,432 @@ async function publishToMercadoLivre(
     
     console.log('[ML Publish] ===== FIM CAMPOS DE LIVRO =====')
 
-    // Mapeia especificações técnicas para atributos do ML
-    const specMapping: any = {
-      // Cor
-      'cor': 'COLOR',
-      'color': 'COLOR',
-      'Cor': 'COLOR',
-      
-      // Modelo
-      'modelo': 'MODEL',
-      'model': 'MODEL',
-      'Modelo': 'MODEL',
-      'modelo_alfanumérico': 'ALPHANUMERIC_MODELS',
-      
-      // Memória RAM
-      'memória_ram': 'RAM',
-      'memoria_ram': 'RAM',
-      'RAM': 'RAM',
-      'ram': 'RAM',
-      'Memória RAM': 'RAM',
-      
-      // Armazenamento
-      'armazenamento': 'INTERNAL_MEMORY',
-      'storage': 'INTERNAL_MEMORY',
-      'Armazenamento': 'INTERNAL_MEMORY',
-      
-      // Homologação ANATEL (para celulares)
-      'anatel': 'CELLPHONES_ANATEL_HOMOLOGATION_NUMBER',
-      'homologacao_anatel': 'CELLPHONES_ANATEL_HOMOLOGATION_NUMBER',
-      'numero_anatel': 'CELLPHONES_ANATEL_HOMOLOGATION_NUMBER',
-      
-      // Dual SIM
-      'dual_sim': 'IS_DUAL_SIM',
-      'dual_chip': 'IS_DUAL_SIM',
-      
-      // Operadora
-      'operadora': 'CARRIER',
-      'carrier': 'CARRIER',
-      
-      // === LUMINÁRIAS - Campos obrigatórios ===
-      'com_usb': 'WITH_USB',
-      'with_usb': 'WITH_USB',
-      'usb': 'WITH_USB',
-      'tem_usb': 'WITH_USB',
-      
-      'com_wifi': 'WITH_WI_FI', 
-      'with_wi_fi': 'WITH_WI_FI',
-      'wifi': 'WITH_WI_FI',
-      'tem_wifi': 'WITH_WI_FI',
-      
-      'voltagem': 'VOLTAGE',
-      'voltage': 'VOLTAGE',
-      'tensao': 'VOLTAGE',
-      
-      'cor_estrutura': 'STRUCTURE_COLOR',
-      'structure_color': 'STRUCTURE_COLOR',
-      'cor_da_estrutura': 'STRUCTURE_COLOR',
-      
-      'cor_cupula': 'SCREEN_COLOR',
-      'screen_color': 'SCREEN_COLOR', 
-      'cor_da_cupula': 'SCREEN_COLOR',
-      'cor_tela': 'SCREEN_COLOR',
-      
-      'tecnologia_iluminacao': 'LIGHTING_TECHNOLOGY',
-      'lighting_technology': 'LIGHTING_TECHNOLOGY',
-      'tipo_led': 'LIGHTING_TECHNOLOGY',
-      
-      'material_estrutura': 'STRUCTURE_MATERIAL',
-      'structure_material': 'STRUCTURE_MATERIAL',
-      'material_da_estrutura': 'STRUCTURE_MATERIAL',
-      
-      'material_tela': 'SCREEN_MATERIAL',
-      'screen_material': 'SCREEN_MATERIAL', 
-      'material_cupula': 'SCREEN_MATERIAL',
-      
-      'eficiencia_energetica': 'ENERGY_EFFICIENCY',
-      'energy_efficiency': 'ENERGY_EFFICIENCY',
-      'consumo': 'ENERGY_EFFICIENCY',
-      
-      'largura_total': 'TOTAL_WIDTH',
-      'total_width': 'TOTAL_WIDTH',
-      'largura': 'TOTAL_WIDTH',
-      
-      'diametro_total': 'TOTAL_DIAMETER',
-      'total_diameter': 'TOTAL_DIAMETER', 
-      'diametro': 'TOTAL_DIAMETER',
-      
-      'altura_total': 'TOTAL_HEIGHT',
-      'total_height': 'TOTAL_HEIGHT',
-      'altura': 'TOTAL_HEIGHT',
-      
-      'altura_embalagem': 'PACKAGE_HEIGHT',
-      'package_height': 'PACKAGE_HEIGHT',
-      
-      'largura_embalagem': 'PACKAGE_WIDTH',
-      'package_width': 'PACKAGE_WIDTH',
-      
-      'comprimento_embalagem': 'PACKAGE_LENGTH',
-      'package_length': 'PACKAGE_LENGTH',
-      
-      'peso_embalagem': 'PACKAGE_WEIGHT',
-      'package_weight': 'PACKAGE_WEIGHT',
-      'peso': 'PACKAGE_WEIGHT',
+    // Helper: normaliza chave de atributo → lowercase, sem acentos, underscores, sem chars especiais
+    const normalizeAttrKey = (k: string): string =>
+      k.toLowerCase().trim()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
+
+    // Mapeia especificações técnicas e atributos personalizados para IDs do Mercado Livre
+    // Chaves já estão normalizadas (lowercase, sem acentos, underscores)
+    const specMapping: Record<string, string> = {
+
+      // ─── GERAL / UNIVERSAL ────────────────────────────────────────────────
+      'cor':                          'COLOR',
+      'color':                        'COLOR',
+      'colour':                       'COLOR',
+      'cor_principal':                'COLOR',
+      'main_color':                   'COLOR',
+
+      'marca':                        'BRAND',
+      'brand':                        'BRAND',
+      'fabricante':                   'BRAND',
+      'manufacturer':                 'BRAND',
+
+      'modelo':                       'MODEL',
+      'model':                        'MODEL',
+
+      'linha':                        'LINE',
+      'line':                         'LINE',
+      'familia':                      'LINE',
+      'family':                       'LINE',
+      'linha_do_produto':             'LINE',
+      'familia_do_produto':           'LINE',
+
+      'garantia':                     'WARRANTY_TYPE',
+      'warranty':                     'WARRANTY_TYPE',
+      'tipo_de_garantia':             'WARRANTY_TYPE',
+      'prazo_garantia':               'WARRANTY_TYPE',
+
+      'modelo_alfanumerico':          'ALPHANUMERIC_MODELS',
+      'alphanumeric_model':           'ALPHANUMERIC_MODELS',
+      'codigo_modelo':                'ALPHANUMERIC_MODELS',
+      'part_number':                  'ALPHANUMERIC_MODELS',
+      'cod_modelo':                   'ALPHANUMERIC_MODELS',
+      'sku_fabricante':               'ALPHANUMERIC_MODELS',
+
+      'material':                     'MATERIAL',
+      'material_principal':           'MATERIAL',
+      'composicao':                   'MATERIAL',
+      'composition':                  'MATERIAL',
+
+      'tipo':                         'TYPE',
+      'type':                         'TYPE',
+
+      // ─── DIMENSÕES / EMBALAGEM ────────────────────────────────────────────
+      'largura':                      'TOTAL_WIDTH',
+      'width':                        'TOTAL_WIDTH',
+      'largura_total':                'TOTAL_WIDTH',
+      'total_width':                  'TOTAL_WIDTH',
+
+      'altura':                       'TOTAL_HEIGHT',
+      'height':                       'TOTAL_HEIGHT',
+      'altura_total':                 'TOTAL_HEIGHT',
+      'total_height':                 'TOTAL_HEIGHT',
+
+      'comprimento':                  'TOTAL_LENGTH',
+      'length':                       'TOTAL_LENGTH',
+      'comprimento_total':            'TOTAL_LENGTH',
+      'total_length':                 'TOTAL_LENGTH',
+
+      'profundidade':                 'TOTAL_DEPTH',
+      'depth':                        'TOTAL_DEPTH',
+
+      'espessura':                    'THICKNESS',
+      'thickness':                    'THICKNESS',
+
+      'diametro':                     'TOTAL_DIAMETER',
+      'diameter':                     'TOTAL_DIAMETER',
+      'diametro_total':               'TOTAL_DIAMETER',
+      'total_diameter':               'TOTAL_DIAMETER',
+
+      'peso':                         'PACKAGE_WEIGHT',
+      'weight':                       'PACKAGE_WEIGHT',
+      'peso_embalagem':               'PACKAGE_WEIGHT',
+      'package_weight':               'PACKAGE_WEIGHT',
+
+      'peso_liquido':                 'NET_WEIGHT',
+      'net_weight':                   'NET_WEIGHT',
+
+      'altura_embalagem':             'PACKAGE_HEIGHT',
+      'package_height':               'PACKAGE_HEIGHT',
+      'largura_embalagem':            'PACKAGE_WIDTH',
+      'package_width':                'PACKAGE_WIDTH',
+      'comprimento_embalagem':        'PACKAGE_LENGTH',
+      'package_length':               'PACKAGE_LENGTH',
+
+      // ─── ELÉTRICA ──────────────────────────────────────────────────────────
+      'voltagem':                     'VOLTAGE',
+      'voltage':                      'VOLTAGE',
+      'tensao':                       'VOLTAGE',
+      'volts':                        'VOLTAGE',
+      'bivolt':                       'VOLTAGE',
+
+      'potencia':                     'POWER',
+      'power':                        'POWER',
+      'watts':                        'POWER',
+      'watt':                         'POWER',
+
+      'eficiencia_energetica':        'ENERGY_EFFICIENCY',
+      'energy_efficiency':            'ENERGY_EFFICIENCY',
+      'consumo':                      'ENERGY_EFFICIENCY',
+      'classe_energetica':            'ENERGY_EFFICIENCY',
+
+      // ─── CONECTIVIDADE ─────────────────────────────────────────────────────
+      'conectividade':                'CONNECTIVITY',
+      'connectivity':                 'CONNECTIVITY',
+      'conexao':                      'CONNECTIVITY',
+      'tipo_conexao':                 'CONNECTIVITY',
+      'interface':                    'CONNECTIVITY',
+
+      'wifi':                         'WITH_WI_FI',
+      'wi_fi':                        'WITH_WI_FI',
+      'com_wifi':                     'WITH_WI_FI',
+      'tem_wifi':                     'WITH_WI_FI',
+      'with_wi_fi':                   'WITH_WI_FI',
+      'wireless':                     'WITH_WI_FI',
+
+      'bluetooth':                    'WITH_BLUETOOTH',
+      'com_bluetooth':                'WITH_BLUETOOTH',
+      'tem_bluetooth':                'WITH_BLUETOOTH',
+
+      'portas_hdmi':                  'HDMI_PORTS',
+      'hdmi_ports':                   'HDMI_PORTS',
+      'quantidade_hdmi':              'HDMI_PORTS',
+      'hdmi':                         'HDMI_PORTS',
+
+      'portas_usb':                   'USB_PORTS',
+      'usb_ports':                    'USB_PORTS',
+      'quantidade_usb':               'USB_PORTS',
+
+      'com_usb':                      'WITH_USB',
+      'with_usb':                     'WITH_USB',
+      'tem_usb':                      'WITH_USB',
+      'carregamento_usb':             'WITH_USB',
+
+      // ─── NOTEBOOKS / LAPTOPS / PCS ─────────────────────────────────────────
+      'processador':                  'CPU_MODEL',
+      'processor':                    'CPU_MODEL',
+      'cpu':                          'CPU_MODEL',
+      'cpu_model':                    'CPU_MODEL',
+      'modelo_do_processador':        'CPU_MODEL',
+      'chip':                         'CPU_MODEL',
+      'chipset':                      'CPU_MODEL',
+
+      'marca_do_processador':         'CPU_BRAND',
+      'marca_processador':            'CPU_BRAND',
+      'cpu_brand':                    'CPU_BRAND',
+      'processor_brand':              'CPU_BRAND',
+      'fabricante_processador':       'CPU_BRAND',
+
+      'linha_do_processador':         'LINE',
+      'linha_processador':            'LINE',
+
+      'tamanho_da_tela':              'SCREEN_SIZE',
+      'tamanho_de_tela':              'SCREEN_SIZE',
+      'screen_size':                  'SCREEN_SIZE',
+      'tela':                         'SCREEN_SIZE',
+      'display':                      'SCREEN_SIZE',
+      'tamanho_display':              'SCREEN_SIZE',
+      'tamanho_do_monitor':           'SCREEN_SIZE',
+
+      'memoria_ram':                  'RAM',
+      'ram':                          'RAM',
+      'memoria':                      'RAM',
+      'memory':                       'RAM',
+
+      'armazenamento':                'INTERNAL_MEMORY',
+      'storage':                      'INTERNAL_MEMORY',
+      'hd':                           'INTERNAL_MEMORY',
+      'ssd':                          'INTERNAL_MEMORY',
+      'hdd':                          'INTERNAL_MEMORY',
+      'nvme':                         'INTERNAL_MEMORY',
+      'capacidade_armazenamento':     'INTERNAL_MEMORY',
+      'espaco_armazenamento':         'INTERNAL_MEMORY',
+
+      'sistema_operacional':          'OPERATING_SYSTEM',
+      'operating_system':             'OPERATING_SYSTEM',
+      'sistema':                      'OPERATING_SYSTEM',
+      'os':                           'OPERATING_SYSTEM',
+
+      'placa_de_video':               'GPU',
+      'gpu':                          'GPU',
+      'placa_video':                  'GPU',
+      'grafica':                      'GPU',
+      'video_card':                   'GPU',
+      'placa_grafica':                'GPU',
+
+      'velocidade_processador':       'PROCESSOR_SPEED',
+      'processor_speed':              'PROCESSOR_SPEED',
+      'clock':                        'PROCESSOR_SPEED',
+      'frequencia_processador':       'PROCESSOR_SPEED',
+      'ghz':                          'PROCESSOR_SPEED',
+      'mhz':                          'PROCESSOR_SPEED',
+
+      'bateria':                      'BATTERY_CAPACITY',
+      'battery':                      'BATTERY_CAPACITY',
+      'capacidade_bateria':           'BATTERY_CAPACITY',
+      'battery_capacity':             'BATTERY_CAPACITY',
+      'autonomia':                    'BATTERY_CAPACITY',
+      'mah':                          'BATTERY_CAPACITY',
+
+      // ─── CELULARES / SMARTPHONES ───────────────────────────────────────────
+      'dual_sim':                     'IS_DUAL_SIM',
+      'dual_chip':                    'IS_DUAL_SIM',
+      'dois_chips':                   'IS_DUAL_SIM',
+
+      'operadora':                    'CARRIER',
+      'carrier':                      'CARRIER',
+
+      'anatel':                       'CELLPHONES_ANATEL_HOMOLOGATION_NUMBER',
+      'homologacao_anatel':           'CELLPHONES_ANATEL_HOMOLOGATION_NUMBER',
+      'numero_anatel':                'CELLPHONES_ANATEL_HOMOLOGATION_NUMBER',
+      'certificacao_anatel':          'CELLPHONES_ANATEL_HOMOLOGATION_NUMBER',
+      'numero_homologacao':           'CELLPHONES_ANATEL_HOMOLOGATION_NUMBER',
+
+      'rede':                         'NETWORK_TECHNOLOGY',
+      'network':                      'NETWORK_TECHNOLOGY',
+      'tecnologia_rede':              'NETWORK_TECHNOLOGY',
+      '5g':                           'NETWORK_TECHNOLOGY',
+      '4g':                           'NETWORK_TECHNOLOGY',
+
+      'camera_traseira':              'MAIN_CAMERA_RESOLUTION',
+      'camera_principal':             'MAIN_CAMERA_RESOLUTION',
+      'resolucao_camera':             'MAIN_CAMERA_RESOLUTION',
+
+      'camera_frontal':               'FRONT_CAMERA_RESOLUTION',
+      'selfie':                       'FRONT_CAMERA_RESOLUTION',
+
+      // ─── TVs / MONITORES ───────────────────────────────────────────────────
+      'resolucao':                    'RESOLUTION',
+      'resolution':                   'RESOLUTION',
+      'definicao':                    'RESOLUTION',
+
+      'smart_tv':                     'SMART_TV',
+      'e_smart':                      'SMART_TV',
+      'possui_smart':                 'SMART_TV',
+      'smart_tv_sistema':             'SMART_TV',
+
+      'hdr':                          'HDR_TECHNOLOGY',
+      'hdr_technology':               'HDR_TECHNOLOGY',
+      'tecnologia_hdr':               'HDR_TECHNOLOGY',
+
+      'taxa_de_atualizacao':          'REFRESH_RATE',
+      'taxa_atualizacao':             'REFRESH_RATE',
+      'refresh_rate':                 'REFRESH_RATE',
+      'hz':                           'REFRESH_RATE',
+      'hertz':                        'REFRESH_RATE',
+
+      'tecnologia_tela':              'SCREEN_TECHNOLOGY',
+      'screen_technology':            'SCREEN_TECHNOLOGY',
+      'tipo_tela':                    'SCREEN_TECHNOLOGY',
+      'painel':                       'SCREEN_TECHNOLOGY',
+      'panel':                        'SCREEN_TECHNOLOGY',
+      'tecnologia_display':           'SCREEN_TECHNOLOGY',
+
+      // ─── ÁUDIO (headphones, caixas de som) ─────────────────────────────────
+      'cancelamento_de_ruido':        'WITH_NOISE_CANCELLATION',
+      'cancelamento_ruido':           'WITH_NOISE_CANCELLATION',
+      'noise_cancellation':           'WITH_NOISE_CANCELLATION',
+      'anc':                          'WITH_NOISE_CANCELLATION',
+
+      'microfone':                    'WITH_MICROPHONE',
+      'microphone':                   'WITH_MICROPHONE',
+      'com_microfone':                'WITH_MICROPHONE',
+
+      'impedancia':                   'IMPEDANCE',
+      'impedance':                    'IMPEDANCE',
+
+      'resposta_de_frequencia':       'FREQUENCY_RESPONSE',
+      'frequency_response':           'FREQUENCY_RESPONSE',
+
+      // ─── CÂMERAS ───────────────────────────────────────────────────────────
+      'megapixels':                   'MEGAPIXELS',
+      'mp':                           'MEGAPIXELS',
+
+      'zoom_optico':                  'OPTICAL_ZOOM',
+      'optical_zoom':                 'OPTICAL_ZOOM',
+      'zoom':                         'OPTICAL_ZOOM',
+
+      'sensor':                       'SENSOR_TYPE',
+      'tipo_sensor':                  'SENSOR_TYPE',
+      'sensor_type':                  'SENSOR_TYPE',
+
+      // ─── ILUMINAÇÃO (luminárias, lâmpadas) ─────────────────────────────────
+      'tecnologia_iluminacao':        'LIGHTING_TECHNOLOGY',
+      'lighting_technology':          'LIGHTING_TECHNOLOGY',
+      'tipo_led':                     'LIGHTING_TECHNOLOGY',
+      'tecnologia_luz':               'LIGHTING_TECHNOLOGY',
+
+      'cor_estrutura':                'STRUCTURE_COLOR',
+      'cor_da_estrutura':             'STRUCTURE_COLOR',
+      'structure_color':              'STRUCTURE_COLOR',
+
+      'cor_cupula':                   'SCREEN_COLOR',
+      'cor_da_cupula':                'SCREEN_COLOR',
+      'screen_color':                 'SCREEN_COLOR',
+      'cor_tela':                     'SCREEN_COLOR',
+
+      'material_estrutura':           'STRUCTURE_MATERIAL',
+      'material_da_estrutura':        'STRUCTURE_MATERIAL',
+      'structure_material':           'STRUCTURE_MATERIAL',
+
+      'material_tela':                'SCREEN_MATERIAL',
+      'material_cupula':              'SCREEN_MATERIAL',
+      'screen_material':              'SCREEN_MATERIAL',
+
+      // ─── VESTUÁRIO / ROUPAS ────────────────────────────────────────────────
+      'tamanho_roupa':                'CLOTHING_SIZE',
+      'clothing_size':                'CLOTHING_SIZE',
+      'tamanho_camiseta':             'CLOTHING_SIZE',
+      'tamanho_calcas':               'CLOTHING_SIZE',
+
+      'genero':                       'GENDER',
+      'gender':                       'GENDER',
+      'sexo':                         'GENDER',
+
+      'faixa_etaria':                 'AGE_GROUP',
+      'age_group':                    'AGE_GROUP',
+      'publico_alvo':                 'AGE_GROUP',
+      'para_quem':                    'AGE_GROUP',
+
+      'tecido':                       'FABRIC',
+      'fabric':                       'FABRIC',
+      'composicao_do_tecido':         'FABRIC',
+      'fibra':                        'FABRIC',
+
+      // ─── CALÇADOS ──────────────────────────────────────────────────────────
+      'numero_calcado':               'SHOE_SIZE',
+      'numero_do_calcado':            'SHOE_SIZE',
+      'shoe_size':                    'SHOE_SIZE',
+      'numeracao':                    'SHOE_SIZE',
+      'numero':                       'SHOE_SIZE',
+
+      'solado':                       'SOLE_MATERIAL',
+      'sole_material':                'SOLE_MATERIAL',
+
+      // ─── ELETRODOMÉSTICOS ──────────────────────────────────────────────────
+      'capacidade':                   'CAPACITY',
+      'capacity':                     'CAPACITY',
+      'litros':                       'CAPACITY',
+      'volume':                       'CAPACITY',
+
+      'bocas':                        'NUMBER_OF_BURNERS',
+      'queimadores':                  'NUMBER_OF_BURNERS',
+      'number_of_burners':            'NUMBER_OF_BURNERS',
+
+      'degelo':                       'DEFROST_SYSTEM',
+      'defrost_system':               'DEFROST_SYSTEM',
+      'tipo_degelo':                  'DEFROST_SYSTEM',
+
+      // ─── IMPRESSORAS ───────────────────────────────────────────────────────
+      'tecnologia_de_impressao':      'PRINTING_TECHNOLOGY',
+      'printing_technology':          'PRINTING_TECHNOLOGY',
+      'tipo_impressora':              'PRINTING_TECHNOLOGY',
+
+      'com_scanner':                  'WITH_SCANNER',
+      'scanner':                      'WITH_SCANNER',
+      'with_scanner':                 'WITH_SCANNER',
+
+      'tamanho_maximo_papel':         'MAX_PAPER_SIZE',
+      'max_paper_size':               'MAX_PAPER_SIZE',
+      'formato_papel':                'MAX_PAPER_SIZE',
+
+      // ─── BELEZA / SAÚDE ────────────────────────────────────────────────────
+      'volume_conteudo':              'CONTENT_VOLUME',
+      'conteudo':                     'CONTENT_VOLUME',
+      'content_volume':               'CONTENT_VOLUME',
+      'ml':                           'CONTENT_VOLUME',
+      'quantidade_ml':                'CONTENT_VOLUME',
+
+      'tipo_pele':                    'SKIN_TYPE',
+      'skin_type':                    'SKIN_TYPE',
+      'para_pele':                    'SKIN_TYPE',
+
+      'fragrancia':                   'FRAGRANCE',
+      'fragrance':                    'FRAGRANCE',
+      'aroma':                        'FRAGRANCE',
+      'perfume_type':                 'FRAGRANCE',
+
+      // ─── MÓVEIS / DECORAÇÃO ────────────────────────────────────────────────
+      'requer_montagem':              'ASSEMBLY_REQUIRED',
+      'com_montagem':                 'ASSEMBLY_REQUIRED',
+      'assembly_required':            'ASSEMBLY_REQUIRED',
+
+      'estilo':                       'STYLE',
+      'style':                        'STYLE',
+      'design':                       'STYLE',
+
+      'acabamento':                   'FINISH',
+      'finishing':                    'FINISH',
+      'finish':                       'FINISH',
+
+      // ─── GAMES / PERIFÉRICOS ───────────────────────────────────────────────
+      'compatibilidade':              'COMPATIBLE_PLATFORM',
+      'platform':                     'COMPATIBLE_PLATFORM',
+      'plataforma':                   'COMPATIBLE_PLATFORM',
+      'para_console':                 'COMPATIBLE_PLATFORM',
+
+      'tipo_switch':                  'SWITCH_TYPE',
+      'switch_type':                  'SWITCH_TYPE',
+
+      'dpi':                          'DPI',
+      'sensibilidade':                'DPI',
+
+      // ─── FERRAMENTAS ───────────────────────────────────────────────────────
+      'fonte_de_energia':             'POWER_SOURCE',
+      'power_source':                 'POWER_SOURCE',
+      'alimentacao':                  'POWER_SOURCE',
+
+      // ─── LIVROS (complementar ao bloco de livros acima) ────────────────────
+      'idioma':                       'LANGUAGE',
+      'language':                     'LANGUAGE',
+      'numero_de_paginas':            'NUMBER_OF_PAGES',
+      'paginas':                      'NUMBER_OF_PAGES',
+      'pages':                        'NUMBER_OF_PAGES',
+      'edicao':                       'EDITION',
+      'edition':                      'EDITION',
     }
 
     // Adiciona atributos das especificações
@@ -837,18 +1161,21 @@ async function publishToMercadoLivre(
     
     // Ignora atributos específicos de celular se não for celular
     const isCellphone = productType.toLowerCase() === 'celular' || productType.toLowerCase() === 'smartphone'
-    
+    // Atributos exclusivos de celular (não mapear em outros tipos)
+    const CELLPHONE_ONLY_ATTRS = ['dual_sim', 'dual_chip', 'dois_chips', 'operadora', 'carrier', 'anatel', 'homologacao_anatel', 'numero_anatel', 'certificacao_anatel', 'numero_homologacao']
+
     for (const [key, value] of Object.entries(specs)) {
       // Pula campos internos
       if (key === 'product_type' || key === 'ae_item_property') continue
-      
-      // Pula atributos de celular se não for celular
-      if (!isCellphone && ['dual_sim', 'operadora', 'memória_ram', 'armazenamento', 'anatel'].includes(key)) {
-        console.log(`[ML Publish] Ignorando ${key} (não é celular)`)
+
+      // Pula atributos exclusivos de celular se não for celular
+      const keyNormCheck = normalizeAttrKey(key)
+      if (!isCellphone && CELLPHONE_ONLY_ATTRS.includes(keyNormCheck)) {
+        console.log(`[ML Publish] Ignorando ${key} (exclusivo de celular)`)
         continue
       }
-      
-      const mlAttributeId = specMapping[key] || specMapping[key.toLowerCase()] || specMapping[key.toLowerCase().replace(/\s+/g, '_')]
+
+      const mlAttributeId = specMapping[normalizeAttrKey(key)] || specMapping[key] || specMapping[key.toLowerCase()] || specMapping[key.toLowerCase().replace(/\s+/g, '_')]
       if (mlAttributeId && value) {
         // Evita duplicados
         if (!attributes.find(attr => attr.id === mlAttributeId)) {
@@ -874,8 +1201,7 @@ async function publishToMercadoLivre(
             const attrName: string = attr.nome || attr.name || ''
             const attrValue: string = attr.valor || attr.value || ''
             if (!attrName || !attrValue) continue
-            const keyNorm = attrName.toLowerCase().replace(/\s+/g, '_')
-            const mlAttributeId = specMapping[attrName] || specMapping[attrName.toLowerCase()] || specMapping[keyNorm]
+            const mlAttributeId = specMapping[normalizeAttrKey(attrName)] || specMapping[attrName] || specMapping[attrName.toLowerCase()] || specMapping[attrName.toLowerCase().replace(/\s+/g, '_')]
             if (mlAttributeId) {
               if (!attributes.find(a => a.id === mlAttributeId)) {
                 console.log(`[ML Publish] Atributo personalizado mapeado: "${attrName}" -> ${mlAttributeId}: ${attrValue}`)
