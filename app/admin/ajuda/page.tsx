@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   FiPlus, FiSave, FiTrash2, FiEye, FiEyeOff, FiChevronUp, FiChevronDown,
   FiType, FiVideo, FiImage, FiAlertCircle, FiExternalLink, FiLoader,
-  FiBookOpen, FiEdit3, FiCheck, FiX, FiMove,
+  FiBookOpen, FiEdit3, FiCheck, FiX, FiMove, FiUploadCloud, FiLink,
 } from 'react-icons/fi'
 import { RenderBlocks } from '@/components/help/RenderBlocks'
 import type { Block } from '@/components/help/RenderBlocks'
@@ -50,6 +50,162 @@ function newBlock(type: BlockType): Block {
 function getYoutubeId(url: string): string | null {
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/)
   return m ? m[1] : null
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Video Block Editor (URL ou Upload Local)
+// ──────────────────────────────────────────────────────────────────────────────
+
+function VideoBlockEditor({ block, onChange }: { block: Block; onChange: (b: Block) => void }) {
+  const [tab, setTab] = useState<'url' | 'local'>(block.videoSource === 'local' ? 'local' : 'url')
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null)
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    setUploadProgress(`Enviando ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)...`)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload/video', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao enviar')
+      onChange({ ...block, url: data.url, videoSource: 'local', videoTitle: block.videoTitle || file.name.replace(/\.[^.]+$/, '') })
+      setUploadProgress(`✅ ${file.name} enviado com sucesso!`)
+    } catch (err: any) {
+      setUploadError(err.message)
+      setUploadProgress(null)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function switchTab(t: 'url' | 'local') {
+    setTab(t)
+    setUploadError(null)
+    setUploadProgress(null)
+    // clear the url/source when switching so user starts fresh
+    onChange({ ...block, url: '', videoSource: t })
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Tab switcher */}
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
+        <button
+          type="button"
+          onClick={() => switchTab('url')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${
+            tab === 'url' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <FiLink size={12} /> URL (YouTube / Vimeo)
+        </button>
+        <button
+          type="button"
+          onClick={() => switchTab('local')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${
+            tab === 'local' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <FiUploadCloud size={12} /> Upload Local
+        </button>
+      </div>
+
+      {/* Título comum */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Título do vídeo (opcional)</label>
+        <input
+          type="text"
+          value={block.videoTitle || ''}
+          onChange={e => onChange({ ...block, videoTitle: e.target.value })}
+          placeholder="Ex: Como publicar um produto no Mercado Livre"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+        />
+      </div>
+
+      {/* ── Aba URL ── */}
+      {tab === 'url' && (
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-gray-600">URL do vídeo</label>
+          <input
+            type="url"
+            value={block.videoSource === 'local' ? '' : (block.url || '')}
+            onChange={e => onChange({ ...block, url: e.target.value, videoSource: 'url' })}
+            placeholder="https://www.youtube.com/watch?v=... ou https://vimeo.com/..."
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+          />
+          {/* Preview YouTube */}
+          {block.videoSource !== 'local' && block.url && getYoutubeId(block.url) && (
+            <div className="rounded-lg overflow-hidden border border-gray-200">
+              <iframe
+                src={`https://www.youtube.com/embed/${getYoutubeId(block.url)}`}
+                className="w-full"
+                style={{ height: '220px' }}
+                allowFullScreen
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Aba Upload Local ── */}
+      {tab === 'local' && (
+        <div className="space-y-3">
+          <label className="block text-xs font-medium text-gray-600">Arquivo de vídeo (MP4, WebM, MOV, AVI, MKV — até 500 MB)</label>
+          <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl px-4 py-8 cursor-pointer transition ${
+            uploading ? 'border-gray-200 bg-gray-50 opacity-60 pointer-events-none' : 'border-blue-300 bg-blue-50 hover:bg-blue-100'
+          }`}>
+            {uploading ? (
+              <FiLoader size={28} className="text-blue-500 animate-spin" />
+            ) : (
+              <FiUploadCloud size={28} className="text-blue-500" />
+            )}
+            <span className="text-sm font-medium text-blue-700">
+              {uploading ? 'Enviando...' : 'Clique para escolher ou arraste um vídeo aqui'}
+            </span>
+            <input
+              type="file"
+              accept="video/mp4,video/webm,video/ogg,video/quicktime,video/x-msvideo,video/x-matroska,.mp4,.webm,.mov,.avi,.mkv"
+              className="hidden"
+              onChange={handleFileChange}
+              disabled={uploading}
+            />
+          </label>
+
+          {uploadProgress && (
+            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              {uploadProgress}
+            </p>
+          )}
+          {uploadError && (
+            <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              ❌ {uploadError}
+            </p>
+          )}
+
+          {/* Preview do vídeo local já enviado */}
+          {block.videoSource === 'local' && block.url && (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500 font-medium">Preview:</p>
+              <video
+                src={block.url}
+                controls
+                className="w-full rounded-lg border border-gray-200 bg-black"
+                style={{ maxHeight: '240px' }}
+                preload="metadata"
+              />
+              <p className="text-xs text-gray-400 font-mono break-all">{block.url}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -110,38 +266,7 @@ function BlockEditor({
         )}
 
         {block.type === 'video' && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">URL do Vídeo (YouTube, Vimeo)</label>
-              <input
-                type="url"
-                value={block.url || ''}
-                onChange={e => onChange({ ...block, url: e.target.value })}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Título do vídeo (opcional)</label>
-              <input
-                type="text"
-                value={block.videoTitle || ''}
-                onChange={e => onChange({ ...block, videoTitle: e.target.value })}
-                placeholder="Ex: Como publicar um produto no Mercado Livre"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-              />
-            </div>
-            {block.url && getYoutubeId(block.url) && (
-              <div className="rounded-lg overflow-hidden border border-gray-200">
-                <iframe
-                  src={`https://www.youtube.com/embed/${getYoutubeId(block.url)}`}
-                  className="w-full"
-                  style={{ height: '240px' }}
-                  allowFullScreen
-                />
-              </div>
-            )}
-          </div>
+          <VideoBlockEditor block={block} onChange={onChange} />
         )}
 
         {block.type === 'image' && (

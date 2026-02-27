@@ -11,6 +11,7 @@ export interface Block {
   content?: string
   url?: string
   videoTitle?: string
+  videoSource?: 'url' | 'local'  // 'url' = YouTube/Vimeo/link, 'local' = /uploads/videos/...
   imageUrl?: string
   caption?: string
   tipText?: string
@@ -43,10 +44,30 @@ export function RenderBlocks({ blocks }: { blocks: Block[] }) {
           {b.type === 'video' && b.url && (
             <div className="space-y-2">
               {b.videoTitle && <p className="font-semibold text-gray-700">{b.videoTitle}</p>}
-              {getYoutubeId(b.url) ? (
+              {b.videoSource === 'local' ? (
+                <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-black">
+                  <video
+                    src={b.url}
+                    controls
+                    className="w-full"
+                    style={{ maxHeight: '360px' }}
+                    preload="metadata"
+                  />
+                </div>
+              ) : getYoutubeId(b.url) ? (
                 <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm">
                   <iframe
                     src={`https://www.youtube.com/embed/${getYoutubeId(b.url)}`}
+                    className="w-full"
+                    style={{ height: '360px' }}
+                    allowFullScreen
+                    title={b.videoTitle || 'Vídeo'}
+                  />
+                </div>
+              ) : b.url.includes('vimeo.com') ? (
+                <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+                  <iframe
+                    src={`https://player.vimeo.com/video/${b.url.split('/').pop()}`}
                     className="w-full"
                     style={{ height: '360px' }}
                     allowFullScreen
