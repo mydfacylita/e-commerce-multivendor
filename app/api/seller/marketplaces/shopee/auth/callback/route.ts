@@ -28,11 +28,17 @@ export async function POST(request: NextRequest) {
       include: { shopeeAuth: true },
     })
 
-    if (!user?.shopeeAuth) {
-      return NextResponse.json({ error: 'Credenciais não configuradas' }, { status: 400 })
+    // Usar credenciais do ADMIN para trocar o code por tokens
+    const adminUser = await prisma.user.findFirst({
+      where: { role: 'ADMIN' },
+      include: { shopeeAuth: true },
+    })
+
+    if (!adminUser?.shopeeAuth?.partnerId || !adminUser?.shopeeAuth?.partnerKey) {
+      return NextResponse.json({ error: 'Shopee não configurada pelo administrador' }, { status: 400 })
     }
 
-    const { partnerId, partnerKey } = user.shopeeAuth
+    const { partnerId, partnerKey } = adminUser.shopeeAuth
 
     // Trocar code por access token
     const timestamp = Math.floor(Date.now() / 1000)

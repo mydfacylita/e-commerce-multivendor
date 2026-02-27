@@ -9,7 +9,7 @@ export const revalidate = 0
 
 const SHOPEE_API_BASE_URL = 'https://partner.shopeemobile.com'
 
-// GET - Gerar URL de autorização para vendedor
+// GET - Gerar URL de autorização usando credenciais do admin
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -17,16 +17,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+    // Usar credenciais do ADMIN (não do vendedor)
+    const adminUser = await prisma.user.findFirst({
+      where: { role: 'ADMIN' },
       include: { shopeeAuth: true },
     })
 
-    if (!user?.shopeeAuth) {
-      return NextResponse.json({ error: 'Configure as credenciais primeiro' }, { status: 400 })
+    if (!adminUser?.shopeeAuth?.partnerId || !adminUser?.shopeeAuth?.partnerKey) {
+      return NextResponse.json(
+        { error: 'Shopee não configurada pelo administrador. Configure em Integrações → Shopee.' },
+        { status: 400 }
+      )
     }
 
-    const { partnerId, partnerKey } = user.shopeeAuth
+    const { partnerId, partnerKey } = adminUser.shopeeAuth
     const timestamp = Math.floor(Date.now() / 1000)
     const path = '/api/v2/shop/auth_partner'
 
