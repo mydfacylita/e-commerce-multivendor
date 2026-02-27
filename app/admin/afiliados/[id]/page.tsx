@@ -39,6 +39,13 @@ interface Affiliate {
   conta?: string
   tipoConta?: string
   chavePix?: string
+  cep?: string
+  logradouro?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  cidade?: string
+  estado?: string
   cookieDays: number
   notes?: string
   approvedAt?: string
@@ -100,6 +107,34 @@ export default function AffiliateDetailPage() {
   const [newCommission, setNewCommission] = useState('')
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    cpf: '',
+    instagram: '',
+    youtube: '',
+    tiktok: '',
+    otherSocial: '',
+    commissionRate: 0,
+    cookieDays: 30,
+    isActive: true,
+    status: 'APPROVED' as 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED',
+    banco: '',
+    agencia: '',
+    conta: '',
+    tipoConta: '',
+    chavePix: '',
+    cep: '',
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    estado: '',
+    notes: ''
+  })
 
   useEffect(() => {
     loadData()
@@ -218,6 +253,69 @@ export default function AffiliateDetailPage() {
     })
   }
 
+  const openEditModal = () => {
+    if (!affiliate) return
+    setEditForm({
+      name: affiliate.name || '',
+      email: affiliate.email || '',
+      phone: affiliate.phone || '',
+      cpf: affiliate.cpf || '',
+      instagram: affiliate.instagram || '',
+      youtube: affiliate.youtube || '',
+      tiktok: affiliate.tiktok || '',
+      otherSocial: affiliate.otherSocial || '',
+      commissionRate: affiliate.commissionRate || 0,
+      cookieDays: affiliate.cookieDays || 30,
+      isActive: affiliate.isActive,
+      status: affiliate.status,
+      banco: affiliate.banco || '',
+      agencia: affiliate.agencia || '',
+      conta: affiliate.conta || '',
+      tipoConta: affiliate.tipoConta || '',
+      chavePix: affiliate.chavePix || '',
+      cep: affiliate.cep || '',
+      logradouro: affiliate.logradouro || '',
+      numero: affiliate.numero || '',
+      complemento: affiliate.complemento || '',
+      bairro: affiliate.bairro || '',
+      cidade: affiliate.cidade || '',
+      estado: affiliate.estado || '',
+      notes: affiliate.notes || ''
+    })
+    setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    showConfirm({
+      type: 'warning',
+      title: 'Salvar Alterações',
+      message: 'Confirma as alterações no cadastro do afiliado?',
+      confirmText: 'Salvar',
+      onConfirm: async () => {
+        try {
+          setProcessing(true)
+          const res = await fetch(`/api/admin/affiliates/${params.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(editForm)
+          })
+          if (res.ok) {
+            success('Sucesso!', 'Cadastro do afiliado atualizado!')
+            setShowEditModal(false)
+            loadData()
+          } else {
+            const data = await res.json()
+            showError('Erro', data.error || 'Erro ao salvar alterações')
+          }
+        } catch (err) {
+          showError('Erro', 'Erro ao salvar alterações')
+        } finally {
+          setProcessing(false)
+        }
+      }
+    })
+  }
+
   const copyAffiliateLink = () => {
     // Usar o domínio público www.mydshop.com.br
     const publicDomain = 'https://www.mydshop.com.br'
@@ -290,8 +388,14 @@ export default function AffiliateDetailPage() {
             <h1 className="text-3xl font-bold text-gray-900">{affiliate.name}</h1>
             <p className="text-gray-600 mt-1">Código: {affiliate.code}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             {getStatusBadge(affiliate.status)}
+            <button
+              onClick={openEditModal}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2 text-sm"
+            >
+              <FiEdit size={16} /> Editar Dados
+            </button>
           </div>
         </div>
       </div>
@@ -630,6 +734,368 @@ export default function AffiliateDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Edição de Cadastro */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg w-full max-w-2xl my-8">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <FiEdit /> Editar Cadastro do Afiliado
+              </h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-700 transition-colors"
+              >
+                <FiX size={22} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Dados Pessoais */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <FiUser size={14} /> Dados Pessoais
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo</label>
+                    <input
+                      type="text"
+                      value={editForm.name}
+                      onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                    <input
+                      type="email"
+                      value={editForm.email}
+                      onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                    <input
+                      type="text"
+                      value={editForm.phone}
+                      onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="(11) 99999-9999"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+                    <input
+                      type="text"
+                      value={editForm.cpf}
+                      onChange={e => setEditForm(f => ({ ...f, cpf: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Redes Sociais */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                  Redes Sociais
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Instagram</label>
+                    <input
+                      type="text"
+                      value={editForm.instagram}
+                      onChange={e => setEditForm(f => ({ ...f, instagram: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="@usuario"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">TikTok</label>
+                    <input
+                      type="text"
+                      value={editForm.tiktok}
+                      onChange={e => setEditForm(f => ({ ...f, tiktok: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="@usuario"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">YouTube</label>
+                    <input
+                      type="text"
+                      value={editForm.youtube}
+                      onChange={e => setEditForm(f => ({ ...f, youtube: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="https://youtube.com/..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Outro</label>
+                    <input
+                      type="text"
+                      value={editForm.otherSocial}
+                      onChange={e => setEditForm(f => ({ ...f, otherSocial: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="Link de outra rede"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dados Bancários */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                  Dados Bancários
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Chave PIX</label>
+                    <input
+                      type="text"
+                      value={editForm.chavePix}
+                      onChange={e => setEditForm(f => ({ ...f, chavePix: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="CPF, e-mail, telefone ou chave aleatória"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                    <input
+                      type="text"
+                      value={editForm.banco}
+                      onChange={e => setEditForm(f => ({ ...f, banco: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="Ex: Nubank, Itaú..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Conta</label>
+                    <select
+                      value={editForm.tipoConta}
+                      onChange={e => setEditForm(f => ({ ...f, tipoConta: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="corrente">Conta Corrente</option>
+                      <option value="poupanca">Conta Poupança</option>
+                      <option value="pagamento">Conta de Pagamento</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Agência</label>
+                    <input
+                      type="text"
+                      value={editForm.agencia}
+                      onChange={e => setEditForm(f => ({ ...f, agencia: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Conta</label>
+                    <input
+                      type="text"
+                      value={editForm.conta}
+                      onChange={e => setEditForm(f => ({ ...f, conta: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Endereço */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  Endereço
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">CEP</label>
+                    <input
+                      type="text"
+                      value={editForm.cep}
+                      onChange={async e => {
+                        const v = e.target.value.replace(/\D/g, '')
+                        setEditForm(f => ({ ...f, cep: e.target.value }))
+                        if (v.length === 8) {
+                          try {
+                            const r = await fetch(`https://viacep.com.br/ws/${v}/json/`)
+                            const d = await r.json()
+                            if (!d.erro) {
+                              setEditForm(f => ({
+                                ...f,
+                                logradouro: d.logradouro || '',
+                                bairro: d.bairro || '',
+                                cidade: d.localidade || '',
+                                estado: d.uf || ''
+                              }))
+                            }
+                          } catch {}
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="00000-000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Logradouro</label>
+                    <input
+                      type="text"
+                      value={editForm.logradouro}
+                      onChange={e => setEditForm(f => ({ ...f, logradouro: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Número</label>
+                    <input
+                      type="text"
+                      value={editForm.numero}
+                      onChange={e => setEditForm(f => ({ ...f, numero: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Complemento</label>
+                    <input
+                      type="text"
+                      value={editForm.complemento}
+                      onChange={e => setEditForm(f => ({ ...f, complemento: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      placeholder="Apto, bloco..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
+                    <input
+                      type="text"
+                      value={editForm.bairro}
+                      onChange={e => setEditForm(f => ({ ...f, bairro: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+                      <input
+                        type="text"
+                        value={editForm.cidade}
+                        onChange={e => setEditForm(f => ({ ...f, cidade: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                      <select
+                        value={editForm.estado}
+                        onChange={e => setEditForm(f => ({ ...f, estado: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      >
+                        <option value="">UF</option>
+                        {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
+                          <option key={uf} value={uf}>{uf}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Configurações */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                  Configurações
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Comissão (%)</label>
+                    <input
+                      type="number"
+                      value={editForm.commissionRate}
+                      onChange={e => setEditForm(f => ({ ...f, commissionRate: parseFloat(e.target.value) || 0 }))}
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Duração do Cookie (dias)</label>
+                    <input
+                      type="number"
+                      value={editForm.cookieDays}
+                      onChange={e => setEditForm(f => ({ ...f, cookieDays: parseInt(e.target.value) || 30 }))}
+                      min="1"
+                      max="365"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status da Conta</label>
+                    <select
+                      value={editForm.isActive ? 'true' : 'false'}
+                      onChange={e => setEditForm(f => ({ ...f, isActive: e.target.value === 'true' }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="true">Ativa</option>
+                      <option value="false">Inativa</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status de Aprovação</label>
+                    <select
+                      value={editForm.status}
+                      onChange={e => setEditForm(f => ({ ...f, status: e.target.value as typeof editForm.status }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="PENDING">Pendente</option>
+                      <option value="APPROVED">Aprovado</option>
+                      <option value="REJECTED">Rejeitado</option>
+                      <option value="SUSPENDED">Suspenso</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observações internas</label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  placeholder="Notas internas sobre este afiliado..."
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-lg">
+              <button
+                onClick={handleSaveEdit}
+                disabled={processing}
+                className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 font-medium inline-flex items-center justify-center gap-2"
+              >
+                {processing ? 'Salvando...' : (<><FiCheck /> Salvar Alterações</>)}
+              </button>
+              <button
+                onClick={() => setShowEditModal(false)}
+                disabled={processing}
+                className="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 font-medium"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Edição de Comissão */}
       {editingCommission && (

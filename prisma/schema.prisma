@@ -1503,6 +1503,14 @@ model Affiliate {
   conta            String?
   tipoConta        String?
   chavePix         String?
+  // Endereço
+  cep              String?
+  logradouro       String?
+  numero           String?
+  complemento      String?
+  bairro           String?
+  cidade           String?
+  estado           String?
   cookieDays       Int                   @default(30)
   notes            String?               @db.Text
   approvedAt       DateTime?
