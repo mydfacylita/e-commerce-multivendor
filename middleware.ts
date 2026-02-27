@@ -158,23 +158,9 @@ function setSecurityHeaders(response: NextResponse, isPage = false) {
     'camera=(), microphone=(), geolocation=(self), payment=(self)'
   )
 
-  // CSP — Content Security Policy (previne XSS e injeção de scripts)
-  if (isPage) {
-    const csp = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.mercadopago.com.br https://sdk.mercadopago.com https://chart.googleapis.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob: https: http:",
-      "connect-src 'self' https://api.mercadopago.com https://*.mydshop.com.br",
-      "frame-src 'self' https://checkout.mercadopago.com.br",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "upgrade-insecure-requests",
-    ].join('; ')
-    response.headers.set('Content-Security-Policy', csp)
-  }
+  // NOTA: Content-Security-Policy é gerenciado pelo next.config.js
+  // que já inclui Google Analytics, GTM, Facebook Pixel, Mercado Pago, etc.
+  // NÃO definir CSP aqui para não sobrescrever o next.config.js.
 
   // Remove header que revela o servidor
   response.headers.delete('X-Powered-By')
