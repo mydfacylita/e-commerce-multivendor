@@ -2,6 +2,7 @@ import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
+import { auditLog } from './audit'
 
 // Extrair domínio base para compartilhar cookies entre subdomínios
 const getBaseDomain = () => {
@@ -39,7 +40,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           return null
         }
@@ -48,12 +49,34 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email }
         })
 
+        const ip = (req as any)?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()
+          || (req as any)?.headers?.['x-real-ip']
+          || 'unknown'
+        const userAgent = (req as any)?.headers?.['user-agent'] || 'unknown'
+
         if (!user || !user.password) {
+          // Log tentativa com e-mail inexistente (registra userId vazio)
+          await auditLog({
+            userId: 'anonymous',
+            action: 'LOGIN_FAILED',
+            status: 'FAILURE',
+            details: { email: credentials.email, reason: 'user_not_found' },
+            ipAddress: ip,
+            userAgent,
+          })
           return null
         }
 
         // Verificar se o usuário está bloqueado
         if (user.isActive === false) {
+          await auditLog({
+            userId: user.id,
+            action: 'LOGIN_FAILED',
+            status: 'FAILURE',
+            details: { reason: 'account_blocked' },
+            ipAddress: ip,
+            userAgent,
+          })
           throw new Error('Sua conta foi bloqueada. Entre em contato com o suporte.')
         }
 
@@ -63,8 +86,26 @@ export const authOptions: NextAuthOptions = {
         )
 
         if (!isPasswordValid) {
+          await auditLog({
+            userId: user.id,
+            action: 'LOGIN_FAILED',
+            status: 'FAILURE',
+            details: { reason: 'invalid_password' },
+            ipAddress: ip,
+            userAgent,
+          })
           return null
         }
+
+        // Login bem-sucedido
+        await auditLog({
+          userId: user.id,
+          action: 'LOGIN_SUCCESS',
+          status: 'SUCCESS',
+          details: { role: user.role },
+          ipAddress: ip,
+          userAgent,
+        })
 
         return {
           id: user.id,
@@ -102,7 +143,9 @@ export const authOptions: NextAuthOptions = {
     signIn: '/login',
   },
   session: {
-    strategy: 'jwt'
+    strategy: 'jwt',
+    // Sessão expira em 8 horas — ISO 27001 A.9.4
+    maxAge: 8 * 60 * 60, // 8 horas em segundos
   },
   // Configuração de cookies para compartilhar entre subdomínios
   cookies: baseDomain ? {

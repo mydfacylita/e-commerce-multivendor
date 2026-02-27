@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { logApi } from '@/lib/api-logger'
 import { syncDropshippingProducts, checkAndReactivateDropProduct } from '@/lib/dropshipping-sync'
 import { updateEANAssignment, releaseEANFromProduct } from '@/lib/ean-utils'
+import { auditLog } from '@/lib/audit'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
@@ -196,6 +197,16 @@ export async function DELETE(
 
     console.log('✅ Produto excluído com sucesso')
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
+
+    // 🔍 AuditLog — ISO 27001 A.12.4
+    await auditLog({
+      userId: session.user.id,
+      action: 'PRODUCT_DELETED',
+      resource: 'Product',
+      resourceId: params.id,
+      status: 'SUCCESS',
+      details: { productName: product?.name, sellerId },
+    })
 
     const seller = sellerId ? await prisma.seller.findUnique({ where: { id: sellerId } }) : null
     

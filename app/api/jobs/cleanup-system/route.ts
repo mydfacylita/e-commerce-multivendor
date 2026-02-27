@@ -3,14 +3,17 @@ import { prisma } from '@/lib/prisma'
 
 /**
  * Job: Limpeza Automática do Sistema
- * 
+ *
  * Objetivo: Remover dados obsoletos e manter banco de dados otimizado
- * 
+ *
  * Lógica:
  * 1. Remove sessões expiradas (> 30 dias)
  * 2. Limpa carrinhos abandonados (> 30 dias)
  * 3. Remove logs antigos (> 90 dias)
  * 4. Arquiva pedidos cancelados antigos (> 6 meses)
+ * 5. 🔐 LGPD: Limpa rate limit entries expirados (ISO 27001)
+ * 6. 🔐 LGPD: Limpa sessões revogadas expiradas
+ * 7. 🔐 LGPD: Purga AuditLog antigo (> 1 ano — prazo de retenção)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +22,10 @@ export async function POST(req: NextRequest) {
       sessionsDeleted: 0,
       cartsDeleted: 0,
       logsDeleted: 0,
-      ordersArchived: 0
+      ordersArchived: 0,
+      rateLimitEntriesCleaned: 0,
+      revokedSessionsCleaned: 0,
+      auditLogsPurged: 0,
     }
 
     // 1. Remover sessões expiradas (> 30 dias)
@@ -96,6 +102,45 @@ export async function POST(req: NextRequest) {
     // 6. Limpar imagens temporárias não utilizadas
     // TODO: Implementar limpeza de arquivos no sistema de arquivos
     // Buscar uploads temporários > 7 dias sem relação com produtos/pedidos
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 🔐 SEGURANÇA / LGPD — ISO 27001 A.12.4, LGPD Art.15
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // 5. Limpar rate limit entries expirados
+    const cleanedRateLimits = await prisma.rateLimitEntry.deleteMany({
+      where: { resetAt: { lt: new Date() } }
+    })
+    results.rateLimitEntriesCleaned = cleanedRateLimits.count
+
+    // 6. Limpar sessões JWT revogadas já expiradas (não precisam mais ser bloqueadas)
+    const cleanedSessions = await prisma.revokedSession.deleteMany({
+      where: { expiresAt: { lt: new Date() } }
+    })
+    results.revokedSessionsCleaned = cleanedSessions.count
+
+    // 7. Purgar AuditLog com mais de 1 ano (prazo de retenção LGPD / ISO 27001 A.12.4)
+    // Exceção: manter ações críticas por 5 anos (financeiro, deleção de conta)
+    const auditRetentionDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) // 1 ano
+    const longRetentionDate = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) // 5 anos
+    const criticalActions = ['WITHDRAWAL_APPROVED', 'PAYMENT_PROCESSED', 'ACCOUNT_DELETED', 'ORDER_REFUND_APPROVED']
+
+    const purgedAuditLogs = await prisma.auditLog.deleteMany({
+      where: {
+        AND: [
+          { createdAt: { lt: auditRetentionDate } },
+          { action: { notIn: criticalActions } },
+        ]
+      }
+    })
+    // Purgar ações críticas após 5 anos
+    const purgedCritical = await prisma.auditLog.deleteMany({
+      where: {
+        createdAt: { lt: longRetentionDate },
+        action: { in: criticalActions },
+      }
+    })
+    results.auditLogsPurged = purgedAuditLogs.count + purgedCritical.count
 
     // Atualizar configuração com última execução
     await prisma.systemConfig.upsert({

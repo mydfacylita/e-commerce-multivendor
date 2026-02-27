@@ -25,6 +25,11 @@ model User {
   blockedAt        DateTime?
   blockedReason    String?           @db.VarChar(255)
   isActive         Boolean           @default(true)
+  // MFA — ISO 27001 A.9.4 — Autenticação forte
+  mfaEnabled       Boolean           @default(false)
+  mfaSecret        String?           // Secret TOTP criptografado
+  mfaBackupCodes   String?           @db.Text // JSON array de hashes dos backup codes
+  mfaEnabledAt     DateTime?
   addresses        Address[]
   affiliate        Affiliate?
   aliexpressAuth   AliExpressAuth?
@@ -2109,4 +2114,39 @@ model HelpArticle {
   @@index([category])
   @@index([published])
   @@map("help_articles")
+}
+// ─────────────────────────────────────────────────────────────
+// SEGURANÇA — ISO 27001
+// ─────────────────────────────────────────────────────────────
+
+// Rate limiting persistente para endpoints críticos (login, reset senha, etc.)
+// Substitui cache em memória que resetava a cada pm2 restart.
+// ISO 27001 A.12.6 — Proteção contra uso indevido de recursos.
+model RateLimitEntry {
+  id        String   @id @default(cuid())
+  key       String   @unique  // ex: "login:user@email.com" ou "login:ip:1.2.3.4"
+  count     Int      @default(1)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+  @@index([resetAt])
+  @@map("rate_limit_entries")
+}
+
+// Sessões revogadas (blacklist de JWT) para logout seguro.
+// ISO 27001 A.9.4 — Encerramento de sessão seguro.
+// Expirar entradas via job cleanup-system.
+model RevokedSession {
+  id        String   @id @default(cuid())
+  jti       String   @unique  // JWT ID (adicionar "jti" ao JWT payload)
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime @default(now())
+
+  @@index([jti])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("revoked_sessions")
 }

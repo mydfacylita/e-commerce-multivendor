@@ -130,6 +130,60 @@ async function getMaintenanceMode(baseUrl: string): Promise<boolean> {
 }
 
 /**
+ * 🔒 Aplicar headers de segurança HTTP
+ * ISO 27001 A.14 — Segurança no desenvolvimento de sistemas
+ * OWASP Secure Headers Project
+ */
+function setSecurityHeaders(response: NextResponse, isPage = false) {
+  // Previne clickjacking (ISO 27001 A.14)
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN')
+
+  // Previne sniffing de MIME type (XSS vector)
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+
+  // Controla informações no Referer
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+
+  // HSTS — força HTTPS por 1 ano (ISO 27001 A.10 / A.13)
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains; preload'
+    )
+  }
+
+  // Desabilita features de browser desnecessárias
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(self), payment=(self)'
+  )
+
+  // CSP — Content Security Policy (previne XSS e injeção de scripts)
+  if (isPage) {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.mercadopago.com.br https://sdk.mercadopago.com https://chart.googleapis.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https: http:",
+      "connect-src 'self' https://api.mercadopago.com https://*.mydshop.com.br",
+      "frame-src 'self' https://checkout.mercadopago.com.br",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "upgrade-insecure-requests",
+    ].join('; ')
+    response.headers.set('Content-Security-Policy', csp)
+  }
+
+  // Remove header que revela o servidor
+  response.headers.delete('X-Powered-By')
+  response.headers.delete('Server')
+
+  return response
+}
+
+/**
  * 🔒 Configurar headers CORS
  */
 function setCorsHeaders(response: NextResponse, origin: string | null) {
@@ -144,6 +198,7 @@ function setCorsHeaders(response: NextResponse, origin: string | null) {
   response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   response.headers.set('Pragma', 'no-cache')
   response.headers.set('Expires', '0')
+  setSecurityHeaders(response, false)
   return response
 }
 
@@ -408,7 +463,8 @@ export async function middleware(request: NextRequest) {
     // Para rotas públicas (cadastro/planos), permite acesso para qualquer usuário autenticado
     // O usuário pode ser CUSTOMER querendo se cadastrar como SELLER
     if (isPublicRoute) {
-      return NextResponse.next()
+      const pubRes = NextResponse.next()
+      return setSecurityHeaders(pubRes, true)
     }
 
     // Para outras rotas de vendedor, o usuário precisa ser SELLER
@@ -420,10 +476,13 @@ export async function middleware(request: NextRequest) {
     // Para outras rotas de vendedor, valida plano no servidor
     // Nota: Não podemos fazer query no Prisma aqui (edge runtime)
     // A validação de plano será feita no layout client-side mas com bloqueio de renderização
-    return NextResponse.next()
+    const sellerRes = NextResponse.next()
+    return setSecurityHeaders(sellerRes, true)
   }
 
-  return NextResponse.next()
+  const finalRes = NextResponse.next()
+  setSecurityHeaders(finalRes, true)
+  return finalRes
 }
 
 export const config = {

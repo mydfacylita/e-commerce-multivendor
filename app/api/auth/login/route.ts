@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { validateApiKey } from '@/lib/api-security'
+import { checkRateLimitDb, resetRateLimit, rateLimitHeaders } from '@/lib/rate-limit-db'
+import { auditLog } from '@/lib/audit'
 
 
 // Force dynamic - disable all caching
@@ -12,8 +14,7 @@ export const fetchCache = 'force-no-store';
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key'
 
-// 🔒 Rate limiting simples em memória (em produção usar Redis)
-const loginAttempts = new Map<string, { count: number; lastAttempt: number }>()
+// 🔒 Configurarções de rate limiting persistente (ISO 27001 A.12.6)
 const MAX_ATTEMPTS = 5
 const LOCKOUT_TIME = 15 * 60 * 1000 // 15 minutos
 
@@ -57,48 +58,25 @@ function secureResponse(data: object, status: number, origin: string | null): Ne
 }
 
 /**
- * 🔒 Verifica rate limiting por IP
+ * � Verifica rate limiting por IP via banco de dados (persistente)
  */
-function checkRateLimit(ip: string): { blocked: boolean; remaining: number } {
-  const now = Date.now()
-  const attempt = loginAttempts.get(ip)
-  
-  if (!attempt) {
-    return { blocked: false, remaining: MAX_ATTEMPTS }
-  }
-  
-  // Reset se passou o tempo de lockout
-  if (now - attempt.lastAttempt > LOCKOUT_TIME) {
-    loginAttempts.delete(ip)
-    return { blocked: false, remaining: MAX_ATTEMPTS }
-  }
-  
-  if (attempt.count >= MAX_ATTEMPTS) {
-    return { blocked: true, remaining: 0 }
-  }
-  
-  return { blocked: false, remaining: MAX_ATTEMPTS - attempt.count }
+async function checkRateLimit(ip: string): Promise<{ blocked: boolean; remaining: number }> {
+  const result = await checkRateLimitDb(`login:ip:${ip}`, MAX_ATTEMPTS, LOCKOUT_TIME)
+  return { blocked: !result.allowed, remaining: result.remaining }
 }
 
 /**
- * 🔒 Registra tentativa de login falha
+ * 🕒 Registra tentativa de login falha via banco
  */
-function recordFailedAttempt(ip: string): void {
-  const now = Date.now()
-  const attempt = loginAttempts.get(ip)
-  
-  if (!attempt) {
-    loginAttempts.set(ip, { count: 1, lastAttempt: now })
-  } else {
-    loginAttempts.set(ip, { count: attempt.count + 1, lastAttempt: now })
-  }
+async function recordFailedAttempt(ip: string): Promise<void> {
+  await checkRateLimitDb(`login:ip:${ip}`, MAX_ATTEMPTS, LOCKOUT_TIME)
 }
 
 /**
- * 🔒 Limpa tentativas após login bem sucedido
+ * 🕒 Limpa tentativas após login bem-sucedido
  */
-function clearAttempts(ip: string): void {
-  loginAttempts.delete(ip)
+async function clearAttempts(ip: string): Promise<void> {
+  await resetRateLimit(`login:ip:${ip}`)
 }
 
 /**
@@ -145,7 +123,7 @@ export async function POST(request: NextRequest) {
     }
     
     // 🔒 Rate limiting
-    const rateCheck = checkRateLimit(ip)
+    const rateCheck = await checkRateLimit(ip)
     if (rateCheck.blocked) {
       console.warn(`[LOGIN] Rate limit atingido - IP: ${ip}`)
       return secureResponse(
@@ -215,7 +193,15 @@ export async function POST(request: NextRequest) {
 
     // 🔒 Mensagem genérica para não revelar se email existe
     if (!user || !user.password) {
-      recordFailedAttempt(ip)
+      await recordFailedAttempt(ip)
+      await auditLog({
+        userId: 'anonymous',
+        action: 'LOGIN_FAILED',
+        status: 'FAILURE',
+        details: { reason: 'user_not_found', source: 'mobile_api' },
+        ipAddress: ip,
+        userAgent: request.headers.get('user-agent') || 'unknown',
+      })
       // Delay para dificultar timing attacks
       await new Promise(resolve => setTimeout(resolve, 500))
       return secureResponse(
@@ -229,7 +215,15 @@ export async function POST(request: NextRequest) {
     const isPasswordValid = await bcrypt.compare(password, user.password)
 
     if (!isPasswordValid) {
-      recordFailedAttempt(ip)
+      await recordFailedAttempt(ip)
+      await auditLog({
+        userId: user.id,
+        action: 'LOGIN_FAILED',
+        status: 'FAILURE',
+        details: { reason: 'invalid_password', source: 'mobile_api' },
+        ipAddress: ip,
+        userAgent: request.headers.get('user-agent') || 'unknown',
+      })
       console.warn(`[LOGIN] Senha incorreta - Email: ${email} - IP: ${ip}`)
       return secureResponse(
         { error: 'Credenciais inválidas' },
@@ -239,7 +233,15 @@ export async function POST(request: NextRequest) {
     }
 
     // ✅ Login bem sucedido - limpar tentativas
-    clearAttempts(ip)
+    await clearAttempts(ip)
+    await auditLog({
+      userId: user.id,
+      action: 'LOGIN_SUCCESS',
+      status: 'SUCCESS',
+      details: { role: user.role, source: 'mobile_api' },
+      ipAddress: ip,
+      userAgent: request.headers.get('user-agent') || 'unknown',
+    })
 
     // 🔒 Gerar token JWT com claims mínimos
     const token = jwt.sign(

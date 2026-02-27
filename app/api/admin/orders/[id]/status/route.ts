@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { processAffiliateCommission, cancelAffiliateCommission } from '@/lib/affiliate-commission'
+import { auditLog } from '@/lib/audit'
 
 export async function PATCH(
   req: NextRequest,
@@ -75,6 +76,22 @@ export async function PATCH(
 
     // Processar comissão de afiliado se aplicável
     let affiliateResult = null
+
+    // 🔍 AuditLog — ISO 27001 A.12.4
+    await auditLog({
+      userId: session.user.id,
+      action: 'ORDER_STATUS_CHANGED',
+      resource: 'Order',
+      resourceId: params.id,
+      status: 'SUCCESS',
+      details: {
+        previousStatus: currentOrder.status,
+        newStatus: status,
+        orderId: params.id,
+      },
+      ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown',
+      userAgent: req.headers.get('user-agent') || 'unknown',
+    })
 
     if (status === 'DELIVERED') {
       // Quando entregue, liberar comissão
