@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { formatMLErrors } from '@/lib/mercadolivre'
 import { withAuth } from '@/lib/api-middleware'
 import { sanitizeHtml } from '@/lib/validation'
+import crypto from 'crypto'
 
 
 // Force dynamic - disable all caching
@@ -136,10 +137,33 @@ export const POST = withAuth(
     }
 
     if (marketplace === 'shopee') {
-      return NextResponse.json(
-        { message: 'Integração com Shopee em desenvolvimento' },
-        { status: 501 }
-      )
+      const shopeeResult = await publishToShopee(product)
+
+      if (!shopeeResult.success) {
+        return NextResponse.json(
+          { message: shopeeResult.message, details: shopeeResult.details },
+          { status: 400 }
+        )
+      }
+
+      await prisma.marketplaceListing.create({
+        data: {
+          productId: product.id,
+          marketplace: 'shopee',
+          listingId: shopeeResult.itemId!,
+          status: 'active',
+          title: product.name,
+          price: product.price,
+          stock: product.stock,
+          syncEnabled: true,
+          lastSyncAt: new Date(),
+        }
+      })
+
+      return NextResponse.json({
+        message: 'Produto publicado com sucesso na Shopee',
+        itemId: shopeeResult.itemId,
+      })
     }
 
       return NextResponse.json(
@@ -166,6 +190,101 @@ async function getParams(request: NextRequest) {
   const pathParts = url.pathname.split('/')
   const id = pathParts[pathParts.length - 2] // ID está antes de 'publish'
   return { id }
+}
+
+// =====================================================
+// SHOPEE — Publicar produto
+// =====================================================
+const SHOPEE_API_BASE = 'https://partner.shopeemobile.com'
+
+async function shopeeSign(endpoint: string, partnerId: number, partnerKey: string, timestamp: number, body: string): Promise<string> {
+  const baseString = `${partnerId}${endpoint}${timestamp}${body}`
+  return crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex')
+}
+
+async function refreshShopeeToken(userId: string): Promise<string> {
+  const auth = await prisma.shopeeAuth.findUnique({ where: { userId } })
+  if (!auth) throw new Error('Shopee não conectada')
+
+  const expiresIn = auth.expiresAt.getTime() - Date.now()
+  if (expiresIn > 30 * 60 * 1000) return auth.accessToken
+
+  const endpoint = '/api/v2/auth/access_token/get'
+  const timestamp = Math.floor(Date.now() / 1000)
+  const body = JSON.stringify({ refresh_token: auth.refreshToken, partner_id: auth.partnerId, shop_id: auth.shopId })
+  const sign = await shopeeSign(endpoint, auth.partnerId, auth.partnerKey, timestamp, body)
+
+  const res = await fetch(`${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+  })
+  const data = await res.json()
+
+  if (data.access_token && data.refresh_token) {
+    const expiresAt = new Date(Date.now() + data.expire_in * 1000)
+    await prisma.shopeeAuth.update({
+      where: { userId },
+      data: { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt },
+    })
+    return data.access_token
+  }
+  return auth.accessToken
+}
+
+async function publishToShopee(product: any): Promise<{ success: boolean; itemId?: string; message: string; details?: any }> {
+  try {
+    // Buscar admin com Shopee conectada
+    const adminUser = await prisma.user.findFirst({
+      where: { role: 'ADMIN' },
+      include: { shopeeAuth: true },
+    })
+
+    if (!adminUser?.shopeeAuth || !adminUser.shopeeAuth.accessToken) {
+      return { success: false, message: 'Shopee não conectada. Configure a integração em Integrações → Shopee.' }
+    }
+
+    const auth = adminUser.shopeeAuth
+    const accessToken = await refreshShopeeToken(adminUser.id)
+
+    const images: string[] = JSON.parse(product.images || '[]')
+    const imageUrlList = images.slice(0, 9)
+
+    const endpoint = '/api/v2/product/add_item'
+    const timestamp = Math.floor(Date.now() / 1000)
+    const bodyObj = {
+      partner_id: auth.partnerId,
+      timestamp,
+      access_token: accessToken,
+      shop_id: auth.shopId,
+      original_price: product.price,
+      description: (product.description || product.name).substring(0, 3000),
+      weight: 0.5,
+      item_name: product.name.substring(0, 120),
+      item_status: 'NORMAL',
+      normal_stock: product.stock,
+      dimension: { package_length: 20, package_width: 15, package_height: 10 },
+      logistic_info: [{ logistic_id: 0, enabled: true }],
+      image: { image_url_list: imageUrlList },
+      brand: { brand_id: 0, original_brand_name: product.brand || '' },
+      category_id: 0,
+    }
+    const bodyStr = JSON.stringify(bodyObj)
+    const sign = await shopeeSign(endpoint, auth.partnerId, auth.partnerKey, timestamp, bodyStr)
+
+    const res = await fetch(
+      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr }
+    )
+    const data = await res.json()
+
+    if (data.error) {
+      return { success: false, message: `Erro Shopee: ${data.message || data.error}`, details: data }
+    }
+
+    const itemId = data.response?.item_id?.toString()
+    return { success: true, itemId, message: 'Publicado com sucesso na Shopee' }
+  } catch (error: any) {
+    return { success: false, message: `Erro ao publicar na Shopee: ${error.message}` }
+  }
 }
 
 async function validateForMercadoLivre(product: any) {

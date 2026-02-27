@@ -1,0 +1,24 @@
+name = "MydShop"
+client_id = "0824873591e41132bc3681c607cf0012"
+application_url = "https://mydshop.com.br/api/shopify/install"
+embedded = false
+
+[access_scopes]
+scopes = "read_customers,read_orders,write_orders,read_products,write_products"
+
+[auth]
+redirect_urls = [
+  "https://mydshop.com.br/api/shopify/callback",
+  "https://www.mydshop.com.br/api/shopify/callback"
+]
+
+[webhooks]
+api_version = "2026-01"
+
+  [webhooks.privacy_compliance]
+  customer_deletion_url = "https://mydshop.com.br/api/shopify/webhooks/customers/redact"
+  customer_data_request_url = "https://mydshop.com.br/api/shopify/webhooks/customers/data_request"
+  shop_deletion_url = "https://mydshop.com.br/api/shopify/webhooks/shop/redact"
+
+[pos]
+embedded = false

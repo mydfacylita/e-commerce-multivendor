@@ -524,6 +524,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Shopify</span>
                 </Link>
                 <Link
+                  href="/admin/integracao/shopee"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/integracao/shopee') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiShoppingBag className="text-base" />
+                  <span>Shopee</span>
+                </Link>
+                <Link
                   href="/admin/integracao/developer-apps"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/integracao/developer-apps') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
