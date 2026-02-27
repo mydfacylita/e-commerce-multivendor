@@ -41,7 +41,8 @@ import {
   FiCpu,
   FiMessageSquare,
   FiCheckCircle,
-  FiUserPlus
+  FiUserPlus,
+  FiHelpCircle,
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -539,6 +540,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             <FiMail className="text-lg" />
             <span>E-mail</span>
+          </Link>
+
+          <Link
+            href="/admin/ajuda"
+            className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname?.startsWith('/admin/ajuda') ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
+          >
+            <FiHelpCircle className="text-lg" />
+            <span>Central de Ajuda</span>
           </Link>
 
           {/* Configurações */}

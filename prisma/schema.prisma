@@ -2092,3 +2092,21 @@ enum ShopifySyncStatus {
   failed
   skipped
 }
+
+model HelpArticle {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  category    String   @db.VarChar(100)
+  description String?  @db.Text
+  blocks      String   @db.LongText
+  published   Boolean  @default(false)
+  position    Int      @default(0)
+  icon        String?  @db.VarChar(10)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([published])
+  @@map("help_articles")
+}
