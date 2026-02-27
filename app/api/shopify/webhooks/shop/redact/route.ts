@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateWebhookHmac, getShopifyConfig } from '@/lib/shopify'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 /**
  * POST /api/shopify/webhooks/shop/redact
  * 

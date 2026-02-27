@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateWebhookHmac, getShopifyConfig } from '@/lib/shopify'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 /**
  * POST /api/shopify/webhooks/customers/data_request
  * 
