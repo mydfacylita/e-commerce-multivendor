@@ -8,7 +8,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { 
   FiPackage, FiDollarSign, FiHome, FiExternalLink, FiTruck, FiSettings, 
   FiShoppingBag, FiUsers, FiCreditCard, FiChevronDown, FiChevronRight,
-  FiBox, FiGrid, FiStar, FiLayers, FiBarChart2, FiArrowUpCircle
+  FiBox, FiGrid, FiStar, FiLayers, FiBarChart2, FiArrowUpCircle, FiHelpCircle
 } from 'react-icons/fi';
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
@@ -208,6 +208,13 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         { label: 'Meu Plano', href: '/vendedor/planos', icon: FiStar },
         { label: 'Upgrade', href: '/vendedor/planos/upgrade', icon: FiArrowUpCircle },
       ]
+    },
+    {
+      id: 'ajuda',
+      label: 'Central de Ajuda',
+      icon: FiHelpCircle,
+      href: '/ajuda',
+      requiresPermission: null,
     },
     {
       id: 'loja',

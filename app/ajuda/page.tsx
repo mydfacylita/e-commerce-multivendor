@@ -103,7 +103,7 @@ export default async function HelpCenterPage({
               <span className="text-gray-700 font-medium">{activeArticle.title}</span>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 max-w-3xl">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full">
               <div className="flex items-start gap-4 mb-6">
                 <span className="text-5xl">{activeArticle.icon || '📄'}</span>
                 <div>

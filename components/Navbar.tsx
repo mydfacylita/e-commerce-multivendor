@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useSession, signOut } from 'next-auth/react'
 import { useState, useEffect, useRef } from 'react'
-import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiTruck, FiLock, FiAward, FiPackage, FiHeart, FiMail, FiGrid, FiHome, FiUsers } from 'react-icons/fi'
+import { FiShoppingCart, FiUser, FiMenu, FiX, FiSearch, FiTruck, FiLock, FiAward, FiPackage, FiHeart, FiMail, FiGrid, FiHome, FiUsers, FiHelpCircle } from 'react-icons/fi'
 import { FaFacebook, FaTwitter, FaYoutube, FaWhatsapp } from 'react-icons/fa'
 import { useCartStore } from '@/lib/store'
 import { useRouter } from 'next/navigation'
@@ -688,6 +688,10 @@ export default function Navbar() {
                 <FiMail size={20} />
                 <span>Contato</span>
               </Link>
+              <Link href="/ajuda" className="flex items-center gap-2 hover:text-accent-500">
+                <FiHelpCircle size={20} />
+                <span>Ajuda</span>
+              </Link>
               <button 
                 onClick={() => setIsPartnerModalOpen(true)}
                 className="flex items-center gap-2 hover:text-accent-500 font-semibold px-4 py-2"
@@ -785,6 +789,9 @@ export default function Navbar() {
             </Link>
             <Link href="/contato" className="flex items-center gap-2 py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
               <FiMail size={18} /> Contato
+            </Link>
+            <Link href="/ajuda" className="flex items-center gap-2 py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
+              <FiHelpCircle size={18} /> Ajuda
             </Link>
             <button 
               onClick={() => {

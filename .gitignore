@@ -29,6 +29,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# uploads de usuários (imagens, vídeos - servidos localmente, não versionados)
+/public/uploads/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

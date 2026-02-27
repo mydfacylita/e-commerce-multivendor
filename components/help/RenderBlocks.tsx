@@ -11,8 +11,9 @@ export interface Block {
   content?: string
   url?: string
   videoTitle?: string
-  videoSource?: 'url' | 'local'  // 'url' = YouTube/Vimeo/link, 'local' = /uploads/videos/...
+  videoSource?: 'url' | 'local'
   imageUrl?: string
+  imageSource?: 'url' | 'local'
   caption?: string
   tipText?: string
   variant?: TipVariant

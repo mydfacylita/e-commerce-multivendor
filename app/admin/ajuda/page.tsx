@@ -209,6 +209,116 @@ function VideoBlockEditor({ block, onChange }: { block: Block; onChange: (b: Blo
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Image Block Editor (URL ou Upload Local)
+// ──────────────────────────────────────────────────────────────────────────────
+
+function ImageBlockEditor({ block, onChange }: { block: Block; onChange: (b: Block) => void }) {
+  const [tab, setTab] = useState<'url' | 'local'>(block.imageSource === 'local' ? 'local' : 'url')
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('folder', 'help')
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao enviar')
+      onChange({ ...block, imageUrl: data.url, imageSource: 'local' })
+    } catch (err: any) {
+      setUploadError(err.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function switchTab(t: 'url' | 'local') {
+    setTab(t)
+    setUploadError(null)
+    onChange({ ...block, imageUrl: '', imageSource: t })
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Tab switcher */}
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
+        <button type="button" onClick={() => switchTab('url')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${
+            tab === 'url' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          <FiLink size={12} /> URL
+        </button>
+        <button type="button" onClick={() => switchTab('local')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${
+            tab === 'local' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          <FiUploadCloud size={12} /> Upload Local
+        </button>
+      </div>
+
+      {/* Legenda */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Legenda (opcional)</label>
+        <input type="text" value={block.caption || ''}
+          onChange={e => onChange({ ...block, caption: e.target.value })}
+          placeholder="Descrição da imagem"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+        />
+      </div>
+
+      {/* ── Aba URL ── */}
+      {tab === 'url' && (
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-gray-600">URL da imagem</label>
+          <input type="url"
+            value={block.imageSource === 'local' ? '' : (block.imageUrl || '')}
+            onChange={e => onChange({ ...block, imageUrl: e.target.value, imageSource: 'url' })}
+            placeholder="https://..."
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+          />
+          {block.imageSource !== 'local' && block.imageUrl && (
+            <img src={block.imageUrl} alt={block.caption || 'preview'}
+              className="max-h-48 rounded-lg border border-gray-200 object-contain" />
+          )}
+        </div>
+      )}
+
+      {/* ── Aba Upload Local ── */}
+      {tab === 'local' && (
+        <div className="space-y-3">
+          <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl px-4 py-8 cursor-pointer transition
+            bg-green-50 border-green-300 hover:bg-green-100" style={{ opacity: uploading ? 0.6 : 1, pointerEvents: uploading ? 'none' : 'auto' }}>
+            {uploading
+              ? <FiLoader size={28} className="text-green-500 animate-spin" />
+              : <FiUploadCloud size={28} className="text-green-500" />}
+            <span className="text-sm font-medium text-green-700">
+              {uploading ? 'Enviando...' : 'Clique para escolher ou arraste uma imagem'}
+            </span>
+            <span className="text-xs text-green-600">JPG, PNG, WEBP, GIF, SVG — até 5 MB</span>
+            <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
+          </label>
+          {uploadError && (
+            <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">❌ {uploadError}</p>
+          )}
+          {block.imageSource === 'local' && block.imageUrl && (
+            <div className="space-y-1">
+              <img src={block.imageUrl} alt={block.caption || 'preview'}
+                className="max-h-48 rounded-lg border border-gray-200 object-contain" />
+              <p className="text-xs text-gray-400 font-mono break-all">{block.imageUrl}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Block Editor
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -270,35 +380,7 @@ function BlockEditor({
         )}
 
         {block.type === 'image' && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">URL da Imagem</label>
-              <input
-                type="url"
-                value={block.imageUrl || ''}
-                onChange={e => onChange({ ...block, imageUrl: e.target.value })}
-                placeholder="https://... ou /uploads/..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Legenda (opcional)</label>
-              <input
-                type="text"
-                value={block.caption || ''}
-                onChange={e => onChange({ ...block, caption: e.target.value })}
-                placeholder="Descrição da imagem"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-              />
-            </div>
-            {block.imageUrl && (
-              <img
-                src={block.imageUrl}
-                alt={block.caption || 'preview'}
-                className="max-h-48 rounded-lg border border-gray-200 object-contain"
-              />
-            )}
-          </div>
+          <ImageBlockEditor block={block} onChange={onChange} />
         )}
 
         {block.type === 'tip' && (

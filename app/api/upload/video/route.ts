@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
     await writeFile(join(uploadDir, fileName), buffer)
 
-    const publicUrl = `/uploads/videos/${fileName}`
+    const publicUrl = `/api/stream/video/${fileName}`
 
     return NextResponse.json({
       success: true,
