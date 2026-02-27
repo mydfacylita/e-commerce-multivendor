@@ -28,6 +28,10 @@ export async function POST(request: NextRequest) {
       include: { shopeeAuth: true },
     })
 
+    if (!user) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+    }
+
     // Usar credenciais do ADMIN para trocar o code por tokens
     const adminUser = await prisma.user.findFirst({
       where: { role: 'ADMIN' },
