@@ -100,8 +100,6 @@
                  [alt]="banner.title"
                  class="banner-bg-image"
                  (error)="onBannerImageError(banner)" />
-            <!-- Overlay escuro sobre a imagem -->
-            <div *ngIf="banner.image" class="banner-image-overlay"></div>
             <div class="banner-content">
               <span class="banner-icon">{{ banner.icon }}</span>
               <div class="banner-text">

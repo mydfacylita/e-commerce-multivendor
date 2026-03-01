@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { validateApiKey } from '@/lib/api-security'
 import { checkRateLimitDb, resetRateLimit, rateLimitHeaders } from '@/lib/rate-limit-db'
 import { auditLog } from '@/lib/audit'
 
@@ -90,7 +89,7 @@ function isValidEmail(email: string): boolean {
 /**
  * POST /api/auth/login
  * Endpoint unificado de autenticação para Web e Mobile
- * 🔐 Requer API Key válida
+ * 🔐 Protegido por credenciais (email+senha) + rate limiting + validação de origem
  */
 export async function POST(request: NextRequest) {
   const origin = request.headers.get('origin')
@@ -99,20 +98,7 @@ export async function POST(request: NextRequest) {
              'unknown'
   
   try {
-    // 🔐 Validar API Key primeiro
-    const apiKey = request.headers.get('x-api-key')
-    const apiValidation = await validateApiKey(apiKey)
-    
-    if (!apiValidation.valid) {
-      console.warn(`[LOGIN] API Key inválida - IP: ${ip}`)
-      return secureResponse(
-        { error: apiValidation.error || 'API Key inválida' },
-        401,
-        origin
-      )
-    }
-
-    // 🔒 Verificar origem (bloquear requisições de origens não permitidas)
+    //  Verificar origem (bloquear requisições de origens não permitidas)
     if (origin && !ALLOWED_ORIGINS.includes(origin)) {
       console.warn(`[LOGIN] Origem bloqueada: ${origin} - IP: ${ip}`)
       return secureResponse(
