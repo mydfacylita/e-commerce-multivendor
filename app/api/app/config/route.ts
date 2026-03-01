@@ -2,13 +2,12 @@
  * 📱 API DE CONFIGURAÇÕES DO APP MOBILE
  * 
  * Retorna configurações de aparência e marca para o aplicativo móvel.
- * 🔐 Requer API Key válida.
+ * Endpoint público - apenas dados de branding (cores, banners, textos).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { headers } from 'next/headers'
-import { validateApiKey } from '@/lib/api-security'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -40,19 +39,11 @@ function resolveImageUrl(url: string | null | undefined, baseUrl: string): strin
   return url;
 }
 
-// GET - Buscar configurações do app
+// GET - Buscar configurações do app (endpoint público - apenas dados de branding)
 export async function GET(request: NextRequest) {
   try {
-    // 🔐 Validar API Key
-    const apiKey = request.headers.get('x-api-key')
-    const validation = await validateApiKey(apiKey)
-    
-    if (!validation.valid) {
-      return NextResponse.json(
-        { error: validation.error || 'API Key inválida' },
-        { status: 401 }
-      )
-    }
+    // Endpoint público: retorna apenas configurações de aparência (sem dados sensíveis)
+    // API Key opcional para backward compatibility
 
     // Obter baseUrl do servidor a partir do request
     const headersList = headers();
@@ -268,7 +259,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(appConfig, {
       headers: {
-        'Cache-Control': 'public, max-age=300', // Cache por 5 minutos
+        // Sem cache - admin precisa ver mudanças imediatamente
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
       }
     })
 

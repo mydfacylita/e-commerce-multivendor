@@ -14,8 +14,11 @@ import { Smartphone,
   Globe,
   Plus,
   Minus,
-  Camera
+  Camera,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react'
+import toast, { Toaster } from 'react-hot-toast'
 interface BannerConfig {
   id: string
   title: string
@@ -185,9 +188,12 @@ export default function AparenciaAppPage() {
       if (response.ok) {
         const data = await response.json()
         setConfig({ ...defaultConfig, ...data })
+      } else {
+        toast.error('Erro ao carregar configurações')
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error)
+      toast.error('Erro ao conectar com o servidor')
     } finally {
       setLoading(false)
     }
@@ -203,13 +209,16 @@ export default function AparenciaAppPage() {
       })
       
       if (response.ok) {
-        alert('Configurações salvas com sucesso!')
+        toast.success('Configurações salvas com sucesso! O app atualizará em até 30 segundos.')
+        // Recarregar para confirmar o que foi salvo
+        await loadConfig()
       } else {
-        throw new Error('Erro ao salvar')
+        const err = await response.json().catch(() => ({}))
+        toast.error(err?.error || 'Erro ao salvar configurações')
       }
     } catch (error) {
       console.error('Erro ao salvar configurações:', error)
-      alert('Erro ao salvar configurações')
+      toast.error('Erro ao conectar com o servidor')
     } finally {
       setSaving(false)
     }
@@ -233,10 +242,12 @@ export default function AparenciaAppPage() {
       if (response.ok) {
         const data = await response.json()
         handleChange(key, data.url)
+      } else {
+        toast.error('Erro ao fazer upload da imagem')
       }
     } catch (error) {
       console.error('Erro no upload:', error)
-      alert('Erro ao fazer upload da imagem')
+      toast.error('Erro ao fazer upload da imagem')
     }
   }
 
@@ -254,10 +265,13 @@ export default function AparenciaAppPage() {
       if (response.ok) {
         const data = await response.json()
         updateBanner(bannerId, { image: data.url })
+        toast.success('Imagem do banner enviada!')
+      } else {
+        toast.error('Erro ao fazer upload da imagem do banner')
       }
     } catch (error) {
       console.error('Erro no upload do banner:', error)
-      alert('Erro ao fazer upload da imagem')
+      toast.error('Erro ao fazer upload da imagem do banner')
     }
   }
 
@@ -1159,6 +1173,7 @@ export default function AparenciaAppPage() {
           </div>
         )}
       </div>
+      <Toaster position="top-right" />
     </div>
   )
 }

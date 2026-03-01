@@ -36,7 +36,6 @@ const ALLOWED_ORIGINS = [
 
 // 🔐 Rotas que requerem API Key do app móvel
 const API_KEY_REQUIRED_ROUTES = [
-  '/api/app/config',
   '/api/app/products', // App móvel usa rota separada
   '/api/app/categories',
   '/api/shipping/calculate',
@@ -65,6 +64,7 @@ const PUBLIC_API_ROUTES = [
   '/api/image/',
   '/api/analytics/track',
   '/api/v1/', // Portal de desenvolvedores — validação feita nas próprias rotas via dev-auth
+  '/api/app/config', // Configurações de aparência do app (público - apenas branding)
 ]
 
 // 🚫 Rotas BLOQUEADAS em produção (debug, teste)
