@@ -204,6 +204,14 @@ export class HomePage implements OnInit {
   }
 
   /**
+   * Fallback quando imagem do banner falha ao carregar
+   * Remove a imagem para mostrar o gradiente
+   */
+  onBannerImageError(banner: Banner) {
+    banner.image = null;
+  }
+
+  /**
    * Carrega dados iniciais
    */
   loadData() {

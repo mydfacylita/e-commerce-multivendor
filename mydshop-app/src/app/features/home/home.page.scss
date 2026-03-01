@@ -75,7 +75,30 @@ ion-header {
     cursor: pointer;
     overflow: hidden;
     
-    // Efeito de sobreposição sutil
+    // Imagem de fundo do banner
+    .banner-bg-image {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      z-index: 0;
+    }
+
+    // Overlay escuro sobre a imagem para legibilidade do texto
+    .banner-image-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 100%);
+      z-index: 1;
+    }
+    
+    // Efeito de sobreposição sutil (para banners sem imagem)
     &::before {
       content: '';
       position: absolute;

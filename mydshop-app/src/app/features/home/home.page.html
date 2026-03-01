@@ -90,7 +90,18 @@
         class="banner-swiper">
         
         <swiper-slide *ngFor="let banner of banners">
-          <div class="banner-slide" [style.background]="banner.gradient" (click)="onBannerClick(banner)">
+          <div class="banner-slide"
+               [style.background]="banner.image ? 'none' : banner.gradient"
+               [style.background-color]="banner.image ? '#000' : null"
+               (click)="onBannerClick(banner)">
+            <!-- Imagem de fundo quando disponível -->
+            <img *ngIf="banner.image"
+                 [src]="banner.image"
+                 [alt]="banner.title"
+                 class="banner-bg-image"
+                 (error)="onBannerImageError(banner)" />
+            <!-- Overlay escuro sobre a imagem -->
+            <div *ngIf="banner.image" class="banner-image-overlay"></div>
             <div class="banner-content">
               <span class="banner-icon">{{ banner.icon }}</span>
               <div class="banner-text">

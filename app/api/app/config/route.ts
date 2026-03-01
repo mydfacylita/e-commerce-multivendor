@@ -48,7 +48,9 @@ export async function GET(request: NextRequest) {
     // Obter baseUrl do servidor a partir do request
     const headersList = headers();
     const host = headersList.get('host') || 'localhost:3000';
-    const protocol = headersList.get('x-forwarded-proto') || 'http';
+    // Forçar HTTPS em produção (nginx faz proxy interno via HTTP, mas o site é HTTPS)
+    const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+    const protocol = isLocalhost ? (headersList.get('x-forwarded-proto') || 'http') : 'https';
     const baseUrl = `${protocol}://${host}`;
     
     // Chaves de configuração específicas para o app
