@@ -56,6 +56,24 @@ interface Order {
     status: string
     pdfUrl?: string
   }[]
+  paymentMethod?: string | null
+  carne?: {
+    id: string
+    buyerName: string
+    interestRate: number
+    totalValue: number
+    totalWithInterest: number | null
+    financingAcceptedAt: string | null
+    notes: string | null
+    parcelas: {
+      id: string
+      numero: number
+      valor: number
+      dueDate: string
+      status: string
+      paidAt: string | null
+    }[]
+  } | null
 }
 
 // Mapa de status do AliExpress para exibição amigável
@@ -113,6 +131,374 @@ interface TrackingInfo {
   events: TrackingEvent[]
 }
 
+// ── ContractModal ──────────────────────────────────────────────────────────────
+interface ContractClause { titulo: string; itens: string[] }
+interface ContractData {
+  clausulas: ContractClause[]
+  credora: { nome: string; cnpj: string; endereco: string }
+  devedor: { nome: string; cpf: string }
+  totalValue: number
+  totalWithInterest: number
+  valorParcela: number
+  numParcelas: number
+  taxaJuros: number
+  parcelas: { numero: number; valor: number; dueDate: string }[]
+  assinatura: { local: string; data: string; credor: string; devedor: string }
+}
+
+function ContratoModal({
+  orderId, onClose, onAccepted, isReadOnly = false,
+}: {
+  orderId: string
+  onClose: () => void
+  onAccepted?: () => void
+  isReadOnly?: boolean
+}) {
+  const [contract, setContract] = useState<ContractData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [canAccept, setCanAccept] = useState(false)
+  const [accepting, setAccepting] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/orders/${orderId}/contrato`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) throw new Error(d.error)
+        setContract(d.contract)
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [orderId])
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 30) {
+      setCanAccept(true)
+    }
+  }
+
+  const handleAccept = async () => {
+    if (!onAccepted) return
+    setAccepting(true)
+    try {
+      const res = await fetch(`/api/orders/${orderId}/aceitar-carne`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao aceitar')
+      onAccepted()
+      onClose()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setAccepting(false)
+    }
+  }
+
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+              <FiFileText className="text-indigo-600" size={20} />
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900">Contrato de Financiamento</h2>
+              <p className="text-xs text-gray-500">Pedido #{orderId.slice(-8).toUpperCase()}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
+            <FiArrowLeft size={20} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6" onScroll={handleScroll}>
+          {loading && (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
+          )}
+          {contract && (
+            <>
+              {/* Título */}
+              <div className="text-center pb-2 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-900 uppercase tracking-wide">Contrato Particular de Financiamento</h3>
+                <p className="text-sm text-gray-500 mt-1">{contract.credora.nome}</p>
+              </div>
+
+              {/* Partes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-indigo-50 rounded-xl p-4">
+                  <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-2">CREDORA</p>
+                  <p className="font-semibold text-gray-900">{contract.credora.nome}</p>
+                  {contract.credora.cnpj && <p className="text-sm text-gray-600">CNPJ: {contract.credora.cnpj}</p>}
+                  {contract.credora.endereco && <p className="text-sm text-gray-600">{contract.credora.endereco}</p>}
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">DEVEDORA</p>
+                  <p className="font-semibold text-gray-900">{contract.devedor.nome}</p>
+                  {contract.devedor.cpf && <p className="text-sm text-gray-600">CPF: {contract.devedor.cpf}</p>}
+                </div>
+              </div>
+
+              {/* Resumo financeiro */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">Resumo Financeiro</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500">Valor Original</p>
+                    <p className="font-bold text-gray-900">{fmt(contract.totalValue)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500">Taxa de Juros</p>
+                    <p className="font-bold text-orange-600">{contract.taxaJuros}% a.m.</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500">Total com Juros</p>
+                    <p className="font-bold text-indigo-700">{fmt(contract.totalWithInterest)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500">Parcelas</p>
+                    <p className="font-bold text-gray-900">{contract.numParcelas}x de {fmt(contract.valorParcela)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cláusulas */}
+              <div className="space-y-4">
+                {contract.clausulas.map((c, i) => (
+                  <div key={i} className="border border-gray-100 rounded-xl p-4">
+                    <p className="font-bold text-gray-900 text-sm mb-2">{c.titulo}</p>
+                    <div className="space-y-1.5">
+                      {c.itens.map((item, j) => (
+                        <p key={j} className="text-sm text-gray-700 leading-relaxed">{item}</p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tabela de parcelas */}
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2 border-b border-gray-100">
+                  <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Plano de Pagamento</p>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {contract.parcelas.map(p => (
+                    <div key={p.numero} className="flex justify-between items-center px-4 py-2 text-sm">
+                      <span className="text-gray-600 w-20">Parcela {p.numero}/{contract.numParcelas}</span>
+                      <span className="text-gray-500">{p.dueDate}</span>
+                      <span className="font-semibold text-gray-900">{fmt(p.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Assinatura */}
+              <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700">
+                <p>{contract.assinatura.local && `${contract.assinatura.local}, `}{contract.assinatura.data}</p>
+                <div className="grid grid-cols-2 gap-8 mt-6">
+                  <div className="text-center">
+                    <div className="border-t border-gray-400 pt-2"></div>
+                    <p className="font-medium">{contract.assinatura.credor}</p>
+                    <p className="text-xs text-gray-500">CREDORA</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="border-t border-gray-400 pt-2"></div>
+                    <p className="font-medium">{contract.assinatura.devedor}</p>
+                    <p className="text-xs text-gray-500">DEVEDORA</p>
+                  </div>
+                </div>
+              </div>
+
+              {!isReadOnly && !canAccept && (
+                <div className="text-center text-sm text-indigo-600 font-medium animate-pulse py-2">
+                  📜 Role até o final para habilitar a assinatura
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
+          <button onClick={onClose} className="flex-1 border border-gray-200 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-50 transition-colors text-sm">
+            Fechar
+          </button>
+          {!isReadOnly && (
+            <button
+              onClick={handleAccept}
+              disabled={!canAccept || accepting}
+              className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm flex items-center justify-center gap-2"
+            >
+              {accepting ? (
+                <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Assinando…</>
+              ) : (
+                <>✅ Assinar e Aceitar Financiamento</>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Modal de pagamento de parcela via Pix ou Boleto
+function PagamentoParcelaModal({
+  data,
+  orderId,
+  onClose,
+  onPaid
+}: {
+  data: {
+    parcelaId: string
+    method: 'pix' | 'boleto'
+    qrCode?: string
+    qrCodeBase64?: string
+    boletoUrl?: string
+    paymentUrl?: string
+    valor: number
+    numero: number
+  }
+  orderId: string
+  onClose: () => void
+  onPaid: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const [paid, setPaid] = useState(false)
+
+  // Polling a cada 5s para Pix (mesmo padrão do checkout)
+  useEffect(() => {
+    if (data.method !== 'pix' || paid) return
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/orders/${orderId}/carne/parcelas/${data.parcelaId}/check-status`
+        )
+        if (!res.ok) return
+        const result = await res.json()
+        if (result.paid) {
+          clearInterval(interval)
+          setPaid(true)
+          setTimeout(() => {
+            onPaid()
+            onClose()
+          }, 2500)
+        }
+      } catch {
+        // ignorar erros de rede no polling
+      }
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [data.method, data.parcelaId, orderId, paid, onPaid, onClose])
+
+  const handleCopy = () => {
+    if (data.qrCode) {
+      navigator.clipboard.writeText(data.qrCode)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">
+              {paid ? '✅ Pagamento Confirmado!' : data.method === 'pix' ? '📱 Pagar com Pix' : '📄 Pagar com Boleto'}
+            </h2>
+            <p className="text-sm text-gray-500">
+              Parcela {data.numero} · R$ {data.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          {!paid && <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">×</button>}
+        </div>
+
+        {/* Tela de sucesso após confirmação do Pix */}
+        {paid && (
+          <div className="p-8 flex flex-col items-center gap-4 text-center">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-5xl animate-bounce">
+              ✅
+            </div>
+            <p className="text-lg font-bold text-green-800">Parcela {data.numero} paga!</p>
+            <p className="text-sm text-gray-500">Seu pagamento foi confirmado. Atualizando...</p>
+            <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+
+        <div className="p-6" style={{ display: paid ? 'none' : undefined }}>
+          {data.method === 'pix' ? (
+            <div className="flex flex-col items-center gap-4">
+              {data.qrCodeBase64 && (
+                <img
+                  src={`data:image/png;base64,${data.qrCodeBase64}`}
+                  alt="QR Code Pix"
+                  className="w-48 h-48 border border-gray-200 rounded-xl"
+                />
+              )}
+              <p className="text-sm text-gray-600 text-center">
+                Escaneie o QR Code acima ou copie o código Pix abaixo
+              </p>
+              {data.qrCode && (
+                <div className="w-full">
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-600 font-mono break-all max-h-20 overflow-y-auto">
+                    {data.qrCode}
+                  </div>
+                  <button
+                    onClick={handleCopy}
+                    className="mt-2 w-full bg-indigo-600 text-white py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition-colors text-sm"
+                  >
+                    {copied ? '✅ Copiado!' : '📋 Copiar código Pix'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center text-4xl">
+                📄
+              </div>
+              <p className="text-sm text-gray-600 text-center">
+                O boleto foi gerado com sucesso. Clique abaixo para visualizar e pagar.
+              </p>
+              <a
+                href={data.boletoUrl || data.paymentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-gray-800 text-white py-3 rounded-xl font-bold hover:bg-gray-900 transition-colors text-sm text-center"
+              >
+                🔗 Abrir Boleto
+              </a>
+              <p className="text-xs text-gray-400 text-center">
+                O boleto pode levar até 3 dias úteis para ser compensado.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {!paid && (
+          <div className="p-4 border-t border-gray-100">
+            <button onClick={onClose} className="w-full border border-gray-200 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-50 transition-colors text-sm">
+              Fechar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function OrderDetailPage({ params }: { params: { id: string } }) {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -125,6 +511,21 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [trackingInfo, setTrackingInfo] = useState<TrackingInfo | null>(null)
   const [isLoadingTracking, setIsLoadingTracking] = useState(false)
+  const [isAcceptingFinancing, setIsAcceptingFinancing] = useState(false)
+  const [financingError, setFinancingError] = useState<string | null>(null)
+  const [showContrato, setShowContrato] = useState(false)
+  const [viewContratoReadOnly, setViewContratoReadOnly] = useState(false)
+  const [payingParcela, setPayingParcela] = useState<string | null>(null)
+  const [pagamentoModal, setPagamentoModal] = useState<{
+    parcelaId: string
+    method: 'pix' | 'boleto'
+    qrCode?: string
+    qrCodeBase64?: string
+    boletoUrl?: string
+    paymentUrl?: string
+    valor: number
+    numero: number
+  } | null>(null)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -217,6 +618,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   }, [order?.supplierOrderId])
 
   const getStatusText = (status: string) => {
+    // Casos especiais de financiamento
+    if (order?.paymentMethod === 'carne') {
+      if (status === 'PENDING') return 'Aguardando Aceite'
+      if (status === 'PROCESSING' && order?.paymentStatus === 'financing') return 'Em Financiamento'
+    }
     const statusMap: { [key: string]: string } = {
       PENDING: 'Aguardando Pagamento',
       PROCESSING: 'Processando',
@@ -228,6 +634,13 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   }
 
   const getStatusColor = (status: string) => {
+    // Cor especial para financiamento
+    if (order?.paymentMethod === 'carne' && status === 'PROCESSING' && order?.paymentStatus === 'financing') {
+      return 'bg-indigo-100 text-indigo-800'
+    }
+    if (order?.paymentMethod === 'carne' && status === 'PENDING') {
+      return 'bg-blue-100 text-blue-800'
+    }
     const colorMap: { [key: string]: string } = {
       PENDING: 'bg-yellow-100 text-yellow-800',
       PROCESSING: 'bg-blue-100 text-blue-800',
@@ -271,6 +684,62 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const handlePayment = () => {
     // Usar o primaryOrderId que é o ID real do primeiro pedido
     router.push(`/checkout/pagamento/${primaryOrderId}`)
+  }
+
+  const handleAcceptFinancing = async () => {
+    if (!order) return
+    setIsAcceptingFinancing(true)
+    setFinancingError(null)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/aceitar-carne`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao aceitar')
+      toast.success('Financiamento aceito! Seu pedido está em processamento.')
+      fetchOrder()
+    } catch (e: any) {
+      setFinancingError(e.message)
+      toast.error(e.message)
+    } finally {
+      setIsAcceptingFinancing(false)
+    }
+  }
+
+  const handleRejectFinancing = async () => {
+    if (!order) return
+    if (!confirm('Tem certeza que deseja recusar o financiamento? O pedido voltará ao estado original.')) return
+    setIsAcceptingFinancing(true)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/aceitar-carne`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao recusar')
+      toast.success('Financiamento recusado.')
+      fetchOrder()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setIsAcceptingFinancing(false)
+    }
+  }
+
+  const handlePagarParcela = async (parcelaId: string, method: 'pix' | 'boleto') => {
+    setPayingParcela(parcelaId)
+    try {
+      const res = await fetch(`/api/orders/${params.id}/carne/parcelas/${parcelaId}/pagar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Erro ao gerar pagamento')
+        return
+      }
+      setPagamentoModal({ ...data, parcelaId })
+    } catch (e: any) {
+      toast.error('Erro ao gerar pagamento')
+    } finally {
+      setPayingParcela(null)
+    }
   }
 
   const handleCancelOrder = async () => {
@@ -335,8 +804,216 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         Voltar para Meus Pedidos
       </Link>
 
-      {/* Alerta de Pagamento Pendente */}
-      {order.status === 'PENDING' && (
+      {/* Banner: Aceite do Financiamento (Carnê) */}
+      {order.status === 'PENDING' && order.paymentMethod === 'carne' && order.carne && !order.carne.financingAcceptedAt && (
+        <div className="mb-6 bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-400 rounded-2xl p-6 shadow-lg">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <span className="text-2xl">📋</span>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold text-indigo-900 mb-1">Proposta de Financiamento</h3>
+              <p className="text-indigo-700 text-sm mb-4">
+                A loja criou uma proposta de carnê para o seu pedido. Leia os termos abaixo e aceite para confirmar.
+              </p>
+
+              {/* Resumo financeiro */}
+              <div className="bg-white/70 rounded-xl p-4 mb-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Valor original do pedido</span>
+                  <span className="font-medium">R$ {order.carne.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+                {order.carne.interestRate > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Taxa de juros compostos</span>
+                    <span className="font-medium text-orange-600">{order.carne.interestRate}% ao mês</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-bold text-indigo-900 border-t border-indigo-100 pt-2">
+                  <span>Total a pagar ({order.carne.parcelas.length}x)</span>
+                  <span className="text-lg">R$ {(order.carne.totalWithInterest ?? order.carne.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              {/* Parcelas */}
+              <div className="bg-white/70 rounded-xl p-4 mb-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Parcelas</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {order.carne.parcelas.map(p => (
+                    <div key={p.id} className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600 font-medium">Parcela {p.numero}/{order.carne!.parcelas.length}</span>
+                      <span className="text-gray-500">{new Date(p.dueDate).toLocaleDateString('pt-BR')}</span>
+                      <span className="font-bold text-indigo-700">R$ {p.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {order.carne.notes && (
+                <p className="text-xs text-indigo-600 italic mb-3">Obs: {order.carne.notes}</p>
+              )}
+
+              {financingError && (
+                <p className="text-sm text-red-600 mb-3">{financingError}</p>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => { setViewContratoReadOnly(false); setShowContrato(true) }}
+                  className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 flex items-center gap-2 shadow-md transition-all"
+                >
+                  <FiFileText size={18} /> 📄 Ler e Assinar Contrato
+                </button>
+                <button
+                  onClick={handleRejectFinancing}
+                  disabled={isAcceptingFinancing}
+                  className="bg-white text-red-600 border-2 border-red-300 px-6 py-3 rounded-xl font-semibold hover:bg-red-50 disabled:opacity-50 flex items-center gap-2 transition-all"
+                >
+                  ❌ Recusar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Banner: Em Financiamento (já aceito) */}
+      {order.paymentMethod === 'carne' && order.carne?.financingAcceptedAt && order.paymentStatus === 'financing' && (
+        <div className="mb-6 space-y-4">
+          {/* Banner aceito */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">✅</span>
+              <div className="flex-1">
+                <p className="font-bold text-green-900">Financiamento Aceito</p>
+                <p className="text-sm text-green-700">
+                  Você aceitou o carnê em {new Date(order.carne.financingAcceptedAt).toLocaleDateString('pt-BR')}. 
+                  Pague as parcelas conforme as datas combinadas.
+                </p>
+              </div>
+              <button
+                onClick={() => { setViewContratoReadOnly(true); setShowContrato(true) }}
+                className="flex items-center gap-2 text-sm bg-white border border-green-300 text-green-700 px-4 py-2 rounded-xl hover:bg-green-50 font-medium transition-colors flex-shrink-0"
+              >
+                <FiFileText size={15} /> Ver Contrato
+              </button>
+            </div>
+          </div>
+
+          {/* Tabela de parcelas */}
+          <div className="bg-white border border-indigo-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-indigo-50 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-gray-900">💳 Minhas Parcelas</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {order.carne.parcelas.filter(p => p.status === 'PAID').length}/{order.carne.parcelas.length} pagas
+                  {' · '}Total: R$ {(order.carne.totalWithInterest ?? order.carne.totalValue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              {/* Progresso */}
+              <div className="text-right">
+                <p className="text-xs text-gray-500 mb-1">
+                  {Math.round((order.carne.parcelas.filter(p => p.status === 'PAID').length / order.carne.parcelas.length) * 100)}% quitado
+                </p>
+                <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 rounded-full transition-all"
+                    style={{ width: `${(order.carne.parcelas.filter(p => p.status === 'PAID').length / order.carne.parcelas.length) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="divide-y divide-gray-50">
+              {order.carne.parcelas.map(p => {
+                const statusMap: Record<string, { label: string; cls: string; icon: string }> = {
+                  PENDING:   { label: 'A vencer',  cls: 'bg-amber-100 text-amber-700',  icon: '⏳' },
+                  PAID:      { label: 'Pago',       cls: 'bg-green-100 text-green-700',  icon: '✅' },
+                  OVERDUE:   { label: 'Vencida',    cls: 'bg-red-100 text-red-700',      icon: '⚠️' },
+                  CANCELLED: { label: 'Cancelada',  cls: 'bg-gray-100 text-gray-500',    icon: '—'  },
+                }
+                const st = statusMap[p.status] || statusMap.PENDING
+                const isOverdue = p.status === 'OVERDUE'
+                return (
+                  <div key={p.id} className={`flex items-center gap-4 px-5 py-4 ${isOverdue ? 'bg-red-50/50' : ''}`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${p.status === 'PAID' ? 'bg-green-100 text-green-700' : isOverdue ? 'bg-red-100 text-red-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                      {p.numero}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-900">
+                          R$ {p.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.cls}`}>
+                          {st.icon} {st.label}
+                        </span>
+                      </div>
+                      <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                        Vencimento: {new Date(p.dueDate).toLocaleDateString('pt-BR')}
+                        {p.paidAt && <span className="ml-2 text-green-600">· Pago em {new Date(p.paidAt).toLocaleDateString('pt-BR')}</span>}
+                      </p>
+                    </div>
+                    {(p.status === 'PENDING' || p.status === 'OVERDUE') && (
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handlePagarParcela(p.id, 'pix')}
+                          disabled={payingParcela === p.id}
+                          className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1 font-medium transition-colors"
+                        >
+                          {payingParcela === p.id ? '...' : '📱 Pix'}
+                        </button>
+                        <button
+                          onClick={() => handlePagarParcela(p.id, 'boleto')}
+                          disabled={payingParcela === p.id}
+                          className="text-xs bg-gray-600 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 disabled:opacity-50 flex items-center gap-1 font-medium transition-colors"
+                        >
+                          {payingParcela === p.id ? '...' : '📄 Boleto'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+              <p className="text-xs text-gray-500 text-center">
+                Para dúvidas sobre pagamento, entre em contato com a loja.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Contrato */}
+      {showContrato && order?.carne && (
+        <ContratoModal
+          orderId={params.id}
+          isReadOnly={viewContratoReadOnly}
+          onClose={() => setShowContrato(false)}
+          onAccepted={() => {
+            toast.success('Financiamento aceito! Seu pedido está em processamento.')
+            setShowContrato(false)
+            fetchOrder()
+          }}
+        />
+      )}
+
+      {/* Modal de pagamento de parcela */}
+      {pagamentoModal && (
+        <PagamentoParcelaModal
+          data={pagamentoModal}
+          orderId={params.id}
+          onClose={() => setPagamentoModal(null)}
+          onPaid={() => {
+            setPagamentoModal(null)
+            fetchOrder()
+          }}
+        />
+      )}
+
+      {/* Alerta de Pagamento Pendente (apenas pedidos normais, sem carnê) */}
+      {order.status === 'PENDING' && order.paymentMethod !== 'carne' && (
         <div className="mb-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 rounded-lg p-6 shadow-lg">
           <div className="flex items-start">
             <FiAlertCircle className="text-yellow-600 mt-1 mr-4 flex-shrink-0" size={28} />
@@ -439,8 +1116,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
               >
                 {getStatusText(order.status)}
               </span>
-              {/* Botão Cancelar - visível para PENDING e PROCESSING (antes do envio) */}
-              {(order.status === 'PENDING' || (order.status === 'PROCESSING' && !order.shippedAt)) && (
+              {/* Botão Cancelar - oculto para carnê com contrato aceito */}
+              {(order.status === 'PENDING' || (order.status === 'PROCESSING' && !order.shippedAt)) && !(order.paymentMethod === 'carne' && order.carne?.financingAcceptedAt) && (
                 <button
                   onClick={() => setShowCancelModal(true)}
                   className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-full text-sm font-semibold flex items-center gap-2 transition-all"

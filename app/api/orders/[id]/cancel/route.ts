@@ -54,7 +54,8 @@ export async function POST(
           }
         },
         invoices: true,
-        refunds: true
+        refunds: true,
+        carne: { select: { id: true, financingAcceptedAt: true } }
       }
     })
 
@@ -88,6 +89,13 @@ export async function POST(
     if (order.shippedAt) {
       return NextResponse.json({ 
         message: 'Não é possível cancelar este pedido pois já foi despachado. Solicite uma devolução após receber o produto.'
+      }, { status: 400 })
+    }
+
+    // Bloquear cancelamento de pedidos com contrato de financiamento aceito
+    if (order.paymentMethod === 'carne' && (order as any).carne?.financingAcceptedAt) {
+      return NextResponse.json({
+        message: 'Este pedido possui um contrato de financiamento vigente e não pode ser cancelado pelo cliente. Entre em contato com a loja.'
       }, { status: 400 })
     }
 

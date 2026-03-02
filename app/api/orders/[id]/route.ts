@@ -85,6 +85,22 @@ export async function GET(
             xmlUrl: true,
           },
         },
+        // Carnê (financiamento manual)
+        carne: {
+          select: {
+            id: true,
+            buyerName: true,
+            interestRate: true,
+            totalValue: true,
+            totalWithInterest: true,
+            financingAcceptedAt: true,
+            notes: true,
+            parcelas: {
+              select: { id: true, numero: true, valor: true, dueDate: true, status: true, paidAt: true },
+              orderBy: { numero: 'asc' },
+            },
+          },
+        },
       },
     })
 

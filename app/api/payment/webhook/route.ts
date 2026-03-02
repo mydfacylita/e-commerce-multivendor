@@ -72,7 +72,12 @@ async function handleMercadoPago(data: any) {
 
       // Se foi aprovado, processar
       if (paymentStatus.paid) {
-        await processApprovedPayment(paymentId.toString(), 'MERCADOPAGO', data)
+        await processApprovedPayment(paymentId.toString(), 'MERCADOPAGO', {
+          ...data,
+          external_reference: paymentStatus.externalReference,
+          metadata: paymentStatus.metadata,
+          payment_method_id: paymentStatus.paymentMethodId
+        })
       }
     }
 
@@ -117,12 +122,7 @@ async function processApprovedPayment(
       metadata
     })
 
-    // TODO: Processar baseado no tipo
-    // - Se for SUBSCRIPTION -> ativar subscription
-    // - Se for ORDER -> confirmar pedido
-    // - etc
-
-    // Por enquanto, apenas log
+    // Processar baseado no tipo
     if (metadata?.type === 'SUBSCRIPTION') {
       // Ativar subscription
       if (metadata.referenceId) {
@@ -131,6 +131,52 @@ async function processApprovedPayment(
           data: { status: 'ACTIVE' }
         })
         console.log('✅ Subscription ativada:', metadata.referenceId)
+      }
+    } else if (metadata?.type === 'CARNE_PARCELA' && metadata?.parcelaId) {
+      // Parcela de carnê paga via Pix/Boleto
+      const parcela = await prisma.carneParcela.findUnique({
+        where: { id: metadata.parcelaId },
+        include: {
+          carne: {
+            include: {
+              parcelas: true
+            }
+          }
+        }
+      })
+
+      if (parcela && parcela.status !== 'PAID') {
+        const paidBy = data.payment_method_id
+          ? `${data.payment_method_id} #${paymentId}`
+          : `gateway #${paymentId}`
+
+        await prisma.carneParcela.update({
+          where: { id: metadata.parcelaId },
+          data: {
+            status: 'PAID',
+            paidAt: new Date(),
+            paidBy
+          }
+        })
+
+        console.log(`✅ [CARNÊ] Parcela ${parcela.numero} paga via ${paidBy}`)
+
+        // Verifica se todas as parcelas foram pagas
+        const outrasParcelasPagas = parcela.carne.parcelas
+          .filter(p => p.id !== metadata.parcelaId)
+          .every(p => p.status === 'PAID')
+
+        if (outrasParcelasPagas) {
+          await prisma.order.update({
+            where: { id: parcela.carne.orderId },
+            data: { paymentStatus: 'paid' }
+          })
+          console.log(`✅ [CARNÊ] Todas as parcelas pagas — pedido ${parcela.carne.orderId} marcado como pago`)
+        }
+      } else if (parcela?.status === 'PAID') {
+        console.log(`⚠️  [CARNÊ] Parcela ${metadata.parcelaId} já estava paga, ignorando`)
+      } else {
+        console.warn(`⚠️  [CARNÊ] Parcela ${metadata.parcelaId} não encontrada`)
       }
     }
 

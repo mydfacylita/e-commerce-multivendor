@@ -6,6 +6,7 @@ import Breadcrumb from '@/components/Breadcrumb'
 import ProductDetailClient from '@/components/ProductDetailClient'
 import ProductReviews from '@/components/ProductReviews'
 import ProductQuestions from '@/components/ProductQuestions'
+import AIProductRecommendations from '@/components/AIProductRecommendations'
 import { serializeProduct } from '@/lib/serialize'
 import { parseVariantsJson, convertToLegacyFormat, convertToMultiLevel, type LegacyVariant } from '@/lib/product-variants'
 
@@ -396,6 +397,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   }
 
   return (
+    <>
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Breadcrumb de navegação com hierarquia completa */}
       <Breadcrumb 
@@ -540,6 +542,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           />
         </div>
       </div>
+
+      {/* Recomendações IA — fora do card branco para layout full-width */}
     </div>
+    <AIProductRecommendations productId={product.id} />
+    <div className="max-w-7xl mx-auto px-4 pb-8" />
+    </>
   )
 }

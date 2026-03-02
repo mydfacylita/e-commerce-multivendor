@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { FiStar, FiThumbsUp, FiMessageCircle, FiChevronDown, FiChevronUp, FiCheck, FiImage } from 'react-icons/fi'
 import Image from 'next/image'
+import AIReviewSummary from '@/components/AIReviewSummary'
 
 interface Review {
   id: string
@@ -325,6 +326,13 @@ export default function ProductReviews({ productId, initialReviews = [], initial
               />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Resumo IA das Avaliações */}
+      {stats && stats.totalReviews >= 3 && (
+        <div className="mb-6">
+          <AIReviewSummary productId={productId} />
         </div>
       )}
 

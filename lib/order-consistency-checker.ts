@@ -72,7 +72,9 @@ async function fixStuckOrders(): Promise<ConsistencyIssue[]> {
         fraudStatus: 'approved',
         status: {
           notIn: ['PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']
-        }
+        },
+        // Ignorar pedidos de carnê/financiamento próprio
+        paymentMethod: { not: 'carne' }
       },
       include: {
         items: {
@@ -180,14 +182,16 @@ async function checkAbandonedOrders(): Promise<ConsistencyIssue[]> {
       where: {
         fraudStatus: 'approved',
         paymentStatus: {
-          notIn: ['approved']
+          notIn: ['approved', 'financing'] // 'financing' = carnê aceito pelo cliente
         },
         createdAt: {
           lt: twoDaysAgo
         },
         status: {
           notIn: ['CANCELLED']
-        }
+        },
+        // Nunca cancelar pedidos de carnê/financiamento próprio automaticamente
+        paymentMethod: { not: 'carne' }
       }
     })
 
@@ -289,8 +293,11 @@ async function checkProcessingWithoutPayment(): Promise<ConsistencyIssue[]> {
       where: {
         status: 'PROCESSING',
         paymentStatus: {
-          not: 'approved'
-        }
+          // 'financing' = pedido de carnê com contrato aceito pelo cliente — não resetar
+          notIn: ['approved', 'financing']
+        },
+        // Nunca mover pedidos de carnê de volta para PENDING
+        paymentMethod: { not: 'carne' }
       }
     })
 
@@ -403,7 +410,9 @@ async function checkOrdersWithoutShipping(): Promise<ConsistencyIssue[]> {
           { shippingCost: 0 },
           { shippingMethod: null },
           { shippingMethod: '' }
-        ]
+        ],
+        // Pedidos de carnê não têm frete obrigatório no fluxo de financiamento
+        paymentMethod: { not: 'carne' }
       }
     })
 
@@ -710,7 +719,88 @@ async function checkPaymentDivergence(): Promise<ConsistencyIssue[]> {
 }
 
 /**
- * 🔍 Executa todas as verificações de consistência
+ * � Verifica carnês com todas as parcelas pagas mas pedido ainda não baixado (paymentStatus != 'paid')
+ */
+async function checkPaidParcelasNotClosed(): Promise<ConsistencyIssue[]> {
+  const issues: ConsistencyIssue[] = []
+
+  try {
+    // Raw SQL: carnês onde não existe nenhuma parcela que NÃO é PAID,
+    // mas existe ao menos uma parcela, e o pedido ainda não está 'paid'
+    // (evita bug do Prisma com filtro `none` + enum em MySQL)
+    const carnesNaoBaixados = await prisma.$queryRaw<Array<{
+      carneId: string
+      orderId: string
+      paymentStatus: string
+      totalParcelas: number
+    }>>`
+      SELECT c.id AS carneId, c.orderId, o.paymentStatus,
+             COUNT(cp.id) AS totalParcelas
+      FROM carne c
+      INNER JOIN \`order\` o ON o.id = c.orderId
+      INNER JOIN carne_parcela cp ON cp.carneId = c.id
+      WHERE o.paymentMethod = 'carne'
+        AND o.paymentStatus != 'paid'
+        AND NOT EXISTS (
+          SELECT 1 FROM carne_parcela cp2
+          WHERE cp2.carneId = c.id AND cp2.status != 'PAID'
+        )
+      GROUP BY c.id, c.orderId, o.paymentStatus
+      HAVING COUNT(cp.id) > 0
+    `
+
+    if (carnesNaoBaixados.length === 0) {
+      console.log('[Consistency] ✅ Nenhum carnê com parcelas pagas não baixadas')
+      return issues
+    }
+
+    console.log(`[Consistency] ⚠️ ${carnesNaoBaixados.length} carnê(s) com todas as parcelas pagas mas pedido não baixado`)
+
+    for (const row of carnesNaoBaixados) {
+      const orderId = row.orderId
+      try {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { paymentStatus: 'paid' }
+        })
+
+        await logConsistencyFix(
+          orderId,
+          `Carnê ${row.carneId}: todas as ${Number(row.totalParcelas)} parcelas estavam PAID mas paymentStatus era '${row.paymentStatus}'. Corrigido para 'paid'.`,
+          true
+        )
+
+        issues.push({
+          orderId,
+          issue: `Carnê quitado não baixado (${Number(row.totalParcelas)} parcelas pagas, status era '${row.paymentStatus}')`,
+          fixed: true
+        })
+
+        console.log(`[Consistency] ✅ Pedido ${orderId} baixado — carnê totalmente quitado`)
+      } catch (error: any) {
+        await logConsistencyFix(
+          orderId,
+          `Erro ao baixar carnê quitado: ${error.message}`,
+          false,
+          error.message
+        )
+        issues.push({
+          orderId,
+          issue: `Carnê quitado não baixado — erro ao corrigir`,
+          fixed: false,
+          error: error.message
+        })
+      }
+    }
+  } catch (error) {
+    console.error('[Consistency] Erro ao verificar carnês não baixados:', error)
+  }
+
+  return issues
+}
+
+/**
+ * �🔍 Executa todas as verificações de consistência
  */
 export async function checkAndFixConsistency(): Promise<CheckResult> {
   console.log('\n🔍 [Consistency Check] Iniciando verificação de consistência...')
@@ -773,6 +863,11 @@ export async function checkAndFixConsistency(): Promise<CheckResult> {
   const paymentDivergenceIssues = await checkPaymentDivergence()
   allIssues.push(...paymentDivergenceIssues)
 
+  // 12. Carnês com parcelas pagas não baixadas
+  console.log('\n1️⃣2️⃣ Verificando carnês quitados não baixados...')
+  const carneNaoBaixadoIssues = await checkPaidParcelasNotClosed()
+  allIssues.push(...carneNaoBaixadoIssues)
+
   const issuesFixed = allIssues.filter(i => i.fixed).length
   const duration = Date.now() - startTime
 
@@ -805,6 +900,7 @@ export async function quickHealthCheck(): Promise<{
   ordersWithoutItems: number
   trackingWithoutShipped: number
   paymentDivergence: number
+  carneNaoBaixado: number
 }> {
   const twoDaysAgo = new Date()
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
@@ -819,7 +915,8 @@ export async function quickHealthCheck(): Promise<{
     dropWithoutSeller,
     ordersWithoutItems,
     trackingWithoutShipped,
-    paymentDivergence
+    paymentDivergence,
+    carneNaoBaixado
   ] = await Promise.all([
     // Pedidos travados
     prisma.order.count({
@@ -831,19 +928,20 @@ export async function quickHealthCheck(): Promise<{
         }
       }
     }),
-    // Pedidos abandonados
+    // Pedidos abandonados (excluir carnê)
     prisma.order.count({
       where: {
         fraudStatus: 'approved',
         paymentStatus: {
-          notIn: ['approved']
+          notIn: ['approved', 'financing']
         },
         createdAt: {
           lt: twoDaysAgo
         },
         status: {
           notIn: ['CANCELLED']
-        }
+        },
+        paymentMethod: { not: 'carne' }
       }
     }),
     // Sem fraudStatus
@@ -855,13 +953,14 @@ export async function quickHealthCheck(): Promise<{
         fraudStatus: null
       }
     }),
-    // PROCESSING sem pagamento
+    // PROCESSING sem pagamento (excluir carnê com contrato ativo)
     prisma.order.count({
       where: {
         status: 'PROCESSING',
         paymentStatus: {
-          not: 'approved'
-        }
+          notIn: ['approved', 'financing']
+        },
+        paymentMethod: { not: 'carne' }
       }
     }),
     // Sem comprador (contagem manual via query)
@@ -871,7 +970,7 @@ export async function quickHealthCheck(): Promise<{
       LEFT JOIN user u ON o.buyerId = u.id
       WHERE u.id IS NULL AND o.status != 'CANCELLED'
     `.then(result => Number(result[0].count)),
-    // Sem frete
+    // Sem frete (excluir carnê)
     prisma.order.count({
       where: {
         status: {
@@ -882,7 +981,8 @@ export async function quickHealthCheck(): Promise<{
           { shippingCost: 0 },
           { shippingMethod: null },
           { shippingMethod: '' }
-        ]
+        ],
+        paymentMethod: { not: 'carne' }
       }
     }),
     // Drop sem vendedor (contagem manual via query)
@@ -909,7 +1009,20 @@ export async function quickHealthCheck(): Promise<{
       }
     }),
     // Divergência de pagamento - TODO: implementar quando campo paymentAmount existir
-    Promise.resolve(0)
+    Promise.resolve(0),
+    // Carnês totalmente quitados mas pedido não baixado (raw SQL — evita bug Prisma none+enum MySQL)
+    prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(DISTINCT c.id) AS count
+      FROM carne c
+      INNER JOIN \`order\` o ON o.id = c.orderId
+      INNER JOIN carne_parcela cp ON cp.carneId = c.id
+      WHERE o.paymentMethod = 'carne'
+        AND o.paymentStatus != 'paid'
+        AND NOT EXISTS (
+          SELECT 1 FROM carne_parcela cp2
+          WHERE cp2.carneId = c.id AND cp2.status != 'PAID'
+        )
+    `.then(r => Number(r[0]?.count ?? 0))
   ])
 
   const healthy =
@@ -922,7 +1035,8 @@ export async function quickHealthCheck(): Promise<{
     dropWithoutSeller === 0 &&
     ordersWithoutItems === 0 &&
     trackingWithoutShipped === 0 &&
-    paymentDivergence === 0
+    paymentDivergence === 0 &&
+    carneNaoBaixado === 0
 
   return {
     healthy,
@@ -935,6 +1049,7 @@ export async function quickHealthCheck(): Promise<{
     dropWithoutSeller,
     ordersWithoutItems,
     trackingWithoutShipped,
-    paymentDivergence
+    paymentDivergence,
+    carneNaoBaixado
   }
 }

@@ -122,6 +122,7 @@ export default function ConsistencyCheckPage() {
                 <li>• ⚠️ Pedidos dropshipping sem vendedor</li>
                 <li>• ⚠️ Pedidos sem produtos (vazios)</li>
                 <li>• ℹ️ Auditoria de pagamentos órfãos</li>
+                <li>• 💳 Carnês com parcelas pagas e pedido não baixado</li>
               </ul>
             </div>
           </div>

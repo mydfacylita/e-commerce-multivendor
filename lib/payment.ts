@@ -607,7 +607,7 @@ export class PaymentService {
   static async checkPaymentStatus(
     paymentId: string,
     gateway: string
-  ): Promise<{ status: string; paid: boolean }> {
+  ): Promise<{ status: string; paid: boolean; externalReference?: string; metadata?: Record<string, any>; paymentMethodId?: string }> {
     try {
       const gatewayConfig = await this.getActiveGateway(gateway)
       
@@ -634,7 +634,7 @@ export class PaymentService {
   private static async checkMercadoPagoStatus(
     gateway: any,
     paymentId: string
-  ): Promise<{ status: string; paid: boolean }> {
+  ): Promise<{ status: string; paid: boolean; externalReference?: string; metadata?: Record<string, any>; paymentMethodId?: string }> {
     // CRÍTICO: Prisma retorna config como STRING, precisa fazer parse
     let config = gateway.config
     if (typeof config === 'string') {
@@ -675,7 +675,10 @@ export class PaymentService {
     
     return {
       status: payment.status,
-      paid: payment.status === 'approved'
+      paid: payment.status === 'approved',
+      externalReference: payment.external_reference,
+      metadata: payment.metadata,
+      paymentMethodId: payment.payment_method_id
     }
   }
 }

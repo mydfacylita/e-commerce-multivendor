@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { FiSettings, FiImage, FiShoppingCart, FiTool, FiGlobe, FiMail,
   FiSave, FiRefreshCw, FiUpload, FiTrash2, FiPlus, FiX,
   FiServer, FiLock, FiUser, FiSend, FiCheck, FiAlertCircle,
-  FiPercent
+  FiPercent, FiDollarSign
 } from 'react-icons/fi'
 interface ConfigItem {
   key: string
@@ -25,6 +25,7 @@ const CATEGORIES = [
   { id: 'loading', name: 'Loading/Mascote', icon: FiRefreshCw, description: 'Tela de carregamento e mascote festivo' },
   { id: 'social', name: 'Redes Sociais', icon: FiGlobe, description: 'Links para redes sociais' },
   { id: 'ecommerce', name: 'E-commerce', icon: FiShoppingCart, description: 'Frete, pagamentos e vendas' },
+  { id: 'carne', name: 'Carnê / Financiamento', icon: FiDollarSign, description: 'Juros, multas e contrato do carnê' },
   { id: 'impostos', name: 'Impostos', icon: FiPercent, description: 'Taxas de importação e ICMS' },
   { id: 'manutencao', name: 'Manutenção', icon: FiTool, description: 'Modo manutenção e avisos' },
   { id: 'seo', name: 'SEO', icon: FiGlobe, description: 'Meta tags e otimização' },
@@ -105,7 +106,15 @@ const DEFAULT_CONFIGS: ConfigItem[] = [
     { value: '12', label: 'Até 12x' },
   ]},
   { key: 'payment.minInstallmentValue', value: 10, category: 'ecommerce', label: 'Valor Mínimo da Parcela (R$)', type: 'number', description: 'Valor mínimo de cada parcela' },
-  
+
+  // Carnê / Financiamento Manual
+  { key: 'financing.interestRate', value: 0, category: 'carne', label: 'Juros do Carnê (% ao mês)', type: 'number', description: 'Taxa de juros mensal compostos. Ex: 2.5 = 2,5% a.m. Use 0 para sem juros.' },
+  { key: 'financing.name', value: 'Carnê MydShop', category: 'carne', label: 'Nome do Financiamento', type: 'text', description: 'Nome que aparece no contrato e aceite do cliente.' },
+  { key: 'financing.lateFeePercent', value: 2, category: 'carne', label: 'Multa por Atraso (%)', type: 'number', description: 'Multa moratória sobre a parcela em atraso. Máximo legal: 2%.' },
+  { key: 'financing.lateInterestPercent', value: 1, category: 'carne', label: 'Juros de Mora (% ao mês)', type: 'number', description: 'Juros sobre parcela em atraso. Máximo legal: 1% a.m.' },
+  { key: 'financing.rescissionDays', value: 30, category: 'carne', label: 'Dias para Rescisão por Inadimplemento', type: 'number', description: 'Prazo em dias de atraso para ensejar rescisão do contrato.' },
+  { key: 'financing.forum', value: '', category: 'carne', label: 'Foro do Contrato (Comarca)', type: 'text', description: 'Cidade/Comarca eleita para dirimir controvérsias. Ex: São Luís - MA.' },
+
   // Manutenção
   { key: 'maintenance.enabled', value: false, category: 'manutencao', label: 'Modo Manutenção Ativo', type: 'boolean' },
   { key: 'maintenance.message', value: 'Estamos em manutenção. Voltamos em breve!', category: 'manutencao', label: 'Mensagem de Manutenção', type: 'textarea' },

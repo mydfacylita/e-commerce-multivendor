@@ -49,6 +49,8 @@ model User {
   shopeeAuth       ShopeeAuth?
   tiktokShopAuth   TikTokShopAuth?
   workForSeller    Seller?           @relation("SellerEmployees", fields: [workForSellerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  aiChatSessions   AiChatSession[]
+  carnesCreated    Carne[]           @relation("CarneCreatedBy")
 
   @@index([workForSellerId])
   @@index([role])
@@ -421,6 +423,7 @@ model Order {
   warehouseCode              String?         @db.VarChar(100)
   affiliateSale              AffiliateSale?
   invoices                   Invoice[]
+  carne                      Carne?
   seller                     Seller?         @relation("SellerOrders", fields: [sellerId], references: [id])
   soldBySeller               Seller?         @relation("SellerSoldOrders", fields: [soldBySellerId], references: [id])
   user                       User?           @relation(fields: [userId], references: [id])
@@ -966,6 +969,29 @@ model SystemConfig {
   @@index([category])
   @@index([key])
   @@map("systemconfig")
+}
+
+model AiChatSession {
+  id            String   @id @default(cuid())
+  sessionId     String   @unique // UUID generated per chat session (browser-side)
+  pageUrl       String?  @db.VarChar(500)
+  pageTitle     String?  @db.VarChar(255)
+  messages      String   @db.LongText // JSON array
+  messageCount  Int      @default(0)
+  wasProactive  Boolean  @default(false)  // opened by AI autonomously
+  addedToCart   Boolean  @default(false)
+  wentToCheckout Boolean @default(false)
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  ipAddress     String?  @db.VarChar(50)
+  userAgent     String?  @db.VarChar(500)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@index([wasProactive])
+  @@map("ai_chat_session")
 }
 
 model analytics_table {
@@ -1762,6 +1788,61 @@ enum SellerStatus {
   @@map("seller_status")
 }
 
+// ── Carnê (pagamento parcelado manual — apenas admin) ──────────────────────
+model Carne {
+  id                   String         @id @default(cuid())
+  orderId              String         @unique
+  order                Order          @relation(fields: [orderId], references: [id])
+  buyerName            String         @db.VarChar(255)
+  buyerPhone           String?        @db.VarChar(30)
+  buyerCpf             String?        @db.VarChar(20)
+  totalValue           Float
+  interestRate         Float          @default(0)    // taxa mensal em % (ex: 2.5)
+  totalWithInterest    Float?                        // total com juros compostos
+  financingAcceptedAt  DateTime?                     // quando o cliente aceitou
+  financingAcceptedIp  String?        @db.VarChar(50)
+  parcelas             CarneParcela[]
+  notes                String?        @db.Text
+  createdById          String?
+  createdBy            User?          @relation("CarneCreatedBy", fields: [createdById], references: [id])
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("carne")
+}
+
+model CarneParcela {
+  id        String             @id @default(cuid())
+  carneId   String
+  carne     Carne              @relation(fields: [carneId], references: [id], onDelete: Cascade)
+  numero    Int
+  valor     Float
+  dueDate   DateTime
+  paidAt    DateTime?
+  paidBy    String?            @db.VarChar(255)
+  paymentId String?            @db.VarChar(255) // ID da transação MercadoPago (atualizado a cada nova geração)
+  status    CarneParcelaStatus @default(PENDING)
+  notes     String?            @db.Text
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([carneId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("carne_parcela")
+}
+
+enum CarneParcelaStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+
+  @@map("carne_parcela_status")
+}
+
 enum OrderStatus {
   PENDING
   PROCESSING
@@ -1771,7 +1852,6 @@ enum OrderStatus {
 
   @@map("order_status")
 }
-
 enum ItemType {
   DROPSHIPPING
   STOCK

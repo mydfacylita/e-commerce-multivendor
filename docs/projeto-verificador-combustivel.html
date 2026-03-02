@@ -1,0 +1,2227 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projeto: Sistema de Verificacao de Combustivel</title>
+  <style>
+    /* ============================================================
+       RESET E BASE
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 12pt;
+      line-height: 1.8;
+      color: #000;
+      background: #fff;
+    }
+
+    /* ============================================================
+       PAGINA
+    ============================================================ */
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 30mm 25mm 25mm 30mm;
+    }
+
+    /* ============================================================
+       CAPA
+    ============================================================ */
+    .cover {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 297mm;
+      text-align: center;
+      padding: 30mm 25mm;
+    }
+
+    .cover .instituicao {
+      font-size: 13pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8mm;
+    }
+
+    .cover .linha { width: 80%; border-top: 2px solid #000; margin: 6mm auto; }
+    .cover .linha-fina { width: 80%; border-top: 1px solid #000; margin: 4mm auto; }
+
+    .cover .titulo {
+      font-size: 18pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin: 8mm 0;
+      line-height: 1.4;
+    }
+
+    .cover .subtitulo {
+      font-size: 13pt;
+      margin: 4mm 0 16mm 0;
+      font-style: italic;
+    }
+
+    .cover .autores {
+      margin-top: 20mm;
+      font-size: 12pt;
+    }
+
+    .cover .autores p { margin: 2mm 0; }
+
+    .cover .local-data {
+      position: absolute;
+      bottom: 30mm;
+      text-align: center;
+      font-size: 12pt;
+    }
+
+    /* ============================================================
+       SUMARIO
+    ============================================================ */
+    .sumario-titulo {
+      text-align: center;
+      font-size: 14pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 10mm;
+      margin-top: 5mm;
+    }
+
+    .sumario-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dotted #555;
+      padding: 2mm 0;
+      font-size: 11pt;
+    }
+
+    .sumario-item.nivel2 { padding-left: 8mm; font-size: 10.5pt; }
+    .sumario-item.nivel3 { padding-left: 16mm; font-size: 10pt; }
+
+    /* ============================================================
+       TITULOS
+    ============================================================ */
+    h1 {
+      font-size: 14pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 10mm 0 5mm 0;
+      padding-bottom: 2mm;
+      border-bottom: 1.5px solid #000;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      font-size: 13pt;
+      font-weight: bold;
+      margin: 8mm 0 4mm 0;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 12pt;
+      font-weight: bold;
+      margin: 6mm 0 3mm 0;
+      page-break-after: avoid;
+    }
+
+    .secao-num {
+      display: inline-block;
+      min-width: 12mm;
+    }
+
+    /* ============================================================
+       TEXTO
+    ============================================================ */
+    p {
+      text-align: justify;
+      text-indent: 12.5mm;
+      margin-bottom: 3mm;
+    }
+
+    p.sem-recuo { text-indent: 0; }
+    p.centralizado { text-align: center; text-indent: 0; }
+
+    /* ============================================================
+       LISTAS
+    ============================================================ */
+    ul, ol {
+      margin: 3mm 0 3mm 12mm;
+    }
+
+    li {
+      margin-bottom: 1.5mm;
+      text-align: justify;
+    }
+
+    /* ============================================================
+       TABELAS
+    ============================================================ */
+    .tabela-container {
+      margin: 5mm 0 8mm 0;
+    }
+
+    .tabela-titulo {
+      text-align: center;
+      font-size: 11pt;
+      font-weight: bold;
+      margin-bottom: 2mm;
+    }
+
+    .tabela-fonte {
+      text-align: center;
+      font-size: 10pt;
+      font-style: italic;
+      margin-top: 2mm;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11pt;
+    }
+
+    thead tr { background: #1a1a1a; color: #fff; }
+    thead th {
+      padding: 3mm 4mm;
+      text-align: left;
+      font-weight: bold;
+      border: 1px solid #000;
+    }
+
+    tbody tr:nth-child(even) { background: #f5f5f5; }
+
+    tbody td {
+      padding: 2.5mm 4mm;
+      border: 1px solid #ccc;
+      vertical-align: top;
+    }
+
+    tfoot tr { background: #e8e8e8; }
+    tfoot td {
+      padding: 2.5mm 4mm;
+      border: 1px solid #000;
+      font-weight: bold;
+    }
+
+    /* ============================================================
+       DESTAQUE / FORMULA
+    ============================================================ */
+    .formula {
+      background: #f9f9f9;
+      border-left: 4px solid #000;
+      padding: 4mm 6mm;
+      margin: 4mm 0 6mm 0;
+      font-family: 'Courier New', monospace;
+      font-size: 11pt;
+    }
+
+    .destaque {
+      background: #f0f0f0;
+      border: 1px solid #aaa;
+      padding: 4mm 6mm;
+      margin: 4mm 0 6mm 0;
+      border-radius: 2px;
+    }
+
+    /* ============================================================
+       QUADRO (caixa especial)
+    ============================================================ */
+    .quadro {
+      border: 2px solid #000;
+      padding: 5mm 6mm;
+      margin: 6mm 0;
+    }
+
+    .quadro-titulo {
+      font-weight: bold;
+      text-transform: uppercase;
+      font-size: 11pt;
+      margin-bottom: 3mm;
+      border-bottom: 1px solid #000;
+      padding-bottom: 2mm;
+    }
+
+    /* ============================================================
+       DIAGRAMA TEXTO
+    ============================================================ */
+    .diagrama {
+      font-family: 'Courier New', monospace;
+      font-size: 10pt;
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      padding: 5mm;
+      margin: 4mm 0;
+      white-space: pre;
+      text-align: center;
+    }
+
+    /* ============================================================
+       CRONOGRAMA - BARRAS CSS
+    ============================================================ */
+    .cronograma-table table thead tr { background: #333; }
+
+    .barra-container {
+      background: #e0e0e0;
+      height: 8px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .barra {
+      height: 100%;
+      background: #333;
+      border-radius: 2px;
+    }
+
+    /* ============================================================
+       SEPARADORES
+    ============================================================ */
+    hr { border: none; border-top: 1px solid #bbb; margin: 6mm 0; }
+    .quebra-pagina { page-break-after: always; }
+    .nao-quebrar { page-break-inside: avoid; }
+
+    /* ============================================================
+       RODAPE DE PAGINA (impressao)
+    ============================================================ */
+    @media print {
+      body { font-size: 12pt; }
+
+      .page {
+        width: 100%;
+        padding: 20mm 20mm 20mm 25mm;
+        margin: 0;
+      }
+
+      .cover { min-height: 100vh; }
+
+      @page {
+        size: A4;
+        margin: 20mm 20mm 20mm 25mm;
+      }
+
+      .quebra-pagina { page-break-after: always; }
+
+      h1, h2, h3 { page-break-after: avoid; }
+
+      table, .quadro, .diagrama { page-break-inside: avoid; }
+
+      /* Numeracao de pagina */
+      @page { @bottom-center { content: counter(page); font-size: 11pt; } }
+    }
+
+    /* ============================================================
+       NOTA DE RODAPE
+    ============================================================ */
+    .nota { font-size: 10pt; color: #444; font-style: italic; margin-top: 1mm; }
+
+    /* ============================================================
+       REFERENCIAS
+    ============================================================ */
+    .referencia {
+      font-size: 11pt;
+      margin-bottom: 4mm;
+      text-align: justify;
+      padding-left: 0;
+      text-indent: 0;
+    }
+
+    .referencia + .referencia { margin-top: 3mm; }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     CAPA
+============================================================ -->
+<div class="cover quebra-pagina">
+  <p class="sem-recuo centralizado instituicao">Projeto Tecnico e Empresarial</p>
+
+  <div class="linha"></div>
+  <div class="linha-fina"></div>
+
+  <p class="sem-recuo centralizado titulo">
+    Sistema Portatil de<br>Verificacao de<br>Combustivel
+  </p>
+
+  <p class="sem-recuo centralizado subtitulo">
+    Abordagem via Diagnostico Embarcado OBD-II e Aplicativo Movel<br>
+    para Deteccao de Irregularidades em Abastecimentos
+  </p>
+
+  <div class="linha-fina"></div>
+  <div class="linha"></div>
+
+  <div class="autores" style="margin-top: 18mm;">
+    <p style="text-indent:0; text-align:center;"><strong>Versao:</strong> 1.0</p>
+    <p style="text-indent:0; text-align:center;"><strong>Data:</strong> Marco de 2026</p>
+    <p style="text-indent:0; text-align:center;"><strong>Classificacao:</strong> Confidencial</p>
+  </div>
+
+  <div style="margin-top: 30mm; text-align:center;">
+    <p style="text-indent:0; text-align:center; font-size:11pt;">Brasil &mdash; 2026</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     SUMARIO
+============================================================ -->
+<div class="page quebra-pagina">
+  <p class="sumario-titulo">SUMARIO</p>
+
+  <div class="sumario-item"><span>1. INTRODUCAO</span><span>3</span></div>
+  <div class="sumario-item nivel2"><span>1.1 Contexto e Justificativa</span><span>3</span></div>
+  <div class="sumario-item nivel2"><span>1.2 Objetivos</span><span>3</span></div>
+  <div class="sumario-item nivel2"><span>1.3 Escopo</span><span>4</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>2. DIAGNOSTICO DO PROBLEMA</span><span>4</span></div>
+  <div class="sumario-item nivel2"><span>2.1 Tipos de Fraude em Bombas de Combustivel</span><span>4</span></div>
+  <div class="sumario-item nivel2"><span>2.2 Impacto Economico</span><span>5</span></div>
+  <div class="sumario-item nivel2"><span>2.3 Panorama Regulatorio</span><span>5</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>3. SOLUCAO PROPOSTA</span><span>6</span></div>
+  <div class="sumario-item nivel2"><span>3.1 Visao Geral da Solucao</span><span>6</span></div>
+  <div class="sumario-item nivel2"><span>3.2 Componente 1: Dongle OBD-II BLE</span><span>6</span></div>
+  <div class="sumario-item nivel2"><span>3.3 Componente 2: Aplicativo Movel</span><span>8</span></div>
+  <div class="sumario-item nivel2"><span>3.4 Componente 3: Plataforma Web e Banco de Dados</span><span>9</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>4. ARQUITETURA TECNICA</span><span>10</span></div>
+  <div class="sumario-item nivel2"><span>4.1 Arquitetura do Sistema OBD-II</span><span>10</span></div>
+  <div class="sumario-item nivel2"><span>4.2 Arquitetura do Software</span><span>11</span></div>
+  <div class="sumario-item nivel2"><span>4.3 Fluxo de Dados</span><span>11</span></div>
+  <div class="sumario-item nivel2"><span>4.4 Algoritmo de Calculo</span><span>12</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>5. ESPECIFICACOES TECNICAS</span><span>12</span></div>
+  <div class="sumario-item nivel2"><span>5.1 Componentes de Hardware</span><span>12</span></div>
+  <div class="sumario-item nivel2"><span>5.2 Precisao e Tolerancia</span><span>13</span></div>
+  <div class="sumario-item nivel2"><span>5.3 Stack Tecnologica do Software</span><span>14</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>6. PLANO DE NEGOCIOS</span><span>14</span></div>
+  <div class="sumario-item nivel2"><span>6.1 Modelo de Negocio</span><span>14</span></div>
+  <div class="sumario-item nivel2"><span>6.2 Analise de Custos e Projecao Financeira</span><span>15</span></div>
+  <div class="sumario-item nivel2"><span>6.3 Mercado-Alvo e Potencial</span><span>16</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>7. CRONOGRAMA DE DESENVOLVIMENTO</span><span>17</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>8. ASPECTOS LEGAIS E REGULATORIOS</span><span>18</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>9. RISCOS E MITIGACAO</span><span>18</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>10. CONSIDERACOES FINAIS</span><span>19</span></div>
+
+  <div class="sumario-item" style="margin-top:3mm;"><span>REFERENCIAS</span><span>20</span></div>
+</div>
+
+
+<!-- ============================================================
+     1. INTRODUCAO
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">1.</span> INTRODUCAO</h1>
+
+  <h2><span class="secao-num">1.1</span> Contexto e Justificativa</h2>
+  <p>
+    O setor de distribuicao de combustiveis no Brasil movimenta anualmente mais de R$ 400 bilhoes de reais,
+    sendo os postos de abastecimento os principais pontos de contato entre distribuidores e consumidores finais.
+    Nesse contexto, praticas fraudulentas em bombas metricas representam um problema cronico que afeta
+    milhoes de consumidores, causando prejuizos financeiros significativos e corroendo a confianca no setor.
+  </p>
+  <p>
+    O Instituto Nacional de Metrologia, Qualidade e Tecnologia (INMETRO) realiza periodicamente fiscalizacoes
+    em postos de todo o Brasil. Em 2024, o orgao interditou mais de 1.200 bombas em todo o territorio nacional,
+    volume que representa apenas os casos identificados pelas fiscalizacoes oficiais, estimando-se que o percentual
+    real de equipamentos adulterados seja consideravelmente superior.
+  </p>
+  <p>
+    Diante desse cenario, evidencia-se a necessidade de uma solucao acessivel que permita ao consumidor
+    realizar uma verificacao independente no momento do abastecimento, gerando dados que possam ser
+    compartilhados com orgaos reguladores e com a propria sociedade de forma transparente.
+  </p>
+
+  <h2><span class="secao-num">1.2</span> Objetivos</h2>
+
+  <h3>Objetivo Geral</h3>
+  <p>
+    Desenvolver um sistema integrado â€” composto por dispositivo fisico portatil e aplicativo movel â€” capaz
+    de medir com precisao o volume real de combustivel transferido durante um abastecimento e compara-lo
+    ao volume exibido na bomba do posto.
+  </p>
+
+  <h3>Objetivos Especificos</h3>
+  <ul>
+    <li>Desenvolver integracao com o protocolo OBD-II dos veiculos para leitura da boia de combustivel (PID 0x2F) antes e apos o abastecimento, via dongle ELM327 BLE comercial de baixo custo (~R$ 35);</li>
+    <li>Criar aplicativo movel (Android e iOS) para exibicao em tempo real dos dados medidos;</li>
+    <li>Construir plataforma web com mapa colaborativo de postos com irregularidades reportadas;</li>
+    <li>Estabelecer integracao automatizada de denuncias com os sistemas do INMETRO e PROCON;</li>
+    <li>Validar a precisao do sistema em ambiente controlado, identificando fraudes acima de 3% do volume marcado com base na resolucao da boia OBD-II e na capacidade cadastrada do tanque.</li>
+  </ul>
+
+  <h2 style="margin-top:6mm;"><span class="secao-num">1.3</span> Escopo</h2>
+  <p>
+    O presente projeto abrange a concepcao, desenvolvimento e validacao do sistema descrito, compreendendo
+    as fases de integracao com o protocolo OBD-II, desenvolvimento do aplicativo movel (Ionic/Angular/Capacitor),
+    construcao do banco de dados de veiculos e capacidades de tanque, desenvolvimento da plataforma web
+    colaborativa e definicao do modelo de negocios para comercializacao e escala da solucao.
+    Nao estao incluidos no escopo o desenvolvimento de hardware customizado (abordagem descartada por inviabilidade
+    economica), a certificacao metrologica pelo INMETRO nem a fabricacao de dispositivos fisicos em larga escala.
+    Uma versao futura (V2) com sensor de medicao de maior precisao podera ser avaliada apos obtencao
+    de base de usuarios e financiamento adequado.
+  </p>
+</div>
+
+
+<!-- ============================================================
+     2. DIAGNOSTICO
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">2.</span> DIAGNOSTICO DO PROBLEMA</h1>
+
+  <h2><span class="secao-num">2.1</span> Tipos de Fraude em Bombas de Combustivel</h2>
+  <p>
+    As irregularidades detectadas em bombas de postos de combustivel podem ser classificadas em tres
+    categorias principais, conforme demonstrado a seguir.
+  </p>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 1 - Tipos de Fraude e Mecanismos de Atuacao</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:28%">Tipo</th>
+          <th style="width:42%">Mecanismo</th>
+          <th style="width:30%">Deteccao pelo consumidor</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Adulteracao do sensor de pulso</td>
+          <td>Chip eletrÃ´nico instalado entre o sensor e o computador da bomba que subtrai pulsos, fazendo o marcador avancar mais rapido que o volume real liberado.</td>
+          <td>Extremamente dificil sem instrumento de medicao</td>
+        </tr>
+        <tr>
+          <td>Manipulacao do calibrador mecanico</td>
+          <td>Ajuste fisico do medidor mecanico interno para que a cada rotacao completa o volume registrado seja superior ao volume efetivamente deslocado.</td>
+          <td>Dificil; requer desmontagem</td>
+        </tr>
+        <tr>
+          <td>Contaminacao e adulteracao do produto</td>
+          <td>Mistura de solventes ou agua ao combustivel, reduzindo a quantidade de produto conforme especificacao tecnica sem alterar o volume marcado.</td>
+          <td>Possivel com densimetro ou densimetro digital</td>
+        </tr>
+        <tr>
+          <td>Reinicializacao prematura do marcador</td>
+          <td>O operador reinicia o contador antes de atingir o volume solicitado, conferindo aparÃªncia de conclusao antecipada do abastecimento.</td>
+          <td>Visivel pelo consumidor atento</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria com base em relatorios do INMETRO (2024).</p>
+  </div>
+
+  <h2><span class="secao-num">2.2</span> Impacto Economico</h2>
+  <p>
+    Considerando que um veiculo de passeio realiza em media 3,2 abastecimentos por mes e que a fraude
+    media detectada pelo INMETRO em postos autuados corresponde a 3,5% do volume marcado, tem-se
+    o seguinte calculo de impacto por consumidor ao ano:
+  </p>
+  <div class="formula nao-quebrar">
+    Prejuizo mensal por veiculo = Volume medio mensal x Taxa de fraude x Preco medio do litro
+    Prejuizo mensal por veiculo = 120 litros x 3,5% x R$ 6,20 = R$ 26,04 por mes
+    Prejuizo anual por veiculo  = R$ 26,04 x 12 = R$ 312,48 por ano
+    Total nacional estimado (frota de 40 milhoes) = R$ 12,5 bilhoes por ano
+  </div>
+  <p class="nota sem-recuo">* Estimativa baseada em dados da frota nacional (DENATRAN, 2024) e preco medio da gasolina (ANP, fev/2026).</p>
+
+  <h2 style="margin-top:6mm;"><span class="secao-num">2.3</span> Panorama Regulatorio</h2>
+  <p>
+    A legislacao brasileira estabelece, pela Portaria INMETRO n. 96/2000 e suas atualizacoes, tolerancias
+    maximas de Â±0,6% para bombas de abastecimento aferidas. Medidores fora dessa tolerancia estao sujeitos
+    a interdiÃ§Ã£o imediata e multas que variam de R$ 5.000 a R$ 1.500.000, conforme previsao da
+    Lei n. 9.933/1999.
+  </p>
+  <p>
+    Contudo, o numero de fiscais do INMETRO e insuficiente para cobrir os aproximadamente 40.000 postos
+    ativos no Brasil com a frequencia necessaria. A participacao da sociedade civil como agente fiscalizador
+    complementar e, portanto, estrategica e necessaria para fechar essa lacuna de supervisao.
+  </p>
+</div>
+
+
+<!-- ============================================================
+     3. SOLUCAO PROPOSTA
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">3.</span> SOLUCAO PROPOSTA</h1>
+
+  <h2><span class="secao-num">3.1</span> Visao Geral da Solucao</h2>
+  <p>
+    A solucao e composta por tres camadas integradas que trabalham de forma complementar para capturar,
+    processar, exibir e compartilhar os dados de verificacao do abastecimento.
+  </p>
+
+  <div class="diagrama nao-quebrar">
++----------------------+    BLE / OBD-II    +------------------+       HTTPS       +-------------------+
+|  DONGLE ELM327 BLE   |  ---------------&gt;  |  APLICATIVO      |  --------------&gt;  |  PLATAFORMA WEB   |
+|  (porta OBD do carro)|                    |  MOVEL (Android  |                   |  + API de Dados   |
+|  Le boia combustivel |  &lt;-  comandos AT   |   / iOS)         |  &lt;-  mapa e rel.  |  + Dashboard      |
++----------------------+                    +------------------+                   +-------------------+
+        ^                                                                                    |
+        |  PID 0x2F                                                              envio automatico
+        |  (nivel tanque %)                                                                  |
++-------+------+                                                                   +----------v---------+
+|  ECU do      |                                                                   |  INMETRO / PROCON  |
+|  VEICULO     |                                                                   |  (API publica)     |
++--------------+                                                                   +--------------------+
+  </div>
+  <p class="sem-recuo tabela-fonte" style="text-align:center;">Figura 1 - Arquitetura geral do sistema (abordagem OBD-II). Fonte: Elaboracao propria.</p>
+
+  <h2><span class="secao-num">3.2</span> Componente 1: Dongle OBD-II BLE</h2>
+
+  <div class="quadro nao-quebrar" style="border-color:#060; margin-bottom:5mm;">
+    <p class="sem-recuo quadro-titulo" style="color:#060;">Conceito Revisado â€” Abordagem OBD-II (Sem Hardware Customizado)</p>
+    <p class="sem-recuo">
+      A abordagem anterior (funil-medidor com sensor de fluxo inline) foi descartada por inviabilidade economica
+      (custo de componentes ~R$ 447/unidade). A nova abordagem utiliza o <strong>protocolo OBD-II ja presente
+      em 100% dos veiculos fabricados no Brasil a partir de 2006</strong>. Um dongle ELM327 BLE comercial (~R$ 35)
+      conectado a porta OBD-II do carro le a boia de combustivel (PID 0x2F) antes e apos o abastecimento,
+      calculando os litros recebidos por diferenca de nivel. Nenhum hardware customizado e necessario.
+    </p>
+  </div>
+
+  <p>
+    O "dispositivo" passa a ser um dongle ELM327 BLE de terceiros, amplamente disponivel em lojas fisicas
+    e on-line por R$ 35 a R$ 80. O dongle se conecta a porta OBD-II padrao do veiculo (localizada
+    abaixo do volante), disponivel em todos os veiculos produzidos a partir de 2006 no Brasil
+    (Resolucao CONTRAN 244/2007). O aplicativo se comunica com o dongle via BLE e envia comandos AT
+    (protocolo ELM327) para consultar o PID 0x2F (Fuel Level Input), que retorna o nivel de
+    combustivel como percentual da capacidade total do tanque.
+  </p>
+
+  <h3>Principio de Funcionamento</h3>
+  <div class="formula nao-quebrar">
+    /* Leitura do nivel de combustivel via OBD-II */
+    PID consultado: 0x2F (Fuel Level Input)
+    Resposta:       0x00 = 0%  ...  0xFF = 100%  (resolucao: 1/256 = ~0,39% por passo)
+
+    nivel_antes_pct  = OBD2_readPID(0x2F) / 255.0 * 100    /* antes de abastecer */
+    nivel_depois_pct = OBD2_readPID(0x2F) / 255.0 * 100    /* apos abastecer     */
+
+    capacidade_litros = BD_tanque[marca][modelo][ano]        /* banco de dados local */
+
+    litros_recebidos  = (nivel_depois_pct - nivel_antes_pct) / 100.0 * capacidade_litros
+
+    divergencia_pct   = ((litros_bomba - litros_recebidos) / litros_bomba) * 100
+
+    /* Classificacao */
+    SE divergencia_pct &lt;= 0.6%  --&gt; REGULAR  (dentro tolerancia INMETRO)
+    SE divergencia_pct &gt;  0.6%  --&gt; IRREGULAR (acima tolerancia INMETRO)
+    SE divergencia_pct &gt;  3.0%  --&gt; FRAUDE PROVAVEL (recomendar denuncia)
+  </div>
+
+  <h3>Limitacoes Conhecidas da Abordagem OBD-II</h3>
+  <ul>
+    <li><strong>Precisao da boia:</strong> a boia de nivel do tanque e um sensor analogico (resistor de posicao). A precisao real varia por modelo de carro, tipicamente Â±3% a Â±8%. O sistema detecta fraudes brutas (&gt;5%) com confiabilidade, mas nao e adequado para detectar desvios sutis (&lt;2%);</li>
+    <li><strong>Resolucao OBD-II:</strong> PID 0x2F tem resolucao de 1/256 da capacidade total. Para tanque de 50L, cada passo = ~0,2L. Fraudes &lt;0,5L nao sao detectaveis;</li>
+    <li><strong>Latencia de atualizacao:</strong> algumas ECUs atualizam o nivel de combustivel com atraso de 30 a 120 segundos apos o abastecimento. O app deve aguardar estabilizacao antes de registrar a leitura final;</li>
+    <li><strong>Veiculos sem suporte ao PID 0x2F:</strong> estimados em ~5% da frota (principalmente veiculos importados de nicho e pre-2006); o app deve alertar o usuario nesse caso e permitir entrada manual;</li>
+    <li><strong>Uso como prova legal:</strong> a leitura OBD-II nao tem valor metrologico legal (INMETRO). Serve como indicador para orientar denuncia, nao como prova conclusiva.</li>
+  </ul>
+
+  <h3>Vantagens da Abordagem OBD-II</h3>
+  <ul>
+    <li>Custo do "dispositivo" cai de R$ 447 (hardware customizado) para R$ 35 a R$ 80 (dongle comercial);</li>
+    <li>Zero fabricacao: dongle e produto acabado, sem necessidade de PCB, soldagem ou certificacao de hardware;</li>
+    <li>Sem contato com combustivel: elimina toda questao de seguranca, certificacao INMETRO de equipamento e compatibilidade quimica com combustivel;</li>
+    <li>Compativel com 95%+ da frota brasileira atual;</li>
+    <li>Dongle pode ser reutilizado para outros fins (leitura de codigos de falha, scanner de diagnostico);</li>
+    <li>Time-to-market muito menor: desenvolvimento concentrado em software.</li>
+  </ul>
+
+  <h3>Fluxo de Uso pelo Cliente</h3>
+  <ol>
+    <li>Instalacao unica: cliente compra dongle ELM327 BLE (qualquer marca compativel) e o insere na porta OBD-II do veiculo â€” permanece la permanentemente;</li>
+    <li>Antes de abastecer: cliente abre o app, que conecta ao dongle via BLE e registra o nivel de combustivel atual (leitura automatica);</li>
+    <li>Abastecimento normal: nenhuma acao necessaria durante o abastecimento;</li>
+    <li>Apos abastecer: cliente toca em "Finalizar" no app; o app aguarda estabilizacao da boia (30-120s conforme o carro) e faz nova leitura;</li>
+    <li>Cliente informa o valor da nota fiscal ou o marcador da bomba; o app calcula a divergencia e exibe o resultado;</li>
+    <li>Resultado e salvo e opcionalmente compartilhado de forma anonima com a plataforma colaborativa.</li>
+  </ol>
+
+  <h2 style="margin-top:6mm;"><span class="secao-num">3.3</span> Componente 2: Aplicativo Movel</h2>
+  <p>
+    O aplicativo e o ponto central de interacao do usuario. Desenvolvido com Ionic Framework (Angular)
+    e Capacitor para publicacao simultanea em Google Play Store e Apple App Store, oferece interface
+    intuitiva otimizada para uso ao ar livre com tela de alto contraste.
+  </p>
+
+  <h3>Funcionalidades do Aplicativo</h3>
+  <ul>
+    <li><strong>Conexao Bluetooth:</strong> pareamento automatico com o dispositivo fisico;</li>
+    <li><strong>Medicao em tempo real:</strong> exibicao do volume medido com atualizacao a cada 100 ms;</li>
+    <li><strong>Comparativo:</strong> campo para insercao do volume exibido na bomba para calculo imediato da diferenca percentual;</li>
+    <li><strong>Historico local:</strong> armazenamento dos ultimos 100 abastecimentos no dispositivo;</li>
+    <li><strong>Mapa colaborativo:</strong> visualizacao de postos reportados por outros usuarios na regiao;</li>
+    <li><strong>Registro de ocorrencia:</strong> formulario pre-preenchido para geracao de boletim de ocorrencia ou denuncia ao PROCON;</li>
+    <li><strong>Relatorio PDF:</strong> exportacao do historico de medicoes para uso como prova;</li>
+    <li><strong>Funcao offline:</strong> todas as medicoes funcionam sem conexao com internet.</li>
+  </ul>
+
+  <h3>Telas Principais</h3>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 2 - Descricao das Telas do Aplicativo</p>
+    <table>
+      <thead>
+        <tr><th>Tela</th><th>Descricao</th><th>Dados Exibidos</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Home / Medicao</td>
+          <td>Tela principal ativa durante o abastecimento</td>
+          <td>Volume medido (L), taxa de fluxo (L/min), status da conexao BT</td>
+        </tr>
+        <tr>
+          <td>Comparativo</td>
+          <td>Exibe diferenca entre volume real e volume da bomba</td>
+          <td>Volume medido, volume informado, diferenca em litros, diferenca em %, valor monetario do desvio</td>
+        </tr>
+        <tr>
+          <td>Mapa</td>
+          <td>Mapa com pins dos postos avaliados pela comunidade</td>
+          <td>Localizacao GPS, nota media, numero de avaliacoes, status (regular/irregular)</td>
+        </tr>
+        <tr>
+          <td>Historico</td>
+          <td>Lista de medicoes anteriores</td>
+          <td>Data, posto, volume medido, volume da bomba, resultado</td>
+        </tr>
+        <tr>
+          <td>Denuncia</td>
+          <td>Formulario de registro de ocorrencia</td>
+          <td>Dados do posto, dados da medicao, fotos, localizacao GPS automatica</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria.</p>
+  </div>
+
+  <h2><span class="secao-num">3.4</span> Componente 3: Plataforma Web e Banco de Dados</h2>
+  <p>
+    A plataforma web e destinada primariamente a orgaos reguladores, jornalistas e pesquisadores.
+    Oferece acesso a base de dados anonimizados das medicoes realizadas pelos usuarios, com ferramentas
+    de filtragem por regiao, periodo e nivel de irregularidade.
+  </p>
+  <p>
+    Uma API publica documentada (RESTful, padrao OpenAPI 3.0) permite que o INMETRO, o PROCON e
+    outros orgaos governamentais consumam os dados de forma automatizada para priorizar fiscalizacoes.
+  </p>
+</div>
+
+
+<!-- ============================================================
+     4. ARQUITETURA TECNICA
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">4.</span> ARQUITETURA TECNICA</h1>
+
+  <h2><span class="secao-num">4.1</span> Arquitetura do Hardware (Dongle OBD-II BLE)</h2>
+
+  <h3>Diagrama de Posicionamento e Blocos do Sistema</h3>
+  <div class="diagrama nao-quebrar">
+  +------------------+
+  |   VEICULO        |
+  |                  |
+  |  ECU (computador |    PID 0x2F          +------------------------+
+  |  do carro)       |  -----------------&gt;  |  DONGLE ELM327 BLE     |
+  |                  |  Fuel Level Input    |                        |
+  |  Boia de nivel   |  0x00=0% ... 0xFF=100% |  - Chip ELM327 v2.1+   |
+  |  (sensor         |  &lt;-----------------  |  - BLE 4.2 / 5.0       |
+  |  resistivo       |  comandos AT         |  - 12V OBD conector    |
+  |  do tanque)      |                      |  - Exibicao LED status |
+  +--------+---------+                      +----------+-------------+
+           |                                           |
+           | Porta OBD-II                              | Bluetooth LE
+           | (padrao SAE J1962)                        | (distancia &lt;5m)
+           | sob o volante                             |
+           | (todos veiculos BR &gt; 2006)                v
+           |                               +-----------+-----------+
+           |                               |   SMARTPHONE DO       |
+           v                               |   CLIENTE             |
+  +------------------+                     |                       |
+  |  TANQUE DE       |                     |  App: Le PID 0x2F     |
+  |  COMBUSTIVEL     |                     |  Calcula divergencia  |
+  |  (boia flutuante)|                     |  Exibe resultado      |
+  +------------------+                     |  Envia ao servidor    |
+                                           +-----------------------+
+  </div>
+  <p class="sem-recuo tabela-fonte" style="text-align:center;">Figura 2 - Arquitetura do sistema OBD-II. O dongle permanece conectado ao carro; o app e a unica interface do usuario. Fonte: Elaboracao propria.</p>
+
+  <h2><span class="secao-num">4.2</span> Arquitetura do Software</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 3 - Camadas do Software</p>
+    <table>
+      <thead>
+        <tr><th>Camada</th><th>Tecnologia</th><th>Responsabilidade</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Firmware (Dispositivo)</td>
+          <td>C++ / FreeRTOS (ESP-IDF)</td>
+          <td>Leitura de pulsos via interrupcao, calculo de volume, transmissao BLE, gerenciamento de energia</td>
+        </tr>
+        <tr>
+          <td>App Movel</td>
+          <td>Ionic / Angular / Capacitor</td>
+          <td>Interface do usuario, conexao BT, armazenamento local, envio de dados ao backend</td>
+        </tr>
+        <tr>
+          <td>Backend API</td>
+          <td>Next.js (Node.js) + Prisma</td>
+          <td>Recebimento e validacao de medicoes, gerenciamento de usuarios, API para orgaos reguladores</td>
+        </tr>
+        <tr>
+          <td>Banco de Dados</td>
+          <td>PostgreSQL</td>
+          <td>Persistencia de medicoes, usuarios, postos, ocorrencias</td>
+        </tr>
+        <tr>
+          <td>Infraestrutura</td>
+          <td>VPS Linux + Nginx + PM2</td>
+          <td>Hospedagem, proxy reverso, gerenciamento de processos</td>
+        </tr>
+        <tr>
+          <td>Plataforma Web</td>
+          <td>Next.js + Leaflet.js</td>
+          <td>Dashboard publico, mapa interativo, painel de orgaos reguladores</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria.</p>
+  </div>
+
+  <h2><span class="secao-num">4.3</span> Fluxo de Dados (Abordagem OBD-II)</h2>
+  <ol>
+    <li>Cliente abre o app; app conecta ao dongle ELM327 via BLE e verifica suporte ao PID 0x2F (Fuel Level Input);</li>
+    <li>Antes do abastecimento: app envia comando AT "01 2F" ao dongle; ECU responde com nivel atual (0-255); app calcula percentual e estima litros presentes com base no cadastro de capacidade do veiculo;</li>
+    <li>Abastecimento ocorre normalmente (nenhuma acao necessaria do usuario);</li>
+    <li>Apos o abastecimento: app aguarda estabilizacao da boia (temporizador configuravel, padrao 60 segundos) e faz nova leitura do PID 0x2F;</li>
+    <li>App calcula litros recebidos: delta_pct x capacidade_tanque_litros;</li>
+    <li>Usuario informa o valor da bomba (ou app usa OCR sobre foto da nota fiscal); app calcula e exibe divergencia percentual;</li>
+    <li>Registro e salvo localmente (SQLite) com GPS, nome do posto (Google Places API), data/hora, delta e resultado;</li>
+    <li>Quando ha internet, dado e sincronizado anonimamente ao backend; o servidor agrega por posto e gera alertas automaticos para o mapa colaborativo e para orgaos reguladores.</li>
+  </ol>
+
+  <h2><span class="secao-num">4.4</span> Algoritmo de Calculo (OBD-II Delta de Nivel)</h2>
+  <div class="formula nao-quebrar">
+    /* ===== ETAPA 1: Leitura do nivel antes do abastecimento ===== */
+    resposta_obd_antes    = ELM327.sendATCmd("01 2F")  // ex: "41 2F A3"
+    nivel_raw_antes       = parseInt(resposta_obd_antes.byte3, 16)  // 0-255
+    nivel_pct_antes       = nivel_raw_antes / 255.0 * 100            // em %
+
+    /* ===== ETAPA 2: Cadastro do veiculo ===== */
+    capacidade_litros     = DB_tanques[marca][modelo][ano]           // banco local
+    // Exemplos: Onix 2023 = 47L, Corolla 2023 = 60L, HB20 2023 = 45L
+
+    /* ===== ETAPA 3: Aguardar estabilizacao apos abastecimento ===== */
+    aguardar(60_segundos)   // boia precisa de tempo para subir e ECU atualizar
+
+    /* ===== ETAPA 4: Leitura apos abastecimento ===== */
+    resposta_obd_depois   = ELM327.sendATCmd("01 2F")
+    nivel_raw_depois      = parseInt(resposta_obd_depois.byte3, 16)
+    nivel_pct_depois      = nivel_raw_depois / 255.0 * 100
+
+    /* ===== ETAPA 5: Calculo dos litros recebidos ===== */
+    delta_pct             = nivel_pct_depois - nivel_pct_antes  // em %
+    litros_recebidos      = (delta_pct / 100.0) * capacidade_litros
+
+    /* ===== ETAPA 6: Comparativo com a bomba ===== */
+    litros_bomba          = usuario_informa()    // ou OCR da nota fiscal
+    divergencia_litros    = litros_bomba - litros_recebidos
+    divergencia_pct       = (divergencia_litros / litros_bomba) * 100
+
+    /* ===== ETAPA 7: Classificacao ===== */
+    SE divergencia_pct &lt;= 0.6%  --&gt; REGULAR  (tolerancia INMETRO)
+    SE divergencia_pct &gt;  0.6%  --&gt; IRREGULAR
+    SE divergencia_pct &gt;  3.0%  --&gt; FRAUDE PROVAVEL (recomendar denuncia)
+
+    /* RESOLUCAO: para tanque de 50L, cada passo OBD-II = 50/255 = ~0,2L */
+    /* PRECISAO:  limitada pela boia do tanque (+/-3% a +/-8% conforme modelo) */
+    /* DETECCAO:  confiavel para fraudes > 3L em tanques de 50L (>6% desvio)   */
+  </div>
+</div>
+
+
+<!-- ============================================================
+     5. ESPECIFICACOES TECNICAS
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">5.</span> ESPECIFICACOES TECNICAS</h1>
+
+  <h2><span class="secao-num">5.1</span> Componentes de Hardware</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 4 - Componentes do Sistema (Abordagem OBD-II)</p>
+    <table>
+      <thead>
+        <tr><th>Componente</th><th>Modelo</th><th>Especificacao Principal</th><th>Qtd.</th><th>Custo Unit. (R$)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Dongle OBD-II BLE</td>
+          <td>ELM327 v2.1 BLE 4.2 (compativel iOS e Android)</td>
+          <td>Suporte a protocolos CAN, ISO, VPW, PWM; chip ELM327 genuino; BLE 4.2; alimentacao pela porta OBD-II (12V); compativel com todos os veiculos OBD-II (BR &gt; 2006)</td>
+          <td>1</td>
+          <td>35,00 - 80,00</td>
+        </tr>
+        <tr>
+          <td>Smartphone do usuario</td>
+          <td>Android 10+ ou iOS 14+</td>
+          <td>BLE 4.2+, GPS, camera (OCR opcional); dispositivo proprio do usuario â€” custo zero para o sistema</td>
+          <td>1</td>
+          <td>0,00 (cliente)</td>
+        </tr>
+        <tr>
+          <td>Infraestrutura de backend</td>
+          <td>VPS Linux 2 vCPU / 4 GB RAM</td>
+          <td>Next.js 15 + PostgreSQL 16 + PM2; SSD 80 GB; regiao BR</td>
+          <td>1</td>
+          <td>70,00/mes</td>
+        </tr>
+        <tr>
+          <td>Dominio e SSL</td>
+          <td>.com.br + Let's Encrypt</td>
+          <td>Registro .com.br por 1 ano; SSL gratuito via Let's Encrypt</td>
+          <td>1</td>
+          <td>50,00/ano</td>
+        </tr>
+        <tr>
+          <td>Banco de dados de veiculos</td>
+          <td>Dataset FIPE / DENATRAN local</td>
+          <td>Capacidade do tanque por marca/modelo/ano; distribuido com o app (SQLite ~2 MB); ~8.000 modelos cobertos</td>
+          <td>1</td>
+          <td>0,00 (fonte publica)</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4">CUSTO DO "DISPOSITIVO" POR USUARIO (dongle ELM327)</td>
+          <td>R$ 35 a R$ 80</td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Pesquisa de precos (Mercado Livre, AliExpress) - Marco 2026. Nenhum hardware customizado e necessario. O dongle ELM327 e produto acabado, amplamente disponivel.</p>
+  </div>
+
+  <h2><span class="secao-num">5.2</span> Precisao e Tolerancia</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 5 - Comparativo de Abordagens de Medicao de Combustivel</p>
+    <table>
+      <thead>
+        <tr><th>Abordagem</th><th>Mecanismo</th><th>Precisao</th><th>Custo hardware</th><th>Complexidade</th><th>Contato c/ combustivel</th><th>Indicacao</th></tr>
+      </thead>
+      <tbody>
+        <tr style="background:#fee; color:#900;">
+          <td><strong>Funil-medidor (turbina inline)</strong></td>
+          <td>Sensor de fluxo inline instalado no gargalo do tanque; conta pulsos da turbina</td>
+          <td>+/- 2% (pos-calibracao)</td>
+          <td style="color:#c00; font-weight:bold;">R$ 447/unidade</td>
+          <td>Alta (hardware customizado, PCB, firmware)</td>
+          <td>Sim (Viton + latao)</td>
+          <td style="color:#c00; font-weight:bold;">DESCARTADO â€” inviavel economicamente para V1</td>
+        </tr>
+        <tr style="background:#fffbe6;">
+          <td><strong>OBD-II BLE (boia do tanque)</strong></td>
+          <td>Le PID 0x2F (Fuel Level Input) da ECU antes e depois do abastecimento; calcula delta; compara com bomba</td>
+          <td>+/- 3% a +/- 8% (limitada pela boia do carro)</td>
+          <td style="font-weight:bold; color:#060;">R$ 35 a R$ 80 (dongle comercial)</td>
+          <td>Baixa (apenas software)</td>
+          <td>Nao (dongle fica na porta OBD-II)</td>
+          <td style="font-weight:bold; color:#060;">ESCOLHIDO para V1. Detecta fraudes &gt;3%; custo viavel.</td>
+        </tr>
+        <tr>
+          <td>Camera + OCR na bomba</td>
+          <td>App usa camera do celular para ler display digital da bomba automaticamente</td>
+          <td>Depende da qualidade da imagem; falha em bombas analogicas</td>
+          <td>R$ 0 (usa camera do celular)</td>
+          <td>Media (OCR / IA)</td>
+          <td>Nao</td>
+          <td>Complemento ao OBD-II para captura automatica do valor da bomba (V2)</td>
+        </tr>
+        <tr>
+          <td>Balanca no veiculo</td>
+          <td>Sensor de peso no suporte do tanque mede massa adicionada; converte por densidade do combustivel</td>
+          <td>+/- 1% (com calibracao)</td>
+          <td>R$ 200 a R$ 500</td>
+          <td>Alta (instalacao no veiculo)</td>
+          <td>Nao</td>
+          <td>V3; maior precisao; instalacao profissional obrigatoria</td>
+        </tr>
+        <tr>
+          <td>Medidor ultrassonico clamp-on</td>
+          <td>Sensor ultrassonico externo colado ao tanque; mede nivel por ultrassom</td>
+          <td>+/- 1%</td>
+          <td>R$ 2.000+</td>
+          <td>Alta</td>
+          <td>Nao</td>
+          <td>Versao certificavel INMETRO; custo proibitivo para consumidor final</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria. A abordagem OBD-II foi escolhida por oferecer o melhor equilibrio entre custo, viabilidade e time-to-market para V1.</p>
+  </div>
+
+  <div class="quadro nao-quebrar" style="border-color:#336;">
+    <p class="sem-recuo quadro-titulo" style="color:#336;">Desafios Tecnicos da Abordagem OBD-II</p>
+    <p class="sem-recuo"><strong>1. Precisao da boia do tanque:</strong> A boia (float sensor) e um sensor analogico de posicao. A calibracao varia por modelo; ruido eletrico e histerese sao comuns. A precisao real pode ser +/-3% a +/-8%. O sistema nao substitui uma medicao metrologica, mas e suficiente para identificar fraudes grosseiras (&gt;3L em 50L).</p>
+    <p class="sem-recuo" style="margin-top:3mm;"><strong>2. Latencia de atualizacao da ECU:</strong> Apos o abastecimento, a ECU pode levar 30 a 120 segundos para atualizar a leitura do nivel. O app deve implementar logica de espera e detectar estabilizacao antes de capturar a leitura final.</p>
+    <p class="sem-recuo" style="margin-top:3mm;"><strong>3. Compatibilidade OBD-II e PID 0x2F:</strong> Todos os veiculos &gt; 2006 tem OBD-II, mas nem todos reportam PID 0x2F (Fuel Level Input). Estimativa: ~5% nao suportam. O app deve testar o PID no cadastro do veiculo e alertar o usuario caso nao disponivel, oferecendo entrada manual.</p>
+    <p class="sem-recuo" style="margin-top:3mm;"><strong>4. Dongle ELM327 pirata:</strong> Dongles baratos com chip clonado tem bugs de firmware (loops infinitos, timeouts). O app deve publicar lista de dongles testados e compativeis. Recomendado exigir ELM327 v2.1 com chip genuino.</p>
+    <p class="sem-recuo" style="margin-top:3mm;"><strong>5. Banco de dados de capacidade dos tanques:</strong> Necessario mapear a capacidade do tanque para cada combinacao marca/modelo/ano. Fonte publica: FIPE e manuais dos fabricantes. Dataset inicial com os 200 modelos mais comuns (~85% da frota) e suficiente para MVP.</p>
+  </div>
+
+  <h2><span class="secao-num">5.3</span> Stack Tecnologica do Software</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 6 - Stack Tecnologica Completa</p>
+    <table>
+      <thead>
+        <tr><th>Componente</th><th>Tecnologia</th><th>Versao</th><th>Licenca</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Protocolo OBD-II / ELM327</td><td>elm327 (Node.js) / AT commands</td><td>2.x</td><td>MIT / Proprietario ELM327</td></tr>
+        <tr><td>Framework App Movel</td><td>Ionic Framework</td><td>8.x</td><td>MIT</td></tr>
+        <tr><td>Framework Frontend</td><td>Angular</td><td>20.x</td><td>MIT</td></tr>
+        <tr><td>Runtime Nativo</td><td>Capacitor</td><td>8.x</td><td>MIT</td></tr>
+        <tr><td>Plugin BLE</td><td>@capacitor-community/bluetooth-le</td><td>6.x</td><td>MIT</td></tr>
+        <tr><td>Backend</td><td>Next.js (Node.js)</td><td>15.x</td><td>MIT</td></tr>
+        <tr><td>ORM</td><td>Prisma</td><td>6.x</td><td>Apache 2.0</td></tr>
+        <tr><td>Banco de Dados</td><td>PostgreSQL</td><td>16.x</td><td>PostgreSQL License</td></tr>
+        <tr><td>Mapas</td><td>Leaflet.js + OpenStreetMap</td><td>1.9.x</td><td>BSD / ODbL</td></tr>
+        <tr><td>Autenticacao</td><td>NextAuth.js (JWT)</td><td>5.x</td><td>ISC</td></tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     6. PLANO DE NEGOCIOS
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">6.</span> PLANO DE NEGOCIOS</h1>
+
+  <h2><span class="secao-num">6.1</span> Modelo de Negocio</h2>
+  <p>
+    O modelo de negocio adota uma estrategia de receitas multiplas para garantir sustentabilidade financeira
+    em diferentes fases de maturidade do produto.
+  </p>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 7 - Fontes de Receita</p>
+    <table>
+      <thead>
+        <tr><th>Fonte</th><th>Modelo</th><th>Preco Estimado</th><th>Fase</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Venda de dongle OBD-II branded</td>
+          <td>Dongle ELM327 BLE com marca propria, validado e testado</td>
+          <td>R$ 79 a R$ 129 por unidade</td>
+          <td>A partir do mes 6 (opcional)</td>
+        </tr>
+        <tr>
+          <td>Assinatura Premium App</td>
+          <td>Freemium; versao gratuita com funcionalidades basicas</td>
+          <td>R$ 9,90/mes ou R$ 79/ano</td>
+          <td>A partir do mes 6</td>
+        </tr>
+        <tr>
+          <td>Licenca para orgaos publicos</td>
+          <td>API de dados anonimizados para INMETRO, PROCON, ANP</td>
+          <td>R$ 2.000 a R$ 15.000/mes por orgao</td>
+          <td>A partir do mes 12</td>
+        </tr>
+        <tr>
+          <td>Licenca para frota corporativa</td>
+          <td>Pacote para empresas com frota propria</td>
+          <td>R$ 49/veiculo/mes</td>
+          <td>A partir do mes 15</td>
+        </tr>
+        <tr>
+          <td>Certificacao voluntaria de postos</td>
+          <td>Postos que atinjam nota media elevada pagam pelo selo "Posto Verificado"</td>
+          <td>R$ 1.200/ano por posto</td>
+          <td>A partir do mes 18</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria.</p>
+  </div>
+
+  <h2><span class="secao-num">6.2</span> Analise de Custos e Projecao Financeira</h2>
+
+  <h3>Custos de Desenvolvimento (Fase 1 - 12 meses)</h3>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 8 - Orcamento da Fase de Desenvolvimento</p>
+    <table>
+      <thead>
+        <tr><th>Item</th><th>Descricao</th><th>Custo Estimado (R$)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Integracao OBD-II / ELM327</td>
+          <td>Protocolo AT, suporte a multiplos protocolos CAN/ISO, testes com 20+ modelos de carros</td>
+          <td>8.000</td>
+        </tr>
+        <tr>
+          <td>Banco de dados de veiculos</td>
+          <td>Coleta e curadoria de capacidade de tanques (200+ modelos), atualizacoes anuais</td>
+          <td>4.000</td>
+        </tr>
+        <tr>
+          <td>Desenvolvimento do App</td>
+          <td>Ionic / Angular, OBD-II BLE, mapas, historico, OCR opcional (12 meses)</td>
+          <td>36.000</td>
+        </tr>
+        <tr>
+          <td>Desenvolvimento Backend</td>
+          <td>API Next.js, banco de dados, dashboard</td>
+          <td>24.000</td>
+        </tr>
+        <tr>
+          <td>Design UX/UI</td>
+          <td>Identidade visual, prototipacao de telas, teste de usabilidade</td>
+          <td>8.000</td>
+        </tr>
+        <tr>
+          <td>Infraestrutura Cloud</td>
+          <td>VPS, dominio, SSL, backups (12 meses)</td>
+          <td>4.800</td>
+        </tr>
+        <tr>
+          <td>Testes de Campo</td>
+          <td>Testes em postos reais com 10+ modelos de carros, validacao OBD-II e precisao</td>
+          <td>5.000</td>
+        </tr>
+        <tr>
+          <td>Juridico e Registro</td>
+          <td>Registro de patente de invencao, abertura de empresa</td>
+          <td>12.000</td>
+        </tr>
+        <tr>
+          <td>Marketing (lancamento)</td>
+          <td>Site, producao de conteudo, assessoria de imprensa</td>
+          <td>15.000</td>
+        </tr>
+        <tr>
+          <td>Reserva de contingencia</td>
+          <td>20% do total</td>
+          <td>23.360</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2"><strong>INVESTIMENTO TOTAL (FASE 1)</strong></td>
+          <td><strong>R$ 140.160</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria com base em cotacoes de mercado (2026). Reducao de R$ 33.600 vs abordagem de hardware customizado (sem PCB, firmware, fabricacao de funil).</p>
+  </div>
+
+  <h3>Projecao de Receita (Anos 1 a 3)</h3>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 9 - Projecao de Receita Consolidada</p>
+    <table>
+      <thead>
+        <tr><th>Fonte</th><th>Ano 1 (R$)</th><th>Ano 2 (R$)</th><th>Ano 3 (R$)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Venda de dongles branded</td>
+          <td>18.000</td>
+          <td>90.000</td>
+          <td>240.000</td>
+        </tr>
+        <tr>
+          <td>Assinaturas App</td>
+          <td>12.000</td>
+          <td>72.000</td>
+          <td>240.000</td>
+        </tr>
+        <tr>
+          <td>Licencas orgaos publicos</td>
+          <td>0</td>
+          <td>60.000</td>
+          <td>180.000</td>
+        </tr>
+        <tr>
+          <td>Frota corporativa</td>
+          <td>0</td>
+          <td>30.000</td>
+          <td>147.000</td>
+        </tr>
+        <tr>
+          <td>Certificacao de postos</td>
+          <td>0</td>
+          <td>0</td>
+          <td>120.000</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td><strong>RECEITA TOTAL</strong></td>
+          <td><strong>30.000</strong></td>
+          <td><strong>252.000</strong></td>
+          <td><strong>777.000</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Custos Operacionais</strong></td>
+          <td><strong>(140.160)</strong></td>
+          <td><strong>(115.000)</strong></td>
+          <td><strong>(180.000)</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Resultado Liquido</strong></td>
+          <td><strong style="color:#900">(110.160)</strong></td>
+          <td><strong>137.000</strong></td>
+          <td><strong>597.000</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria. Projecao conservadora baseada em captura de 0,01% do mercado no Ano 3.</p>
+  </div>
+
+  <h2><span class="secao-num">6.3</span> Mercado-Alvo e Potencial</h2>
+  <p>
+    O Brasil conta com aproximadamente 115 milhoes de veiculos registrados, dos quais 84 milhoes sao
+    veiculos de passeio e comerciais leves que abastecem regularmente em postos. Considerando uma
+    taxa de conversao modesta de 0,1% da populacao de motoristas como usuarios ativos no Ano 2,
+    tem-se uma base potencial de 84.000 usuarios, suficiente para viabilizar o modelo de negocios descrito.
+  </p>
+  <p>
+    Adicionalmente, o mercado de frotas corporativas representa oportunidade de alto valor, com mais de
+    600.000 veiculos de empresas de transporte, logistica e prestacao de servicos que poderiam se
+    beneficiar da ferramenta como controle de custos e combate a fraudes internas.
+  </p>
+</div>
+
+
+<!-- ============================================================
+     7. CRONOGRAMA
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">7.</span> CRONOGRAMA DE DESENVOLVIMENTO</h1>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 10 - Cronograma de 18 Meses</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40%">Atividade</th>
+          <th>M1-2</th><th>M3-4</th><th>M5-6</th><th>M7-8</th><th>M9-10</th><th>M11-12</th><th>M13-15</th><th>M16-18</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Especificacao e design do hardware</td>
+          <td style="background:#333; color:#fff; text-align:center;">X</td>
+          <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+        </tr>
+        <tr>
+          <td>Configuracao da integracao OBD-II (ELM327 BLE + PIDs)</td>
+          <td></td>
+          <td style="background:#333; color:#fff; text-align:center;">X</td>
+          <td></td><td></td><td></td><td></td><td></td><td></td>
+        </tr>
+        <tr>
+          <td>Desenvolvimento do modulo OBD-II (parser ELM327 + banco de veiculos)</td>
+          <td></td>
+          <td style="background:#444; color:#fff; text-align:center;">X</td>
+          <td style="background:#444; color:#fff; text-align:center;">X</td>
+          <td></td><td></td><td></td><td></td><td></td>
+        </tr>
+        <tr>
+          <td>Design UX/UI do aplicativo movel</td>
+          <td style="background:#555; color:#fff; text-align:center;">X</td>
+          <td style="background:#555; color:#fff; text-align:center;">X</td>
+          <td></td><td></td><td></td><td></td><td></td><td></td>
+        </tr>
+        <tr>
+          <td>Desenvolvimento do aplicativo movel</td>
+          <td></td><td></td>
+          <td style="background:#333; color:#fff; text-align:center;">X</td>
+          <td style="background:#333; color:#fff; text-align:center;">X</td>
+          <td style="background:#333; color:#fff; text-align:center;">X</td>
+          <td></td><td></td><td></td>
+        </tr>
+        <tr>
+          <td>Desenvolvimento do backend e API</td>
+          <td></td><td></td>
+          <td style="background:#444; color:#fff; text-align:center;">X</td>
+          <td style="background:#444; color:#fff; text-align:center;">X</td>
+          <td></td><td></td><td></td><td></td>
+        </tr>
+        <tr>
+          <td>Integracao BLE dispositivo + app</td>
+          <td></td><td></td><td></td>
+          <td style="background:#333; color:#fff; text-align:center;">X</td>
+          <td></td><td></td><td></td><td></td>
+        </tr>
+        <tr>
+          <td>Testes de precisao em laboratorio</td>
+          <td></td><td></td><td></td><td></td>
+          <td style="background:#555; color:#fff; text-align:center;">X</td>
+          <td></td><td></td><td></td>
+        </tr>
+        <tr>
+          <td>Testes de campo em postos reais</td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td style="background:#333; color:#fff; text-align:center;">X</td>
+          <td></td><td></td>
+        </tr>
+        <tr>
+          <td>Processo de patente e certificacao</td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td style="background:#666; color:#fff; text-align:center;">X</td>
+          <td style="background:#666; color:#fff; text-align:center;">X</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>Lancamento beta (usuarios selecionados)</td>
+          <td></td><td></td><td></td><td></td><td></td><td></td>
+          <td style="background:#333; color:#fff; text-align:center;">X</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>Lancamento publico e vendas</td>
+          <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+          <td style="background:#111; color:#fff; text-align:center;">X</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria.</p>
+  </div>
+
+  <div class="quadro nao-quebrar" style="margin-top:6mm;">
+    <p class="sem-recuo quadro-titulo">Marcos Criticos do Projeto (Milestones)</p>
+    <ul>
+      <li><strong>M2:</strong> Especificacao tecnica completa e aprovada;</li>
+      <li><strong>M5:</strong> Primeiro prototipo funcional (hardware + firmware basico);</li>
+      <li><strong>M8:</strong> Integracao completa dispositivo-app via BLE;</li>
+      <li><strong>M10:</strong> Resultado de precisao abaixo de 3% validado em laboratorio;</li>
+      <li><strong>M12:</strong> App publicado na Google Play em versao beta;</li>
+      <li><strong>M15:</strong> Entrada de protocolo de patente no INPI;</li>
+      <li><strong>M18:</strong> Produto comercializado ao publico geral.</li>
+    </ul>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     8. ASPECTOS LEGAIS
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">8.</span> ASPECTOS LEGAIS E REGULATORIOS</h1>
+
+  <h2><span class="secao-num">8.1</span> Registro de Propriedade Intelectual</h2>
+  <p>
+    O dispositivo em sua concepcao mecanica e eletronica e passivel de registro como patente de invencao
+    junto ao Instituto Nacional da Propriedade Industrial (INPI), conforme Lei n. 9.279/1996.
+    O software do aplicativo e protegido automaticamente como obra intelectual nos termos da
+    Lei n. 9.610/1998 (Lei de Direitos Autorais), sendo recomendado adicionalmente o registro no INPI
+    como programa de computador.
+  </p>
+
+  <h2><span class="secao-num">8.2</span> Posicionamento Metrologico</h2>
+  <p>
+    O dispositivo nao se posiciona como instrumento metrologico legal, visto que a homologacao pelo
+    INMETRO exige processo de avaliacao da conformidade regulamentado pela Portaria INMETRO n. 96/2000,
+    custo estimado entre R$ 50.000 e R$ 200.000 e prazo de 18 a 36 meses. Na versao inicial, o
+    produto e comercializado como instrumento de verificacao privada e controle pessoal do consumidor,
+    analogo a um pneuometro portatil de uso particular.
+  </p>
+  <p>
+    Em versao futura (V2), com sensor de roda oval de precisao certificada, o caminho para homologacao
+    metrologica se torna viavel, conferindo ao instrumento valor legal probatorio perante o PROCON e
+    a Justica.
+  </p>
+
+  <h2><span class="secao-num">8.3</span> Privacidade e Protecao de Dados</h2>
+  <p>
+    O sistema e concebido em conformidade com a Lei Geral de Protecao de Dados (LGPD - Lei n. 13.709/2018).
+    Os dados de localizacao GPS e medicoes sao anonimizados antes do envio ao servidor, nao sendo
+    possivel identificar individualmente o usuario por meio dos dados coletivos. O usuario consente
+    expressamente com o compartilhamento anonimo dos dados no momento do cadastro.
+  </p>
+</div>
+
+
+<!-- ============================================================
+     9. RISCOS
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">9.</span> RISCOS E MITIGACAO</h1>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela 11 - Matriz de Riscos</p>
+    <table>
+      <thead>
+        <tr><th>Risco</th><th>Probabilidade</th><th>Impacto</th><th>Nivel</th><th>Estrategia de Mitigacao</th></tr>
+      </thead>
+      <tbody>
+        <tr style="background:#fee;">
+          <td><strong>Precisao insuficiente da boia OBD-II em modelos especificos de carros</strong></td>
+          <td>Alta</td>
+          <td>Alto</td>
+          <td style="background:#c44; color:#fff; text-align:center;">Alto</td>
+          <td>Documentar precisao real por modelo de veiculo com dados de campo; alertar usuario se modelo e conhecido por boia imprecisa; oferecer modo manual como alternativa.</td>
+        </tr>
+        <tr>
+          <td><strong>Incompatibilidade de dongles ELM327 com chip clonado</strong></td>
+          <td>Media</td>
+          <td>Medio</td>
+          <td style="background:#cc4; text-align:center;">Medio</td>
+          <td>Publicar lista de dongles testados e homologados; vender dongle branded com chip genuino; implementar diagnostico de compatibilidade na primeira abertura do app.</td>
+        </tr>
+        <tr>
+          <td>Veiculo do usuario nao suportar PID 0x2F (Fuel Level)</td>
+          <td>Baixa (5% da frota)</td>
+          <td>Medio</td>
+          <td style="background:#dc8; text-align:center;">Baixo</td>
+          <td>Testar compatibilidade no cadastro do veiculo; oferecer entrada manual; documentar modelos incompativeis na FAQ.</td>
+        </tr>
+        <tr>
+          <td>Precisao insuficiente para captar fraudes pequenas (&lt;3L)</td>
+          <td>Alta</td>
+          <td>Medio</td>
+          <td style="background:#cc4; text-align:center;">Medio</td>
+          <td>Comunicar claramente a margem de erro; posicionar como detector de fraudes grosseiras; V2 com sensor de precisao metrologica.</td>
+        </tr>
+        <tr>
+          <td>Proibicao pelo INMETRO do uso como instrumento de medicao</td>
+          <td>Baixa</td>
+          <td>Muito Alto</td>
+          <td style="background:#cc4; text-align:center;">Medio</td>
+          <td>Consultar parecer juridico previo; posicionar como instrumento de controle pessoal (sem valor legal); abordagem OBD-II nao interfere com o equipamento do posto.</td>
+        </tr>
+        <tr>
+          <td>Resistencia dos postos e ameacas legais</td>
+          <td>Baixa (abordagem OBD-II e invisivel ao posto)</td>
+          <td>Medio</td>
+          <td style="background:#dc8; text-align:center;">Baixo</td>
+          <td>O dongle OBD-II fica dentro do carro; o posto nao tem como saber que o cliente esta medindo. Risco muito menor que a abordagem anterior.</td>
+        </tr>
+        <tr>
+          <td>Dificuldade de captacao de investimento inicial</td>
+          <td>Media</td>
+          <td>Alto</td>
+          <td style="background:#cc4; text-align:center;">Medio</td>
+          <td>Investimento inicial muito reduzido (&lt;R$ 3.000 para MVP); buscar editais de inovacao (FINEP, SEBRAE); modelo e startup de software puro (mais atrativo para investidores).</td>
+        </tr>
+        <tr>
+          <td>Concorrencia de solucao similar no mercado</td>
+          <td>Baixa</td>
+          <td>Medio</td>
+          <td style="background:#dc8; text-align:center;">Baixo</td>
+          <td>Acelerar time-to-market; depositar pedido de patente de modelo de utilidade antes do lancamento publico; focar no mapa colaborativo como diferencial.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria.</p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     10. CONSIDERACOES FINAIS
+============================================================ -->
+<div class="page">
+  <h1><span class="secao-num">10.</span> CONSIDERACOES FINAIS</h1>
+
+  <p>
+    O sistema de verificacao de combustivel proposto representa uma solucao tecnologica acessivel e
+    socialmente relevante para um problema que afeta dezenas de milhoes de brasileiros anualmente.
+    A abordagem via protocolo OBD-II elimina a necessidade de hardware customizado, reduzindo o custo
+    de entrada de R$ 447 (funil-medidor com sensor de fluxo) para R$ 35 a R$ 80 (dongle ELM327 comercial),
+    tornando o projeto viavel como startup de software puro.
+  </p>
+  <p>
+    A combinacao do modulo de leitura OBD-II com o aplicativo movel e a plataforma colaborativa cria um
+    ecossistema capaz de amplificar o poder fiscalizador da sociedade civil. Embora a precisao da solucao
+    OBD-II seja limitada pela boia do tanque do veiculo (+/-3% a +/-8%), ela e suficiente para detectar
+    fraudes grosseiras — que correspondem a maioria dos casos documentados pelo INMETRO.
+  </p>
+  <p>
+    O principal desafio tecnico e a variabilidade de precisao da boia por modelo de carro. A estrategia
+    de mitigacao consiste em: documentar a precisao por modelo de veiculo com base em dados reais
+    coletados pelos proprios usuarios, e oferecer modo de entrada manual para veiculos sem suporte a
+    OBD-II ou com boia imprecisa.
+  </p>
+  <p>
+    Recomenda-se como proximo passo imediato o desenvolvimento do MVP em Angular/Ionic com foco na
+    integracao OBD-II, usando o veiculo pessoal do desenvolvedor para validacao inicial. O custo para
+    comecar e essencialmente zero em hardware — apenas um dongle ELM327 BLE de R$ 80 e a instalacao
+    de Node.js e Android Studio.
+  </p>
+
+  <div class="quadro nao-quebrar" style="margin-top:8mm;">
+    <p class="sem-recuo quadro-titulo">Proximos Passos Imediatos</p>
+    <ol>
+      <li>Instalar Node.js 22 LTS + Ionic CLI + Android Studio (tudo gratuito);</li>
+      <li>Adquirir dongle ELM327 BLE (Vgate iCar Pro ou equivalente, ~R$ 80);</li>
+      <li>Criar projeto Ionic Angular: <code>ionic start fuel-checker tabs --type=angular</code>;</li>
+      <li>Implementar tela de conexao BLE ao dongle e leitura do PID 0x2F;</li>
+      <li>Realizar 1 abastecimento real para validar a leitura no proprio veiculo;</li>
+      <li>Construir banco de dados SQLite com os 20 modelos mais comuns (Onix, Gol, Argo, HB20, Corolla...);</li>
+      <li>Disponibilizar versao beta para 10 conhecidos com veiculos diferentes para coletar dados de precisao por modelo.</li>
+    </ol>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     REFERENCIAS
+============================================================ -->
+<div class="page">
+  <h1>REFERENCIAS</h1>
+
+  <p class="referencia">
+    AGENCIA NACIONAL DO PETROLEO, GAS NATURAL E BIOCOMBUSTIVEIS (ANP). <strong>Levantamento de precos e de margens de comercializacao de combustiveis.</strong> Brasilia: ANP, fev. 2026. Disponivel em: https://www.anp.gov.br. Acesso em: 28 fev. 2026.
+  </p>
+
+  <p class="referencia">
+    BRASIL. <strong>Lei n. 9.279, de 14 de maio de 1996.</strong> Regula direitos e obrigacoes relativos a propriedade industrial. Diario Oficial da Uniao, Brasilia, 15 maio 1996.
+  </p>
+
+  <p class="referencia">
+    BRASIL. <strong>Lei n. 9.610, de 19 de fevereiro de 1998.</strong> Altera, atualiza e consolida a legislacao sobre direitos autorais. Diario Oficial da Uniao, Brasilia, 20 fev. 1998.
+  </p>
+
+  <p class="referencia">
+    BRASIL. <strong>Lei n. 9.933, de 20 de dezembro de 1999.</strong> Dispoe sobre as competencias do CONMETRO e do INMETRO.  Diario Oficial da Uniao, Brasilia, 21 dez. 1999.
+  </p>
+
+  <p class="referencia">
+    BRASIL. <strong>Lei n. 13.709, de 14 de agosto de 2018.</strong> Lei Geral de Protecao de Dados Pessoais (LGPD). Diario Oficial da Uniao, Brasilia, 15 ago. 2018.
+  </p>
+
+  <p class="referencia">
+    DEPARTAMENTO NACIONAL DE TRANSITO (DENATRAN). <strong>Frota de veiculos registrados no Brasil.</strong> Brasilia: Senatran, 2024. Disponivel em: https://www.gov.br/senatran. Acesso em: 28 fev. 2026.
+  </p>
+
+  <p class="referencia">
+    ESPRESSIF SYSTEMS. <strong>ESP32 Technical Reference Manual.</strong> Version 5.3. Shanghai: Espressif Systems, 2025. Disponivel em: https://www.espressif.com. (Referencia mantida para versao V3 com sensor proprio.)
+  </p>
+
+  <p class="referencia">
+    ELM ELECTRONICS. <strong>ELM327 OBD to RS232 Interpreter Datasheet.</strong> Version 2.4. Disponivel em: https://www.elmelectronics.com/wp-content/uploads/2016/07/ELM327DS.pdf. Acesso em: 1 mar. 2026.
+  </p>
+
+  <p class="referencia">
+    SOCIETY OF AUTOMOTIVE ENGINEERS (SAE). <strong>SAE J1979 — Service $01 Supported PIDs.</strong> Warrendale: SAE International, 2021.
+  </p>
+
+  <p class="referencia">
+    VGATE. <strong>iCar Pro BLE User Manual.</strong> Shenzhen: Vgate, 2025. Disponivel em: https://www.vgatemall.com. Acesso em: 1 mar. 2026.
+  </p>
+
+  <p class="referencia">
+    INSTITUTO NACIONAL DE METROLOGIA, QUALIDADE E TECNOLOGIA (INMETRO). <strong>Relatorio de fiscalizacao de postos de combustivel 2024.</strong> Brasilia: INMETRO, 2024. Disponivel em: https://www.inmetro.gov.br. Acesso em: 28 fev. 2026.
+  </p>
+
+  <p class="referencia">
+    IONIC FRAMEWORK. <strong>Ionic Documentation.</strong> Version 8.x. Disponivel em: https://ionicframework.com/docs. Acesso em: 28 fev. 2026.
+  </p>
+
+  <p class="referencia">
+    DIGITEN. <strong>FL-408 Fuel Flow Sensor Datasheet.</strong> Shenzhen: DIGITEN, 2025. Disponivel em: https://www.digiten.shop. Acesso em: 1 mar. 2026.
+  </p>
+  <p class="referencia">
+    SEEED STUDIO. <strong>YF-S401 Water Flow Sensor Datasheet (referencia tecnica negativa â€” sensor inadequado para postos).</strong> Shenzhen: Seeed Studio, 2023. Disponivel em: https://wiki.seeedstudio.com. Acesso em: 1 mar. 2026.
+  </p>
+
+  <hr style="margin-top:15mm;" />
+
+  <p class="sem-recuo centralizado" style="font-size:10pt; color:#555; margin-top:5mm;">
+    Documento gerado em: Marco de 2026 | Versao 1.0
+  </p>
+  <p class="sem-recuo centralizado" style="font-size:10pt; color:#555;">
+    Este documento e confidencial e destinado exclusivamente ao uso interno e a potenciais investidores.
+  </p>
+
+  <div style="margin-top:8mm; text-align:center;">
+    <button onclick="window.print()" style="
+      background: #1a1a1a;
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-family: Arial, sans-serif;
+      letter-spacing: 1px;
+    ">IMPRIMIR / SALVAR PDF</button>
+    <p class="sem-recuo centralizado" style="font-size:10pt; color:#888; margin-top:4mm;">
+      Ctrl+P &rarr; Salvar como PDF &rarr; Tamanho A4, Margens: Padrao
+    </p>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     APENDICE A - LISTA DETALHADA DE MATERIAIS
+============================================================ -->
+<div class="page quebra-pagina">
+  <h1>APENDICE A &mdash; LISTA COMPLETA DE MATERIAIS</h1>
+  <p>
+    Com a abordagem OBD-II, nao ha hardware customizado a fabricar. O "dispositivo" e um dongle ELM327 BLE
+    comercial disponivel em qualquer loja online. O investimento inicial concentra-se em software e testes de campo.
+  </p>
+
+  <h2>A.1 Dongle OBD-II BLE (Opcoes Testadas e Recomendadas)</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela A1 - Dongles OBD-II BLE Recomendados para Desenvolvimento</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5%">#</th>
+          <th style="width:25%">Modelo</th>
+          <th style="width:28%">Especificacao</th>
+          <th style="width:10%">Preco</th>
+          <th style="width:12%">iOS/Android</th>
+          <th style="width:20%">Onde Comprar</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Vgate iCar Pro BLE</td>
+          <td>ELM327 genuino v2.1, BLE 4.0, compativel iOS + Android, todos protocolos CAN/ISO</td>
+          <td>R$ 80 - 120</td>
+          <td style="font-weight:bold; color:#060;">Ambos</td>
+          <td>Mercado Livre, Amazon BR</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>VEEPEAK OBD2 BLE</td>
+          <td>ELM327 v2.1, BLE 4.2, certificado MFi (Apple), suporte completo a iOS via CoreBluetooth</td>
+          <td>R$ 100 - 150</td>
+          <td style="font-weight:bold; color:#060;">Ambos</td>
+          <td>Amazon, AliExpress</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>OBDLink CX</td>
+          <td>ELM327 com chip proprio, BLE 4.2, alta compatibilidade; recomendado para testes de precisao</td>
+          <td>R$ 180 - 250</td>
+          <td style="font-weight:bold; color:#060;">Ambos</td>
+          <td>Amazon, obdlink.com</td>
+        </tr>
+        <tr style="background:#fee; color:#900;">
+          <td>4</td>
+          <td>ELM327 barato generico (sem marca)</td>
+          <td>Chip clonado, firmware instavel, loop infinito comum, timeouts frequentes</td>
+          <td>R$ 15 - 30</td>
+          <td style="color:#c00; font-weight:bold;">Problemas no iOS</td>
+          <td>AliExpress (evitar)</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3"><strong>CUSTO RECOMENDADO PARA DESENVOLVIMENTO (3 dongles diferentes para teste)</strong></td>
+          <td colspan="3"><strong>R$ 360 - 520</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Pesquisa de precos e reviews tecnicos â€” Marco 2026. Para producao/venda, usar Vgate iCar Pro BLE com marca propria (MOQ 100 unidades via fabricante).</p>
+  </div>
+
+  <h2>A.2 Veiculos para Teste de Campo</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela A2 - Modelos de Veiculos para Cobertura de Testes MVP</p>
+    <table>
+      <thead>
+        <tr><th style="width:22%">Veiculo</th><th style="width:14%">Tanque (L)</th><th style="width:14%">Protocolo OBD</th><th style="width:14%">PID 0x2F</th><th style="width:36%">Obs.</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Volkswagen Gol / Voyage (2012+)</td><td>50L</td><td>ISO 9141 / CAN</td><td>Sim</td><td>+15% da frota BR</td></tr>
+        <tr><td>Chevrolet Onix / Prisma (2013+)</td><td>47L</td><td>CAN (ISO 15765)</td><td>Sim</td><td>Mais vendido BR 2018-2024</td></tr>
+        <tr><td>Fiat Palio / Argo (2014+)</td><td>48L</td><td>CAN</td><td>Sim</td><td>Alta penetracao popular</td></tr>
+        <tr><td>Toyota Corolla (2014+)</td><td>60L</td><td>CAN</td><td>Sim</td><td>Repres. veiculos premium</td></tr>
+        <tr><td>Hyundai HB20 (2012+)</td><td>45L</td><td>CAN</td><td>Sim</td><td>Alta penetracao urbana</td></tr>
+        <tr><td>Ford Ka / Fiesta (2014-2023)</td><td>42L</td><td>CAN</td><td>Confirmar</td><td>Saiu de producao BR; alta frota existente</td></tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Manuais dos fabricantes e base FIPE 2025. Testar com pelo menos 5 modelos antes do lancamento do MVP.</p>
+  </div>
+
+  <h2>A.3 Software e Ferramentas de Desenvolvimento</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela A3 - Software Necessario (Maioria Gratuito)</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:28%">Software</th>
+          <th style="width:32%">Uso</th>
+          <th style="width:18%">Licenca</th>
+          <th style="width:22%">Download</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>VS Code</td><td>Editor principal (app + backend)</td><td>Gratuito (MIT)</td><td>code.visualstudio.com</td></tr>
+        <tr><td>Node.js 22 LTS</td><td>Runtime para Next.js e Ionic</td><td>Gratuito (MIT)</td><td>nodejs.org</td></tr>
+        <tr><td>Android Studio</td><td>Build e publicacao Android (Capacitor)</td><td>Gratuito</td><td>developer.android.com</td></tr>
+        <tr><td>Ionic CLI + Capacitor</td><td>Framework app movel cross-platform</td><td>Gratuito (MIT)</td><td>ionicframework.com</td></tr>
+        <tr><td>elm327-bluetooth (npm)</td><td>Biblioteca JS para comunicacao OBD-II via BLE</td><td>Gratuito (MIT)</td><td>npmjs.com</td></tr>
+        <tr><td>PostgreSQL 16</td><td>Banco de dados backend</td><td>Gratuito (PostgreSQL License)</td><td>postgresql.org</td></tr>
+        <tr><td>Prisma 6</td><td>ORM para Next.js</td><td>Gratuito (Apache 2.0)</td><td>prisma.io</td></tr>
+        <tr><td>Git + GitHub</td><td>Controle de versao</td><td>Gratuito</td><td>github.com</td></tr>
+        <tr><td>Google Play Console</td><td>Publicacao do app Android</td><td>USD 25 (taxa unica)</td><td>play.google.com/console</td></tr>
+        <tr><td>Apple Developer Program</td><td>Publicacao iOS (opcional no MVP)</td><td>USD 99/ano</td><td>developer.apple.com</td></tr>
+      </tbody>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria. Custo de software de desenvolvimento: ~R$ 260 (Google Play + Apple, Year 1).</p>
+  </div>
+
+  <h2>A.4 Infraestrutura de Producao</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela A4 - Infraestrutura Mensal de Producao</p>
+    <table>
+      <thead>
+        <tr><th style="width:30%">Servico</th><th style="width:35%">Especificacao</th><th style="width:20%">Custo Mensal</th><th style="width:15%">Fase</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>VPS Linux (Hostinger / Contabo)</td><td>2 vCPU, 4 GB RAM, SSD 80 GB, BR ou EU</td><td>R$ 60 - 90/mes</td><td>MVP</td></tr>
+        <tr><td>Dominio .com.br</td><td>Registro anual</td><td>R$ 40/ano</td><td>MVP</td></tr>
+        <tr><td>SSL Let's Encrypt</td><td>Certificado HTTPS gratuito, renovacao automatica</td><td>R$ 0</td><td>MVP</td></tr>
+        <tr><td>Google Maps Platform API</td><td>Geocodificacao e exibicao de mapa de postos</td><td>R$ 0 ate 10k req/mes; ~R$ 50/mes apos</td><td>MVP</td></tr>
+        <tr><td>Mailgun / SendGrid</td><td>Envio de e-mails transacionais</td><td>R$ 0 ate 100/dia; ~R$ 40/mes apos</td><td>MVP</td></tr>
+        <tr><td>Backblaze B2 / S3</td><td>Armazenamento de fotos das denuncia e backups</td><td>R$ 15 - 30/mes</td><td>MVP</td></tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2"><strong>CUSTO INFRAESTRUTURA MVP (12 MESES)</strong></td>
+          <td colspan="2"><strong>R$ 2.340 - 3.000/ano</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Cotacoes dos provedores â€” Marco 2026.</p>
+  </div>
+
+  <h2>A.5 Resumo de Investimento para Iniciar o Desenvolvimento</h2>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela A5 - Resumo de Custos para MVP (Primeiros 3 Meses)</p>
+    <table>
+      <thead>
+        <tr><th style="width:55%">Categoria</th><th>Valor Estimado (R$)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Dongles OBD-II para desenvolvimento e testes (3 modelos)</td><td>R$ 400</td></tr>
+        <tr><td>Licencas de publicacao (Google Play + Apple Developer)</td><td>R$ 260 + R$ 600</td></tr>
+        <tr><td>Infraestrutura VPS + dominio (3 meses)</td><td>R$ 300</td></tr>
+        <tr><td>Testes de campo em postos (combustivel, deslocamento)</td><td>R$ 400</td></tr>
+        <tr><td>Contingencia 15%</td><td>R$ 293</td></tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td><strong>INVESTIMENTO TOTAL PARA INICIAR O MVP (3 meses)</strong></td>
+          <td><strong>R$ 2.253</strong></td>
+        </tr>
+        <tr>
+          <td>Reducao vs abordagem hardware customizado (prototipo funil-medidor)</td>
+          <td>Economia de ~R$ 1.159 (de R$ 1.411 para R$ 252 em hardware/ferramentas)</td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria. Marco 2026. Custo por usuario: R$ 35-80 (dongle) â€” usuario pode ter o seu proprio ou adquirir o branded.</p>
+  </div>
+
+  <div class="quadro nao-quebrar" style="margin-top:6mm;">
+    <p class="sem-recuo quadro-titulo">Checklist para Comecar Hoje (Sem Gastar Nada Inicialmente)</p>
+    <ol>
+      <li>Instalar VS Code, Node.js 22 LTS, Android Studio â€” tudo gratuito;</li>
+      <li>Criar projeto Ionic/Angular com Capacitor: <code>ionic start fuel-checker tabs --type=angular</code>;</li>
+      <li>Instalar biblioteca OBD-II: <code>npm i elm327-bluetooth</code>;</li>
+      <li>Desenvolver tela de conexao BLE ao dongle (usar celular pessoal + dongle proprio do carro);</li>
+      <li>Implementar leitura do PID 0x2F e exibir percentual na tela;</li>
+      <li>Testar com o carro proprio em um abastecimento real e validar a leitura.</li>
+    </ol>
+  </div>
+</div>
+
+
+
+
+<!-- ============================================================
+     APENDICE B - BACKLOG DO PRODUTO
+============================================================ -->
+<div class="page quebra-pagina">
+  <h1>APENDICE B &mdash; BACKLOG DO PRODUTO</h1>
+  <p>
+    O backlog e organizado em Epicos, cada um contendo as Historias de Usuario correspondentes.
+    As historias seguem o formato: <em>"Como [perfil], quero [acao], para que [beneficio]."</em>
+    A priorizacao segue o metodo MoSCoW (Must / Should / Could / Wont).
+  </p>
+
+  <div class="quadro nao-quebrar" style="margin-bottom:6mm;">
+    <p class="sem-recuo quadro-titulo">Legenda de Prioridade (MoSCoW) e Pontuacao (Story Points â€” Fibonacci)</p>
+    <table style="width:100%; font-size:10.5pt; border-collapse:collapse;">
+      <tr>
+        <td style="padding:2mm 4mm; width:25%; border:1px solid #ccc; background:#1a1a1a; color:#fff; font-weight:bold;">M â€” Must Have</td>
+        <td style="padding:2mm 4mm; border:1px solid #ccc;">Obrigatorio. Sem isso o produto nao funciona.</td>
+        <td style="padding:2mm 4mm; width:25%; border:1px solid #ccc; background:#555; color:#fff; font-weight:bold;">S â€” Should Have</td>
+        <td style="padding:2mm 4mm; border:1px solid #ccc;">Importante mas nao critico para o MVP.</td>
+      </tr>
+      <tr>
+        <td style="padding:2mm 4mm; border:1px solid #ccc; background:#888; color:#fff; font-weight:bold;">C â€” Could Have</td>
+        <td style="padding:2mm 4mm; border:1px solid #ccc;">Nice-to-have. Incluir se houver tempo.</td>
+        <td style="padding:2mm 4mm; border:1px solid #ccc; background:#bbb; font-weight:bold;">W â€” Wont Have</td>
+        <td style="padding:2mm 4mm; border:1px solid #ccc;">Fora do escopo desta versao.</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- EPIC 1 -->
+  <h2>EPICO 1 &mdash; OBD-II: Integracao com o Veiculo</h2>
+  <div class="tabela-container nao-quebrar">
+    <table>
+      <thead>
+        <tr><th style="width:5%">ID</th><th style="width:42%">Historia de Usuario</th><th style="width:10%">Prior.</th><th style="width:8%">SP</th><th style="width:35%">Criterios de Aceitacao</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>HW-01</td>
+          <td>Como desenvolvedor, quero conectar ao dongle ELM327 BLE via Capacitor BLE e enviar comandos AT, para que o app possa ler dados OBD-II do veiculo.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">5</td>
+          <td>App descobre e pareia com dongle ELM327; initELM() retorna OK; comando AT Z executado com sucesso; timeout configuravel (5s); testado com Vgate iCar Pro e VEEPEAK.</td>
+        </tr>
+        <tr>
+          <td>HW-02</td>
+          <td>Como desenvolvedor, quero implementar a leitura do PID 0x2F (Fuel Level Input) via ELM327, para que o nivel de combustivel seja obtido com precisao.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">5</td>
+          <td>Comando "01 2F" retorna resposta valida; parser extrai byte de nivel (0-255); nivel convertido para percentual com 2 casas decimais; testado em minimo 3 modelos de carros distintos.</td>
+        </tr>
+        <tr>
+          <td>HW-03</td>
+          <td>Como desenvolvedor, quero detectar automaticamente se o veiculo suporta o PID 0x2F, para que o usuario seja informado caso seu carro nao seja compativel.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">3</td>
+          <td>Ao cadastrar veiculo, app verifica PID 0x2F; exibe mensagem "Compativel" ou "Nao suportado (usar entrada manual)"; resultado armazenado no perfil do veiculo.</td>
+        </tr>
+        <tr>
+          <td>HW-04</td>
+          <td>Como desenvolvedor, quero construir um banco de dados local com a capacidade do tanque dos 200 modelos mais vendidos no Brasil, para que o calculo de litros seja preciso.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">8</td>
+          <td>SQLite local com tabela veiculos (marca, modelo, ano, capacidade_litros, protocolo_obd); 200+ modelos cobertos; busca por texto funciona (ex: "Onix 2023"); dados atualizaveis via OTA.</td>
+        </tr>
+        <tr>
+          <td>HW-05</td>
+          <td>Como desenvolvedor, quero implementar logica de estabilizacao da boia (aguardar boia subir apos abastecer), para que a leitura final seja confiavel.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">5</td>
+          <td>App monitora variacao do PID 0x2F apos usuario tocar "Finalizar"; aguarda leitura estabilizar (delta &lt; 0.5% em 10s) antes de capturar valor final; timeout maximo 3 minutos; usuario pode confirmar manualmente.</td>
+        </tr>
+        <tr>
+          <td>HW-06</td>
+          <td>Como desenvolvedor, quero implementar o algoritmo de calculo de litros recebidos (delta_pct x capacidade), para que a divergencia com a bomba seja calculada corretamente.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">3</td>
+          <td>litros_recebidos = (nivel_depois - nivel_antes) / 100 * capacidade; divergencia_pct calculada; limites de classificacao: &lt;=0.6% regular, &gt;0.6% irregular, &gt;3% fraude provavel; resultado exibido com cor correspondente.</td>
+        </tr>
+        <tr>
+          <td>HW-07</td>
+          <td>Como usuario, quero cadastrar meu veiculo (marca, modelo, ano) no app uma unica vez, para que as proximas medicoes usem automaticamente a capacidade correta do tanque.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">3</td>
+          <td>Tela de cadastro de veiculo com busca e autocomplete; capacidade carregada automaticamente; possibilidade de corrigir manualmente caso modelo nao conste no banco; suporte a multiplos veiculos por conta.</td>
+        </tr>
+        <tr>
+          <td>HW-08</td>
+          <td>Como usuario, quero que o app reconecte automaticamente ao dongle quando eu abrir o aplicativo perto do meu carro, para que nao precise parear manualmente toda vez.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">5</td>
+          <td>App armazena UUID do dongle pareado; ao abrir app, tenta reconectar em background; exibe indicador de status; reconexao em menos de 10 segundos na maioria dos casos.</td>
+        </tr>
+        <tr>
+          <td>HW-09</td>
+          <td>Como usuario, quero que o app leia o consumo de viagem (PIDs adicionais) apos o abastecimento, para que eu possa comparar o historico de consumo entre postos.</td>
+          <td style="text-align:center; background:#888; color:#fff;">C</td>
+          <td style="text-align:center;">8</td>
+          <td>Leitura dos PIDs 0x05 (temperatura motor), 0x0C (RPM), 0x10 (MAF) quando disponiveis; exibidos na tela de detalhes; armazenados junto ao abastecimento.</td>
+        </tr>
+        <tr>
+          <td>HW-10</td>
+          <td>Como desenvolvedor, quero testar a integracao OBD-II em campo com pelo menos 5 modelos de carros e 3 dongles diferentes, para que a compatibilidade seja validada antes do lancamento.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">13</td>
+          <td>Testes em: Onix, Gol, Argo, HB20, Corolla; com dongles Vgate, VEEPEAK e OBDLink; minimo 3 abastecimentos reais por veiculo; error &lt;8% em todos os testes; resultados documentados em planilha.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- EPIC 2 -->
+  <h2>EPICO 2 &mdash; Banco de Dados e Precisao: Veiculos e Calibracao</h2>
+  <div class="tabela-container nao-quebrar">
+    <table>
+      <thead>
+        <tr><th style="width:5%">ID</th><th style="width:42%">Historia de Usuario</th><th style="width:10%">Prior.</th><th style="width:8%">SP</th><th style="width:35%">Criterios de Aceitacao</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>FW-01</td>
+          <td>Como desenvolvedor, quero curar um banco de dados offline com capacidade do tanque dos 200 modelos mais vendidos no Brasil desde 2010, para que o calculo de litros seja preciso sem internet.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">5</td>
+          <td>SQLite com 200+ registros; campos: marca, modelo, ano_inicio, ano_fim, capacidade_litros; fontes: FIPE, manuais; revisado por 2 especialistas; exportado como asset do app.</td>
+        </tr>
+        <tr>
+          <td>FW-02</td>
+          <td>Como desenvolvedor, quero implementar um mecanismo de validacao cruzada entre leituras OBD-II consecutivas, para que leituras anomalas sejam detectadas e descartadas.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">3</td>
+          <td>Se delta de nivel for negativo (tanque diminuiu apos abastecer), exibir aviso e solicitar nova leitura; se delta &gt; capacidade do tanque, rejeitar como erro de sensor.</td>
+        </tr>
+        <tr>
+          <td>FW-03</td>
+          <td>Como usuario, quero informar o numero de litros manualmente quando meu carro nao suportar OBD-II, para que ainda possa usar o app como registro.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">3</td>
+          <td>Modo manual disponivel em alternativa ao OBD-II; usuario informa litros antes e depois (leitura do marcador da reserva); calculo e registro identico ao modo OBD-II.</td>
+        </tr>
+        <tr>
+          <td>FW-04</td>
+          <td>Como desenvolvedor, quero implementar atualizacao OTA do banco de dados de veiculos, para que novos modelos sejam adicionados sem atualizar o app.</td>
+          <td style="text-align:center; background:#888; color:#fff;">C</td>
+          <td style="text-align:center;">5</td>
+          <td>App verifica versao do banco no servidor mensalmente; faz download incremental se houver atualizacoes; aplica sem reiniciar app; log de atualizacoes disponivel.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- EPIC 3 -->
+  <h2>EPICO 3 &mdash; App Movel: MVP</h2>
+  <div class="tabela-container nao-quebrar">
+    <table>
+      <thead>
+        <tr><th style="width:5%">ID</th><th style="width:42%">Historia de Usuario</th><th style="width:10%">Prior.</th><th style="width:8%">SP</th><th style="width:35%">Criterios de Aceitacao</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>APP-01</td>
+          <td>Como usuario, quero escanear e conectar ao dongle OBD-II BLE (ELM327) no app, para que os dados do nivel de combustivel do veiculo sejam lidos automaticamente.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">8</td>
+          <td>App exibe dongles BLE proximos; pareamento em 1 clique; envio de AT Z e AT SP 0 bem-sucedidos; status de conexao visivel; reconexao automatica se cair; testado com Vgate e VEEPEAK.</td>
+        </tr>
+        <tr>
+          <td>APP-02</td>
+          <td>Como usuario, quero ver o volume medido em tempo real em numeros grandes na tela, para que eu possa acompanhar o abastecimento facilmente.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">3</td>
+          <td>Numero atualiza a cada 200ms; fonte minimo 72pt; 2 casas decimais; legivel com luz solar direta (alto contraste).</td>
+        </tr>
+        <tr>
+          <td>APP-03</td>
+          <td>Como usuario, quero inserir o volume exibido na bomba ao fim do abastecimento, para que o app calcule e mostre a diferenca percentual automaticamente.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">5</td>
+          <td>Campo numerico para volume da bomba; calculo exibido: "Voce recebeu X litros. A bomba marcou Y litros. Diferenca: Z% (R$ W)"; classificacao visual (verde/amarelo/vermelho).</td>
+        </tr>
+        <tr>
+          <td>APP-04</td>
+          <td>Como usuario, quero que o resultado seja salvo automaticamente no historico local, para que eu possa consultar abastecimentos anteriores sem internet.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">5</td>
+          <td>Historico armazenado em SQLite local (Capacitor); persiste apos fechar app; exibe data, posto identificado por GPS, volume medido, resultado.</td>
+        </tr>
+        <tr>
+          <td>APP-05</td>
+          <td>Como usuario, quero fazer cadastro e login no app, para que meu historico fique sincronizado e eu possa contribuir com o mapa colaborativo.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">8</td>
+          <td>Cadastro com email + senha; login funciona; token JWT armazenado de forma segura (Keychain/Keystore); logout disponivel.</td>
+        </tr>
+        <tr>
+          <td>APP-06</td>
+          <td>Como usuario, quero visualizar um mapa com pins dos postos avaliados pela comunidade na minha regiao, para que eu decida em qual posto abastecer.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">13</td>
+          <td>Mapa Leaflet/OpenStreetMap carrega offline (tiles em cache); pins coloridos por status; clique no pin exibe media de avaliacoes e numero de verificacoes.</td>
+        </tr>
+        <tr>
+          <td>APP-07</td>
+          <td>Como usuario, quero gerar um relatorio em PDF do historico de medicoes, para usar como evidencia em uma reclamacao ao PROCON.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">8</td>
+          <td>PDF gerado no dispositivo contendo: dados do usuario, lista de medicoes, localizacao GPS do posto, resultado de cada medicao; assinado digitalmente.</td>
+        </tr>
+        <tr>
+          <td>APP-08</td>
+          <td>Como usuario, quero enviar uma denuncia pre-formatada para o PROCON ou ao INMETRO diretamente pelo app, para facilitar o processo de reclamacao.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">8</td>
+          <td>Formulario pre-preenchido com dados da medicao; campo para foto via camera; envio para email do PROCON estadual automaticamente identificado pelo GPS.</td>
+        </tr>
+        <tr>
+          <td>APP-09</td>
+          <td>Como usuario, quero usar o app para estimar o volume sem o dispositivo fisico, usando apenas o cronometro e a vazao media da bomba, para que possa checar mesmo sem o hardware.</td>
+          <td style="text-align:center; background:#888; color:#fff;">C</td>
+          <td style="text-align:center;">5</td>
+          <td>Modo "sem dispositivo" disponivel; usuario informa tempo e valor pago; app calcula volume esperado com base em preco do combustivel; exibe comparativo estimativo.</td>
+        </tr>
+        <tr>
+          <td>APP-10</td>
+          <td>Como usuario Premium, quero ver graficos de tendencia de desvio por posto ao longo do tempo, para identificar padroes de fraude.</td>
+          <td style="text-align:center; background:#888; color:#fff;">C</td>
+          <td style="text-align:center;">8</td>
+          <td>Grafico de linha com desvio percentual por data para cada posto; disponivel apenas para assinantes Premium.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- EPIC 4 -->
+  <h2>EPICO 4 &mdash; Backend e API</h2>
+  <div class="tabela-container nao-quebrar">
+    <table>
+      <thead>
+        <tr><th style="width:5%">ID</th><th style="width:42%">Historia de Usuario</th><th style="width:10%">Prior.</th><th style="width:8%">SP</th><th style="width:35%">Criterios de Aceitacao</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>BE-01</td>
+          <td>Como sistema, quero receber e persistir medicoes anonimizadas enviadas pelo app, para construir a base de dados colaborativa.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">5</td>
+          <td>Endpoint POST /api/medicoes valida schema; armazena sem dados pessoais identificaveis; responde 201 em menos de 500ms.</td>
+        </tr>
+        <tr>
+          <td>BE-02</td>
+          <td>Como sistema, quero autenticar usuarios com JWT e gerenciar perfis, para controlar acesso ao mapa colaborativo e funcionalidades premium.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">5</td>
+          <td>Endpoints de cadastro, login, refresh token e logout funcionando; senha armazenada com bcrypt; rate limiting ativo.</td>
+        </tr>
+        <tr>
+          <td>BE-03</td>
+          <td>Como orgao regulador (INMETRO), quero acessar uma API com dados agregados por regiao, para priorizar fiscalizacoes com base em denuncias reais.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">8</td>
+          <td>Endpoint autenticado GET /api/v1/relatorios/postos retorna GeoJSON com pontuacao de risco por posto; documentado em OpenAPI 3.0.</td>
+        </tr>
+        <tr>
+          <td>BE-04</td>
+          <td>Como administrador, quero um painel web para monitorar volume de medicoes, alertas de fraude e status do sistema, para garantir a operacao saudavel da plataforma.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">13</td>
+          <td>Dashboard acessivel em /admin com autenticacao; KPIs: medicoes hoje, postos com alerta, usuarios ativos; graficos diarios.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- EPIC 5 -->
+  <h2>EPICO 5 &mdash; Qualidade, Testes e Lancamento</h2>
+  <div class="tabela-container nao-quebrar">
+    <table>
+      <thead>
+        <tr><th style="width:5%">ID</th><th style="width:42%">Historia de Usuario</th><th style="width:10%">Prior.</th><th style="width:8%">SP</th><th style="width:35%">Criterios de Aceitacao</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>QA-01</td>
+          <td>Como desenvolvedor, quero testar a precisao da leitura OBD-II em diferentes modelos de carros com abastecimentos conhecidos, para validar a margem de erro real do sistema.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">8</td>
+          <td>Minimo 30 abastecimentos em 5 modelos de carro diferentes; volume anotado na nota fiscal vs volume calculado pelo OBD-II; erro sistematico por modelo documentado; modelos com erro &gt;10% marcados como "baixa precisao" no banco de dados.</td>
+        </tr>
+        <tr>
+          <td>QA-02</td>
+          <td>Como desenvolvedor, quero realizar testes de campo com o app OBD-II em postos reais, para validar o sistema em condicoes reais de uso.</td>
+          <td style="text-align:center; background:#1a1a1a; color:#fff;">M</td>
+          <td style="text-align:center;">13</td>
+          <td>Minimo 20 abastecimentos em pelo menos 5 postos diferentes; usando 3 modelos de carro distintos; dongle OBD-II reconhecido em todos os testes; boia estabilizou dentro do timeout em 90% dos casos; resultados documentados; divergencia media calculada por posto.</td>
+        </tr>
+        <tr>
+          <td>QA-03</td>
+          <td>Como empresa, quero publicar o app na Google Play Store em versao beta fechada, para coletar feedback de usuarios iniciais antes do lancamento.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">5</td>
+          <td>App publicado em track "Teste interno"; minimo 10 beta testers com feedback documentado; crashes inferiores a 1% das sessoes.</td>
+        </tr>
+        <tr>
+          <td>QA-04</td>
+          <td>Como empresa, quero depositar o pedido de patente de invencao no INPI antes do lancamento publico, para proteger a propriedade intelectual do produto.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">3</td>
+          <td>Protocolo INPI realizado; numero de deposito registrado; assessoria juridica especializada contratada.</td>
+        </tr>
+        <tr>
+          <td>QA-05</td>
+          <td>Como empresa, quero lancar o produto publicamente com campanha de midia, para atingir 1.000 usuarios ativos no primeiro mes.</td>
+          <td style="text-align:center; background:#555; color:#fff;">S</td>
+          <td style="text-align:center;">8</td>
+          <td>Landing page publicada; release para midia enviado; campanha paga ativa no Instagram e YouTube; app disponivel na Play Store publicamente.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SPRINT PLAN -->
+  <h2>Planejamento de Sprints (MVP)</h2>
+  <p>
+    O MVP (Minimum Viable Product) e definido como: um dispositivo fisico funcional conectado via BLE
+    a um app movel que exibe a medicao, calcula a divergencia e salva o historico local.
+    O cronograma abaixo organiza as historias prioritarias em sprints de 2 semanas.
+  </p>
+
+  <div class="tabela-container nao-quebrar">
+    <p class="sem-recuo tabela-titulo">Tabela B1 - Planejamento de Sprints para o MVP</p>
+    <table>
+      <thead>
+        <tr><th style="width:12%">Sprint</th><th style="width:22%">Periodo</th><th style="width:40%">Historias Incluidas</th><th style="width:13%">Total SP</th><th style="width:13%">Entregavel</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="text-align:center; font-weight:bold;">Sprint 1</td>
+          <td>Semanas 1-2</td>
+          <td>HW-01, HW-02, HW-03, FW-01</td>
+          <td style="text-align:center;">16</td>
+          <td>Circuito em protoboard medindo e exibindo volume no display</td>
+        </tr>
+        <tr>
+          <td style="text-align:center; font-weight:bold;">Sprint 2</td>
+          <td>Semanas 3-4</td>
+          <td>HW-04, HW-05, FW-02</td>
+          <td style="text-align:center;">16</td>
+          <td>Dispositivo com bateria e sensor calibrado para agua</td>
+        </tr>
+        <tr>
+          <td style="text-align:center; font-weight:bold;">Sprint 3</td>
+          <td>Semanas 5-6</td>
+          <td>HW-06, HW-07, APP-01, APP-02</td>
+          <td style="text-align:center;">21</td>
+          <td>App conectando via BLE e exibindo volume em tempo real</td>
+        </tr>
+        <tr>
+          <td style="text-align:center; font-weight:bold;">Sprint 4</td>
+          <td>Semanas 7-8</td>
+          <td>APP-03, APP-04, BE-02</td>
+          <td style="text-align:center;">18</td>
+          <td>MVP completo: comparativo + historico + login</td>
+        </tr>
+        <tr>
+          <td style="text-align:center; font-weight:bold;">Sprint 5</td>
+          <td>Semanas 9-10</td>
+          <td>QA-01, HW-08, HW-10</td>
+          <td style="text-align:center;">18</td>
+          <td>MVP validado em bancada + case robusto montado</td>
+        </tr>
+        <tr>
+          <td style="text-align:center; font-weight:bold;">Sprint 6</td>
+          <td>Semanas 11-12</td>
+          <td>QA-02, HW-09, BE-01</td>
+          <td style="text-align:center;">26</td>
+          <td>Testes de campo + PCB customizada + backend sincronizando</td>
+        </tr>
+        <tr>
+          <td style="text-align:center; font-weight:bold;">Sprint 7</td>
+          <td>Semanas 13-14</td>
+          <td>APP-06, APP-07, BE-03</td>
+          <td style="text-align:center;">29</td>
+          <td>Mapa colaborativo + relatorio PDF + API orgaos reguladores</td>
+        </tr>
+        <tr>
+          <td style="text-align:center; font-weight:bold;">Sprint 8</td>
+          <td>Semanas 15-16</td>
+          <td>APP-08, BE-04, QA-03</td>
+          <td style="text-align:center;">26</td>
+          <td>Denuncia automatica + painel admin + app em beta na Play Store</td>
+        </tr>
+        <tr>
+          <td style="text-align:center; font-weight:bold; background:#1a1a1a; color:#fff;">Lancamento</td>
+          <td>Semana 17-18</td>
+          <td>QA-04, QA-05</td>
+          <td style="text-align:center;">11</td>
+          <td>Patente depositada + lancamento publico + campanha de midia</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3"><strong>TOTAL DE STORY POINTS (MVP + LANCAMENTO)</strong></td>
+          <td style="text-align:center;"><strong>181</strong></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <p class="sem-recuo tabela-fonte">Fonte: Elaboracao propria. Velocidade estimada de 15-25 SP por sprint com 1 desenvolvedor full-stack e 1 engenheiro de hardware.</p>
+  </div>
+
+  <div class="quadro nao-quebrar" style="margin-top:6mm;">
+    <p class="sem-recuo quadro-titulo">Definition of Done (DoD) â€” Criterio de Conclusao</p>
+    <p class="sem-recuo">Uma historia de usuario e considerada CONCLUIDA quando:</p>
+    <ul>
+      <li>Todos os criterios de aceitacao foram verificados e documentados;</li>
+      <li>O codigo (firmware ou app) foi revisado por peer review (ou auto-revisao com checklist);</li>
+      <li>Nenhum erro critico ou de alta severidade esta aberto relacionado a historia;</li>
+      <li>Para funcionalidades de hardware: testada com pelo menos 10 abastecimentos de agua em bancada;</li>
+      <li>Para funcionalidades de app: testada em pelo menos 2 dispositivos Android fisicos;</li>
+      <li>Para funcionalidades de backend: endpoint documentado no Swagger/OpenAPI;</li>
+      <li>Codigo comitado no repositorio Git com mensagem descritiva seguindo Conventional Commits.</li>
+    </ul>
+  </div>
+
+  <hr style="margin-top:15mm;" />
+
+  <p class="sem-recuo centralizado" style="font-size:10pt; color:#555; margin-top:5mm;">
+    Documento gerado em: Marco de 2026 | Versao 1.0
+  </p>
+  <p class="sem-recuo centralizado" style="font-size:10pt; color:#555;">
+    Este documento e confidencial e destinado exclusivamente ao uso interno e a potenciais investidores.
+  </p>
+
+  <div style="margin-top:8mm; text-align:center;">
+    <button onclick="window.print()" style="
+      background: #1a1a1a;
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-family: Arial, sans-serif;
+      letter-spacing: 1px;
+    ">IMPRIMIR / SALVAR PDF</button>
+    <p class="sem-recuo centralizado" style="font-size:10pt; color:#888; margin-top:4mm;">
+      Ctrl+P &rarr; Salvar como PDF &rarr; Tamanho A4, Margens: Padrao
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

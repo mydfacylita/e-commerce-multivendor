@@ -13,6 +13,7 @@ import { NavigationProvider } from '@/components/NavigationProvider'
 import LoadingScreen from '@/components/LoadingScreen'
 import AnalyticsTracker from '@/components/AnalyticsTracker'
 import AffiliateTracker from '@/components/AffiliateTracker'
+import AIChatWidget from '@/components/AIChatWidget'
 import GoogleAnalytics from '@/components/GoogleAnalytics'
 import GoogleAds from '@/components/GoogleAds'
 import FacebookPixel from '@/components/FacebookPixel'
@@ -191,6 +192,7 @@ export default async function RootLayout({
               <main className="flex-grow">{children}</main>
               <Footer />
             </div>
+            <AIChatWidget />
           </NavigationProvider>
         </Providers>
       </body>
