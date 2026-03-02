@@ -13,6 +13,26 @@ function generateAliExpressSign(params: Record<string, any>, appSecret: string):
   return crypto.createHmac('sha256', appSecret).update(signString).digest('hex').toUpperCase()
 }
 
+// Parsear resposta JSON com segurança — loga o corpo bruto se não for JSON
+async function safeJson(res: Response, label: string): Promise<any> {
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch {
+    const preview = text.slice(0, 300).replace(/\s+/g, ' ')
+    console.error(`[AliExpress] ${label} retornou não-JSON (HTTP ${res.status}):`, preview)
+    // Detectar causas comuns
+    if (res.status === 401 || text.includes('Unauthorized')) {
+      console.error(`[AliExpress] ⚠️ Token expirado ou inválido. Renove o accessToken no painel.`)
+    } else if (res.status === 429 || text.toLowerCase().includes('rate limit') || text.toLowerCase().includes('too many')) {
+      console.error(`[AliExpress] ⚠️ Rate limit atingido. Aguarde antes de tentar novamente.`)
+    } else if (res.status === 403) {
+      console.error(`[AliExpress] ⚠️ Acesso negado (403). Verifique app_key e permissões.`)
+    }
+    throw new Error(`AliExpress API (${label}) retornou HTTP ${res.status} com corpo não-JSON`)
+  }
+}
+
 // Mapeamento de estados para nome válido do AliExpress (sem acentos)
 const STATE_CODES: Record<string, string> = {
   'AC': 'Acre', 'AL': 'Alagoas', 'AP': 'Amapa', 'AM': 'Amazonas',
@@ -39,22 +59,7 @@ async function getAliExpressShipping(
       return { success: false, options: [], error: 'Product ID não encontrado' }
     }
 
-    // Buscar primeiro SKU disponível do produto
-    const testProductRes = await fetch('https://api-sg.aliexpress.com/sync?' + new URLSearchParams({
-      app_key: auth.appKey,
-      method: 'aliexpress.ds.product.get',
-      session: auth.accessToken,
-      timestamp: Date.now().toString(),
-      format: 'json',
-      v: '2.0',
-      sign_method: 'sha256',
-      product_id: productId,
-      ship_to_country: 'BR',
-      target_currency: 'BRL',
-      target_language: 'pt',
-    }).toString())
-
-    // Preciso gerar a assinatura correta
+    // Buscar primeiro SKU disponível do produto (chamada única com assinatura correta)
     const timestamp = Date.now().toString()
     const productParams: Record<string, any> = {
       app_key: auth.appKey,
@@ -72,7 +77,7 @@ async function getAliExpressShipping(
     productParams.sign = generateAliExpressSign(productParams, auth.appSecret)
 
     const productRes = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(productParams).toString()}`)
-    const productData = await productRes.json()
+    const productData = await safeJson(productRes, 'ds.product.get')
 
     let skuId = ''
     if (productData.aliexpress_ds_product_get_response?.result) {
@@ -141,7 +146,7 @@ async function getAliExpressShipping(
     freightParams.sign = generateAliExpressSign(freightParams, auth.appSecret)
 
     const freightRes = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(freightParams).toString()}`)
-    const freightData = await freightRes.json()
+    const freightData = await safeJson(freightRes, 'ds.freight.query')
 
     console.log('🌍 [Frete Internacional] Resposta API:', JSON.stringify(freightData, null, 2))
 

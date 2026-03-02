@@ -249,6 +249,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Perguntas</span>
                 </Link>
                 <Link
+                  href="/admin/ia-conversas"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/ia-conversas' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiCpu className="text-base" />
+                  <span>Mydi — Conversas IA</span>
+                </Link>
+                <Link
+                  href="/admin/carne"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/carne' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiDollarSign className="text-base" />
+                  <span>Carnê / Parcelado</span>
+                </Link>
+                <Link
+                  href="/admin/carne/simulador"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/carne/simulador' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiDollarSign className="text-base" />
+                  <span>Simulador de Financiamento</span>
+                </Link>
+                <Link
                   href="/admin/afiliados"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.startsWith('/admin/afiliados') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
