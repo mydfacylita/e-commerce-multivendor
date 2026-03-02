@@ -93,14 +93,21 @@ async function getAliExpressShipping(
       return { success: false, options: [], error: 'SKU não encontrado' }
     }
 
-    // Buscar info do CEP para obter estado
-    const viaCepRes = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
-    const viaCepData = await viaCepRes.json()
-    
-    const stateCode = viaCepData.uf?.toUpperCase() || 'SP'
-    const provinceName = STATE_CODES[stateCode] || 'Sao Paulo'
-    const cityName = viaCepData.localidade || 'Sao Paulo'
-    const district = viaCepData.bairro || ''
+    // Buscar info do CEP para obter estado (com fallback para SP se ViaCEP estiver fora)
+    let stateCode = 'SP'
+    let provinceName = 'Sao Paulo'
+    let cityName = 'Sao Paulo'
+    let district = ''
+    try {
+      const viaCepRes = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: AbortSignal.timeout(4000) })
+      const viaCepData = await safeJson(viaCepRes, 'viacep')
+      stateCode = viaCepData.uf?.toUpperCase() || 'SP'
+      provinceName = STATE_CODES[stateCode] || 'Sao Paulo'
+      cityName = viaCepData.localidade || 'Sao Paulo'
+      district = viaCepData.bairro || ''
+    } catch (e: any) {
+      console.warn('[ViaCEP] Falha ao buscar CEP, usando defaults SP:', e.message)
+    }
 
     console.log('🌍 [Frete Internacional] CEP Info:', { cep, stateCode, provinceName, cityName, district })
 
@@ -678,7 +685,7 @@ export async function POST(req: NextRequest) {
         })
 
         if (correiosResponse.ok) {
-          const correiosData = await correiosResponse.json()
+          const correiosData = await safeJson(correiosResponse, 'correios-quote')
           
           // Pegar todos os resultados válidos sem erro
           const resultadosValidos = correiosData.resultados?.filter((r: any) => !r.erro && r.valor > 0) || []
