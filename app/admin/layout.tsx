@@ -444,10 +444,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </Link>
                 <Link
                   href="/admin/analytics"
-                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/analytics' && !pathname.includes('/vendas') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/analytics' && !pathname.includes('/vendas') && !pathname.includes('/ip-investigacao') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
                   <FiPieChart className="text-base" />
                   <span>Analytics</span>
+                </Link>
+                <Link
+                  href="/admin/analytics/ip-investigacao"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.includes('/ip-investigacao') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiShield className="text-base" />
+                  <span>IPs Suspeitos</span>
                 </Link>
                 <Link
                   href="/admin/pedidos/mapa"

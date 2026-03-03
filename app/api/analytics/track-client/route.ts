@@ -22,6 +22,16 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
+    // Capturar IP real do cliente (server-side, não pode ser falsificado pelo client-js)
+    const ip =
+      req.headers.get('x-real-ip') ||
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('cf-connecting-ip') ||
+      '0.0.0.0'
+
+    // Injetar IP nos dados antes de salvar
+    const enrichedData = { ...data, ip, serverTimestamp: new Date().toISOString() }
+
     // Tipos de eventos aceitos
     const validEventTypes = [
       'page_view',
@@ -47,7 +57,7 @@ export async function POST(req: NextRequest) {
         ${nanoid()},
         ${name},
         ${null},
-        ${JSON.stringify(data)},
+        ${JSON.stringify(enrichedData)},
         NOW(),
         NOW()
       )
