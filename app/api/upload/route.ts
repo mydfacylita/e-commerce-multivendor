@@ -74,8 +74,9 @@ export async function POST(request: NextRequest) {
     const filePath = join(uploadDir, fileName)
     await writeFile(filePath, buffer)
 
-    // Retornar URL pública (relativa)
-    const publicUrl = `/uploads/${folder}/${fileName}`
+    // Retornar URL pública (absoluta para evitar problemas de subdomínio)
+    const baseUrl = process.env.NEXTAUTH_URL?.replace(/\/$/, '') || ''
+    const publicUrl = `${baseUrl}/uploads/${folder}/${fileName}`
 
     return NextResponse.json({
       success: true,
