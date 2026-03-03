@@ -10,6 +10,34 @@ let maintenanceCache = {
 }
 const CACHE_TTL = 10000 // 10 segundos
 
+// 🚫 Cache da blocklist de IPs fraudulentos
+let ipBlocklistCache = {
+  ips: new Set<string>(),
+  lastCheck: 0,
+  checking: false
+}
+const BLOCKLIST_CACHE_TTL = 60000 // 1 minuto
+
+async function getIpBlocklist(baseUrl: string): Promise<Set<string>> {
+  const now = Date.now()
+  if (now - ipBlocklistCache.lastCheck < BLOCKLIST_CACHE_TTL) return ipBlocklistCache.ips
+  if (ipBlocklistCache.checking) return ipBlocklistCache.ips
+  ipBlocklistCache.checking = true
+  try {
+    const res = await fetch(`${baseUrl}/api/config/ip-blocklist`, {
+      method: 'GET',
+      headers: { 'x-internal': 'true' },
+      cache: 'no-store'
+    })
+    if (res.ok) {
+      const data = await res.json()
+      ipBlocklistCache.ips = new Set(data.blocklist || [])
+      ipBlocklistCache.lastCheck = now
+    }
+  } catch { /* silencioso */ } finally { ipBlocklistCache.checking = false }
+  return ipBlocklistCache.ips
+}
+
 // � API Key para o app móvel (carregada do env ou validada no banco)
 const APP_API_KEY = process.env.APP_API_KEY || ''
 
@@ -48,6 +76,7 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/',
   '/api/config/public',
   '/api/config/maintenance-status',
+  '/api/config/ip-blocklist',
   '/api/payment/webhook',
   '/api/payment/public-key',
   '/api/payment/gateways',
@@ -190,6 +219,25 @@ function setCorsHeaders(response: NextResponse, origin: string | null) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // 🚫 BLOQUEIO DE IPs FRAUDULENTOS (click fraud / bots)
+  // Apenas em rotas de página (não assets estáticos)
+  if (!pathname.startsWith('/_next') && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/config/ip-blocklist')) {
+    const clientIp =
+      request.headers.get('x-real-ip') ||
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('cf-connecting-ip') || ''
+    if (clientIp) {
+      const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+      const blocklist = await getIpBlocklist(baseUrl)
+      if (blocklist.has(clientIp)) {
+        return new NextResponse(
+          '<!DOCTYPE html><html><head><title>Acesso negado</title></head><body><h1>403 - Acesso Bloqueado</h1></body></html>',
+          { status: 403, headers: { 'Content-Type': 'text/html' } }
+        )
+      }
+    }
+  }
   
   // 🚀 BYPASS ABSOLUTO: Arquivos estáticos NUNCA passam pelo middleware
   // Isso garante que _next/static, imagens, etc funcionem em qualquer domínio/subdomínio

@@ -29,6 +29,17 @@ export async function POST(req: NextRequest) {
       req.headers.get('cf-connecting-ip') ||
       '0.0.0.0'
 
+    // Verificar se IP está na blocklist — descartar silenciosamente
+    try {
+      const blockConfig = await prisma.systemConfig.findUnique({ where: { key: 'security.ipBlocklist' } })
+      if (blockConfig?.value) {
+        const blocked: string[] = JSON.parse(blockConfig.value)
+        if (blocked.includes(ip)) {
+          return NextResponse.json({ success: true, message: 'ok' }) // silencioso
+        }
+      }
+    } catch { /* não bloquear evento se DB falhar */ }
+
     // Injetar IP nos dados antes de salvar
     const enrichedData = { ...data, ip, serverTimestamp: new Date().toISOString() }
 
