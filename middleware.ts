@@ -269,10 +269,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  const origin = request.headers.get('origin')
+  const host = request.headers.get('host') || ''
+  const isAdminSubdomain = host.startsWith('gerencial-sys.')
+
   // 🤖 DETECTAR BOTS ALIADOS e logar (fire-and-forget, não bloqueia)
   const ua = request.headers.get('user-agent') || ''
   const allyBot = detectAllyBot(ua)
-  if (allyBot && !pathname.startsWith('/api/')) {
+
+  // 🛡️ GERENCIAL-SYS: bots NÃO devem acessar o painel admin
+  if (isAdminSubdomain) {
+    // Retornar robots.txt bloqueante para o subdomínio gerencial
+    if (pathname === '/robots.txt') {
+      return new NextResponse('User-agent: *\nDisallow: /', {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      })
+    }
+    // Bloquear bots com 403
+    if (allyBot || /bot|crawl|spider|slurp|scraper|archive|wget|curl/i.test(ua)) {
+      return new NextResponse(null, { status: 403 })
+    }
+  }
+
+  if (allyBot && !pathname.startsWith('/api/') && !isAdminSubdomain) {
     const baseUrlForBot = `${request.nextUrl.protocol}//${request.nextUrl.host}`
     const clientIpBot = request.headers.get('x-real-ip') || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || ''
     // Fire-and-forget: não espera resposta para não adicionar latência
@@ -282,10 +302,6 @@ export async function middleware(request: NextRequest) {
       body: JSON.stringify({ botName: allyBot.name, botType: allyBot.type, userAgent: ua, path: pathname, ip: clientIpBot }),
     }).catch(() => { /* silencioso */ })
   }
-  
-  const origin = request.headers.get('origin')
-  const host = request.headers.get('host') || ''
-  const isAdminSubdomain = host.startsWith('gerencial-sys.')
   const isDeveloperSubdomain = host.startsWith('developer.')
 
   // 🔀 SUBDOMÍNIO DEVELOPER: reescreve requests para /developer/*
@@ -343,6 +359,10 @@ export async function middleware(request: NextRequest) {
     if (!isAllowed) {
       return NextResponse.redirect(new URL('/admin', request.url))
     }
+    // 🤖 Garantir que nenhum bot indexe NADA do gerencial, mesmo que passe pelo bloqueio acima
+    const adminResponse = NextResponse.next()
+    adminResponse.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet')
+    return adminResponse
   }
 
   // 🔒 Tratar preflight OPTIONS para CORS
