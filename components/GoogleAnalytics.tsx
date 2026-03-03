@@ -13,7 +13,7 @@ function GoogleAnalyticsInner({ gaId }: GoogleAnalyticsProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [measurementId, setMeasurementId] = useState<string | null>(gaId || null)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
 
   // Verificar se é admin pela URL (evita erro de prerender com useSession)
   useEffect(() => {
@@ -51,8 +51,8 @@ function GoogleAnalyticsInner({ gaId }: GoogleAnalyticsProps) {
     }
   }, [pathname, searchParams, measurementId, isAdmin])
 
-  // Não renderizar se não tiver ID ou se for admin
-  if (!measurementId || isAdmin) return null
+  // Não renderizar se não tiver ID, se ainda não determinou a rota, ou se for admin
+  if (!measurementId || isAdmin !== false) return null
 
   return (
     <>

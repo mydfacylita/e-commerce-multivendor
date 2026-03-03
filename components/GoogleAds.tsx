@@ -18,7 +18,7 @@ declare global {
 
 export default function GoogleAds({ adsId = 'AW-17927166534' }: GoogleAdsProps) {
   const pathname = usePathname()
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
 
   // Verificar se é área admin
   useEffect(() => {
@@ -28,8 +28,8 @@ export default function GoogleAds({ adsId = 'AW-17927166534' }: GoogleAdsProps) 
     setIsAdmin(isAdminPath)
   }, [pathname])
 
-  // Não carregar em áreas administrativas
-  if (isAdmin || !adsId) return null
+  // Não carregar se ainda não determinou a rota, ou se for área administrativa
+  if (isAdmin !== false || !adsId) return null
 
   return (
     <>
