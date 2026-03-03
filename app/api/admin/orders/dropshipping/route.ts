@@ -10,37 +10,17 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 /**
- * Mapeia o status do pedido/item para status do AliExpress
+ * Retorna o status do AliExpress direto do banco (já armazenado no supplierStatus do item)
  */
 function getAliExpressStatus(order: any): string {
-  // Primeiro, verificar status do item (mais preciso)
+  // O banco já armazena o status raw do AliExpress no supplierStatus do item
+  // Ex: FINISH, WAIT_BUYER_ACCEPT_GOODS, PLACE_ORDER_SUCCESS, CANCELLED, ERROR
   const itemStatus = order.items?.[0]?.supplierStatus
-  if (itemStatus) {
-    // Mapear status do item para status AliExpress
-    switch (itemStatus) {
-      case 'PLACED':
-        return 'PLACE_ORDER_SUCCESS' // Pedido criado, aguardando pagamento
-      case 'PAID':
-        return 'WAIT_SELLER_SEND_GOODS' // Pago, aguardando envio
-      case 'SHIPPED':
-        return 'WAIT_BUYER_ACCEPT_GOODS' // Em trânsito
-      case 'DELIVERED':
-        return 'FINISH' // Entregue
-      case 'CANCELLED':
-        return 'IN_CANCEL'
-      case 'ERROR':
-        return 'ERROR'
-      default:
-        return itemStatus
-    }
-  }
-  
-  // Se não tiver status do item, verificar se tem supplierOrderId
-  if (order.supplierOrderId) {
-    return 'PLACE_ORDER_SUCCESS' // Pedido criado no AliExpress
-  }
-  
-  // Sem pedido criado = Aguardando envio
+  if (itemStatus) return itemStatus
+
+  // Se não tiver status do item mas tiver supplierOrderId = pedido criado aguardando
+  if (order.supplierOrderId) return 'PLACE_ORDER_SUCCESS'
+
   return 'PENDING'
 }
 
