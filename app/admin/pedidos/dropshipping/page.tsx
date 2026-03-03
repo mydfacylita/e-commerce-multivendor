@@ -81,9 +81,11 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = 
   'WAIT_SELLER_SEND_GOODS': { label: 'Aguardando Envio', color: 'bg-orange-100 text-orange-800', icon: FiClock },
   'SELLER_PART_SEND_GOODS': { label: 'Parcialmente Enviado', color: 'bg-purple-100 text-purple-800', icon: FiTruck },
   'WAIT_BUYER_ACCEPT_GOODS': { label: 'Em Trânsito', color: 'bg-indigo-100 text-indigo-800', icon: FiTruck },
+  'BUYER_ACCEPT_GOODS': { label: 'Entregue', color: 'bg-green-100 text-green-800', icon: FiCheck },
   'FUND_PROCESSING': { label: 'Processando Pagamento', color: 'bg-cyan-100 text-cyan-800', icon: FiClock },
-  'FINISH': { label: 'Finalizado', color: 'bg-green-100 text-green-800', icon: FiCheck },
+  'FINISH': { label: 'Encerrado/Cancelado', color: 'bg-gray-100 text-gray-700', icon: FiX },
   'COMPLETED': { label: 'Entregue', color: 'bg-green-100 text-green-800', icon: FiCheck },
+  'CANCELLED': { label: 'Cancelado', color: 'bg-red-100 text-red-800', icon: FiX },
 }
 
 export default function DropshippingOrdersPage() {
@@ -318,7 +320,7 @@ export default function DropshippingOrdersPage() {
     if (filter === 'pending' && order.aliexpressOrderId) return false
     if (filter === 'sent' && !order.aliexpressOrderId) return false
     if (filter === 'transit' && order.aliexpressStatus !== 'WAIT_BUYER_ACCEPT_GOODS') return false
-    if (filter === 'delivered' && order.aliexpressStatus !== 'FINISH') return false
+    if (filter === 'delivered' && order.aliexpressStatus !== 'BUYER_ACCEPT_GOODS') return false
     
     // Filtro por busca
     if (searchQuery) {
@@ -337,8 +339,8 @@ export default function DropshippingOrdersPage() {
   const stats = {
     total: orders.length,
     pending: orders.filter(o => !o.aliexpressOrderId).length,
-    sent: orders.filter(o => o.aliexpressOrderId && o.aliexpressStatus !== 'FINISH').length,
-    delivered: orders.filter(o => o.aliexpressStatus === 'FINISH').length,
+    sent: orders.filter(o => o.aliexpressOrderId && o.aliexpressStatus !== 'BUYER_ACCEPT_GOODS').length,
+    delivered: orders.filter(o => o.aliexpressStatus === 'BUYER_ACCEPT_GOODS').length,
   }
 
   const formatDate = (date: string) => {
