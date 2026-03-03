@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import Breadcrumb from '@/components/Breadcrumb'
 import ProductDetailClient from '@/components/ProductDetailClient'
 import ProductReviews from '@/components/ProductReviews'
@@ -125,6 +126,63 @@ function processAttributes(attrs: any, supplierName?: string): Record<string, st
   }
   
   return {}
+}
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ slug: string }> }
+): Promise<Metadata> {
+  const { slug } = await params
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://mydshop.com.br'
+
+  const product = await prisma.product.findUnique({
+    where: { slug, active: true },
+    include: { category: true }
+  })
+
+  if (!product) {
+    return { title: 'Produto não encontrado | MYDSHOP' }
+  }
+
+  // Extrair imagem principal
+  let imageUrl = `${baseUrl}/og-default.jpg`
+  try {
+    const images = JSON.parse(product.images || '[]')
+    if (Array.isArray(images) && images.length > 0) {
+      imageUrl = images[0].startsWith('http') ? images[0] : `${baseUrl}${images[0]}`
+    }
+  } catch { /* usa default */ }
+
+  const description = (product.description || product.name)
+    .replace(/<[^>]*>/g, '')
+    .substring(0, 160)
+
+  const title = `${product.name} | MYDSHOP`
+  const url = `${baseUrl}/produtos/${slug}`
+
+  return {
+    title,
+    description,
+    openGraph: {
+      type: 'website',
+      url,
+      title,
+      description,
+      siteName: 'MYDSHOP',
+      images: [{ url: imageUrl, width: 800, height: 800, alt: product.name }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [imageUrl],
+    },
+    alternates: { canonical: url },
+    other: {
+      'product:price:amount': product.price.toFixed(2),
+      'product:price:currency': 'BRL',
+      'product:availability': product.stock > 0 ? 'in stock' : 'out of stock',
+    }
+  }
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -396,8 +454,76 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     console.log('✅ Variants filtradas:', variants.length, 'disponíveis')
   }
 
+  // Preparar dados para JSON-LD
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://mydshop.com.br'
+  let mainImage = `${baseUrl}/og-default.jpg`
+  let allImages: string[] = []
+  try {
+    const imgs = JSON.parse(product.images || '[]')
+    if (Array.isArray(imgs) && imgs.length > 0) {
+      mainImage = imgs[0].startsWith('http') ? imgs[0] : `${baseUrl}${imgs[0]}`
+      allImages = imgs.map((img: string) => img.startsWith('http') ? img : `${baseUrl}${img}`)
+    }
+  } catch { /* usa default */ }
+
+  // Breadcrumb JSON-LD
+  const breadcrumbList: any[] = [{ '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl }]
+  let pos = 2
+  if (product.category.parent?.parent) {
+    breadcrumbList.push({ '@type': 'ListItem', position: pos++, name: product.category.parent.parent.name, item: `${baseUrl}/categorias/${product.category.parent.parent.slug}` })
+  }
+  if (product.category.parent) {
+    breadcrumbList.push({ '@type': 'ListItem', position: pos++, name: product.category.parent.name, item: `${baseUrl}/categorias/${product.category.parent.slug}` })
+  }
+  breadcrumbList.push({ '@type': 'ListItem', position: pos++, name: product.category.name, item: `${baseUrl}/categorias/${product.category.slug}` })
+  breadcrumbList.push({ '@type': 'ListItem', position: pos, name: product.name, item: `${baseUrl}/produtos/${product.slug}` })
+
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: (product.description || product.name).replace(/<[^>]*>/g, '').substring(0, 5000),
+    image: allImages.length > 0 ? allImages : [mainImage],
+    url: `${baseUrl}/produtos/${product.slug}`,
+    sku: product.id,
+    ...(product.gtin ? { gtin: product.gtin } : {}),
+    brand: { '@type': 'Brand', name: (product as any).brand || 'MYDSHOP' },
+    offers: {
+      '@type': 'Offer',
+      url: `${baseUrl}/produtos/${product.slug}`,
+      priceCurrency: 'BRL',
+      price: product.price.toFixed(2),
+      availability: product.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      itemCondition: 'https://schema.org/NewCondition',
+      seller: { '@type': 'Organization', name: 'MYDSHOP' }
+    },
+    ...(reviewsStats.totalReviews > 0 ? {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: reviewsStats.averageRating.toFixed(1),
+        reviewCount: reviewsStats.totalReviews,
+        bestRating: '5',
+        worstRating: '1'
+      }
+    } : {})
+  }
+
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: breadcrumbList
+  }
+
   return (
     <>
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+    />
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+    />
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Breadcrumb de navegação com hierarquia completa */}
       <Breadcrumb 
