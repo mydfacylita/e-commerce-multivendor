@@ -83,7 +83,7 @@ export async function GET() {
           { shippingCarrier: 'Importação Direta' }
         ],
         paymentStatus: {
-          in: ['PAID', 'approved', 'APPROVED']
+          in: ['PAID', 'approved', 'APPROVED', 'FINANCING', 'financing', 'PARCELADO', 'parcelado', 'CARNE', 'carne']
         },
         // Excluir pedidos cancelados
         status: {
