@@ -18,6 +18,36 @@ let ipBlocklistCache = {
 }
 const BLOCKLIST_CACHE_TTL = 60000 // 1 minuto
 
+// 🤖 Mapa de User-Agents de bots aliados (que geram tráfego/receita para nós)
+const ALLY_BOTS: Array<{ pattern: RegExp; name: string; type: string }> = [
+  { pattern: /Googlebot(?!-Image|-News|-Video|-AdsBot)/i, name: 'Googlebot', type: 'googlebot' },
+  { pattern: /Googlebot-Image/i,         name: 'Google Imagens',     type: 'googlebot_img' },
+  { pattern: /Googlebot-News/i,          name: 'Google News',        type: 'googlebot_news' },
+  { pattern: /Google-Shopping/i,         name: 'Google Shopping',    type: 'google_shop' },
+  { pattern: /bingbot/i,                 name: 'Bingbot',            type: 'bingbot' },
+  { pattern: /BingPreview/i,             name: 'Bing Shopping',      type: 'bing_shop' },
+  { pattern: /facebookexternalhit/i,     name: 'Facebook',           type: 'facebook' },
+  { pattern: /WhatsApp/i,               name: 'WhatsApp',           type: 'whatsapp' },
+  { pattern: /Twitterbot/i,             name: 'Twitter/X',          type: 'twitter' },
+  { pattern: /Pinterest/i,              name: 'Pinterest',           type: 'pinterest' },
+  { pattern: /BuscapeBot/i,             name: 'Buscapé',             type: 'buscape' },
+  { pattern: /Zoom Bot/i,               name: 'Zoom',               type: 'zoom' },
+  { pattern: /LinkedInBot/i,            name: 'LinkedIn',            type: 'linkedin' },
+  { pattern: /Slackbot/i,               name: 'Slack',               type: 'slack' },
+  { pattern: /TelegramBot/i,            name: 'Telegram',            type: 'telegram' },
+  { pattern: /SemrushBot/i,             name: 'SEMrush',             type: 'semrush' },
+  { pattern: /AhrefsBot/i,             name: 'Ahrefs',              type: 'ahrefs' },
+  { pattern: /MJ12bot/i,               name: 'Moz',                  type: 'moz' },
+]
+
+function detectAllyBot(ua: string) {
+  if (!ua) return null
+  for (const bot of ALLY_BOTS) {
+    if (bot.pattern.test(ua)) return bot
+  }
+  return null
+}
+
 async function getIpBlocklist(baseUrl: string): Promise<Set<string>> {
   const now = Date.now()
   if (now - ipBlocklistCache.lastCheck < BLOCKLIST_CACHE_TTL) return ipBlocklistCache.ips
@@ -92,6 +122,7 @@ const PUBLIC_API_ROUTES = [
   '/api/feeds/',
   '/api/image/',
   '/api/analytics/track',
+  '/api/analytics/track-bot', // Chamada interna do middleware para logar bots aliados
   '/api/v1/', // Portal de desenvolvedores — validação feita nas próprias rotas via dev-auth
   '/api/app/config', // Configurações de aparência do app (público - apenas branding)
 ]
@@ -236,6 +267,20 @@ export async function middleware(request: NextRequest) {
   const staticExtensions = ['.js', '.css', '.woff', '.woff2', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.map', '.txt', '.json']
   if (staticExtensions.some(ext => pathname.endsWith(ext))) {
     return NextResponse.next()
+  }
+
+  // 🤖 DETECTAR BOTS ALIADOS e logar (fire-and-forget, não bloqueia)
+  const ua = request.headers.get('user-agent') || ''
+  const allyBot = detectAllyBot(ua)
+  if (allyBot && !pathname.startsWith('/api/')) {
+    const baseUrlForBot = `${request.nextUrl.protocol}//${request.nextUrl.host}`
+    const clientIpBot = request.headers.get('x-real-ip') || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || ''
+    // Fire-and-forget: não espera resposta para não adicionar latência
+    fetch(`${baseUrlForBot}/api/analytics/track-bot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal': 'true' },
+      body: JSON.stringify({ botName: allyBot.name, botType: allyBot.type, userAgent: ua, path: pathname, ip: clientIpBot }),
+    }).catch(() => { /* silencioso */ })
   }
   
   const origin = request.headers.get('origin')

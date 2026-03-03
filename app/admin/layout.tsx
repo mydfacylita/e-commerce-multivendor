@@ -457,6 +457,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>IPs Suspeitos</span>
                 </Link>
                 <Link
+                  href="/admin/analytics/bots"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.includes('/analytics/bots') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiActivity className="text-base" />
+                  <span>Bots Aliados</span>
+                </Link>
+                <Link
                   href="/admin/pedidos/mapa"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/pedidos/mapa' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
