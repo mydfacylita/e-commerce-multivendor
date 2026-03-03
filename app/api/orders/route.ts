@@ -783,6 +783,7 @@ export async function GET(req: Request) {
       where: { userId },
       select: {
         id: true,
+        parentOrderId: true,
         status: true,
         total: true,
         subtotal: true,
@@ -837,6 +838,7 @@ export async function GET(req: Request) {
       // Sem CPF, sem telefone completo, sem dados pessoais desnecessários
       return {
         id: order.id,
+        parentOrderId: order.parentOrderId ?? null,
         status: order.status,
         total: order.total,
         subtotal: order.subtotal,

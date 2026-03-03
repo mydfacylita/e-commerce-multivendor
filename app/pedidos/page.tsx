@@ -11,7 +11,7 @@ import { formatCurrency, formatDate } from '@/lib/format'
 
 interface Order {
   id: string
-  parentOrderId: string | null
+  parentOrderId?: string | null
   total: number
   status: string
   createdAt: string
@@ -46,12 +46,20 @@ export default function PedidosPage() {
   const fetchOrders = async () => {
     try {
       const response = await fetch('/api/orders')
-      if (response.ok) {
-        const data = await response.json()
-        // API pode retornar { orders: [...] } ou [...] diretamente
-        const ordersArray = Array.isArray(data) ? data : (data.orders || [])
-        setOrders(ordersArray)
+      if (response.status === 401) {
+        // Sessão expirada (ex: após novo deploy) — redireciona para login
+        router.push('/login?callbackUrl=/pedidos')
+        return
       }
+      if (!response.ok) {
+        console.error('Erro ao buscar pedidos:', response.status)
+        setIsLoading(false)
+        return
+      }
+      const data = await response.json()
+      // API pode retornar { orders: [...] } ou [...] diretamente
+      const ordersArray = Array.isArray(data) ? data : (data.orders || [])
+      setOrders(ordersArray)
     } catch (error) {
       console.error('Erro ao buscar pedidos:', error)
     } finally {
@@ -59,7 +67,7 @@ export default function PedidosPage() {
     }
   }
 
-  // Agrupar pedidos por parentOrderId para o cliente
+  // Agrupar pedidos por parentOrderId — mostrar apenas pedidos raiz (sub-pedidos ficam agrupados)
   const groupedOrders = orders.reduce((acc, order) => {
     const groupKey = order.parentOrderId || order.id
     
