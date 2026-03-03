@@ -359,8 +359,10 @@ export async function middleware(request: NextRequest) {
     if (!isAllowed) {
       return NextResponse.redirect(new URL('/admin', request.url))
     }
-    // 🤖 Garantir que nenhum bot indexe NADA do gerencial, mesmo que passe pelo bloqueio acima
-    const adminResponse = NextResponse.next()
+    // 🤖 Injeta x-page-type: admin para o root layout pular Navbar/Footer da loja
+    const reqHeadersAdmin = new Headers(request.headers)
+    reqHeadersAdmin.set('x-page-type', 'admin')
+    const adminResponse = NextResponse.next({ request: { headers: reqHeadersAdmin } })
     adminResponse.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet')
     return adminResponse
   }

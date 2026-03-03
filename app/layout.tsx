@@ -112,13 +112,26 @@ export default async function RootLayout({
 }) {
   // Detecta se é o portal de desenvolvedores (via header injetado pelo middleware)
   const headersList = await headers()
-  const isDeveloperPage = headersList.get('x-page-type') === 'developer'
+  const pageType = headersList.get('x-page-type')
+  const isDeveloperPage = pageType === 'developer'
+  const isAdminPage = pageType === 'admin'
 
   // Portal developer: layout mínimo, sem Navbar/Footer/scripts da loja
   if (isDeveloperPage) {
     return (
       <html lang="pt-BR" className={inter.className}>
         <body className="bg-gray-950 text-white antialiased">
+          <Providers>{children}</Providers>
+        </body>
+      </html>
+    )
+  }
+
+  // Admin: layout mínimo também (o admin/layout.tsx tem seu próprio sidebar)
+  if (isAdminPage) {
+    return (
+      <html lang="pt-BR" className={inter.className}>
+        <body className="antialiased">
           <Providers>{children}</Providers>
         </body>
       </html>
