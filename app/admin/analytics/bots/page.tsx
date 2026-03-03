@@ -121,7 +121,7 @@ export default function BotMonitorPage() {
                 </div>
               </div>
               <a
-                href={feed.url}
+                href={`https://mydshop.com.br${feed.url}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium"
@@ -179,7 +179,7 @@ export default function BotMonitorPage() {
                 <div key={i} className="flex items-center gap-2 text-sm">
                   <span className="text-gray-400 w-5 text-right text-xs">{i + 1}</span>
                   <a
-                    href={page.path}
+                    href={`https://mydshop.com.br${page.path}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 text-blue-600 hover:underline truncate"
