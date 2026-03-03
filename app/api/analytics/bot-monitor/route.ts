@@ -41,43 +41,40 @@ export async function GET(request: NextRequest) {
   const days = parseInt(request.nextUrl.searchParams.get('days') || '7')
 
   try {
-    // Buscar todos os eventos de bots
+    // Buscar eventos de bots — apenas colunas no GROUP BY (compatible com only_full_group_by)
     const results: any[] = await prisma.$queryRaw`
       SELECT
-        description as botName,
-        JSON_EXTRACT(data, '$.botType') as botType,
-        JSON_EXTRACT(data, '$.path') as path,
-        JSON_EXTRACT(data, '$.userAgent') as userAgent,
-        JSON_EXTRACT(data, '$.ip') as ip,
-        DATE(createdAt) as date,
-        COUNT(*) as visits
+        description                          AS botName,
+        JSON_UNQUOTE(JSON_EXTRACT(data, '$.botType')) AS botType,
+        MAX(DATE(createdAt))                 AS lastDate,
+        COUNT(*)                             AS visits
       FROM analytics_table
       WHERE name = 'bot_crawl'
         AND createdAt >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
-      GROUP BY description, JSON_EXTRACT(data, '$.botType'), DATE(createdAt)
+      GROUP BY description, JSON_UNQUOTE(JSON_EXTRACT(data, '$.botType'))
       ORDER BY visits DESC
     `
 
     // Top páginas mais crawleadas
     const topPages: any[] = await prisma.$queryRaw`
       SELECT
-        JSON_EXTRACT(data, '$.path') as path,
-        description as botName,
-        COUNT(*) as visits
+        JSON_UNQUOTE(JSON_EXTRACT(data, '$.path')) AS path,
+        description                                 AS botName,
+        COUNT(*)                                    AS visits
       FROM analytics_table
       WHERE name = 'bot_crawl'
         AND createdAt >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
-      GROUP BY JSON_EXTRACT(data, '$.path'), description
+      GROUP BY JSON_UNQUOTE(JSON_EXTRACT(data, '$.path')), description
       ORDER BY visits DESC
       LIMIT 20
     `
 
-    // Visitas por dia (chart)
+    // Visitas por dia
     const byDay: any[] = await prisma.$queryRaw`
       SELECT
-        DATE(createdAt) as date,
-        description as botName,
-        COUNT(*) as visits
+        DATE(createdAt) AS date,
+        description     AS botName,
+        COUNT(*)        AS visits
       FROM analytics_table
       WHERE name = 'bot_crawl'
         AND createdAt >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
@@ -86,39 +83,32 @@ export async function GET(request: NextRequest) {
     `
 
     // Agrupar por tipo de bot
-    const botSummary: Record<string, { label: string; icon: string; benefit: string; visits: number; lastSeen: string; paths: string[] }> = {}
+    const botSummary: Record<string, { label: string; icon: string; benefit: string; visits: number; lastSeen: string }> = {}
 
     for (const row of results) {
-      const botType = row.botType?.replace(/"/g, '') || 'unknown'
+      const botType = row.botType || 'unknown'
       const info = BOT_CATEGORIES[botType] || { label: row.botName || botType, icon: '🤖', benefit: 'Desconhecido' }
 
       if (!botSummary[botType]) {
-        botSummary[botType] = { ...info, visits: 0, lastSeen: '', paths: [] }
+        botSummary[botType] = { ...info, visits: 0, lastSeen: '' }
       }
       botSummary[botType].visits += Number(row.visits)
-      if (!botSummary[botType].lastSeen || row.date > botSummary[botType].lastSeen) {
-        botSummary[botType].lastSeen = row.date
+      if (!botSummary[botType].lastSeen || String(row.lastDate) > botSummary[botType].lastSeen) {
+        botSummary[botType].lastSeen = String(row.lastDate).substring(0, 10)
       }
-    }
-
-    // Top páginas por bot
-    for (const row of topPages) {
-      const botType = 'unknown'
-      const path = row.path?.replace(/"/g, '') || '/'
-      // adicionar paths ao respectivo bot
     }
 
     return NextResponse.json({
       summary: Object.entries(botSummary)
-        .map(([type, data]) => ({ type, ...data }))
+        .map(([type, d]) => ({ type, ...d }))
         .sort((a, b) => b.visits - a.visits),
       topPages: topPages.map(r => ({
-        path: r.path?.replace(/"/g, '') || '/',
+        path: r.path || '/',
         botName: r.botName,
         visits: Number(r.visits)
       })),
       byDay: byDay.map(r => ({
-        date: r.date,
+        date: String(r.date).substring(0, 10),
         botName: r.botName,
         visits: Number(r.visits)
       })),
