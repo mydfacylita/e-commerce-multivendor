@@ -9,7 +9,7 @@ function AnalyticsTrackerInner() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const visitorRegistered = useRef(false)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
 
   // Verificar se é admin pela URL (evita erro de prerender com useSession)
   useEffect(() => {
@@ -20,8 +20,8 @@ function AnalyticsTrackerInner() {
   }, [pathname])
 
   useEffect(() => {
-    // Não rastrear admins
-    if (isAdmin) return
+    // Aguarda determinar se é admin antes de rastrear
+    if (isAdmin !== false) return
     
     // Registrar visitante apenas UMA VEZ na sessão
     if (!visitorRegistered.current) {
@@ -38,10 +38,8 @@ function AnalyticsTrackerInner() {
   }, [isAdmin])
 
   useEffect(() => {
-    // Não rastrear admins
-    if (isAdmin) return
-    
-    // Registrar page view a cada mudança de página/rota
+    // Aguarda determinar se é admin antes de rastrear página
+    if (isAdmin !== false) return
     if (pathname) {
       const fullPath = searchParams?.toString() 
         ? `${pathname}?${searchParams.toString()}`
