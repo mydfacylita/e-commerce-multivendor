@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { FiPlus, FiEdit2, FiTrash2, FiCopy, FiCheck, FiX, FiSearch, FiFilter } from 'react-icons/fi'
+import { FiPlus, FiEdit2, FiTrash2, FiCopy, FiCheck, FiX, FiSearch, FiFilter, FiImage, FiMonitor } from 'react-icons/fi'
 
 interface Coupon {
   id: string
@@ -19,6 +19,8 @@ interface Coupon {
   validUntil: string | null
   isActive: boolean
   firstPurchaseOnly: boolean
+  showInModal: boolean
+  promoImage: string | null
   allowedStates: string | null
   createdAt: string
   _count: {
@@ -34,6 +36,8 @@ export default function CouponsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -48,6 +52,8 @@ export default function CouponsPage() {
     validFrom: new Date().toISOString().split('T')[0],
     validUntil: '',
     firstPurchaseOnly: false,
+    showInModal: false,
+    promoImage: '',
     allowedStates: [] as string[],
     isActive: true
   })
@@ -136,6 +142,8 @@ export default function CouponsPage() {
       validFrom: coupon.validFrom.split('T')[0],
       validUntil: coupon.validUntil?.split('T')[0] || '',
       firstPurchaseOnly: coupon.firstPurchaseOnly,
+      showInModal: coupon.showInModal,
+      promoImage: coupon.promoImage || '',
       allowedStates: coupon.allowedStates ? JSON.parse(coupon.allowedStates) : [],
       isActive: coupon.isActive
     })
@@ -156,9 +164,36 @@ export default function CouponsPage() {
       validFrom: new Date().toISOString().split('T')[0],
       validUntil: '',
       firstPurchaseOnly: false,
+      showInModal: false,
+      promoImage: '',
       allowedStates: [],
       isActive: true
     })
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 3 * 1024 * 1024) {
+      alert('Imagem muito grande. Máximo: 3MB')
+      return
+    }
+    setUploadingImage(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.url) {
+        setFormData(prev => ({ ...prev, promoImage: data.url }))
+      } else {
+        alert('Erro ao fazer upload da imagem')
+      }
+    } catch {
+      alert('Erro ao fazer upload da imagem')
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   const copyCode = async (code: string) => {
@@ -279,6 +314,11 @@ export default function CouponsPage() {
                       >
                         {copiedCode === coupon.code ? <FiCheck className="text-green-500" /> : <FiCopy size={14} />}
                       </button>
+                      {coupon.showInModal && (
+                        <span className="flex items-center gap-1 bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full" title="Exibido no modal da home">
+                          <FiMonitor size={11} /> Modal
+                        </span>
+                      )}
                     </div>
                     {coupon.description && (
                       <p className="text-xs text-gray-500 mt-1">{coupon.description}</p>
@@ -565,6 +605,91 @@ export default function CouponsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Modal Promocional */}
+              <div className="border-t pt-4 space-y-4">
+                <h3 className="font-semibold flex items-center gap-2"><FiMonitor /> Modal Promocional (Home)</h3>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.showInModal}
+                    onChange={(e) => setFormData({ ...formData, showInModal: e.target.checked })}
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                  />
+                  <span className="font-medium">Exibir este cupom no modal da página inicial</span>
+                </label>
+
+                {formData.showInModal && (
+                  <div className="ml-6 space-y-3">
+                    <p className="text-xs text-gray-500">
+                      Imagem de fundo recomendada: <strong>960 × 480px</strong> (JPEG ou PNG, máx. 3MB).
+                      O código do cupão fica sobreposto no centro da imagem.
+                    </p>
+
+                    {/* Preview */}
+                    {formData.promoImage && (
+                      <div className="relative w-full rounded-lg overflow-hidden border" style={{ height: 160 }}>
+                        <img src={formData.promoImage} alt="Preview" className="w-full h-full object-cover" />
+                        {/* Simula o overlay do modal */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+                          <span className="text-white text-xs uppercase tracking-widest mb-1">Seu cupão</span>
+                          <span className="text-white text-2xl font-black tracking-widest drop-shadow">{formData.code || 'CÓDIGO'}</span>
+                          <span className="text-white/90 text-base font-bold drop-shadow">
+                            {formData.discountType === 'PERCENTAGE'
+                              ? `${formData.discountValue || '0'}% OFF`
+                              : `R$ ${parseFloat(formData.discountValue || '0').toFixed(2)} OFF`}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, promoImage: '' }))}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                        >
+                          <FiX size={12} />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploadingImage}
+                        className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-purple-400 hover:text-purple-600 transition disabled:opacity-50"
+                      >
+                        <FiImage />
+                        {uploadingImage ? 'Enviando...' : formData.promoImage ? 'Trocar imagem' : 'Fazer upload da imagem'}
+                      </button>
+                      {formData.promoImage && (
+                        <input
+                          type="text"
+                          value={formData.promoImage}
+                          onChange={(e) => setFormData(prev => ({ ...prev, promoImage: e.target.value }))}
+                          placeholder="Ou cole a URL da imagem"
+                          className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-400"
+                        />
+                      )}
+                    </div>
+                    {!formData.promoImage && (
+                      <input
+                        type="text"
+                        value={formData.promoImage}
+                        onChange={(e) => setFormData(prev => ({ ...prev, promoImage: e.target.value }))}
+                        placeholder="Ou cole a URL da imagem"
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-400"
+                      />
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Status */}

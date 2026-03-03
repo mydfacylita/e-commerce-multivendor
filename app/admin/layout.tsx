@@ -678,7 +678,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </nav>
       </aside>
-      <main className="flex-1 p-8">{children}</main>
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* Barra superior */}
+        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-8 flex-shrink-0">
+          <div className="text-sm text-gray-400">
+            {/* breadcrumb vazio — espaço reservado */}
+          </div>
+          <div className="relative flex items-center gap-3">
+            <button
+              onClick={() => setOpenSections(prev => ({ ...prev, _userMenu: !prev._userMenu }))}
+              className="flex items-center gap-3 hover:opacity-80 transition"
+            >
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-800 leading-tight">
+                  {session?.user?.name || session?.user?.email || 'Administrador'}
+                </p>
+                <p className="text-xs text-gray-400 leading-tight">Admin</p>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                {(session?.user?.name || session?.user?.email || 'A').charAt(0).toUpperCase()}
+              </div>
+            </button>
+
+            {openSections._userMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setOpenSections(prev => ({ ...prev, _userMenu: false }))} />
+                <div className="absolute right-0 top-12 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[140px]">
+                  <button
+                    onClick={() => signOut({ redirect: true, callbackUrl: `${window.location.origin}/admin/login` })}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
+                  >
+                    <FiLogOut size={15} />
+                    Sair
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </header>
+        <main className="flex-1 p-8 overflow-auto">{children}</main>
+      </div>
     </div>
   )
 }

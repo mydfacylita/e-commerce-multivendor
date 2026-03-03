@@ -104,7 +104,9 @@ export async function POST(request: NextRequest) {
       allowedCategories,
       excludedProducts,
       firstPurchaseOnly,
-      isActive
+      isActive,
+      showInModal,
+      promoImage
     } = body
 
     // Validações
@@ -144,6 +146,8 @@ export async function POST(request: NextRequest) {
         excludedProducts: excludedProducts ? JSON.stringify(excludedProducts) : null,
         firstPurchaseOnly: firstPurchaseOnly || false,
         isActive: isActive !== false,
+        showInModal: showInModal || false,
+        promoImage: promoImage || null,
         createdBy: session.user.id
       }
     })

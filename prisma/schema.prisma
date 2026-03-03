@@ -1290,6 +1290,8 @@ model Coupon {
   allowedCategories String?       @db.Text
   excludedProducts  String?       @db.Text
   firstPurchaseOnly Boolean       @default(false)
+  showInModal       Boolean       @default(false)
+  promoImage        String?       @db.Text
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   createdBy         String?

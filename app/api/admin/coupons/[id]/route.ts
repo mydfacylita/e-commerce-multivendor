@@ -74,7 +74,9 @@ export async function PUT(
       allowedCategories,
       excludedProducts,
       firstPurchaseOnly,
-      isActive
+      isActive,
+      showInModal,
+      promoImage
     } = body
 
     // Verificar se cupom existe
@@ -116,7 +118,9 @@ export async function PUT(
         ...(allowedCategories !== undefined && { allowedCategories: allowedCategories ? JSON.stringify(allowedCategories) : null }),
         ...(excludedProducts !== undefined && { excludedProducts: excludedProducts ? JSON.stringify(excludedProducts) : null }),
         ...(firstPurchaseOnly !== undefined && { firstPurchaseOnly }),
-        ...(isActive !== undefined && { isActive })
+        ...(isActive !== undefined && { isActive }),
+        ...(showInModal !== undefined && { showInModal }),
+        ...(promoImage !== undefined && { promoImage: promoImage || null })
       }
     })
 

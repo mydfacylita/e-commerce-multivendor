@@ -4,6 +4,7 @@ import Hero from '@/components/Hero'
 import CategoryGrid from '@/components/CategoryGrid'
 import InfiniteHomeSections from '@/components/InfiniteHomeSections'
 import { serializeProducts } from '@/lib/serialize'
+import CouponPromoModal from '@/components/CouponPromoModal'
 
 export default async function HomePage() {
   const [featuredProductsRaw, categories] = await Promise.all([
@@ -36,6 +37,9 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen">
+      {/* Modal de cupons promocionais - Mês do Consumidor */}
+      <CouponPromoModal />
+
       <Hero />
       
       {/* Flash Sale Banner */}
