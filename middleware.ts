@@ -222,7 +222,8 @@ export async function middleware(request: NextRequest) {
 
   // 🚫 BLOQUEIO DE IPs FRAUDULENTOS (click fraud / bots)
   // Apenas em rotas de página (não assets estáticos) e NUNCA no subdomínio admin
-  if (!request.nextUrl.hostname.startsWith('gerencial-sys') && !pathname.startsWith('/_next') && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/config/ip-blocklist')) {
+  const _hostForBlocklist = request.headers.get('host') || ''
+  if (!_hostForBlocklist.startsWith('gerencial-sys') && !pathname.startsWith('/_next') && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/config/ip-blocklist')) {
     const clientIp =
       request.headers.get('x-real-ip') ||
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
