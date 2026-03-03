@@ -835,7 +835,7 @@ async function checkDropItemsWithStaleSupplierStatus(): Promise<ConsistencyIssue
         )
         issues.push({ orderId: order.id, issue: 'Itens drop em trânsito em pedido DELIVERED — corrigido para BUYER_ACCEPT_GOODS', fixed: true })
         console.log(`[Consistency] ✅ Pedido ${order.id}: ${order.items.length} item(s) -> BUYER_ACCEPT_GOODS`)
-      } catch (err) {
+      } catch (err: any) {
         await logConsistencyFix(order.id, `Erro ao corrigir supplierStatus: ${err.message}`, false, err.message)
         issues.push({ orderId: order.id, issue: 'Erro ao corrigir itens drop em trânsito', fixed: false, error: err.message })
       }
