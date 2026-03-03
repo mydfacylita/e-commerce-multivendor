@@ -83,9 +83,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   'WAIT_SELLER_SEND_GOODS': { label: 'Aguardando Envio Fornecedor', color: 'text-purple-700', bgColor: 'bg-purple-100' },
   'SELLER_PART_SEND_GOODS': { label: 'Parcialmente Enviado', color: 'text-indigo-700', bgColor: 'bg-indigo-100' },
   'WAIT_BUYER_ACCEPT_GOODS': { label: 'Em Trânsito', color: 'text-cyan-700', bgColor: 'bg-cyan-100' },
+  'BUYER_ACCEPT_GOODS': { label: 'Entregue', color: 'text-green-700', bgColor: 'bg-green-100' },
   'FUND_PROCESSING': { label: 'Processando Pagamento', color: 'text-amber-700', bgColor: 'bg-amber-100' },
-  'FINISH': { label: 'Entregue', color: 'text-green-700', bgColor: 'bg-green-100' },
+  'FINISH': { label: 'Encerrado/Cancelado', color: 'text-gray-700', bgColor: 'bg-gray-100' },
   'IN_CANCEL': { label: 'Cancelando', color: 'text-red-700', bgColor: 'bg-red-100' },
+  'CANCELLED': { label: 'Cancelado', color: 'text-red-700', bgColor: 'bg-red-100' },
   'ERROR': { label: 'Erro', color: 'text-red-700', bgColor: 'bg-red-100' },
 }
 
@@ -249,7 +251,7 @@ export default function DSersLikePage() {
     if (filter === 'pending' && order.aliexpressOrderId) return false
     if (filter === 'awaiting_payment' && order.aliexpressStatus !== 'PLACE_ORDER_SUCCESS') return false
     if (filter === 'in_transit' && !['WAIT_BUYER_ACCEPT_GOODS', 'SELLER_PART_SEND_GOODS'].includes(order.aliexpressStatus || '')) return false
-    if (filter === 'delivered' && order.aliexpressStatus !== 'FINISH') return false
+    if (filter === 'delivered' && order.aliexpressStatus !== 'BUYER_ACCEPT_GOODS') return false
 
     // Busca
     if (searchQuery) {
@@ -557,7 +559,7 @@ export default function DSersLikePage() {
     pending: orders.filter(o => !o.aliexpressOrderId).length,
     awaitingPayment: orders.filter(o => o.aliexpressStatus === 'PLACE_ORDER_SUCCESS').length,
     inTransit: orders.filter(o => ['WAIT_BUYER_ACCEPT_GOODS', 'SELLER_PART_SEND_GOODS'].includes(o.aliexpressStatus || '')).length,
-    delivered: orders.filter(o => o.aliexpressStatus === 'FINISH').length,
+    delivered: orders.filter(o => o.aliexpressStatus === 'BUYER_ACCEPT_GOODS').length,
   }
 
   if (status === 'loading' || loading) {

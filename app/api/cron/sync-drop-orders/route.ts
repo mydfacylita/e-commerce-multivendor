@@ -220,7 +220,8 @@ function mapAliExpressToInternalStatus(aeStatus: string): string {
     'WAIT_BUYER_ACCEPT_GOODS': 'SHIPPED',       // Em trânsito
     
     // Status finais de sucesso
-    'FINISH': 'DELIVERED',                      // Entregue
+    'BUYER_ACCEPT_GOODS': 'DELIVERED',          // Comprador confirmou recebimento (logistics_status)
+    'FINISH': 'DELIVERED',                      // Pedido finalizado pelo AliExpress
     
     // Status de cancelamento - TODOS os possíveis!
     'IN_CANCEL': 'CANCELLED',                   // Em processo de cancelamento
@@ -384,8 +385,10 @@ export async function GET(request: NextRequest) {
       const hasStatusChange = statusResult.status && statusResult.status !== order.items[0]?.supplierStatus
       const hasTrackingChange = statusResult.trackingNumber && statusResult.trackingNumber !== order.trackingCode
       const hasEndReason = !!statusResult.endReason // Se tem end_reason é porque foi cancelado
+      // logistics_status BUYER_ACCEPT_GOODS = comprador confirmou recebimento
+      const isDeliveredByLogistics = statusResult.logisticsStatus === 'BUYER_ACCEPT_GOODS'
 
-      if (hasStatusChange || hasTrackingChange || hasEndReason || isDeliveredByTracking) {
+      if (hasStatusChange || hasTrackingChange || hasEndReason || isDeliveredByTracking || isDeliveredByLogistics) {
         // Verificar se o pedido foi cancelado/deletado no AliExpress
         // Pode ser pelo status OU pelo end_reason dos itens
         const cancelledStatuses = [
@@ -446,8 +449,8 @@ export async function GET(request: NextRequest) {
           }
 
           // Só atualiza status interno se for uma mudança significativa
-          if (hasStatusChange || isDeliveredByTracking) {
-            updateData.status = isDeliveredByTracking ? 'DELIVERED' : newInternalStatus
+          if (hasStatusChange || isDeliveredByTracking || isDeliveredByLogistics) {
+            updateData.status = (isDeliveredByTracking || isDeliveredByLogistics) ? 'DELIVERED' : newInternalStatus
           }
 
           // Atualizar transportadora se tiver
@@ -467,7 +470,7 @@ export async function GET(request: NextRequest) {
           })
 
           // Processar comissão de afiliado se foi marcado como entregue
-          if (updateData.status === 'DELIVERED' && order.affiliateId) {
+          if ((updateData.status === 'DELIVERED') && order.affiliateId) {
             try {
               const affiliateResult = await processAffiliateCommission(order.id)
               console.log(`[SYNC-DROP-ORDERS] 💰 Comissão processada:`, affiliateResult)
@@ -481,14 +484,17 @@ export async function GET(request: NextRequest) {
             await prisma.orderItem.update({
               where: { id: item.id },
               data: {
-                supplierStatus: isDeliveredByTracking ? 'DELIVERED' : statusResult.status, // Status real
+                // logistics_status BUYER_ACCEPT_GOODS tem prioridade (comprador confirmou)
+                supplierStatus: isDeliveredByLogistics ? 'BUYER_ACCEPT_GOODS'
+                  : isDeliveredByTracking ? 'DELIVERED'
+                  : statusResult.status,
                 trackingCode: statusResult.trackingNumber || item.trackingCode
               }
             })
           }
 
           result.updated = true
-          result.currentStatus = isDeliveredByTracking ? 'DELIVERED' : (statusResult.status || '')
+          result.currentStatus = (isDeliveredByLogistics || isDeliveredByTracking) ? 'DELIVERED' : (statusResult.status || '')
           result.trackingNumber = statusResult.trackingNumber || null
           updated++
 
