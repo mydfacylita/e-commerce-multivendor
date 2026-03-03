@@ -802,6 +802,50 @@ async function checkPaidParcelasNotClosed(): Promise<ConsistencyIssue[]> {
 /**
  * �🔍 Executa todas as verificações de consistência
  */
+/**
+ * 13. Verifica pedidos drop DELIVERED com itens supplierStatus em trânsito
+ */
+async function checkDropItemsWithStaleSupplierStatus(): Promise<ConsistencyIssue[]> {
+  const issues: ConsistencyIssue[] = []
+  const IN_TRANSIT = ['WAIT_SELLER_SEND_GOODS', 'SELLER_PART_SEND_GOODS', 'WAIT_BUYER_ACCEPT_GOODS', 'PLACE_ORDER_SUCCESS']
+  try {
+    const orders = await prisma.order.findMany({
+      where: {
+        status: 'DELIVERED',
+        items: { some: { supplierStatus: { in: IN_TRANSIT } } }
+      },
+      include: {
+        items: {
+          where: { supplierStatus: { in: IN_TRANSIT } },
+          select: { id: true, supplierStatus: true }
+        }
+      }
+    })
+    console.log(`[Consistency] ${orders.length} pedido(s) DELIVERED com itens drop em trânsito`)
+    for (const order of orders) {
+      try {
+        await prisma.orderItem.updateMany({
+          where: { orderId: order.id, supplierStatus: { in: IN_TRANSIT } },
+          data: { supplierStatus: 'BUYER_ACCEPT_GOODS' }
+        })
+        await logConsistencyFix(
+          order.id,
+          `Pedido DELIVERED com ${order.items.length} item(s) em trânsito (${order.items.map(i => i.supplierStatus).join(', ')}). Corrigido para BUYER_ACCEPT_GOODS.`,
+          true
+        )
+        issues.push({ orderId: order.id, issue: 'Itens drop em trânsito em pedido DELIVERED — corrigido para BUYER_ACCEPT_GOODS', fixed: true })
+        console.log(`[Consistency] ✅ Pedido ${order.id}: ${order.items.length} item(s) -> BUYER_ACCEPT_GOODS`)
+      } catch (err) {
+        await logConsistencyFix(order.id, `Erro ao corrigir supplierStatus: ${err.message}`, false, err.message)
+        issues.push({ orderId: order.id, issue: 'Erro ao corrigir itens drop em trânsito', fixed: false, error: err.message })
+      }
+    }
+  } catch (error) {
+    console.error('[Consistency] Erro ao verificar itens drop com supplierStatus desatualizado:', error)
+  }
+  return issues
+}
+
 export async function checkAndFixConsistency(): Promise<CheckResult> {
   console.log('\n🔍 [Consistency Check] Iniciando verificação de consistência...')
   const startTime = Date.now()
@@ -868,6 +912,11 @@ export async function checkAndFixConsistency(): Promise<CheckResult> {
   const carneNaoBaixadoIssues = await checkPaidParcelasNotClosed()
   allIssues.push(...carneNaoBaixadoIssues)
 
+  // 13. Pedidos drop DELIVERED com itens supplierStatus em trânsito
+  console.log('\n1️⃣3️⃣ Verificando itens drop com supplierStatus desatualizado...')
+  const dropStaleIssues = await checkDropItemsWithStaleSupplierStatus()
+  allIssues.push(...dropStaleIssues)
+
   const issuesFixed = allIssues.filter(i => i.fixed).length
   const duration = Date.now() - startTime
 
@@ -901,6 +950,7 @@ export async function quickHealthCheck(): Promise<{
   trackingWithoutShipped: number
   paymentDivergence: number
   carneNaoBaixado: number
+  dropStaleSupplierStatus: number
 }> {
   const twoDaysAgo = new Date()
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
@@ -916,7 +966,8 @@ export async function quickHealthCheck(): Promise<{
     ordersWithoutItems,
     trackingWithoutShipped,
     paymentDivergence,
-    carneNaoBaixado
+    carneNaoBaixado,
+    dropStaleSupplierStatus
   ] = await Promise.all([
     // Pedidos travados
     prisma.order.count({
@@ -1022,7 +1073,14 @@ export async function quickHealthCheck(): Promise<{
           SELECT 1 FROM carne_parcela cp2
           WHERE cp2.carneId = c.id AND cp2.status != 'PAID'
         )
-    `.then(r => Number(r[0]?.count ?? 0))
+    `.then(r => Number(r[0]?.count ?? 0)),
+    // Pedidos DELIVERED com itens drop em trânsito
+    prisma.order.count({
+      where: {
+        status: 'DELIVERED',
+        items: { some: { supplierStatus: { in: ['WAIT_SELLER_SEND_GOODS', 'SELLER_PART_SEND_GOODS', 'WAIT_BUYER_ACCEPT_GOODS', 'PLACE_ORDER_SUCCESS'] } } }
+      }
+    })
   ])
 
   const healthy =
@@ -1036,7 +1094,8 @@ export async function quickHealthCheck(): Promise<{
     ordersWithoutItems === 0 &&
     trackingWithoutShipped === 0 &&
     paymentDivergence === 0 &&
-    carneNaoBaixado === 0
+    carneNaoBaixado === 0 &&
+    dropStaleSupplierStatus === 0
 
   return {
     healthy,
@@ -1050,6 +1109,7 @@ export async function quickHealthCheck(): Promise<{
     ordersWithoutItems,
     trackingWithoutShipped,
     paymentDivergence,
-    carneNaoBaixado
+    carneNaoBaixado,
+    dropStaleSupplierStatus
   }
 }
