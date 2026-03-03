@@ -18,7 +18,7 @@ async function saveBlocklist(ips: string[]) {
   await prisma.systemConfig.upsert({
     where: { key: CONFIG_KEY },
     update: { value: JSON.stringify(unique) },
-    create: { key: CONFIG_KEY, value: JSON.stringify(unique) },
+    create: { key: CONFIG_KEY, value: JSON.stringify(unique), category: 'security', label: 'IP Blocklist' },
   })
   return unique
 }
