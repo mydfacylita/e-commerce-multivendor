@@ -221,8 +221,9 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // 🚫 BLOQUEIO DE IPs FRAUDULENTOS (click fraud / bots)
-  // Apenas em rotas de página (não assets estáticos)
-  if (!pathname.startsWith('/_next') && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/config/ip-blocklist')) {
+  // Apenas em rotas de página (não assets estáticos) e NUNCA no subdomínio admin
+  const isAdminSubdomain = request.nextUrl.hostname.startsWith('gerencial-sys')
+  if (!isAdminSubdomain && !pathname.startsWith('/_next') && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/config/ip-blocklist')) {
     const clientIp =
       request.headers.get('x-real-ip') ||
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
