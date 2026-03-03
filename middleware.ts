@@ -220,25 +220,9 @@ function setCorsHeaders(response: NextResponse, origin: string | null) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // 🚫 BLOQUEIO DE IPs FRAUDULENTOS (click fraud / bots)
-  // Apenas em rotas de página (não assets estáticos) e NUNCA no subdomínio admin
-  const _hostForBlocklist = request.headers.get('host') || ''
-  if (!_hostForBlocklist.startsWith('gerencial-sys') && !pathname.startsWith('/_next') && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/config/ip-blocklist')) {
-    const clientIp =
-      request.headers.get('x-real-ip') ||
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      request.headers.get('cf-connecting-ip') || ''
-    if (clientIp) {
-      const baseUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}`
-      const blocklist = await getIpBlocklist(baseUrl)
-      if (blocklist.has(clientIp)) {
-        return new NextResponse(
-          '<!DOCTYPE html><html><head><title>Acesso negado</title></head><body><h1>403 - Acesso Bloqueado</h1></body></html>',
-          { status: 403, headers: { 'Content-Type': 'text/html' } }
-        )
-      }
-    }
-  }
+  // 🚫 IPs FRAUDULENTOS: sem bloqueio de página (clique já foi pago)
+  // O drop dos eventos de analytics acontece silenciosamente no track-client/route.ts
+  // Isso evita bloquear clientes reais com IPs compartilhados (NAT, VPN, etc)
   
   // 🚀 BYPASS ABSOLUTO: Arquivos estáticos NUNCA passam pelo middleware
   // Isso garante que _next/static, imagens, etc funcionem em qualquer domínio/subdomínio
