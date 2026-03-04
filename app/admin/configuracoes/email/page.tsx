@@ -66,13 +66,19 @@ export default function EmailConfigPage() {
   const loadConfig = async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/admin/config/email')
+      const [configRes, accountsRes] = await Promise.all([
+        fetch('/api/admin/config/email'),
+        fetch('/api/admin/config/email/accounts')
+      ])
       
-      if (res.ok) {
-        const data = await res.json()
+      if (configRes.ok) {
+        const data = await configRes.json()
         if (data.config) {
           setConfig(data.config)
         }
+      }
+      if (accountsRes.ok) {
+        const data = await accountsRes.json()
         if (data.accounts) {
           setAccounts(data.accounts)
         }
@@ -82,6 +88,45 @@ export default function EmailConfigPage() {
       toast.error('Erro ao carregar configurações')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteAccount = async (id: string, email: string) => {
+    if (!confirm(`Remover a conta ${email}? Esta ação remove o usuário do servidor.`)) return
+    try {
+      const res = await fetch('/api/admin/config/email/accounts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
+      if (res.ok) {
+        toast.success('Conta removida!')
+        loadConfig()
+      } else {
+        const err = await res.json()
+        toast.error(err.message || 'Erro ao remover conta')
+      }
+    } catch {
+      toast.error('Erro ao remover conta')
+    }
+  }
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      const res = await fetch('/api/admin/config/email/accounts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'setDefault' })
+      })
+      if (res.ok) {
+        toast.success('Conta padrão atualizada!')
+        loadConfig()
+      } else {
+        const err = await res.json()
+        toast.error(err.message || 'Erro ao atualizar conta')
+      }
+    } catch {
+      toast.error('Erro ao atualizar conta')
     }
   }
 
@@ -160,7 +205,9 @@ export default function EmailConfigPage() {
       })
 
       if (res.ok) {
+        const data = await res.json()
         toast.success('Conta criada com sucesso!')
+        if (data.warning) toast.error(data.warning, { duration: 6000 })
         setShowAddAccount(false)
         setNewAccount({ email: '', name: '', password: '' })
         loadConfig()
@@ -471,10 +518,20 @@ export default function EmailConfigPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="p-2 text-gray-400 hover:text-blue-600">
-                      <FiEdit />
-                    </button>
-                    <button className="p-2 text-gray-400 hover:text-red-600">
+                    {!account.isDefault && (
+                      <button
+                        onClick={() => handleSetDefault(account.id)}
+                        title="Definir como padrão"
+                        className="p-2 text-gray-400 hover:text-green-600 text-xs"
+                      >
+                        Padrão
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteAccount(account.id, account.email)}
+                      title="Remover conta"
+                      className="p-2 text-gray-400 hover:text-red-600"
+                    >
                       <FiTrash2 />
                     </button>
                   </div>

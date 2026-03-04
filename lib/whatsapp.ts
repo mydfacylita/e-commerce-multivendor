@@ -364,27 +364,21 @@ Obrigado por comprar na MYDSHOP.`
       buyerName: string
       total: number
       itemsCount: number
+      estimatedDelivery?: string
     }
   ): Promise<SendMessageResult> {
-    const message = `*Pedido Confirmado*
-
-Olá, ${data.buyerName}.
-
-Seu pedido #${data.orderId} foi confirmado com sucesso.
-
-Itens: ${data.itemsCount}
-Total: R$ ${data.total.toFixed(2)}
-
-Você receberá atualizações sobre o envio do seu pedido.
-
-Acompanhe em: https://mydshop.com.br/pedidos/${data.orderId}
-
-Obrigado por comprar na MYDSHOP.`
-
-    return this.sendMessage({
-      to: phone,
-      message
-    })
+    return this.sendTemplate(phone, 'mydshop_pedido_confirmado', 'pt_BR', [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: data.buyerName },
+          { type: 'text', text: 'compra' },
+          { type: 'text', text: data.orderId },
+          { type: 'text', text: `${data.itemsCount} ${data.itemsCount === 1 ? 'item' : 'itens'}` },
+          { type: 'text', text: data.estimatedDelivery || 'Em breve' }
+        ]
+      }
+    ])
   }
 
   /**

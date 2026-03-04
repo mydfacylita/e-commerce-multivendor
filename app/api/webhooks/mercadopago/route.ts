@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { MercadoPagoConfig, Payment } from 'mercadopago'
 import crypto from 'crypto'
+import { WhatsAppService } from '@/lib/whatsapp'
 
 
 // Force dynamic - disable all caching
@@ -121,7 +122,10 @@ export async function POST(request: Request) {
 
     // Buscar pedido no banco
     const pedido = await prisma.order.findFirst({
-      where: { paymentId: String(paymentId) }
+      where: { paymentId: String(paymentId) },
+      include: {
+        items: { select: { id: true } }
+      }
     })
 
     if (!pedido) {
@@ -240,7 +244,23 @@ export async function POST(request: Request) {
       })
 
       console.log('✅ Pedido atualizado automaticamente!')
-      
+
+      // 📱 Notificação WhatsApp — pedido confirmado
+      try {
+        const buyerPhone = pedido.buyerPhone
+        if (buyerPhone) {
+          WhatsAppService.sendOrderConfirmation(buyerPhone, {
+            orderId: pedido.id.slice(-8).toUpperCase(),
+            buyerName: pedido.buyerName || 'Cliente',
+            total: Number(pedido.total),
+            itemsCount: pedido.items?.length || orderItems.length,
+            estimatedDelivery: undefined
+          }).catch((e: any) => console.error('⚠️ WhatsApp confirmação falhou:', e.message))
+        }
+      } catch (e: any) {
+        console.error('⚠️ WhatsApp confirmação erro:', e.message)
+      }
+
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
       console.log('❌ Pagamento recusado/cancelado')
       
