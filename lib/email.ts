@@ -263,6 +263,12 @@ export async function sendTemplateEmail(
   to: string,
   data: EmailTemplateData
 ) {
+  const startedAt = Date.now()
+  let status = 'sent'
+  let errorMsg: string | undefined
+  let messageId: string | undefined
+  let emailSubject: string | undefined
+
   try {
     const template = templates[templateType]
     if (!template) {
@@ -270,6 +276,7 @@ export async function sendTemplateEmail(
     }
 
     const { subject, html } = template(data)
+    emailSubject = subject
     const { transporter, config } = await createEmailTransporter()
 
     const info = await transporter.sendMail({
@@ -279,11 +286,35 @@ export async function sendTemplateEmail(
       html
     })
 
+    messageId = info.messageId
     console.log(`[Email] ${templateType} enviado para ${to}:`, info.messageId)
     return { success: true, messageId: info.messageId }
   } catch (error: any) {
+    status = 'failed'
+    errorMsg = error.message
     console.error(`[Email] Erro ao enviar ${templateType}:`, error.message)
     throw error
+  } finally {
+    // Persistir log independentemente de sucesso ou falha
+    try {
+      await prisma.notificationLog.create({
+        data: {
+          channel: 'email',
+          to,
+          type: templateType,
+          subject: emailSubject,
+          body: `Template: ${templateType}`,
+          orderId: data.orderId ? String(data.orderId) : undefined,
+          reference: data.customerName ? String(data.customerName) : undefined,
+          status,
+          error: errorMsg,
+          messageId,
+          metadata: JSON.stringify({ templateData: data, durationMs: Date.now() - startedAt })
+        }
+      })
+    } catch (logErr) {
+      console.error('[Email] Falha ao gravar log de notificação:', logErr)
+    }
   }
 }
 
@@ -295,6 +326,11 @@ export async function sendSimpleEmail(
   subject: string,
   html: string
 ) {
+  const startedAt = Date.now()
+  let status = 'sent'
+  let errorMsg: string | undefined
+  let messageId: string | undefined
+
   try {
     const { transporter, config } = await createEmailTransporter()
 
@@ -305,10 +341,31 @@ export async function sendSimpleEmail(
       html
     })
 
+    messageId = info.messageId
     console.log(`[Email] Enviado para ${to}:`, info.messageId)
     return { success: true, messageId: info.messageId }
   } catch (error: any) {
+    status = 'failed'
+    errorMsg = error.message
     console.error(`[Email] Erro ao enviar:`, error.message)
     throw error
+  } finally {
+    try {
+      await prisma.notificationLog.create({
+        data: {
+          channel: 'email',
+          to,
+          type: 'simple',
+          subject,
+          body: html.replace(/<[^>]*>/g, '').slice(0, 500),
+          status,
+          error: errorMsg,
+          messageId,
+          metadata: JSON.stringify({ durationMs: Date.now() - startedAt })
+        }
+      })
+    } catch (logErr) {
+      console.error('[Email] Falha ao gravar log de notificação:', logErr)
+    }
   }
 }

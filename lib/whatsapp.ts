@@ -19,6 +19,8 @@ interface SendMessageParams {
   message: string
   template?: string
   templateParams?: string[]
+  logType?: string      // tipo descritivo para o log ex: 'pix', 'boleto'
+  logOrderId?: string   // orderId para rastreamento
 }
 
 interface SendMessageResult {
@@ -127,20 +129,51 @@ export class WhatsAppService {
   }
 
   /**
+   * Persiste log de notificação WhatsApp no banco
+   */
+  private static async logNotification(params: {
+    to: string
+    type: string
+    body?: string
+    orderId?: string
+    status: string
+    error?: string
+    messageId?: string
+    metadata?: Record<string, any>
+  }) {
+    try {
+      await prisma.notificationLog.create({
+        data: {
+          channel: 'whatsapp',
+          to: params.to,
+          type: params.type,
+          body: params.body,
+          orderId: params.orderId,
+          status: params.status,
+          error: params.error,
+          messageId: params.messageId,
+          metadata: params.metadata ? JSON.stringify(params.metadata) : undefined
+        }
+      })
+    } catch (err) {
+      console.error('[WhatsApp] Falha ao gravar log:', err)
+    }
+  }
+
+  /**
    * Envia mensagem de texto via WhatsApp
    */
   static async sendMessage(params: SendMessageParams): Promise<SendMessageResult> {
+    const formattedPhone = formatPhoneNumber(params.to)
+    const logType = params.logType || 'text'
     try {
       const config = await this.getConfig()
 
       if (!config.enabled || !config.phoneNumberId || !config.accessToken) {
-        return {
-          success: false,
-          error: 'WhatsApp não configurado'
-        }
+        const result = { success: false, error: 'WhatsApp não configurado' }
+        await this.logNotification({ to: formattedPhone, type: logType, body: params.message?.slice(0, 200), orderId: params.logOrderId, status: 'failed', error: result.error })
+        return result
       }
-
-      const formattedPhone = formatPhoneNumber(params.to)
       
       const url = `${this.BASE_URL}/${this.API_VERSION}/${config.phoneNumberId}/messages`
 
@@ -170,24 +203,21 @@ export class WhatsAppService {
 
       if (!response.ok) {
         console.error('❌ Erro WhatsApp API:', data)
-        return {
-          success: false,
-          error: data.error?.message || 'Erro ao enviar mensagem'
-        }
+        const err = data.error?.message || 'Erro ao enviar mensagem'
+        await this.logNotification({ to: formattedPhone, type: logType, body: params.message?.slice(0, 200), orderId: params.logOrderId, status: 'failed', error: err })
+        return { success: false, error: err }
       }
 
-      console.log('✅ Mensagem WhatsApp enviada:', data.messages?.[0]?.id)
+      const msgId = data.messages?.[0]?.id
+      console.log('✅ Mensagem WhatsApp enviada:', msgId)
+      await this.logNotification({ to: formattedPhone, type: logType, body: params.message?.slice(0, 200), orderId: params.logOrderId, status: 'sent', messageId: msgId })
 
-      return {
-        success: true,
-        messageId: data.messages?.[0]?.id
-      }
+      return { success: true, messageId: msgId }
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Erro desconhecido'
       console.error('❌ Erro ao enviar WhatsApp:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
-      }
+      await this.logNotification({ to: formattedPhone, type: logType, body: params.message?.slice(0, 200), orderId: params.logOrderId, status: 'failed', error: errMsg })
+      return { success: false, error: errMsg }
     }
   }
 
@@ -198,19 +228,18 @@ export class WhatsAppService {
     to: string, 
     templateName: string, 
     language: string = 'pt_BR',
-    components?: any[]
+    components?: any[],
+    logMeta?: { orderId?: string; reference?: string }
   ): Promise<SendMessageResult> {
+    const formattedPhone = formatPhoneNumber(to)
     try {
       const config = await this.getConfig()
 
       if (!config.enabled || !config.phoneNumberId || !config.accessToken) {
-        return {
-          success: false,
-          error: 'WhatsApp não configurado'
-        }
+        const result = { success: false, error: 'WhatsApp não configurado' }
+        await this.logNotification({ to: formattedPhone, type: templateName, body: `template:${templateName}`, orderId: logMeta?.orderId, status: 'failed', error: result.error })
+        return result
       }
-
-      const formattedPhone = formatPhoneNumber(to)
       
       const url = `${this.BASE_URL}/${this.API_VERSION}/${config.phoneNumberId}/messages`
 
@@ -246,24 +275,21 @@ export class WhatsAppService {
 
       if (!response.ok) {
         console.error('❌ Erro WhatsApp API:', data)
-        return {
-          success: false,
-          error: data.error?.message || 'Erro ao enviar template'
-        }
+        const err = data.error?.message || 'Erro ao enviar template'
+        await this.logNotification({ to: formattedPhone, type: templateName, body: `template:${templateName}`, orderId: logMeta?.orderId, status: 'failed', error: err, metadata: { apiError: data.error } })
+        return { success: false, error: err }
       }
 
-      console.log('✅ Template WhatsApp enviado:', data.messages?.[0]?.id)
+      const msgId = data.messages?.[0]?.id
+      console.log('✅ Template WhatsApp enviado:', msgId)
+      await this.logNotification({ to: formattedPhone, type: templateName, body: `template:${templateName}`, orderId: logMeta?.orderId, status: 'sent', messageId: msgId })
 
-      return {
-        success: true,
-        messageId: data.messages?.[0]?.id
-      }
+      return { success: true, messageId: msgId }
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Erro desconhecido'
       console.error('❌ Erro ao enviar template WhatsApp:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
-      }
+      await this.logNotification({ to: formattedPhone, type: templateName, body: `template:${templateName}`, orderId: logMeta?.orderId, status: 'failed', error: errMsg })
+      return { success: false, error: errMsg }
     }
   }
 
@@ -305,7 +331,9 @@ Obrigado por comprar na MYDSHOP.`
 
     return this.sendMessage({
       to: phone,
-      message
+      message,
+      logType: 'pix',
+      logOrderId: data.orderId
     })
   }
 
@@ -350,7 +378,9 @@ Obrigado por comprar na MYDSHOP.`
 
     return this.sendMessage({
       to: phone,
-      message
+      message,
+      logType: 'boleto',
+      logOrderId: data.orderId
     })
   }
 
@@ -378,7 +408,7 @@ Obrigado por comprar na MYDSHOP.`
           { type: 'text', text: data.estimatedDelivery || 'Em breve' }
         ]
       }
-    ])
+    ], { orderId: data.orderId })
   }
 
   /**
@@ -412,7 +442,7 @@ Obrigado por comprar na MYDSHOP.`
           { type: 'text', text: data.orderId }
         ]
       }
-    ])
+    ], { orderId: data.orderId })
   }
 
   /**
@@ -441,7 +471,9 @@ Obrigado por comprar na MYDSHOP.`
 
     return this.sendMessage({
       to: phone,
-      message
+      message,
+      logType: 'order_delivered',
+      logOrderId: data.orderId
     })
   }
 
@@ -471,7 +503,7 @@ Obrigado por comprar na MYDSHOP.`
           { type: 'text', text: data.orderId }
         ]
       }
-    ])
+    ], { orderId: data.orderId })
   }
 }
 

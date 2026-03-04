@@ -2240,3 +2240,43 @@ model RevokedSession {
   @@index([expiresAt])
   @@map("revoked_sessions")
 }
+
+// Log de todas as notificações enviadas (e-mail e WhatsApp)
+model NotificationLog {
+  id          String   @id @default(cuid())
+
+  // Canal
+  channel     String   // "email" | "whatsapp"
+
+  // Destinatário
+  to          String   @db.VarChar(320)   // e-mail ou telefone
+  userId      String?                      // usuário relacionado (opcional)
+
+  // Conteúdo
+  type        String   @db.VarChar(100)   // template usado: "order_confirmed", "envio_de_pedido", etc.
+  subject     String?  @db.VarChar(500)   // assunto (e-mail)
+  body        String?  @db.Text           // corpo resumido ou templateName (whatsapp)
+
+  // Referência ao pedido/recurso
+  orderId     String?
+  reference   String?  @db.VarChar(255)   // qualquer ref extra
+
+  // Status do envio
+  status      String   @default("sent")   // "sent" | "failed"
+  error       String?  @db.Text           // mensagem de erro se falhou
+  messageId   String?  @db.VarChar(500)   // ID retornado pela API/SMTP
+
+  // Metadata
+  metadata    String?  @db.Text           // JSON com dados extras
+
+  createdAt   DateTime @default(now())
+
+  @@index([channel])
+  @@index([to])
+  @@index([userId])
+  @@index([orderId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("notification_log")
+}
