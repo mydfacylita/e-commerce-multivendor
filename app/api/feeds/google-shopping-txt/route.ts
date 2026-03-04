@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
         product.id,
         title,
         description,
-        `${baseUrl}/produto/${product.slug}`,
+        `${baseUrl}/produtos/${product.slug}`,
         imageUrl,
         availability,
         price,

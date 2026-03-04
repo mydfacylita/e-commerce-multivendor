@@ -296,7 +296,7 @@ export default function MarketingPage() {
     } else {
       text += `\n💰 ${formatPrice(product.price)}\n`
     }
-    text += `\n🔗 Link: ${window.location.origin}/produto/${product.slug}`
+    text += `\n🔗 Link: ${window.location.origin}/produtos/${product.slug}`
     if (images.length > 0) {
       text += `\n\n📸 Imagens (${images.length}):`
       images.forEach((img, i) => {
@@ -471,7 +471,7 @@ export default function MarketingPage() {
                   <p class="new-price">${formatPrice(product.price)}</p>
                   <span class="pix-discount">💰 5% OFF no PIX</span>
                 </div>
-                <a href="${window.location.origin}/produto/${product.slug}" class="cta-button">
+                <a href="${window.location.origin}/produtos/${product.slug}" class="cta-button">
                   🛒 COMPRAR AGORA
                 </a>
               </div>

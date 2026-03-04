@@ -68,7 +68,7 @@ export default function SocialPostModal({ product, onClose, onSuccess }: SocialP
 
 💰 ${formatPrice(product.price)}
 
-🛒 Compre agora: ${window.location.origin}/produto/${product.slug}
+🛒 Compre agora: ${window.location.origin}/produtos/${product.slug}
 
 #ecommerce #loja #produto #compras #ofertas`
     

@@ -105,7 +105,7 @@ ${products.map(product => {
       <g:id>${product.id}</g:id>
       <g:title><![CDATA[${title}]]></g:title>
       <g:description><![CDATA[${description}]]></g:description>
-      <g:link>${baseUrl}/produto/${product.slug}</g:link>
+      <g:link>${baseUrl}/produtos/${product.slug}</g:link>
       <g:image_link>${imageUrl}</g:image_link>
 ${additionalImages.map(img => `      <g:additional_image_link>${img}</g:additional_image_link>`).join('\n')}
       <g:availability>${availability}</g:availability>

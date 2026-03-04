@@ -50,7 +50,25 @@ const nextConfig = {
     pagesBufferLength: 2,
   },
   
-  // 🔒 SEGURANÇA: Rewrites baseado em host para subdomínio admin
+  // � REDIRECTS: corrigir URLs indexadas erradas pelo Google
+  async redirects() {
+    return [
+      // /produto/slug → /produtos/slug (singular → plural, 301 permanente)
+      {
+        source: '/produto/:slug*',
+        destination: '/produtos/:slug*',
+        permanent: true,
+      },
+      // /products/:slug* → /produtos/:slug* (inglês → português)
+      {
+        source: '/products/:slug*',
+        destination: '/produtos/:slug*',
+        permanent: true,
+      },
+    ]
+  },
+
+  // �🔒 SEGURANÇA: Rewrites baseado em host para subdomínio admin
   async rewrites() {
     return {
       beforeFiles: [
