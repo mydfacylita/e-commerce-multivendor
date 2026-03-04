@@ -1,15 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
-import { FiEdit, FiTrash2, FiPlus, FiPackage } from 'react-icons/fi'
-import DeleteProductButton from '@/components/admin/DeleteProductButton'
-import ToggleProductActiveButton from '@/components/admin/ToggleProductActiveButton'
-import ToggleDropshippingButton from '@/components/admin/ToggleDropshippingButton'
-import PublishToMarketplaceButton from '@/components/admin/PublishToMarketplaceButton'
+import { FiPlus } from 'react-icons/fi'
 import SyncAllMarketplacesButton from '@/components/admin/SyncAllMarketplacesButton'
 import ProductsFilter from '@/components/admin/ProductsFilter'
 import ProductsCardView from '@/components/admin/ProductsCardView'
 import BulkPriceUpdateButton from '@/components/admin/BulkPriceUpdateButton'
-
+import BulkCategoryUpdateButton from '@/components/admin/BulkCategoryUpdateButton'
+import ProductsListWithSelection from '@/components/admin/ProductsListWithSelection'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
@@ -108,6 +105,7 @@ export default async function AdminProdutosPage({
         <h1 className="text-2xl lg:text-3xl font-bold">Gerenciar Produtos</h1>
         <div className="flex flex-wrap gap-2">
           <BulkPriceUpdateButton />
+          <BulkCategoryUpdateButton />
           <SyncAllMarketplacesButton />
           <Link
             href="/admin/produtos/novo"
@@ -134,196 +132,9 @@ export default async function AdminProdutosPage({
         <ProductsCardView products={products as any} />
       )}
 
-      {/* Visualização em Lista (tabela original) */}
+      {/* Visualização em Lista com seleção */}
       {viewMode === 'list' && (
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm">Imagem</th>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm">Nome</th>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm hidden md:table-cell">Fornecedor</th>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm hidden lg:table-cell">Categoria</th>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm">Preço</th>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm">Estoque</th>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm">Status</th>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm hidden xl:table-cell">Dropshipping</th>
-                <th className="text-left py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm hidden xl:table-cell">Marketplaces</th>
-                <th className="text-right py-3 px-3 lg:py-4 lg:px-6 font-semibold text-xs lg:text-sm">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((product) => {
-                let imagens: string[] = [];
-                try {
-                  if (typeof product.images === 'string' && product.images.trim()) {
-                    imagens = JSON.parse(product.images);
-                  } else if (Array.isArray(product.images)) {
-                    imagens = product.images;
-                  }
-                } catch (e) {
-                  // Se falhar o parse, tenta usar como URL direta
-                  if (typeof product.images === 'string' && product.images.startsWith('http')) {
-                    imagens = [product.images];
-                  }
-                }
-                const primeiraImagem = Array.isArray(imagens) && imagens.length > 0 ? imagens[0] : null
-                
-                return (
-                <tr key={product.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-3 lg:py-4 lg:px-6">
-                    <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gray-200 rounded-md flex items-center justify-center overflow-hidden">
-                      {primeiraImagem ? (
-                        <img
-                          src={primeiraImagem}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <FiPackage className="text-gray-400" />
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6">
-                    <p className="font-semibold text-sm lg:text-base line-clamp-2">{product.name}</p>
-                    <p className="text-xs text-gray-500">ID: {product.id.slice(0, 8)}...</p>
-                    {product.supplierSku && (
-                      <p className="text-xs text-gray-400 truncate max-w-[100px] lg:max-w-none">SKU: {product.supplierSku}</p>
-                    )}
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6 hidden md:table-cell">
-                    {product.supplier?.name || (
-                      <span className="text-sm text-gray-400">Sem fornecedor</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6 hidden lg:table-cell">
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                      {product.category.name}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6">
-                    <p className={`font-semibold text-sm lg:text-base ${
-                      product.comparePrice && product.price > product.comparePrice 
-                        ? 'text-red-600' 
-                        : ''
-                    }`}>
-                      R$ {product.price.toFixed(2)}
-                    </p>
-                    {product.comparePrice && (
-                      <p className={`text-xs line-through ${
-                        product.price > product.comparePrice 
-                          ? 'text-red-400' 
-                          : 'text-gray-500'
-                      }`}>
-                        R$ {product.comparePrice.toFixed(2)}
-                      </p>
-                    )}
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        product.stock > 10
-                          ? 'bg-green-100 text-green-800'
-                          : product.stock > 0
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {product.stock} un.
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6">
-                    {product.featured && (
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs mr-1">
-                        Destaque
-                      </span>
-                    )}
-                    {!product.active && (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">
-                        Inativo
-                      </span>
-                    )}
-                    {product.active && !product.featured && (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                        Ativo
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6 hidden xl:table-cell">
-                    <ToggleDropshippingButton 
-                      productId={product.id}
-                      isDropshipping={product.isDropshipping}
-                      commission={product.dropshippingCommission}
-                    />
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6 hidden xl:table-cell">
-                    <div className="flex flex-wrap gap-1">
-                      {product.marketplaceListings.length === 0 ? (
-                        <span className="text-xs text-gray-400">Não pub.</span>
-                      ) : (
-                        product.marketplaceListings.map((listing) => (
-                          <span
-                            key={listing.marketplace}
-                            className={`px-2 py-1 rounded-full text-xs ${
-                              listing.status === 'active'
-                                ? 'bg-green-100 text-green-800'
-                                : listing.status === 'paused'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {listing.marketplace === 'mercadolivre' ? 'ML' :
-                             listing.marketplace === 'shopee' ? 'Shopee' :
-                             listing.marketplace === 'amazon' ? 'Amazon' :
-                             listing.marketplace}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-3 lg:py-4 lg:px-6">
-                    <div className="flex justify-end space-x-1 lg:space-x-2">
-                      <ToggleProductActiveButton 
-                        productId={product.id} 
-                        currentStatus={product.active}
-                      />
-                      <PublishToMarketplaceButton
-                        productId={product.id}
-                        productName={product.name}
-                        productGtin={product.gtin || ''}
-                        existingListings={product.marketplaceListings}
-                      />
-                      <Link
-                        href={`/admin/produtos/${product.id}`}
-                        className="p-1.5 lg:p-2 text-blue-600 hover:bg-blue-50 rounded-md"
-                        title="Editar"
-                      >
-                        <FiEdit size={16} className="lg:w-[18px] lg:h-[18px]" />
-                      </Link>
-                      <DeleteProductButton productId={product.id} />
-                    </div>
-                  </td>
-                </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {products.length === 0 && (
-          <div className="text-center py-12">
-            <FiPackage size={48} className="mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-500 mb-4">Nenhum produto encontrado</p>
-            <Link
-              href="/admin/produtos/novo"
-              className="text-primary-600 hover:text-primary-700 font-semibold"
-            >
-              Criar primeiro produto →
-            </Link>
-          </div>
-        )}
-      </div>
+        <ProductsListWithSelection products={products as any} categories={allCategories} />
       )}
 
       {/* Mensagem quando não há produtos (cards) */}
