@@ -7,6 +7,7 @@ import { analyzeFraud } from '@/lib/fraud-detection'
 import { isValidCPF, validateCEPWithState } from '@/lib/validation'
 import { cookies } from 'next/headers'
 import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
+import { WhatsAppService } from '@/lib/whatsapp'
 
 
 // Force dynamic - disable all caching
@@ -618,6 +619,16 @@ export async function POST(req: NextRequest) {
         })
       }
 
+      // Enviar WhatsApp de pedido confirmado (não-bloqueante)
+      if (order.buyerPhone) {
+        WhatsAppService.sendOrderConfirmation(order.buyerPhone, {
+          orderId: order.id.slice(-8).toUpperCase(),
+          buyerName: order.buyerName || user?.name || 'Cliente',
+          total: Number(order.total),
+          itemsCount: order.items?.length || 1
+        }).catch((e: any) => console.error('⚠️ WhatsApp pedido confirmado falhou:', e?.message))
+      }
+
       return NextResponse.json(
         { message: 'Pedido criado com sucesso', orderId: order.id },
         { status: 201 }
@@ -721,6 +732,16 @@ export async function POST(req: NextRequest) {
         ).catch((error: any) => {
           console.error('⚠️ Erro ao enviar email de pedido confirmado:', error?.message)
         })
+
+        // Enviar WhatsApp de pedido confirmado (não-bloqueante)
+        if (buyerPhone) {
+          WhatsAppService.sendOrderConfirmation(buyerPhone, {
+            orderId: parentOrderId.slice(-8).toUpperCase(),
+            buyerName: user?.name || 'Cliente',
+            total: totalValue,
+            itemsCount: Array.from(itemsByDestination.values()).reduce((s, items) => s + items.length, 0)
+          }).catch((e: any) => console.error('⚠️ WhatsApp pedido híbrido falhou:', e?.message))
+        }
       }
 
       return NextResponse.json(
