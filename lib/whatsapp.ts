@@ -409,6 +409,14 @@ Obrigado por comprar na MYDSHOP.`
           { type: 'text', text: data.trackingCode || 'N/A' },
           { type: 'text', text: data.estimatedDelivery || 'Em breve' }
         ]
+      },
+      {
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [
+          { type: 'text', text: data.orderId }
+        ]
       }
     ])
   }
@@ -458,6 +466,14 @@ Obrigado por comprar na MYDSHOP.`
         type: 'body',
         parameters: [
           { type: 'text', text: data.buyerName },
+          { type: 'text', text: data.orderId }
+        ]
+      },
+      {
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [
           { type: 'text', text: data.orderId }
         ]
       }
