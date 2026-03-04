@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { processAffiliateCommission, cancelAffiliateCommission } from '@/lib/affiliate-commission'
 import { auditLog } from '@/lib/audit'
+import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
+import { WhatsAppService } from '@/lib/whatsapp'
 
 export async function PATCH(
   req: NextRequest,
@@ -74,6 +76,12 @@ export async function PATCH(
       }
     })
 
+    // Buscar campos de buyer separadamente (não estão no User)
+    const orderBuyer = await prisma.order.findUnique({
+      where: { id: params.id },
+      select: { buyerName: true, buyerEmail: true, buyerPhone: true }
+    })
+
     // Processar comissão de afiliado se aplicável
     let affiliateResult = null
 
@@ -103,6 +111,45 @@ export async function PATCH(
       affiliateResult = await cancelAffiliateCommission(params.id)
       console.log('❌ [STATUS UPDATE] Pedido marcado como CANCELLED')
       console.log('💸 [AFILIADO] Resultado:', affiliateResult)
+
+      // Notificar comprador
+      const toEmail = orderBuyer?.buyerEmail || order.user?.email
+      const toName = orderBuyer?.buyerName || order.user?.name || 'Cliente'
+      const toPhone = orderBuyer?.buyerPhone
+
+      if (toEmail) {
+        sendTemplateEmail(EMAIL_TEMPLATES.ORDER_CANCELLED, toEmail, {
+          customerName: toName,
+          orderId: params.id,
+          orderTotal: Number(order.total ?? 0).toFixed(2)
+        }).catch((e: any) => console.error('⚠️ Email cancelamento admin falhou:', e?.message))
+      }
+      if (toPhone) {
+        WhatsAppService.sendOrderCancelled(toPhone, {
+          orderId: params.id.slice(-8).toUpperCase(),
+          buyerName: toName
+        }).catch((e: any) => console.error('⚠️ WhatsApp cancelamento admin falhou:', e?.message))
+      }
+    } else if (status === 'SHIPPED') {
+      console.log('🚧 [STATUS UPDATE] Pedido marcado como SHIPPED')
+
+      const toEmail = orderBuyer?.buyerEmail || order.user?.email
+      const toName = orderBuyer?.buyerName || order.user?.name || 'Cliente'
+      const toPhone = orderBuyer?.buyerPhone
+
+      if (toEmail) {
+        sendTemplateEmail(EMAIL_TEMPLATES.ORDER_SHIPPED, toEmail, {
+          customerName: toName,
+          orderId: params.id,
+          orderTotal: Number(order.total ?? 0).toFixed(2)
+        }).catch((e: any) => console.error('⚠️ Email envio admin falhou:', e?.message))
+      }
+      if (toPhone) {
+        WhatsAppService.sendOrderShipped(toPhone, {
+          orderId: params.id.slice(-8).toUpperCase(),
+          buyerName: toName
+        }).catch((e: any) => console.error('⚠️ WhatsApp envio admin falhou:', e?.message))
+      }
     }
 
     return NextResponse.json({

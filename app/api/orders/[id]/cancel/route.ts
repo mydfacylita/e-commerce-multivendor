@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { logApi } from '@/lib/api-logger'
 import { cancelarNotaFiscal } from '@/lib/invoice'
+import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
+import { WhatsAppService } from '@/lib/whatsapp'
 
 
 // Force dynamic - disable all caching
@@ -262,6 +264,27 @@ export async function POST(
     })
     
     console.log('   ✅ Pedido e itens marcados como cancelados')
+
+    // Notificar comprador por e-mail e WhatsApp (não-bloqueante)
+    if (order.buyerEmail) {
+      sendTemplateEmail(
+        EMAIL_TEMPLATES.ORDER_CANCELLED,
+        order.buyerEmail,
+        {
+          customerName: order.buyerName || 'Cliente',
+          orderId: order.id,
+          orderTotal: Number(order.total).toFixed(2),
+          cancelReason
+        }
+      ).catch((e: any) => console.error('⚠️ Email cancelamento falhou:', e?.message))
+    }
+
+    if (order.buyerPhone) {
+      WhatsAppService.sendOrderCancelled(order.buyerPhone, {
+        orderId: order.id.slice(-8).toUpperCase(),
+        buyerName: order.buyerName || 'Cliente'
+      }).catch((e: any) => console.error('⚠️ WhatsApp cancelamento falhou:', e?.message))
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // 5️⃣ LOG E RESPOSTA

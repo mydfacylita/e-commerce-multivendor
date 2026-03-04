@@ -51,6 +51,7 @@ model User {
   workForSeller    Seller?           @relation("SellerEmployees", fields: [workForSellerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   aiChatSessions   AiChatSession[]
   carnesCreated    Carne[]           @relation("CarneCreatedBy")
+  serviceTickets   ServiceTicket[]   @relation("UserTickets")
 
   @@index([workForSellerId])
   @@index([role])
@@ -2279,4 +2280,107 @@ model NotificationLog {
   @@index([status])
   @@index([createdAt])
   @@map("notification_log")
+}
+
+// ─── SAC — Serviço de Atendimento ao Cliente ───────────────────────────────
+
+model ServiceTicket {
+  id          String              @id @default(cuid())
+
+  // Identificação do cliente (pode ser usuário registrado ou guest)
+  userId      String?
+  buyerName   String?             @db.VarChar(255)
+  buyerEmail  String?             @db.VarChar(320)
+  buyerPhone  String?             @db.VarChar(30)
+  buyerCpf    String?             @db.VarChar(20)
+
+  // Pedido relacionado (opcional)
+  orderId     String?
+
+  // Ticket
+  subject     String              @db.VarChar(500)
+  status      String              @default("OPEN")    // OPEN | IN_PROGRESS | NEGOTIATING | RESOLVED | CLOSED
+  priority    String              @default("NORMAL")  // LOW | NORMAL | HIGH | URGENT
+  category    String?             @db.VarChar(80)     // "CANCELAMENTO" | "ENTREGA" | "DEVOLUCAO" | "COBRANCA" | "OUTRO"
+  tags        String?             @db.VarChar(255)    // comma-separated
+
+  // Agente responsável
+  assignedTo  String?             @db.VarChar(255)
+
+  // Negociação
+  hasNegotiation Boolean          @default(false)
+
+  // Timestamps
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+
+  // Relações
+  user        User?               @relation("UserTickets", fields: [userId], references: [id])
+  messages    TicketMessage[]
+  negotiations NegotiationDeal[]
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([status])
+  @@index([buyerPhone])
+  @@index([buyerEmail])
+  @@index([createdAt])
+  @@map("service_ticket")
+}
+
+model TicketMessage {
+  id          String   @id @default(cuid())
+  ticketId    String
+  channel     String   // "whatsapp" | "email" | "internal"
+  direction   String   // "out" | "in"
+  from        String?  @db.VarChar(255)   // remetente (nome do agente ou "cliente")
+  content     String   @db.Text
+  templateId  String?  @db.VarChar(100)   // template usado (se WhatsApp)
+  status      String   @default("sent")   // "sent" | "failed" | "read"
+  externalId  String?  @db.VarChar(500)   // ID retornado pela API
+  attachments String?  @db.Text           // JSON de URLs
+  createdAt   DateTime @default(now())
+
+  ticket      ServiceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([channel])
+  @@index([createdAt])
+  @@map("ticket_message")
+}
+
+model NegotiationDeal {
+  id          String   @id @default(cuid())
+  ticketId    String
+  orderId     String?
+
+  type        String   // "DISCOUNT" | "INSTALLMENT" | "BOLETO" | "PIX" | "WRITE_OFF"
+  status      String   @default("PROPOSED")  // PROPOSED | ACCEPTED | REJECTED | EXECUTED | EXPIRED
+
+  // Valores acordados
+  originalAmount  Float?
+  negotiatedAmount Float?
+  discountPct     Float?
+  installments    Int?            @default(1)
+  dueDate         DateTime?
+
+  // Notas do acordo
+  notes       String?  @db.Text
+  terms       String?  @db.Text   // JSON com detalhes do acordo
+
+  // Quem criou
+  createdBy   String?  @db.VarChar(255)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  executedAt  DateTime?
+
+  ticket      ServiceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([orderId])
+  @@index([status])
+  @@map("negotiation_deal")
 }
