@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
-import { FiPlus } from 'react-icons/fi'
+import { FiPlus, FiPackage } from 'react-icons/fi'
 import SyncAllMarketplacesButton from '@/components/admin/SyncAllMarketplacesButton'
 import ProductsFilter from '@/components/admin/ProductsFilter'
 import ProductsCardView from '@/components/admin/ProductsCardView'
