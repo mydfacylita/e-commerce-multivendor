@@ -286,22 +286,22 @@ export class WhatsAppService {
     const orderRef = data.orderNumber || data.orderId || 'N/A'
     const valor = data.total || data.amount || 0
     
-    const message = `🛒 *MYDSHOP - Pagamento PIX*
+    const message = `*MYDSHOP - Pagamento PIX*
 
-📋 Pedido: #${orderRef}
-💰 Valor: R$ ${valor.toFixed(2)}
+Pedido: #${orderRef}
+Valor: R$ ${valor.toFixed(2)}
 
-📲 *Código PIX (Copia e Cola):*
+*Código PIX (Copia e Cola):*
 \`\`\`
 ${data.pixCode}
 \`\`\`
 
-${data.expiresAt ? `⏰ Válido até: ${new Date(data.expiresAt).toLocaleString('pt-BR')}` : ''}
-${data.expiresIn ? `⏰ ${data.expiresIn}` : ''}
+${data.expiresAt ? `Válido até: ${new Date(data.expiresAt).toLocaleString('pt-BR')}` : ''}
+${data.expiresIn ? data.expiresIn : ''}
 
 Após o pagamento, você receberá a confirmação automaticamente.
 
-Obrigado por comprar na MYDSHOP! 💙`
+Obrigado por comprar na MYDSHOP.`
 
     return this.sendMessage({
       to: phone,
@@ -330,23 +330,23 @@ Obrigado por comprar na MYDSHOP! 💙`
       ? data.dueDate.toLocaleDateString('pt-BR')
       : data.dueDate || ''
     
-    const message = `🛒 *MYDSHOP - Boleto Bancário*
+    const message = `*MYDSHOP - Boleto Bancário*
 
-📋 Pedido: #${orderRef}
-💰 Valor: R$ ${valor.toFixed(2)}
-${dueDateStr ? `📅 Vencimento: ${dueDateStr}` : ''}
+Pedido: #${orderRef}
+Valor: R$ ${valor.toFixed(2)}
+${dueDateStr ? `Vencimento: ${dueDateStr}` : ''}
 
-📄 *Link do Boleto:*
+*Link do Boleto:*
 ${data.boletoUrl}
 
-${data.barCode ? `📊 *Código de Barras:*
+${data.barCode ? `*Código de Barras:*
 \`\`\`
 ${data.barCode}
 \`\`\`` : ''}
 
 Após o pagamento, pode levar até 3 dias úteis para confirmação.
 
-Obrigado por comprar na MYDSHOP! 💙`
+Obrigado por comprar na MYDSHOP.`
 
     return this.sendMessage({
       to: phone,
@@ -366,20 +366,20 @@ Obrigado por comprar na MYDSHOP! 💙`
       itemsCount: number
     }
   ): Promise<SendMessageResult> {
-    const message = `✅ *Pedido Confirmado!*
+    const message = `*Pedido Confirmado*
 
-Olá, ${data.buyerName}! 👋
+Olá, ${data.buyerName}.
 
-Seu pedido #${data.orderId} foi confirmado com sucesso!
+Seu pedido #${data.orderId} foi confirmado com sucesso.
 
-📦 Itens: ${data.itemsCount}
-💰 Total: R$ ${data.total.toFixed(2)}
+Itens: ${data.itemsCount}
+Total: R$ ${data.total.toFixed(2)}
 
 Você receberá atualizações sobre o envio do seu pedido.
 
 Acompanhe em: https://mydshop.com.br/pedidos/${data.orderId}
 
-Obrigado por comprar na MYDSHOP! 💙`
+Obrigado por comprar na MYDSHOP.`
 
     return this.sendMessage({
       to: phone,
@@ -397,31 +397,20 @@ Obrigado por comprar na MYDSHOP! 💙`
       buyerName: string
       trackingCode?: string
       carrier?: string
+      estimatedDelivery?: string
     }
   ): Promise<SendMessageResult> {
-    let message = `📦 *Pedido Enviado!*
-
-Olá, ${data.buyerName}! 👋
-
-Seu pedido #${data.orderId} foi enviado!`
-
-    if (data.trackingCode) {
-      message += `
-
-🚚 Transportadora: ${data.carrier || 'Correios'}
-📋 Código de Rastreio: *${data.trackingCode}*
-
-Rastreie em: https://www.linkcorreios.com.br/?id=${data.trackingCode}`
-    }
-
-    message += `
-
-Obrigado por comprar na MYDSHOP! 💙`
-
-    return this.sendMessage({
-      to: phone,
-      message
-    })
+    return this.sendTemplate(phone, 'envio_de_pedido', 'pt_BR', [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: data.buyerName },
+          { type: 'text', text: data.orderId },
+          { type: 'text', text: data.trackingCode || 'N/A' },
+          { type: 'text', text: data.estimatedDelivery || 'Em breve' }
+        ]
+      }
+    ])
   }
 
   /**
@@ -434,24 +423,46 @@ Obrigado por comprar na MYDSHOP! 💙`
       buyerName: string
     }
   ): Promise<SendMessageResult> {
-    const message = `🎉 *Pedido Entregue!*
+    const message = `*Pedido Entregue*
 
-Olá, ${data.buyerName}! 👋
+Olá, ${data.buyerName}.
 
-Seu pedido #${data.orderId} foi entregue!
+Seu pedido #${data.orderId} foi entregue.
 
-Esperamos que você goste dos seus produtos. 
+Esperamos que você goste dos seus produtos.
 
-Se tiver alguma dúvida ou precisar de ajuda, estamos à disposição!
+Se tiver alguma dúvida ou precisar de ajuda, estamos à disposição.
 
-⭐ Avalie sua compra em: https://mydshop.com.br/avaliar/${data.orderId}
+Avalie sua compra em: https://mydshop.com.br/avaliar/${data.orderId}
 
-Obrigado por comprar na MYDSHOP! 💙`
+Obrigado por comprar na MYDSHOP.`
 
     return this.sendMessage({
       to: phone,
       message
     })
+  }
+}
+
+  /**
+   * Envia notificação de pedido cancelado
+   */
+  static async sendOrderCancelled(
+    phone: string,
+    data: {
+      orderId: string
+      buyerName: string
+    }
+  ): Promise<SendMessageResult> {
+    return this.sendTemplate(phone, 'cancelamento_pedido', 'pt_BR', [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: data.buyerName },
+          { type: 'text', text: data.orderId }
+        ]
+      }
+    ])
   }
 }
 
