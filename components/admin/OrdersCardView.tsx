@@ -33,6 +33,13 @@ export interface OrderCard {
   estimatedDelivery: string | null
   shippingMethod: string | null
   deliveryDays: number | null
+  // financiamento (carnê)
+  carne: {
+    totalValue: number
+    totalWithInterest: number | null
+    interestRate: number
+    parcelas: { id: string; numero: number; valor: number; status: string }[]
+  } | null
 }
 
 interface Props {
@@ -90,6 +97,28 @@ function DelayBadge({ days, status }: { days: number | null; status: string }) {
     )
   }
   return null
+}
+
+function CarneTag({ carne }: { carne: OrderCard['carne'] }) {
+  if (!carne) return null
+  const total = carne.parcelas.length
+  const paid  = carne.parcelas.filter(p => p.status === 'PAID').length
+  const valorParcela = total > 0 ? (carne.totalWithInterest ?? carne.totalValue) / total : 0
+  return (
+    <div className="flex items-start gap-1.5 mt-2 bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-1.5">
+      <span className="text-violet-500 mt-0.5 text-base leading-none">💳</span>
+      <div>
+        <p className="text-xs font-bold text-violet-700">
+          Financiado · {total}x de R$ {valorParcela.toFixed(2)}
+        </p>
+        <p className="text-xs text-violet-500">
+          Total: R$ {(carne.totalWithInterest ?? carne.totalValue).toFixed(2)}
+          {carne.interestRate > 0 && ` · ${carne.interestRate}% a.m.`}
+          {` · ${paid}/${total} pago${paid !== 1 ? 's' : ''}`}
+        </p>
+      </div>
+    </div>
+  )
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
@@ -174,7 +203,7 @@ export default function OrdersCardView({ orders }: Props) {
               </div>
 
               {/* Total + itens */}
-              <div className="flex flex-col justify-center px-4 py-3 w-36 flex-shrink-0">
+              <div className="flex flex-col justify-center px-4 py-3 w-44 flex-shrink-0">
                 <p className="text-xl font-bold text-gray-900">
                   R$ {order.total.toFixed(2)}
                 </p>
@@ -191,6 +220,7 @@ export default function OrdersCardView({ orders }: Props) {
                     <FiMapPin size={11} /> {order.deliveryDays}d úteis
                   </p>
                 )}
+                <CarneTag carne={order.carne} />
               </div>
 
               {/* Status + atraso */}

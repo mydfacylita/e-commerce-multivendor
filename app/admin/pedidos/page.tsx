@@ -38,6 +38,13 @@ interface GroupedOrder {
   shippedAt: Date | null
   paymentApprovedAt: Date | null
   shippingMethod: string | null
+  // financiamento (carnê)
+  carne: {
+    totalValue: number
+    totalWithInterest: number | null
+    interestRate: number
+    parcelas: { id: string; numero: number; valor: number; status: string }[]
+  } | null
 }
 
 // Função para filtrar itens ADM (plataforma) e DROP
@@ -111,6 +118,14 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
                 }
               }
             }
+          },
+        },
+      },
+      carne: {
+        include: {
+          parcelas: {
+            select: { id: true, numero: true, valor: true, status: true },
+            orderBy: { numero: 'asc' },
           },
         },
       },
@@ -199,6 +214,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
           shippedAt: (order as any).shippedAt ?? null,
           paymentApprovedAt: (order as any).paymentApprovedAt ?? null,
           shippingMethod: (order as any).shippingMethod ?? null,
+          carne: (order as any).carne ?? null,
         })
       }
     } else {
@@ -229,10 +245,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
         shippedAt: (order as any).shippedAt ?? null,
         paymentApprovedAt: (order as any).paymentApprovedAt ?? null,
         shippingMethod: (order as any).shippingMethod ?? null,
-      })
-    }
-  }
-
+          carne: (order as any).carne ?? null,
   // Converter para array e verificar se realmente é híbrido
   const orders = Array.from(groupedOrdersMap.values()).map(order => {
     // É realmente híbrido se: tem múltiplos tipos de origem (ADM + DROP)
@@ -277,6 +290,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
       estimatedDelivery: estimated,
       shippingMethod: (order as any).shippingMethod ?? null,
       deliveryDays: (order as any).deliveryDays ?? null,
+      carne: (order as any).carne ?? null,
     }
   })
 
