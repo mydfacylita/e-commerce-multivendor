@@ -137,6 +137,9 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
 
     console.log(`🔍 Buscando ticket para: from=${from} last9=${last9} last11=${last11}`)
 
+    // Últimos 8 dígitos — resolve o problema do 9° dígito BR (celulares antigos sem o "9" extra)
+    const last8 = digitsOnly.slice(-8)
+
     // Buscar todos os tickets abertos e filtrar por telefone em JS
     // (necessário por causa das diferentes máscaras salvas no banco)
     const openTickets = await prisma.serviceTicket.findMany({
@@ -151,7 +154,11 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
     const ticket = openTickets.find(t => {
       if (!t.buyerPhone) return false
       const ticketDigits = t.buyerPhone.replace(/\D/g, '')
-      return ticketDigits.endsWith(last9) || ticketDigits.endsWith(last11)
+      // last9 e last11: comparação exata
+      // last8: resolve o problema do 9º dígito (BR) — "99126-9315" vs "9126-9315"
+      return ticketDigits.endsWith(last9) ||
+             ticketDigits.endsWith(last11) ||
+             ticketDigits.endsWith(last8)
     }) || null
 
     if (ticket) {

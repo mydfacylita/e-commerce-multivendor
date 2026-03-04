@@ -114,9 +114,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   })
 
   // Atualizar updatedAt do ticket
+  // OPEN → IN_PROGRESS automaticamente; CLOSED → IN_PROGRESS (reabrir quando admin envia novo template)
+  const reopened = ticket.status === 'OPEN' || ticket.status === 'CLOSED'
   await prisma.serviceTicket.update({
     where: { id: params.id },
-    data: { updatedAt: new Date(), status: ticket.status === 'OPEN' ? 'IN_PROGRESS' : ticket.status },
+    data: {
+      updatedAt: new Date(),
+      status: reopened ? 'IN_PROGRESS' : ticket.status,
+      ...(ticket.status === 'CLOSED' ? { closedAt: null, sessionClosedAt: null, sessionOpenedAt: new Date() } : {}),
+    },
   })
 
   if (status === 'failed') {
