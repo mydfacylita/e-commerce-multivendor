@@ -48,10 +48,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (channel === 'whatsapp') {
       if (!ticket.buyerPhone) throw new Error('Telefone do cliente não informado')
 
-      if (templateId && templateParams) {
-        // Envio via template
-        const result = await WhatsAppService.sendTemplate(ticket.buyerPhone, templateId, templateParams)
+      if (templateId) {
+        // Parâmetros podem vir como array simples ["val1","val2"] ou como components[] da API
+        let components: any[] | undefined = undefined
+
+        if (templateParams) {
+          if (Array.isArray(templateParams) && templateParams.length > 0) {
+            // Array simples → converter para formato WhatsApp API
+            if (typeof templateParams[0] === 'string') {
+              components = [{
+                type: 'body',
+                parameters: (templateParams as string[]).map(p => ({ type: 'text', text: p })),
+              }]
+            } else {
+              // Já está no formato de components da API
+              components = templateParams as any[]
+            }
+          }
+        }
+
+        const result = await WhatsAppService.sendTemplate(
+          ticket.buyerPhone, templateId, 'pt_BR', components,
+          { orderId: ticket.orderId || undefined }
+        )
         externalId = result?.messageId || null
+        if (!result.success) throw new Error(result.error || 'Template falhou')
       } else {
         // Mensagem de texto livre (sessão ativa necessária)
         const result = await WhatsAppService.sendMessage({

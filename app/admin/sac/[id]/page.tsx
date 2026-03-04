@@ -54,18 +54,32 @@ function MsgBubble({ msg }: { msg: any }) {
 
   return (
     <div className={`flex ${isOut ? 'justify-end' : 'justify-start'} gap-2`}>
+      {/* Avatar cliente (mensagens recebidas) */}
+      {!isOut && (
+        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-1">
+          <FiUser className="text-gray-500 text-sm" />
+        </div>
+      )}
       <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 shadow-sm ${
         isOut
-          ? msg.channel === 'whatsapp' ? 'bg-green-500 text-white' : 'bg-primary-600 text-white'
+          ? msg.channel === 'whatsapp' ? 'bg-green-500 text-white'
+            : msg.channel === 'internal' ? 'bg-amber-50 border border-amber-200 text-amber-900'
+            : 'bg-primary-600 text-white'
           : 'bg-white border text-gray-800'
       }`}>
         {/* Header small */}
-        <div className={`flex items-center gap-1.5 mb-1 text-xs ${isOut ? 'text-white/70' : 'text-gray-400'}`}>
+        <div className={`flex items-center gap-1.5 mb-1 text-xs ${
+          isOut && msg.channel !== 'internal' ? 'text-white/70'
+          : isOut ? 'text-amber-600'
+          : 'text-gray-400'
+        }`}>
           <Icon />
-          <span>{msg.from || 'Cliente'}</span>
+          <span>{isOut ? (msg.from || 'Atendente') : (msg.from || 'Cliente')}</span>
           <span>·</span>
           <span>{new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-          {msg.status === 'failed' && <span className="text-red-300">✗ Falha</span>}
+          {msg.status === 'failed'    && <span className="text-red-300 font-medium">✗ Falha</span>}
+          {msg.status === 'read'      && isOut && <span className="opacity-70">✓✓ Lido</span>}
+          {msg.status === 'delivered' && isOut && <span className="opacity-70">✓✓</span>}
         </div>
         <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
       </div>
@@ -73,20 +87,81 @@ function MsgBubble({ msg }: { msg: any }) {
   )
 }
 
+// ── Templates SAC disponíveis para iniciar conversa ────────────────────────
+const SAC_TEMPLATES = [
+  {
+    id: 'mydshop_atendimento',
+    label: '👋 Abertura de atendimento',
+    description: 'Inicia contato informando que o atendimento foi aberto',
+    params: ['nome do cliente', 'número do pedido (ou motivo)'],
+    preview: 'Olá {{1}}! Aqui é o suporte MydShop. Abrimos um atendimento referente a {{2}}. Como podemos ajudar?',
+  },
+  {
+    id: 'mydshop_pedido_confirmado',
+    label: '✅ Pedido confirmado',
+    description: 'Confirma o pedido ao cliente',
+    params: ['nome', 'compra', 'nº pedido', 'qtd itens', 'prazo estimado'],
+    preview: 'Olá {{1}}, sua {{2}} foi confirmada! Pedido #{{3}} com {{4}} item(s). Prazo: {{5}}.',
+  },
+  {
+    id: 'cancelamento_pedido',
+    label: '❌ Cancelamento de pedido',
+    description: 'Informa sobre cancelamento do pedido',
+    params: ['nome do cliente', 'nº pedido'],
+    preview: 'Olá {{1}}, informamos que o pedido #{{2}} foi cancelado conforme solicitado.',
+  },
+  {
+    id: 'envio_de_pedido',
+    label: '🚚 Pedido enviado',
+    description: 'Informa que o pedido foi despachado',
+    params: ['nome do cliente', 'nº pedido'],
+    preview: 'Olá {{1}}, seu pedido #{{2}} foi enviado! Acompanhe o rastreio pelo link abaixo.',
+  },
+]
+
 // ── Formulário de envio de mensagem ─────────────────────────────────────────
 function SendMessageForm({
-  ticketId, buyerPhone, buyerEmail,
+  ticketId, buyerPhone, buyerEmail, messages,
   onSent,
 }: {
-  ticketId: string; buyerPhone?: string; buyerEmail?: string; onSent: () => void
+  ticketId: string
+  buyerPhone?: string
+  buyerEmail?: string
+  messages: any[]
+  onSent: () => void
 }) {
   const [channel, setChannel] = useState<'whatsapp' | 'email' | 'internal'>('whatsapp')
   const [content, setContent] = useState('')
   const [subject, setSubject] = useState('')
   const [sending, setSending] = useState(false)
+  const [tplMode, setTplMode] = useState(false)          // forçar seleção de template
+  const [selectedTpl, setSelectedTpl] = useState<typeof SAC_TEMPLATES[0] | null>(null)
+  const [tplParams, setTplParams] = useState<string[]>([])
   const textRef = useRef<HTMLTextAreaElement>(null)
 
-  // Quick templates
+  // ── Detectar sessão ativa (cliente respondeu nas últimas 24h)
+  const lastIncoming = messages
+    .filter(m => m.direction === 'in' && m.channel === 'whatsapp')
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+
+  const sessionActive = lastIncoming
+    ? (Date.now() - new Date(lastIncoming.createdAt).getTime()) < 24 * 60 * 60 * 1000
+    : false
+
+  const sessionMinutesLeft = lastIncoming && sessionActive
+    ? Math.floor((24 * 60 * 60 * 1000 - (Date.now() - new Date(lastIncoming.createdAt).getTime())) / 60000)
+    : 0
+
+  // Quando troca para whatsapp sem sessão, entra em modo template automaticamente
+  useEffect(() => {
+    if (channel === 'whatsapp' && !sessionActive) {
+      setTplMode(true)
+    } else {
+      setTplMode(false)
+    }
+  }, [channel, sessionActive])
+
+  // Quick texts
   const QUICK: Record<string, string[]> = {
     whatsapp: [
       'Olá! Estamos analisando seu caso e retornaremos em breve. 😊',
@@ -105,7 +180,42 @@ function SendMessageForm({
     ],
   }
 
-  const send = async () => {
+  const selectTemplate = (tpl: typeof SAC_TEMPLATES[0]) => {
+    setSelectedTpl(tpl)
+    setTplParams(new Array(tpl.params.length).fill(''))
+  }
+
+  const sendTemplate = async () => {
+    if (!selectedTpl) return
+    setSending(true)
+    try {
+      const r = await fetch(`/api/admin/sac/${ticketId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'whatsapp',
+          content: `[Template: ${selectedTpl.label}] ${tplParams.join(' | ')}`,
+          templateId: selectedTpl.id,
+          templateParams: tplParams,
+        }),
+      })
+      const d = await r.json()
+      if (r.status === 207) {
+        alert(`⚠️ Registrado mas envio falhou: ${d.error}\n\nVerifique se o template "${selectedTpl.id}" está aprovado no Meta Business Manager.`)
+      } else if (!r.ok) {
+        throw new Error(d.error || 'Erro')
+      }
+      setSelectedTpl(null)
+      setTplParams([])
+      onSent()
+    } catch (e: any) {
+      alert('Erro: ' + e.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const sendText = async () => {
     if (!content.trim()) return
     setSending(true)
     try {
@@ -114,11 +224,9 @@ function SendMessageForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ channel, content, subject: subject || undefined }),
       })
-      if (!r.ok) {
-        const d = await r.json()
-        if (r.status === 207) alert(`⚠️ Mensagem registrada mas envio falhou: ${d.error}`)
-        else throw new Error(d.error || 'Erro')
-      }
+      const d = await r.json()
+      if (r.status === 207) alert(`⚠️ Registrado mas envio falhou: ${d.error}`)
+      else if (!r.ok) throw new Error(d.error || 'Erro')
       setContent('')
       setSubject('')
       onSent()
@@ -130,74 +238,163 @@ function SendMessageForm({
   }
 
   return (
-    <div className="border-t bg-gray-50 p-4 space-y-3">
-      {/* Canal */}
-      <div className="flex gap-2">
-        {(['whatsapp', 'email', 'internal'] as const).map(ch => (
-          <button
-            key={ch}
-            onClick={() => setChannel(ch)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-              channel === ch
-                ? ch === 'whatsapp' ? 'bg-green-500 text-white border-green-500'
-                  : ch === 'email' ? 'bg-blue-500 text-white border-blue-500'
-                  : 'bg-gray-600 text-white border-gray-600'
-                : 'bg-white text-gray-600 hover:border-gray-400'
-            }`}
-          >
-            {ch === 'whatsapp' ? '📱 WhatsApp' : ch === 'email' ? '📧 E-mail' : '📝 Interno'}
-          </button>
-        ))}
-        {!buyerPhone && channel === 'whatsapp' && (
-          <span className="text-xs text-orange-600 flex items-center gap-1 ml-2">
-            <FiAlertCircle /> Sem telefone cadastrado
-          </span>
-        )}
-        {!buyerEmail && channel === 'email' && (
-          <span className="text-xs text-orange-600 flex items-center gap-1 ml-2">
-            <FiAlertCircle /> Sem e-mail cadastrado
-          </span>
-        )}
-      </div>
-
-      {/* Quick templates */}
-      <div className="flex gap-2 flex-wrap">
-        {QUICK[channel].map((tpl, i) => (
-          <button key={i} onClick={() => setContent(tpl)}
-            className="text-xs bg-white border rounded-full px-3 py-1 text-gray-600 hover:bg-primary-50 hover:border-primary-300 transition-colors">
-            {tpl.slice(0, 40)}{tpl.length > 40 ? '...' : ''}
-          </button>
-        ))}
-      </div>
-
-      {/* Assunto (e-mail) */}
-      {channel === 'email' && (
-        <input
-          value={subject}
-          onChange={e => setSubject(e.target.value)}
-          placeholder="Assunto do e-mail"
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
-        />
+    <div className="border-t bg-gray-50">
+      {/* ── Status da sessão WhatsApp ── */}
+      {channel === 'whatsapp' && buyerPhone && (
+        <div className={`px-4 py-2 text-xs flex items-center gap-2 border-b ${
+          sessionActive
+            ? 'bg-green-50 text-green-700 border-green-100'
+            : 'bg-orange-50 text-orange-700 border-orange-100'
+        }`}>
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${sessionActive ? 'bg-green-500' : 'bg-orange-400'}`} />
+          {sessionActive ? (
+            <span>
+              <strong>Sessão ativa</strong> — cliente respondeu recentemente.
+              Texto livre liberado por mais {sessionMinutesLeft >= 60
+                ? `${Math.floor(sessionMinutesLeft / 60)}h${sessionMinutesLeft % 60 > 0 ? `${sessionMinutesLeft % 60}min` : ''}`
+                : `${sessionMinutesLeft}min`}.
+              <button onClick={() => setTplMode(t => !t)}
+                className="ml-2 underline hover:no-underline">
+                {tplMode ? 'Usar texto livre' : 'Ou enviar template'}
+              </button>
+            </span>
+          ) : (
+            <span>
+              <strong>Sessão encerrada</strong> — cliente não respondeu nas últimas 24h.
+              Para iniciar, é obrigatório usar um <strong>template aprovado</strong>.
+            </span>
+          )}
+        </div>
       )}
 
-      {/* Mensagem */}
-      <div className="flex gap-2 items-end">
-        <textarea
-          ref={textRef}
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-          rows={3}
-          placeholder={channel === 'internal' ? 'Nota interna (não enviada ao cliente)...' : 'Mensagem para o cliente...'}
-          className="flex-1 border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
-        />
-        <button
-          onClick={send}
-          disabled={sending || !content.trim()}
-          className="bg-primary-600 text-white p-3 rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
-        >
-          {sending ? <FiRefreshCw className="animate-spin" /> : <FiSend />}
-        </button>
+      <div className="p-4 space-y-3">
+        {/* Canal */}
+        <div className="flex gap-2">
+          {(['whatsapp', 'email', 'internal'] as const).map(ch => (
+            <button
+              key={ch}
+              onClick={() => setChannel(ch)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                channel === ch
+                  ? ch === 'whatsapp' ? 'bg-green-500 text-white border-green-500'
+                    : ch === 'email' ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-gray-600 text-white border-gray-600'
+                  : 'bg-white text-gray-600 hover:border-gray-400'
+              }`}
+            >
+              {ch === 'whatsapp' ? '📱 WhatsApp' : ch === 'email' ? '📧 E-mail' : '📝 Interno'}
+            </button>
+          ))}
+          {!buyerPhone && channel === 'whatsapp' && (
+            <span className="text-xs text-orange-600 flex items-center gap-1 ml-2">
+              <FiAlertCircle /> Sem telefone cadastrado
+            </span>
+          )}
+          {!buyerEmail && channel === 'email' && (
+            <span className="text-xs text-orange-600 flex items-center gap-1 ml-2">
+              <FiAlertCircle /> Sem e-mail cadastrado
+            </span>
+          )}
+        </div>
+
+        {/* ── MODO TEMPLATE WhatsApp ── */}
+        {channel === 'whatsapp' && tplMode ? (
+          <div className="space-y-3">
+            {!selectedTpl ? (
+              <>
+                <p className="text-xs text-gray-500 font-medium">Selecione um template para iniciar a conversa:</p>
+                <div className="grid gap-2">
+                  {SAC_TEMPLATES.map(tpl => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => selectTemplate(tpl)}
+                      className="text-left border rounded-xl p-3 bg-white hover:border-green-400 hover:bg-green-50 transition-all"
+                    >
+                      <div className="font-medium text-sm text-gray-800">{tpl.label}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{tpl.description}</div>
+                      <div className="text-xs text-gray-400 mt-1 font-mono bg-gray-50 rounded p-1.5">{tpl.preview}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">{selectedTpl.label}</span>
+                  <button onClick={() => setSelectedTpl(null)} className="text-xs text-gray-400 hover:text-gray-600 underline">← Trocar template</button>
+                </div>
+                <div className="text-xs text-gray-400 font-mono bg-gray-50 rounded p-2">{selectedTpl.preview}</div>
+                {selectedTpl.params.map((param, i) => (
+                  <div key={i}>
+                    <label className="block text-xs text-gray-500 mb-1">Parâmetro {i + 1}: <span className="text-gray-700 font-medium">{param}</span></label>
+                    <input
+                      value={tplParams[i] || ''}
+                      onChange={e => {
+                        const next = [...tplParams]
+                        next[i] = e.target.value
+                        setTplParams(next)
+                      }}
+                      placeholder={param}
+                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={sendTemplate}
+                  disabled={sending || tplParams.some(p => !p.trim())}
+                  className="w-full bg-green-500 text-white py-2.5 rounded-xl font-medium hover:bg-green-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {sending ? <FiRefreshCw className="animate-spin" /> : <FiSend />}
+                  {sending ? 'Enviando template...' : '📱 Enviar e Iniciar Conversa'}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Quick templates */}
+            {channel !== 'whatsapp' || sessionActive ? (
+              <div className="flex gap-2 flex-wrap">
+                {(QUICK[channel] || []).map((tpl, i) => (
+                  <button key={i} onClick={() => setContent(tpl)}
+                    className="text-xs bg-white border rounded-full px-3 py-1 text-gray-600 hover:bg-primary-50 hover:border-primary-300 transition-colors">
+                    {tpl.slice(0, 40)}{tpl.length > 40 ? '...' : ''}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {/* Assunto (e-mail) */}
+            {channel === 'email' && (
+              <input
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                placeholder="Assunto do e-mail"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            )}
+
+            {/* Mensagem */}
+            <div className="flex gap-2 items-end">
+              <textarea
+                ref={textRef}
+                value={content}
+                onChange={e => setContent(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() } }}
+                rows={3}
+                placeholder={channel === 'internal' ? 'Nota interna (não enviada ao cliente)...' : 'Mensagem para o cliente...'}
+                className="flex-1 border rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+              <button
+                onClick={sendText}
+                disabled={sending || !content.trim()}
+                className="bg-primary-600 text-white p-3 rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              >
+                {sending ? <FiRefreshCw className="animate-spin" /> : <FiSend />}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -344,6 +541,7 @@ export default function TicketPage() {
   const [tab, setTab]       = useState<'chat' | 'negotiation' | 'history'>('chat')
   const [editStatus, setEditStatus] = useState(false)
   const msgEndRef = useRef<HTMLDivElement>(null)
+  const lastMsgCount = useRef(0)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -359,7 +557,24 @@ export default function TicketPage() {
   }, [id])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { msgEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [data?.ticket?.messages])
+
+  // Scroll para o fim só quando o número de mensagens aumentar
+  useEffect(() => {
+    const count = data?.ticket?.messages?.length || 0
+    if (count > lastMsgCount.current) {
+      msgEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      lastMsgCount.current = count
+    }
+  }, [data?.ticket?.messages])
+
+  // Auto-refresh a cada 8 segundos para capturar respostas do cliente
+  useEffect(() => {
+    if (tab !== 'chat') return
+    const interval = setInterval(() => {
+      load()
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [tab, load])
 
   const updateStatus = async (newStatus: string) => {
     await fetch(`/api/admin/sac/${id}`, {
@@ -538,6 +753,7 @@ export default function TicketPage() {
               ticketId={id}
               buyerPhone={ticket.buyerPhone}
               buyerEmail={ticket.buyerEmail}
+              messages={ticket.messages || []}
               onSent={load}
             />
           </div>
