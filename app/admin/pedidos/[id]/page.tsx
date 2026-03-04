@@ -191,6 +191,30 @@ export default async function AdminOrderDetailPage({
     return statusMap[status] || status
   }
 
+  // Calcula data adicionando N dias úteis (pula sab/dom)
+  const addBusinessDays = (startDate: Date, days: number): Date => {
+    const result = new Date(startDate)
+    let added = 0
+    while (added < days) {
+      result.setDate(result.getDate() + 1)
+      const dow = result.getDay()
+      if (dow !== 0 && dow !== 6) added++
+    }
+    return result
+  }
+
+  // Previsão de entrega: conta a partir do envio (shippedAt) ou pagamento aprovado
+  const baseDate = order.shippedAt || order.paymentApprovedAt || order.createdAt
+  const estimatedDelivery = order.deliveryDays && baseDate
+    ? addBusinessDays(new Date(baseDate), order.deliveryDays)
+    : null
+
+  const today = new Date()
+  const isLate = estimatedDelivery && order.status !== 'DELIVERED' && estimatedDelivery < today
+  const daysLeft = estimatedDelivery
+    ? Math.ceil((estimatedDelivery.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    : null
+
   // Função para formatar endereço (parse JSON se necessário)
   const formatShippingAddress = (address: string | null): string => {
     if (!address) return 'Endereço não informado'
@@ -395,16 +419,47 @@ export default async function AdminOrderDetailPage({
           <p className="text-gray-600 whitespace-pre-line">
             {formatShippingAddress(order.shippingAddress)}
           </p>
-          <p className="text-sm text-gray-500 mt-3">
-            Frete: <span className="font-semibold">
-              {order.shippingCost && order.shippingCost > 0 
-                ? `R$ ${order.shippingCost.toFixed(2)}` 
-                : '🎁 Frete Grátis'}
-            </span>
-            {order.deliveryDays && (
-              <span className="ml-2 text-gray-600">({order.deliveryDays} dias úteis)</span>
+          <div className="mt-3 space-y-1">
+            <p className="text-sm text-gray-500">
+              Frete: <span className="font-semibold">
+                {order.shippingCost && order.shippingCost > 0 
+                  ? `R$ ${order.shippingCost.toFixed(2)}` 
+                  : '🎁 Frete Grátis'}
+              </span>
+              {order.deliveryDays && (
+                <span className="ml-2 text-gray-500">({order.deliveryDays} dias úteis)</span>
+              )}
+            </p>
+            {estimatedDelivery && (
+              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium mt-1 ${
+                order.status === 'DELIVERED'
+                  ? 'bg-green-100 text-green-700'
+                  : isLate
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-blue-50 text-blue-700'
+              }`}>
+                <span>📅</span>
+                <span>
+                  Previsão de entrega:{' '}
+                  <strong>
+                    {estimatedDelivery.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </strong>
+                </span>
+                {order.status !== 'DELIVERED' && daysLeft !== null && (
+                  <span className="text-xs font-normal opacity-80">
+                    ({isLate
+                      ? `${Math.abs(daysLeft)} dia${Math.abs(daysLeft) !== 1 ? 's' : ''} em atraso`
+                      : daysLeft === 0
+                      ? 'hoje'
+                      : `em ${daysLeft} dia${daysLeft !== 1 ? 's' : ''}`})
+                  </span>
+                )}
+                {order.status === 'DELIVERED' && (
+                  <span className="text-xs">✓ Entregue</span>
+                )}
+              </div>
             )}
-          </p>
+          </div>
         </div>
 
         {/* Status e Rastreio */}
@@ -432,6 +487,39 @@ export default async function AdminOrderDetailPage({
                 <p className="text-sm text-gray-600 mb-1">Enviado ao fornecedor</p>
                 <p className="text-sm">
                   <ClientDate date={order.sentToSupplierAt} />
+                </p>
+              </div>
+            )}
+            {estimatedDelivery && (
+              <div className={`p-3 rounded-lg ${
+                order.status === 'DELIVERED'
+                  ? 'bg-green-50 border border-green-200'
+                  : isLate
+                  ? 'bg-red-50 border border-red-200'
+                  : 'bg-blue-50 border border-blue-200'
+              }`}>
+                <p className="text-sm text-gray-600 mb-1">Previsão de Entrega</p>
+                <p className={`font-semibold ${
+                  order.status === 'DELIVERED' ? 'text-green-700'
+                  : isLate ? 'text-red-700'
+                  : 'text-blue-700'
+                }`}>
+                  📅 {estimatedDelivery.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+                {order.status !== 'DELIVERED' && daysLeft !== null && (
+                  <p className={`text-xs mt-0.5 ${
+                    isLate ? 'text-red-500' : 'text-blue-500'
+                  }`}>
+                    {isLate
+                      ? `⚠️ ${Math.abs(daysLeft)} dia${Math.abs(daysLeft) !== 1 ? 's' : ''} em atraso`
+                      : daysLeft === 0
+                      ? '📬 Previsão para hoje'
+                      : `⏱ Em ${daysLeft} dia${daysLeft !== 1 ? 's' : ''}`
+                    }
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Base: {order.shippedAt ? 'data de envio' : order.paymentApprovedAt ? 'aprovação do pagamento' : 'criação do pedido'} + {order.deliveryDays} dias úteis
                 </p>
               </div>
             )}
