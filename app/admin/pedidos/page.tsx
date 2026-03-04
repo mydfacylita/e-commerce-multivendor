@@ -1,12 +1,8 @@
 import { prisma } from '@/lib/prisma'
-import Link from 'next/link'
-import { FiEye, FiPackage, FiAlertCircle, FiLayers } from 'react-icons/fi'
-import UpdateOrderStatusButton from '@/components/admin/UpdateOrderStatusButton'
-import SendToSupplierButton from '@/components/admin/SendToSupplierButton'
-import PrintShippingLabelButton from '@/components/admin/PrintShippingLabelButton'
 import AutoFetchOrders from '@/components/admin/AutoFetchOrders'
-import { formatOrderNumber } from '@/lib/order'
-import ClientDate from '@/components/admin/ClientDate'
+import OrdersFilter from '@/components/admin/OrdersFilter'
+import OrdersCardView, { OrderCard } from '@/components/admin/OrdersCardView'
+import { FiShoppingBag, FiClock, FiAlertCircle, FiTruck, FiCheckCircle } from 'react-icons/fi'
 
 
 // Force dynamic - disable all caching
@@ -37,6 +33,11 @@ interface GroupedOrder {
   hasADM: boolean
   hasSupplier: boolean
   sellers: string[]
+  // campos de entrega
+  deliveryDays: number | null
+  shippedAt: Date | null
+  paymentApprovedAt: Date | null
+  shippingMethod: string | null
 }
 
 // Função para filtrar itens ADM (plataforma) e DROP
@@ -51,7 +52,37 @@ function filterAdmItems(items: any[]) {
   })
 }
 
-export default async function AdminPedidosPage() {
+// Calcular dias úteis
+function addBusinessDays(startDate: Date, days: number): Date {
+  const result = new Date(startDate)
+  let added = 0
+  while (added < days) {
+    result.setDate(result.getDate() + 1)
+    const day = result.getDay()
+    if (day !== 0 && day !== 6) added++
+  }
+  return result
+}
+
+// Calcular atraso em dias (>0 = atrasado, <=0 = no prazo/entregou a tempo)
+function calcDelayDays(order: { status: string; deliveryDays: number | null; shippedAt: Date | null; paymentApprovedAt: Date | null; createdAt: Date }, today: Date): number | null {
+  if (order.status === 'DELIVERED' || order.status === 'CANCELLED') return null
+  if (!order.deliveryDays) return null
+  const base = order.shippedAt ?? order.paymentApprovedAt ?? order.createdAt
+  const estimated = addBusinessDays(new Date(base), order.deliveryDays)
+  const diffMs = today.getTime() - estimated.getTime()
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
+}
+
+interface SearchParams {
+  status?: string
+  search?: string
+  origin?: string
+  type?: string
+}
+
+export default async function AdminPedidosPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const params = await searchParams
   // ADMIN vê pedidos que tenham itens da plataforma (ADM) ou DROP
   // Itens STOCK com sellerId são do vendedor e não aparecem aqui
   const allOrders = await prisma.order.findMany({
@@ -86,6 +117,8 @@ export default async function AdminPedidosPage() {
     },
     orderBy: { createdAt: 'desc' },
   })
+
+  const today = new Date()
 
   // Filtrar pedidos que tenham pelo menos 1 item ADM ou DROP
   // e aplicar filtro de itens via JavaScript
@@ -161,7 +194,11 @@ export default async function AdminPedidosPage() {
           hasStock,
           hasADM,
           hasSupplier,
-          sellers
+          sellers,
+          deliveryDays: (order as any).deliveryDays ?? null,
+          shippedAt: (order as any).shippedAt ?? null,
+          paymentApprovedAt: (order as any).paymentApprovedAt ?? null,
+          shippingMethod: (order as any).shippingMethod ?? null,
         })
       }
     } else {
@@ -187,7 +224,11 @@ export default async function AdminPedidosPage() {
         hasStock,
         hasADM,
         hasSupplier,
-        sellers
+        sellers,
+        deliveryDays: (order as any).deliveryDays ?? null,
+        shippedAt: (order as any).shippedAt ?? null,
+        paymentApprovedAt: (order as any).paymentApprovedAt ?? null,
+        shippingMethod: (order as any).shippingMethod ?? null,
       })
     }
   }
@@ -207,248 +248,129 @@ export default async function AdminPedidosPage() {
 
   console.log('[Admin Pedidos] Total de pedidos da ADM:', orders.length, '(agrupados de', rawOrders.length, 'registros)')
 
-  const getStatusColor = (status: string) => {
-    const colorMap: { [key: string]: string } = {
-      PENDING: 'bg-gray-100 text-gray-800',
-      PROCESSING: 'bg-yellow-100 text-yellow-800',
-      SHIPPED: 'bg-blue-100 text-blue-800',
-      DELIVERED: 'bg-green-100 text-green-800',
-      CANCELLED: 'bg-red-100 text-red-800',
+  // ── Calcular atraso + conversão para OrderCard ────────────────────────────
+  const allCards: OrderCard[] = orders.map(order => {
+    const delayDays = calcDelayDays(order as any, today)
+    const baseDate = (order as any).shippedAt ?? (order as any).paymentApprovedAt ?? order.createdAt
+    const estimated = (order as any).deliveryDays && baseDate
+      ? addBusinessDays(new Date(baseDate), (order as any).deliveryDays).toISOString()
+      : null
+    return {
+      id: order.id,
+      displayId: order.displayId,
+      isHybrid: order.isHybrid,
+      subOrderIds: order.subOrderIds,
+      total: order.total,
+      status: order.status,
+      sentToSupplier: order.sentToSupplier,
+      createdAt: order.createdAt.toISOString(),
+      buyerName: order.buyerName ?? order.user?.name ?? null,
+      buyerEmail: order.buyerEmail ?? order.user?.email ?? null,
+      marketplaceOrderId: order.marketplaceOrderId,
+      marketplaceName: order.marketplaceName,
+      itemCount: order.items.length,
+      hasDropshipping: order.hasDropshipping,
+      hasADM: order.hasADM,
+      hasSupplier: order.hasSupplier,
+      sellers: order.sellers,
+      delayDays,
+      estimatedDelivery: estimated,
+      shippingMethod: (order as any).shippingMethod ?? null,
+      deliveryDays: (order as any).deliveryDays ?? null,
     }
-    return colorMap[status] || 'bg-gray-100 text-gray-800'
+  })
+
+  // ── Filtros ───────────────────────────────────────────────────────────────
+  const { status: statusParam, search: searchParam, origin: originParam, type: typeParam } = params
+
+  let filtered = allCards
+
+  // status tab
+  if (statusParam && statusParam !== 'all') {
+    if (statusParam === 'not_sent') {
+      filtered = filtered.filter(o => !o.sentToSupplier && o.status !== 'CANCELLED' && o.status !== 'DELIVERED')
+    } else if (statusParam === 'late') {
+      filtered = filtered.filter(o => (o.delayDays ?? -999) > 0)
+    } else {
+      filtered = filtered.filter(o => o.status === statusParam.toUpperCase())
+    }
   }
 
-  const getStatusText = (status: string) => {
-    const statusMap: { [key: string]: string } = {
-      PENDING: 'Pendente',
-      PROCESSING: 'Processando',
-      SHIPPED: 'Enviado',
-      DELIVERED: 'Entregue',
-      CANCELLED: 'Cancelado',
-    }
-    return statusMap[status] || status
+  // busca
+  if (searchParam) {
+    const q = searchParam.toLowerCase()
+    filtered = filtered.filter(o =>
+      o.buyerName?.toLowerCase().includes(q) ||
+      o.buyerEmail?.toLowerCase().includes(q) ||
+      o.id.toLowerCase().includes(q) ||
+      o.marketplaceOrderId?.toLowerCase().includes(q)
+    )
   }
+
+  // origem
+  if (originParam && originParam !== 'all') {
+    if (originParam === 'ml') filtered = filtered.filter(o => !!o.marketplaceOrderId)
+    else if (originParam === 'app') filtered = filtered.filter(o => o.marketplaceName === 'APP')
+    else filtered = filtered.filter(o => !o.marketplaceOrderId && o.marketplaceName !== 'APP')
+  }
+
+  // tipo
+  if (typeParam && typeParam !== 'all') {
+    if (typeParam === 'hybrid') filtered = filtered.filter(o => o.isHybrid)
+    else if (typeParam === 'drop') filtered = filtered.filter(o => o.hasDropshipping && !o.hasADM)
+    else if (typeParam === 'adm') filtered = filtered.filter(o => o.hasADM && !o.hasDropshipping)
+  }
+
+  // ── Contagens para o filtro ───────────────────────────────────────────────
+  const counts = {
+    total: allCards.length,
+    processing: allCards.filter(o => o.status === 'PROCESSING').length,
+    shipped: allCards.filter(o => o.status === 'SHIPPED').length,
+    delivered: allCards.filter(o => o.status === 'DELIVERED').length,
+    cancelled: allCards.filter(o => o.status === 'CANCELLED').length,
+    notSent: allCards.filter(o => !o.sentToSupplier && o.status !== 'CANCELLED' && o.status !== 'DELIVERED').length,
+    late: allCards.filter(o => (o.delayDays ?? -999) > 0).length,
+  }
+
+  // ── Stats rápidos ─────────────────────────────────────────────────────────
+  const statCards = [
+    { label: 'Total', value: counts.total, icon: <FiShoppingBag size={20} />, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Processando', value: counts.processing, icon: <FiClock size={20} />, color: 'text-yellow-600 bg-yellow-50' },
+    { label: 'Enviados', value: counts.shipped, icon: <FiTruck size={20} />, color: 'text-indigo-600 bg-indigo-50' },
+    { label: 'Entregues', value: counts.delivered, icon: <FiCheckCircle size={20} />, color: 'text-green-600 bg-green-50' },
+    { label: 'Não Enviados', value: counts.notSent, icon: <FiAlertCircle size={20} />, color: 'text-red-600 bg-red-50' },
+  ]
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">Gerenciar Pedidos</h1>
-        <div className="flex gap-4">
-          <div className="bg-white px-4 py-2 rounded-lg shadow">
-            <p className="text-sm text-gray-600">Total de Pedidos</p>
-            <p className="text-2xl font-bold">{orders.length}</p>
-          </div>
-          <div className="bg-white px-4 py-2 rounded-lg shadow">
-            <p className="text-sm text-gray-600">Processando</p>
-            <p className="text-2xl font-bold text-yellow-600">
-              {orders.filter(o => o.status === 'PROCESSING').length}
-            </p>
-          </div>
-          <div className="bg-white px-4 py-2 rounded-lg shadow">
-            <p className="text-sm text-gray-600">Não Enviados</p>
-            <p className="text-2xl font-bold text-red-600">
-              {orders.filter(o => !o.sentToSupplier && o.status !== 'CANCELLED').length}
-            </p>
-          </div>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{filtered.length} pedido{filtered.length !== 1 ? 's' : ''} exibido{filtered.length !== 1 ? 's' : ''}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-left py-4 px-6 font-semibold">ID</th>
-                <th className="text-left py-4 px-6 font-semibold">Origem</th>
-                <th className="text-left py-4 px-6 font-semibold">Tipo</th>
-                <th className="text-left py-4 px-6 font-semibold">Vendedor</th>
-                <th className="text-left py-4 px-6 font-semibold">Cliente</th>
-                <th className="text-left py-4 px-6 font-semibold">Total</th>
-                <th className="text-left py-4 px-6 font-semibold">Itens</th>
-                <th className="text-left py-4 px-6 font-semibold">Status</th>
-                <th className="text-left py-4 px-6 font-semibold">Fornecedor</th>
-                <th className="text-left py-4 px-6 font-semibold">Data</th>
-                <th className="text-right py-4 px-6 font-semibold">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => {
-                return (
-                <tr key={order.id} className="border-b hover:bg-gray-50">
-                  <td className="py-4 px-6">
-                    <div className="flex flex-col gap-1">
-                      <p className="font-mono text-sm font-semibold text-primary-600">
-                        {formatOrderNumber(order.isHybrid ? order.displayId : order.id)}
-                      </p>
-                      {order.isHybrid && (
-                        <div className="flex items-center gap-1">
-                          <FiLayers className="text-purple-600" size={12} />
-                          <span className="text-xs text-purple-600">{order.subOrderIds.length} sub-pedidos</span>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    {order.marketplaceOrderId ? (
-                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">
-                        ML
-                      </span>
-                    ) : order.marketplaceName === 'APP' ? (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
-                        📱 APP
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
-                        Site
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-4 px-6">
-                    {order.isHybrid ? (
-                      <div className="flex flex-col gap-1">
-                        <span className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
-                          🔄 Híbrido
-                        </span>
-                        <span className="text-xs text-gray-500 font-mono">
-                          {[
-                            order.hasADM ? 'AD' : null,
-                            order.hasDropshipping ? 'DR' : null
-                          ].filter(Boolean).join('/')}
-                        </span>
-                      </div>
-                    ) : order.hasDropshipping ? (
-                      <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
-                        📦 DROP
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold flex items-center gap-1 w-fit">
-                        🏪 ADM
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex flex-col gap-1">
-                      {/* Mostrar Plataforma se tem itens ADM */}
-                      {order.hasADM && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">
-                          🏢 Plataforma
-                        </span>
-                      )}
-                      {/* Mostrar vendedores DROP se existirem */}
-                      {order.sellers.length > 0 && order.sellers.map((seller, idx) => (
-                        <span key={idx} className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-semibold">
-                          👤 {seller}
-                        </span>
-                      ))}
-                      {/* Se não tem ADM nem vendedores, é só DROP */}
-                      {!order.hasADM && order.sellers.length === 0 && order.hasDropshipping && (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-600 rounded text-xs">
-                          📦 Fornecedor DROP
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <p className="font-semibold">{order.buyerName || order.user?.name || 'N/A'}</p>
-                    <p className="text-sm text-gray-500">{order.buyerEmail || order.user?.email || 'N/A'}</p>
-                  </td>
-                  <td className="py-4 px-6">
-                    <p className="font-semibold text-primary-600">
-                      R$ {order.total.toFixed(2)}
-                    </p>
-                  </td>
-                  <td className="py-4 px-6">
-                    <p className="text-sm">{order.items.length} produtos</p>
-                  </td>
-                  <td className="py-4 px-6">
-                    {order.status !== 'CANCELLED' ? (
-                      order.isHybrid ? (
-                        <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${getStatusColor(order.status)}`}>
-                          {getStatusText(order.status)}
-                        </span>
-                      ) : (
-                        <UpdateOrderStatusButton orderId={order.id} currentStatus={order.status} />
-                      )
-                    ) : (
-                      <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold bg-red-100 text-red-800">
-                        ❌ Cancelado
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-4 px-6">
-                    {order.sentToSupplier ? (
-                      <div className="flex items-center gap-2 text-green-600 text-sm">
-                        <FiPackage size={16} />
-                        <span>Enviado</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-red-600 text-sm">
-                        <FiAlertCircle size={16} />
-                        <span>Pendente</span>
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-4 px-6">
-                    <p className="text-sm">
-                      <ClientDate date={order.createdAt} format="date" />
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      <ClientDate date={order.createdAt} format="time" />
-                    </p>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex justify-end gap-2">
-                      {order.marketplaceOrderId && order.status !== 'CANCELLED' && !order.isHybrid && (
-                        <PrintShippingLabelButton 
-                          orderId={order.subOrderIds[0]}
-                          marketplace="mercadolivre"
-                        />
-                      )}
-                      {/* Só mostra botão se: pedido tem fornecedor E não foi enviado E status válido */}
-                      {order.hasSupplier && 
-                       !order.sentToSupplier && 
-                       order.status !== 'CANCELLED' && 
-                       order.status !== 'PENDING' &&
-                       !order.isHybrid && (
-                        <SendToSupplierButton 
-                          orderId={order.subOrderIds[0]} 
-                          sentToSupplier={order.sentToSupplier}
-                        />
-                      )}
-                      {order.isHybrid ? (
-                        <Link
-                          href={`/admin/pedidos/${order.subOrderIds[0]}`}
-                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-md flex items-center gap-1"
-                          title="Ver detalhes do pedido híbrido"
-                        >
-                          <FiLayers size={16} />
-                          <FiEye size={18} />
-                        </Link>
-                      ) : (
-                        <Link
-                          href={`/admin/pedidos/${order.id}`}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
-                          title="Ver detalhes"
-                        >
-                          <FiEye size={18} />
-                        </Link>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )})}
-            </tbody>
-          </table>
-        </div>
-
-        {orders.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">Nenhum pedido encontrado</p>
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {statCards.map(s => (
+          <div key={s.label} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${s.color}`}>{s.icon}</div>
+            <div>
+              <p className="text-xl font-bold text-gray-900">{s.value}</p>
+              <p className="text-xs text-gray-500">{s.label}</p>
+            </div>
           </div>
-        )}
+        ))}
       </div>
 
-      {/* Componente de verificação automática */}
+      {/* Filtros */}
+      <OrdersFilter counts={counts} />
+
+      {/* Lista */}
+      <OrdersCardView orders={filtered} />
+
+      {/* Auto-fetch ML */}
       <AutoFetchOrders />
     </div>
   )
