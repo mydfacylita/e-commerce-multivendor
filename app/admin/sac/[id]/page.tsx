@@ -87,46 +87,17 @@ function MsgBubble({ msg }: { msg: any }) {
   )
 }
 
-// ── Templates SAC disponíveis para iniciar conversa ────────────────────────
-const SAC_TEMPLATES = [
-  {
-    id: 'mydshop_atendimento',
-    label: '👋 Abertura de atendimento',
-    description: 'Inicia contato informando que o atendimento foi aberto',
-    params: ['nome do cliente', 'número do pedido (ou motivo)'],
-    preview: 'Olá {{1}}! Aqui é o suporte MydShop. Abrimos um atendimento referente a {{2}}. Como podemos ajudar?',
-  },
-  {
-    id: 'mydshop_pedido_confirmado',
-    label: '✅ Pedido confirmado',
-    description: 'Confirma o pedido ao cliente',
-    params: ['nome', 'compra', 'nº pedido', 'qtd itens', 'prazo estimado'],
-    preview: 'Olá {{1}}, sua {{2}} foi confirmada! Pedido #{{3}} com {{4}} item(s). Prazo: {{5}}.',
-  },
-  {
-    id: 'cancelamento_pedido',
-    label: '❌ Cancelamento de pedido',
-    description: 'Informa sobre cancelamento do pedido',
-    params: ['nome do cliente', 'nº pedido'],
-    preview: 'Olá {{1}}, informamos que o pedido #{{2}} foi cancelado conforme solicitado.',
-  },
-  {
-    id: 'envio_de_pedido',
-    label: '🚚 Pedido enviado',
-    description: 'Informa que o pedido foi despachado',
-    params: ['nome do cliente', 'nº pedido'],
-    preview: 'Olá {{1}}, seu pedido #{{2}} foi enviado! Acompanhe o rastreio pelo link abaixo.',
-  },
-]
+
 
 // ── Formulário de envio de mensagem ─────────────────────────────────────────
 function SendMessageForm({
-  ticketId, buyerPhone, buyerEmail, messages,
+  ticketId, buyerPhone, buyerEmail, buyerName, messages,
   onSent,
 }: {
   ticketId: string
   buyerPhone?: string
   buyerEmail?: string
+  buyerName?: string
   messages: any[]
   onSent: () => void
 }) {
@@ -134,9 +105,7 @@ function SendMessageForm({
   const [content, setContent] = useState('')
   const [subject, setSubject] = useState('')
   const [sending, setSending] = useState(false)
-  const [tplMode, setTplMode] = useState(false)          // forçar seleção de template
-  const [selectedTpl, setSelectedTpl] = useState<typeof SAC_TEMPLATES[0] | null>(null)
-  const [tplParams, setTplParams] = useState<string[]>([])
+  const [tplMode, setTplMode] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
 
   // ── Detectar sessão ativa (cliente respondeu nas últimas 24h)
@@ -180,33 +149,26 @@ function SendMessageForm({
     ],
   }
 
-  const selectTemplate = (tpl: typeof SAC_TEMPLATES[0]) => {
-    setSelectedTpl(tpl)
-    setTplParams(new Array(tpl.params.length).fill(''))
-  }
-
-  const sendTemplate = async () => {
-    if (!selectedTpl) return
+  const sendIniciarAtendimento = async () => {
     setSending(true)
+    const firstName = (buyerName || 'Cliente').split(' ')[0]
     try {
       const r = await fetch(`/api/admin/sac/${ticketId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channel: 'whatsapp',
-          content: `[Template: ${selectedTpl.label}] ${tplParams.join(' | ')}`,
-          templateId: selectedTpl.id,
-          templateParams: tplParams,
+          content: `[Template: abertura_de_chamado] ${firstName}`,
+          templateId: 'abertura_de_chamado',
+          templateParams: [firstName],
         }),
       })
       const d = await r.json()
       if (r.status === 207) {
-        alert(`⚠️ Registrado mas envio falhou: ${d.error}\n\nVerifique se o template "${selectedTpl.id}" está aprovado no Meta Business Manager.`)
+        alert(`⚠️ Registrado mas envio falhou: ${d.error}\n\nVerifique se o template "abertura_de_chamado" está aprovado no Meta Business Manager.`)
       } else if (!r.ok) {
         throw new Error(d.error || 'Erro')
       }
-      setSelectedTpl(null)
-      setTplParams([])
       onSent()
     } catch (e: any) {
       alert('Erro: ' + e.message)
@@ -297,58 +259,17 @@ function SendMessageForm({
           )}
         </div>
 
-        {/* ── MODO TEMPLATE WhatsApp ── */}
+        {/* ── MODO INICIAR ATENDIMENTO ── */}
         {channel === 'whatsapp' && tplMode ? (
           <div className="space-y-3">
-            {!selectedTpl ? (
-              <>
-                <p className="text-xs text-gray-500 font-medium">Selecione um template para iniciar a conversa:</p>
-                <div className="grid gap-2">
-                  {SAC_TEMPLATES.map(tpl => (
-                    <button
-                      key={tpl.id}
-                      onClick={() => selectTemplate(tpl)}
-                      className="text-left border rounded-xl p-3 bg-white hover:border-green-400 hover:bg-green-50 transition-all"
-                    >
-                      <div className="font-medium text-sm text-gray-800">{tpl.label}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{tpl.description}</div>
-                      <div className="text-xs text-gray-400 mt-1 font-mono bg-gray-50 rounded p-1.5">{tpl.preview}</div>
-                    </button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">{selectedTpl.label}</span>
-                  <button onClick={() => setSelectedTpl(null)} className="text-xs text-gray-400 hover:text-gray-600 underline">← Trocar template</button>
-                </div>
-                <div className="text-xs text-gray-400 font-mono bg-gray-50 rounded p-2">{selectedTpl.preview}</div>
-                {selectedTpl.params.map((param, i) => (
-                  <div key={i}>
-                    <label className="block text-xs text-gray-500 mb-1">Parâmetro {i + 1}: <span className="text-gray-700 font-medium">{param}</span></label>
-                    <input
-                      value={tplParams[i] || ''}
-                      onChange={e => {
-                        const next = [...tplParams]
-                        next[i] = e.target.value
-                        setTplParams(next)
-                      }}
-                      placeholder={param}
-                      className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                    />
-                  </div>
-                ))}
-                <button
-                  onClick={sendTemplate}
-                  disabled={sending || tplParams.some(p => !p.trim())}
-                  className="w-full bg-green-500 text-white py-2.5 rounded-xl font-medium hover:bg-green-600 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {sending ? <FiRefreshCw className="animate-spin" /> : <FiSend />}
-                  {sending ? 'Enviando template...' : '📱 Enviar e Iniciar Conversa'}
-                </button>
-              </div>
-            )}
+            <button
+              onClick={sendIniciarAtendimento}
+              disabled={sending || !buyerPhone}
+              className="w-full bg-green-500 text-white py-3 rounded-xl font-medium hover:bg-green-600 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+            >
+              {sending ? <FiRefreshCw className="animate-spin" /> : <FiSend />}
+              {sending ? 'Enviando...' : '📱 Iniciar Atendimento'}
+            </button>
           </div>
         ) : (
           <>
@@ -836,6 +757,7 @@ export default function TicketPage() {
               ticketId={id}
               buyerPhone={ticket.buyerPhone}
               buyerEmail={ticket.buyerEmail}
+              buyerName={ticket.buyerName}
               messages={ticket.messages || []}
               onSent={load}
             />
