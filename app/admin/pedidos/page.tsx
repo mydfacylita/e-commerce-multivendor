@@ -245,7 +245,11 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
         shippedAt: (order as any).shippedAt ?? null,
         paymentApprovedAt: (order as any).paymentApprovedAt ?? null,
         shippingMethod: (order as any).shippingMethod ?? null,
-          carne: (order as any).carne ?? null,
+        carne: (order as any).carne ?? null,
+      })
+    }
+  }
+
   // Converter para array e verificar se realmente é híbrido
   const orders = Array.from(groupedOrdersMap.values()).map(order => {
     // É realmente híbrido se: tem múltiplos tipos de origem (ADM + DROP)
