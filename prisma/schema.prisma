@@ -2298,6 +2298,7 @@ model ServiceTicket {
   orderId     String?
 
   // Ticket
+  protocol    String?             @unique @db.VarChar(30)  // ex: SAC-20260304-0001
   subject     String              @db.VarChar(500)
   status      String              @default("OPEN")    // OPEN | IN_PROGRESS | NEGOTIATING | RESOLVED | CLOSED
   priority    String              @default("NORMAL")  // LOW | NORMAL | HIGH | URGENT
@@ -2309,6 +2310,10 @@ model ServiceTicket {
 
   // Negociação
   hasNegotiation Boolean          @default(false)
+
+  // Sessão WhatsApp — quando o template de abertura foi enviado
+  sessionOpenedAt DateTime?       // quando enviamos o template de abertura
+  sessionClosedAt DateTime?       // quando o atendimento foi encerrado via WPP
 
   // Timestamps
   createdAt   DateTime            @default(now())
@@ -2326,6 +2331,7 @@ model ServiceTicket {
   @@index([status])
   @@index([buyerPhone])
   @@index([buyerEmail])
+  @@index([protocol])
   @@index([createdAt])
   @@map("service_ticket")
 }

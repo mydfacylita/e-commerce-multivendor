@@ -91,16 +91,15 @@ export async function POST(request: NextRequest) {
  */
 async function processIncomingMessage(message: any, contacts: any[], metadata: any) {
   try {
-    const from = message.from; // Número do remetente
+    const from = message.from; // Número do remetente (ex: 5598991269315)
     const messageId = message.id;
-    const timestamp = message.timestamp;
     const type = message.type; // text, image, audio, document, etc
-    
+
     // Encontrar informações do contato
     const contact = contacts.find((c: any) => c.wa_id === from);
-    const contactName = contact?.profile?.name || 'Desconhecido';
-    
-    console.log(`📱 Mensagem de ${contactName} (${from}):`, message);
+    const contactName = contact?.profile?.name || 'Cliente';
+
+    console.log(`📱 Mensagem recebida de ${contactName} (${from}):`, type);
 
     // Conteúdo da mensagem baseado no tipo
     let content = '';
@@ -117,21 +116,95 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
     } else if (type === 'button') {
       content = message.button?.text || '[Botão]';
     } else if (type === 'interactive') {
-      content = message.interactive?.button_reply?.title || 
-                message.interactive?.list_reply?.title || 
+      content = message.interactive?.button_reply?.title ||
+                message.interactive?.list_reply?.title ||
                 '[Interativo]';
+    } else {
+      content = `[${type}]`;
     }
 
-    // Aqui você pode:
-    // 1. Salvar a mensagem no banco de dados
-    // 2. Notificar o vendedor/admin
-    // 3. Processar comandos automatizados
-    // 4. Responder automaticamente
+    if (!content) return;
 
-    // Exemplo: Verificar se é uma consulta de pedido
-    if (content.toLowerCase().includes('pedido') || content.toLowerCase().includes('rastrear')) {
-      // TODO: Implementar resposta automática de rastreamento
-      console.log('🔍 Consulta de pedido detectada');
+    // ── Integração SAC ──────────────────────────────────────────────
+    // O WhatsApp manda o número SEM máscara: "5598991269315"
+    // O ticket pode ter qualquer formato: "(98) 99126-9315", "55989..."
+    // Estratégia: comparar apenas os últimos 9 dígitos (número local sem DDD 55)
+    const digitsOnly = from.replace(/\D/g, '')
+    // Últimos 9 dígitos do número recebido (compatível com celular BR 9 dígitos)
+    const last9 = digitsOnly.slice(-9)
+    // Últimos 11 dígitos (DDD + número)
+    const last11 = digitsOnly.slice(-11)
+
+    console.log(`🔍 Buscando ticket para: from=${from} last9=${last9} last11=${last11}`)
+
+    // Buscar todos os tickets abertos e filtrar por telefone em JS
+    // (necessário por causa das diferentes máscaras salvas no banco)
+    const openTickets = await prisma.serviceTicket.findMany({
+      where: {
+        status: { notIn: ['CLOSED'] },
+        buyerPhone: { not: null },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+    })
+
+    const ticket = openTickets.find(t => {
+      if (!t.buyerPhone) return false
+      const ticketDigits = t.buyerPhone.replace(/\D/g, '')
+      return ticketDigits.endsWith(last9) || ticketDigits.endsWith(last11)
+    }) || null
+
+    if (ticket) {
+      // Salvar mensagem recebida no ticket
+      await prisma.ticketMessage.create({
+        data: {
+          ticketId:   ticket.id,
+          channel:    'whatsapp',
+          direction:  'in',
+          from:       contactName,
+          content,
+          externalId: messageId,
+          status:     'sent',
+        },
+      });
+
+      // Atualizar ticket para IN_PROGRESS se estava OPEN
+      await prisma.serviceTicket.update({
+        where: { id: ticket.id },
+        data: {
+          status:    ticket.status === 'OPEN' ? 'IN_PROGRESS' : ticket.status,
+          updatedAt: new Date(),
+        },
+      });
+
+      console.log(`✅ Mensagem do cliente salva no ticket ${ticket.id}`);
+    } else {
+      // Sem ticket aberto — criar automaticamente com número normalizado (só dígitos com 55)
+      const normalizedPhone = digitsOnly.startsWith('55') ? digitsOnly : `55${digitsOnly}`
+      const newTicket = await prisma.serviceTicket.create({
+        data: {
+          buyerPhone: normalizedPhone,
+          buyerName:  contactName,
+          subject:    `Contato recebido via WhatsApp de ${contactName}`,
+          status:     'OPEN',
+          category:   'OUTRO',
+          priority:   'NORMAL',
+        },
+      });
+
+      await prisma.ticketMessage.create({
+        data: {
+          ticketId:   newTicket.id,
+          channel:    'whatsapp',
+          direction:  'in',
+          from:       contactName,
+          content,
+          externalId: messageId,
+          status:     'sent',
+        },
+      });
+
+      console.log(`🆕 Novo ticket criado automaticamente: ${newTicket.id}`);
     }
 
   } catch (error) {
@@ -144,23 +217,23 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
  */
 async function processMessageStatus(status: any) {
   try {
-    const messageId = status.id;
-    const statusType = status.status; // sent, delivered, read, failed
-    const recipientId = status.recipient_id;
-    const timestamp = status.timestamp;
+    const messageId   = status.id;
+    const statusType  = status.status; // sent, delivered, read, failed
+    const timestamp   = status.timestamp;
 
     console.log(`📊 Status da mensagem ${messageId}: ${statusType}`);
 
-    // Aqui você pode atualizar o status da mensagem no banco de dados
-    // Exemplo:
-    // await prisma.whatsappMessage.update({
-    //   where: { messageId },
-    //   data: { status: statusType }
-    // });
+    // Atualizar status da mensagem no ticket
+    if (['delivered', 'read', 'failed'].includes(statusType)) {
+      await prisma.ticketMessage.updateMany({
+        where: { externalId: messageId },
+        data:  { status: statusType === 'failed' ? 'failed' : statusType },
+      });
+    }
 
     if (statusType === 'failed') {
       const errors = status.errors || [];
-      console.error('❌ Falha no envio:', errors);
+      console.error('❌ Falha no envio WhatsApp:', errors);
     }
 
   } catch (error) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { WhatsAppService } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,6 +81,55 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const body = await req.json()
+  const { action } = body
+
+  // ── Ações especiais ─────────────────────────────────────────────────────────
+  if (action === 'openSession') {
+    // Envia template mydshop_abrir_chamado e marca sessionOpenedAt
+    const ticket = await prisma.serviceTicket.findUnique({ where: { id: params.id } })
+    if (!ticket) return NextResponse.json({ error: 'Ticket não encontrado' }, { status: 404 })
+    if (!ticket.buyerPhone) return NextResponse.json({ error: 'Ticket sem telefone do comprador' }, { status: 400 })
+
+    const t = ticket as any
+    const protocol = t.protocol || ticket.id
+    const buyerName = ticket.buyerName || 'Cliente'
+    const components = [{
+      type: 'body',
+      parameters: [
+        { type: 'text', text: buyerName },
+        { type: 'text', text: protocol },
+      ],
+    }]
+
+    await WhatsAppService.sendTemplate(ticket.buyerPhone, 'mydshop_abrir_chamado', 'pt_BR', components, {})
+    const updated = await (prisma.serviceTicket.update as any)({
+      where: { id: params.id },
+      data: { sessionOpenedAt: new Date(), status: 'IN_PROGRESS', updatedAt: new Date() },
+    })
+
+    // Registrar mensagem enviada
+    await prisma.ticketMessage.create({
+      data: {
+        ticketId:  params.id,
+        direction: 'out',
+        channel:   'whatsapp',
+        content:   `[Template] mydshop_abrir_chamado — Protocolo ${protocol}`,
+        status:    'sent',
+      },
+    })
+
+    return NextResponse.json(updated)
+  }
+
+  if (action === 'closeSession') {
+    const updated = await (prisma.serviceTicket.update as any)({
+      where: { id: params.id },
+      data: { sessionClosedAt: new Date(), status: 'CLOSED', closedAt: new Date(), updatedAt: new Date() },
+    })
+    return NextResponse.json(updated)
+  }
+
+  // ── Atualização de campos comuns ─────────────────────────────────────────────
   const updateData: any = {}
 
   const allowed = ['status', 'priority', 'category', 'subject', 'assignedTo', 'tags',

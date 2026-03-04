@@ -540,6 +540,7 @@ export default function TicketPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab]       = useState<'chat' | 'negotiation' | 'history'>('chat')
   const [editStatus, setEditStatus] = useState(false)
+  const [sessionLoading, setSessionLoading] = useState(false)
   const msgEndRef = useRef<HTMLDivElement>(null)
   const lastMsgCount = useRef(0)
 
@@ -586,6 +587,44 @@ export default function TicketPage() {
     load()
   }
 
+  const openSession = async () => {
+    if (!confirm('Enviar template "Iniciar Atendimento" para o cliente via WhatsApp?')) return
+    setSessionLoading(true)
+    try {
+      const r = await fetch(`/api/admin/sac/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'openSession' }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Erro ao abrir sessão')
+      load()
+    } catch (e: any) {
+      alert('Erro: ' + e.message)
+    } finally {
+      setSessionLoading(false)
+    }
+  }
+
+  const closeSession = async () => {
+    if (!confirm('Encerrar este atendimento?')) return
+    setSessionLoading(true)
+    try {
+      const r = await fetch(`/api/admin/sac/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'closeSession' }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Erro ao encerrar')
+      load()
+    } catch (e: any) {
+      alert('Erro: ' + e.message)
+    } finally {
+      setSessionLoading(false)
+    }
+  }
+
   const updateDealStatus = async (dealId: string, status: string) => {
     await fetch(`/api/admin/sac/${id}/negotiation`, {
       method: 'PATCH',
@@ -617,6 +656,14 @@ export default function TicketPage() {
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 mb-3">
             <FiArrowLeft /> Voltar ao SAC
           </button>
+          {/* Protocolo */}
+          {ticket.protocol && (
+            <div className="mb-2 flex items-center gap-2">
+              <span className="bg-primary-50 border border-primary-200 text-primary-700 font-mono text-xs font-semibold px-2.5 py-1 rounded-full tracking-wide">
+                🎫 {ticket.protocol}
+              </span>
+            </div>
+          )}
           <h2 className="font-semibold text-gray-800 text-sm leading-snug">{ticket.subject}</h2>
 
           {/* Status com edição */}
@@ -694,6 +741,42 @@ export default function TicketPage() {
             ))}
           </div>
         )}
+
+        {/* Ações de sessão */}
+        <div className="p-4 border-b space-y-2">
+          {ticket.status !== 'CLOSED' && (
+            <>
+              {!ticket.sessionOpenedAt ? (
+                <button
+                  onClick={openSession}
+                  disabled={sessionLoading || !ticket.buyerPhone}
+                  className="w-full flex items-center justify-center gap-2 bg-green-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  title={!ticket.buyerPhone ? 'Ticket sem telefone' : ''}
+                >
+                  {sessionLoading ? <FiRefreshCw className="animate-spin" /> : null}
+                  🎫 Iniciar Atendimento
+                </button>
+              ) : (
+                <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  ✅ Atendimento iniciado em {new Date(ticket.sessionOpenedAt).toLocaleString('pt-BR')}
+                </div>
+              )}
+              <button
+                onClick={closeSession}
+                disabled={sessionLoading}
+                className="w-full flex items-center justify-center gap-2 border border-red-300 text-red-600 text-sm font-medium py-2 rounded-lg hover:bg-red-50 disabled:opacity-50"
+              >
+                {sessionLoading ? <FiRefreshCw className="animate-spin" /> : null}
+                🔒 Encerrar Atendimento
+              </button>
+            </>
+          )}
+          {ticket.status === 'CLOSED' && ticket.closedAt && (
+            <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              🔒 Encerrado em {new Date(ticket.closedAt).toLocaleString('pt-BR')}
+            </div>
+          )}
+        </div>
 
         {/* Meta */}
         <div className="p-4 text-xs text-gray-400 space-y-1">

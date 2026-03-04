@@ -5,6 +5,21 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+// Gera protocolo sequencial do dia: SAC-20260304-0001
+async function generateProtocol(): Promise<string> {
+  const today = new Date()
+  const datePart = today.toISOString().slice(0, 10).replace(/-/g, '') // "20260304"
+  const prefix = `SAC-${datePart}-`
+
+  // Contar quantos tickets já foram criados hoje
+  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const count = await prisma.serviceTicket.count({
+    where: { createdAt: { gte: startOfDay } },
+  })
+
+  return `${prefix}${String(count + 1).padStart(4, '0')}`
+}
+
 // GET /api/admin/sac — listar tickets
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -29,6 +44,7 @@ export async function GET(req: NextRequest) {
       { buyerCpf:   { contains: q } },
       { subject:    { contains: q } },
       { orderId:    { contains: q } },
+      { protocol:   { contains: q } },
     ]
   }
 
@@ -71,8 +87,11 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  const protocol = await generateProtocol()
+
   const ticket = await prisma.serviceTicket.create({
     data: {
+      protocol,
       userId:     userId || orderData?.userId  || null,
       buyerName:  buyerName  || orderData?.buyerName  || null,
       buyerEmail: buyerEmail || orderData?.buyerEmail || null,
