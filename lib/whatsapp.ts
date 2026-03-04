@@ -442,7 +442,6 @@ Obrigado por comprar na MYDSHOP.`
       message
     })
   }
-}
 
   /**
    * Envia notificação de pedido cancelado
