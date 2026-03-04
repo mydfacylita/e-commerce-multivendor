@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (templateId && templateParams) {
         // Envio via template
         const result = await WhatsAppService.sendTemplate(ticket.buyerPhone, templateId, templateParams)
-        externalId = result?.messages?.[0]?.id || null
+        externalId = result?.messageId || null
       } else {
         // Mensagem de texto livre (sessão ativa necessária)
         const result = await WhatsAppService.sendMessage({
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           logType: 'sac_message',
           logOrderId: ticket.orderId || undefined,
         })
-        externalId = result?.messages?.[0]?.id || null
+        externalId = result?.messageId || null
       }
     } else if (channel === 'email') {
       if (!ticket.buyerEmail) throw new Error('E-mail do cliente não informado')
