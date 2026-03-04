@@ -1,8 +1,6 @@
 'use client'
 
 import Script from 'next/script'
-import { useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
 
 interface GoogleAdsProps {
   adsId?: string
@@ -17,19 +15,8 @@ declare global {
 }
 
 export default function GoogleAds({ adsId = 'AW-17927166534' }: GoogleAdsProps) {
-  const pathname = usePathname()
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
-
-  // Verificar se é área admin
-  useEffect(() => {
-    const isAdminPath = pathname?.startsWith('/admin') || 
-                        pathname?.startsWith('/vendedor') ||
-                        window.location.hostname.includes('gerencial-sys')
-    setIsAdmin(isAdminPath)
-  }, [pathname])
-
-  // Não carregar se ainda não determinou a rota, ou se for área administrativa
-  if (isAdmin !== false || !adsId) return null
+  // layout.tsx já garante que este componente só aparece em páginas públicas
+  if (!adsId) return null
 
   return (
     <>

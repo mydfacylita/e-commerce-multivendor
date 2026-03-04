@@ -1,7 +1,7 @@
 'use client'
 
 import Script from 'next/script'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, Suspense } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 
 interface GoogleAnalyticsProps {
@@ -12,53 +12,23 @@ interface GoogleAnalyticsProps {
 function GoogleAnalyticsInner({ gaId }: GoogleAnalyticsProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [measurementId, setMeasurementId] = useState<string | null>(gaId || null)
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
 
-  // Verificar se é admin pela URL (evita erro de prerender com useSession)
+  // Rastrear navegações SPA (troca de rota sem reload)
   useEffect(() => {
-    const isAdminPath = pathname?.startsWith('/admin') || 
-                        pathname?.startsWith('/vendedor') ||
-                        window.location.hostname.includes('gerencial-sys')
-    setIsAdmin(isAdminPath)
-  }, [pathname])
-
-  // Buscar ID do GA das configurações se não foi passado como prop
-  useEffect(() => {
-    if (!gaId) {
-      fetch('/api/config/public')
-        .then(res => res.json())
-        .then(data => {
-          if (data?.['seo.googleAnalytics']) {
-            setMeasurementId(data['seo.googleAnalytics'])
-          }
-        })
-        .catch(console.error)
-    }
-  }, [gaId])
-
-  // Rastrear mudanças de página (apenas se não for admin)
-  useEffect(() => {
-    if (!measurementId || typeof window === 'undefined' || isAdmin) return
-
+    if (!gaId || typeof window === 'undefined' || !window.gtag) return
     const url = pathname + (searchParams?.toString() ? `?${searchParams.toString()}` : '')
-    
-    // Enviar page_view para o GA4
-    if (window.gtag) {
-      window.gtag('config', measurementId, {
-        page_path: url,
-      })
-    }
-  }, [pathname, searchParams, measurementId, isAdmin])
+    window.gtag('config', gaId, { page_path: url })
+  }, [pathname, searchParams, gaId])
 
-  // Não renderizar se não tiver ID, se ainda não determinou a rota, ou se for admin
-  if (!measurementId || isAdmin !== false) return null
+  // Não renderizar se não tiver ID
+  if (!gaId) return null
 
+  // Renderiza imediatamente — layout.tsx já garante que este componente
+  // só aparece em páginas públicas (admin tem return próprio antes)
   return (
     <>
-      {/* Google Analytics Script */}
       <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`}
+        src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
         strategy="afterInteractive"
       />
       <Script id="google-analytics" strategy="afterInteractive">
@@ -66,16 +36,13 @@ function GoogleAnalyticsInner({ gaId }: GoogleAnalyticsProps) {
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
-          gtag('config', '${measurementId}', {
-            page_path: window.location.pathname,
-          });
+          gtag('config', '${gaId}', { page_path: window.location.pathname });
         `}
       </Script>
     </>
   )
 }
 
-// Componente exportado envolve em Suspense
 export default function GoogleAnalytics({ gaId }: GoogleAnalyticsProps) {
   return (
     <Suspense fallback={null}>
@@ -84,7 +51,6 @@ export default function GoogleAnalytics({ gaId }: GoogleAnalyticsProps) {
   )
 }
 
-// Declaração de tipo para o gtag global
 declare global {
   interface Window {
     gtag: (...args: any[]) => void
