@@ -91,13 +91,15 @@ function MsgBubble({ msg }: { msg: any }) {
 
 // ── Formulário de envio de mensagem ─────────────────────────────────────────
 function SendMessageForm({
-  ticketId, buyerPhone, buyerEmail, buyerName, messages,
+  ticketId, buyerPhone, buyerEmail, buyerName, messages, ticketStatus, sessionClosedAt,
   onSent,
 }: {
   ticketId: string
   buyerPhone?: string
   buyerEmail?: string
   buyerName?: string
+  ticketStatus?: string
+  sessionClosedAt?: string | null
   messages: any[]
   onSent: () => void
 }) {
@@ -115,6 +117,8 @@ function SendMessageForm({
 
   const sessionActive = lastIncoming
     ? (Date.now() - new Date(lastIncoming.createdAt).getTime()) < 24 * 60 * 60 * 1000
+      && ticketStatus !== 'CLOSED'
+      && !sessionClosedAt
     : false
 
   const sessionMinutesLeft = lastIncoming && sessionActive
@@ -528,7 +532,6 @@ export default function TicketPage() {
   }
 
   const closeSession = async () => {
-    if (!confirm('Encerrar este atendimento?')) return
     setSessionLoading(true)
     try {
       const r = await fetch(`/api/admin/sac/${id}`, {
@@ -759,6 +762,8 @@ export default function TicketPage() {
               buyerEmail={ticket.buyerEmail}
               buyerName={ticket.buyerName}
               messages={ticket.messages || []}
+              ticketStatus={ticket.status}
+              sessionClosedAt={ticket.sessionClosedAt}
               onSent={load}
             />
           </div>

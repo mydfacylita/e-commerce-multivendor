@@ -122,6 +122,40 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (action === 'closeSession') {
+    const ticket = await prisma.serviceTicket.findUnique({ where: { id: params.id } })
+    if (!ticket) return NextResponse.json({ error: 'Ticket não encontrado' }, { status: 404 })
+
+    const protocol = (ticket as any).protocol || ticket.id
+    const firstName = (ticket.buyerName || 'Cliente').split(' ')[0]
+
+    // Enviar mensagem de encerramento via WhatsApp (funciona se sessão 24h ainda ativa)
+    if (ticket.buyerPhone) {
+      const closureMsg =
+        `Olá ${firstName}! 👋 Seu atendimento foi encerrado com sucesso.\n` +
+        `📋 Protocolo: *${protocol}*\n` +
+        `Obrigado por entrar em contato com a MydShop. Caso precise de mais ajuda, estamos à disposição! 😊`
+      try {
+        const result = await WhatsAppService.sendMessage({
+          to: ticket.buyerPhone,
+          message: closureMsg,
+          logType: 'sac_close',
+        })
+        await prisma.ticketMessage.create({
+          data: {
+            ticketId:   params.id,
+            direction:  'out',
+            channel:    'whatsapp',
+            from:       'Atendente',
+            content:    closureMsg,
+            status:     result.success ? 'sent' : 'failed',
+            externalId: result.messageId || null,
+          },
+        })
+      } catch (_) {
+        // falha silenciosa — encerra o ticket de qualquer forma
+      }
+    }
+
     const updated = await (prisma.serviceTicket.update as any)({
       where: { id: params.id },
       data: { sessionClosedAt: new Date(), status: 'CLOSED', closedAt: new Date(), updatedAt: new Date() },
