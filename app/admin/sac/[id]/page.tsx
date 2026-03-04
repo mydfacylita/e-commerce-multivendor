@@ -461,13 +461,29 @@ export default function TicketPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
 
-  const [data, setData]     = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [tab, setTab]       = useState<'chat' | 'negotiation' | 'history'>('chat')
+  const [data, setData]       = useState<any>(null)
+  const [loading, setLoading]  = useState(true)
+  const [tab, setTab]          = useState<'chat' | 'negotiation' | 'history'>('chat')
   const [editStatus, setEditStatus] = useState(false)
   const [sessionLoading, setSessionLoading] = useState(false)
-  const msgEndRef = useRef<HTMLDivElement>(null)
+  const msgEndRef  = useRef<HTMLDivElement>(null)
   const lastMsgCount = useRef(0)
+
+  // Vincular pedido
+  const [linkQ, setLinkQ]           = useState('')
+  const [linkResults, setLinkResults] = useState<any[]>([])
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkingId, setLinkingId]   = useState<string | null>(null)
+
+  // Edição inline de assunto / categoria
+  const [editSubject, setEditSubject]   = useState(false)
+  const [subjectVal, setSubjectVal]     = useState('')
+  const [editCategory, setEditCategory] = useState(false)
+  const [categoryVal, setCategoryVal]   = useState('')
+
+  const CATEGORY_OPTS = [
+    'CANCELAMENTO','TROCA','DEVOLUCAO','ENTREGA','PAGAMENTO','PRODUTO','OUTRO'
+  ]
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -512,23 +528,55 @@ export default function TicketPage() {
     load()
   }
 
-  const openSession = async () => {
-    if (!confirm('Enviar template "Iniciar Atendimento" para o cliente via WhatsApp?')) return
-    setSessionLoading(true)
+  // Buscar pedidos para vincular
+  const searchLink = async (q: string) => {
+    setLinkQ(q)
+    if (q.length < 3) { setLinkResults([]); return }
+    setLinkLoading(true)
     try {
-      const r = await fetch(`/api/admin/sac/${id}`, {
+      const r = await fetch(`/api/admin/sac/search?q=${encodeURIComponent(q)}`)
+      const d = await r.json()
+      setLinkResults(d.orders || [])
+    } finally {
+      setLinkLoading(false)
+    }
+  }
+
+  const linkOrder = async (orderId: string) => {
+    setLinkingId(orderId)
+    try {
+      await fetch(`/api/admin/sac/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'openSession' }),
+        body: JSON.stringify({ orderId }),
       })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.error || 'Erro ao abrir sessão')
+      setLinkQ('')
+      setLinkResults([])
       load()
-    } catch (e: any) {
-      alert('Erro: ' + e.message)
     } finally {
-      setSessionLoading(false)
+      setLinkingId(null)
     }
+  }
+
+  const saveSubject = async () => {
+    if (!subjectVal.trim()) return
+    await fetch(`/api/admin/sac/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject: subjectVal.trim() }),
+    })
+    setEditSubject(false)
+    load()
+  }
+
+  const saveCategory = async (cat: string) => {
+    await fetch(`/api/admin/sac/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat }),
+    })
+    setEditCategory(false)
+    load()
   }
 
   const closeSession = async () => {
@@ -572,25 +620,42 @@ export default function TicketPage() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-gray-50">
-      {/* ── Sidebar esq: info do ticket ─────────────────────────────────── */}
+      {/* ── Sidebar esq ─────────────────────────────────────────────── */}
       <aside className="w-72 bg-white border-r flex flex-col overflow-y-auto flex-shrink-0">
+
         {/* Cabeçalho */}
         <div className="p-4 border-b">
           <button onClick={() => router.push('/admin/sac')}
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary-600 mb-3">
             <FiArrowLeft /> Voltar ao SAC
           </button>
-          {/* Protocolo */}
           {ticket.protocol && (
-            <div className="mb-2 flex items-center gap-2">
-              <span className="bg-primary-50 border border-primary-200 text-primary-700 font-mono text-xs font-semibold px-2.5 py-1 rounded-full tracking-wide">
-                🎫 {ticket.protocol}
-              </span>
-            </div>
+            <span className="bg-primary-50 border border-primary-200 text-primary-700 font-mono text-xs font-semibold px-2.5 py-1 rounded-full tracking-wide">
+              🎫 {ticket.protocol}
+            </span>
           )}
-          <h2 className="font-semibold text-gray-800 text-sm leading-snug">{ticket.subject}</h2>
 
-          {/* Status com edição */}
+          {/* Assunto editável */}
+          <div className="mt-2">
+            {editSubject ? (
+              <div className="flex gap-1">
+                <input autoFocus value={subjectVal}
+                  onChange={e => setSubjectVal(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && saveSubject()}
+                  className="flex-1 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                <button onClick={saveSubject} className="text-green-600 px-1"><FiCheck /></button>
+                <button onClick={() => setEditSubject(false)} className="text-gray-400 px-1"><FiX /></button>
+              </div>
+            ) : (
+              <button onClick={() => { setSubjectVal(ticket.subject); setEditSubject(true) }}
+                className="flex items-start gap-1 text-left group w-full">
+                <span className="font-semibold text-gray-800 text-sm leading-snug flex-1">{ticket.subject}</span>
+                <FiEdit2 className="text-gray-300 group-hover:text-gray-500 mt-0.5 flex-shrink-0 text-xs" />
+              </button>
+            )}
+          </div>
+
+          {/* Status */}
           <div className="mt-2">
             {editStatus ? (
               <div className="space-y-1">
@@ -612,49 +677,127 @@ export default function TicketPage() {
           </div>
         </div>
 
+        {/* Ação principal: Encerrar */}
+        {ticket.status !== 'CLOSED' && (
+          <div className="p-3 border-b">
+            <button onClick={closeSession} disabled={sessionLoading}
+              className="w-full flex items-center justify-center gap-2 bg-red-50 border border-red-300 text-red-600 text-sm font-semibold py-2.5 rounded-lg hover:bg-red-100 disabled:opacity-50 transition">
+              {sessionLoading ? <FiRefreshCw className="animate-spin" /> : '🔒'}
+              Encerrar Atendimento
+            </button>
+          </div>
+        )}
+        {ticket.status === 'CLOSED' && (
+          <div className="p-3 border-b">
+            <div className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center">
+              🔒 Encerrado em {new Date(ticket.closedAt || ticket.updatedAt).toLocaleString('pt-BR')}
+            </div>
+          </div>
+        )}
+
         {/* Cliente */}
-        <div className="p-4 border-b space-y-2">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</h3>
-          {ticket.buyerName  && <div className="flex items-center gap-2 text-sm"><FiUser className="text-gray-400 text-xs" /> {ticket.buyerName}</div>}
+        <div className="p-4 border-b space-y-1.5">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Cliente</h3>
+          {ticket.buyerName  && <div className="flex items-center gap-2 text-sm font-medium text-gray-800"><FiUser className="text-gray-400 text-xs flex-shrink-0" /> {ticket.buyerName}</div>}
           {ticket.buyerPhone && (
             <div className="flex items-center gap-2 text-sm">
-              <FiPhone className="text-green-500 text-xs" />
-              <a href={`https://wa.me/${ticket.buyerPhone}`} target="_blank" rel="noreferrer"
+              <FiPhone className="text-green-500 text-xs flex-shrink-0" />
+              <a href={`https://wa.me/${ticket.buyerPhone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
                 className="text-green-600 hover:underline">{ticket.buyerPhone}</a>
             </div>
           )}
           {ticket.buyerEmail && (
             <div className="flex items-center gap-2 text-sm text-blue-600">
-              <FiMail className="text-xs" />
-              <span className="truncate">{ticket.buyerEmail}</span>
+              <FiMail className="text-xs flex-shrink-0" />
+              <span className="truncate text-xs">{ticket.buyerEmail}</span>
             </div>
           )}
-          {ticket.buyerCpf && <div className="text-xs text-gray-500 font-mono">CPF: {ticket.buyerCpf}</div>}
+          {ticket.buyerCpf && <div className="text-xs text-gray-400 font-mono mt-1">CPF: {ticket.buyerCpf}</div>}
         </div>
 
-        {/* Pedido relacionado */}
-        {order && (
-          <div className="p-4 border-b space-y-2">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pedido Relacionado</h3>
-            <Link href={`/admin/pedidos/${order.id}`}
-              className="flex items-center gap-2 text-sm font-mono text-primary-600 hover:underline">
-              <FiPackage className="text-xs" /> #{order.id.slice(-8).toUpperCase()}
-            </Link>
-            <div className="text-sm text-gray-700 font-semibold">R$ {Number(order.total).toFixed(2)}</div>
-            <div className={`text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-600`}>
-              {ORDER_STATUS_LABELS[order.status] || order.status}
-            </div>
-            {order.trackingCode && (
-              <div className="text-xs text-gray-500">Rastreio: <span className="font-mono">{order.trackingCode}</span></div>
-            )}
-            <div className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</div>
+        {/* Categoria */}
+        <div className="px-4 py-3 border-b">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Motivo / Categoria</h3>
+            {!editCategory && <button onClick={() => { setCategoryVal(ticket.category || ''); setEditCategory(true) }} className="text-gray-300 hover:text-gray-500"><FiEdit2 className="text-xs" /></button>}
           </div>
-        )}
+          {editCategory ? (
+            <div className="grid grid-cols-2 gap-1">
+              {CATEGORY_OPTS.map(c => (
+                <button key={c} onClick={() => saveCategory(c)}
+                  className={`text-xs px-2 py-1 rounded border text-left transition ${
+                    ticket.category === c ? 'bg-primary-100 border-primary-400 text-primary-700 font-medium' : 'bg-white hover:bg-gray-50'
+                  }`}>{c}</button>
+              ))}
+              <button onClick={() => setEditCategory(false)} className="col-span-2 text-xs text-gray-400 mt-1">Cancelar</button>
+            </div>
+          ) : (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              ticket.category ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400 italic'
+            }`}>{ticket.category || 'Não definido — clique ✏️'}</span>
+          )}
+        </div>
 
-        {/* Outros pedidos */}
+        {/* Pedido vinculado */}
+        <div className="p-4 border-b space-y-2">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pedido Vinculado</h3>
+          {order ? (
+            <>
+              <Link href={`/admin/pedidos/${order.id}`}
+                className="flex items-center gap-2 text-sm font-mono text-primary-600 hover:underline font-semibold">
+                <FiPackage className="text-xs" /> #{order.id.slice(-8).toUpperCase()}
+              </Link>
+              <div className="text-sm text-gray-700 font-semibold">R$ {Number(order.total).toFixed(2)}</div>
+              <div className="text-xs inline-block px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                {ORDER_STATUS_LABELS[order.status] || order.status}
+              </div>
+              {order.trackingCode && (
+                <div className="text-xs text-gray-500">Rastreio: <span className="font-mono">{order.trackingCode}</span></div>
+              )}
+              <div className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</div>
+              {/* Trocar pedido */}
+              <button onClick={() => setLinkQ('_')} className="text-xs text-primary-600 hover:underline">
+                + Trocar pedido vinculado
+              </button>
+            </>
+          ) : (
+            <p className="text-xs text-orange-600">⚠️ Nenhum pedido vinculado</p>
+          )}
+
+          {/* Busca de pedido para vincular */}
+          {(!order || linkQ === '_') && (
+            <div className="mt-2 space-y-1.5">
+              <input
+                value={linkQ === '_' ? '' : linkQ}
+                onChange={e => searchLink(e.target.value)}
+                placeholder="Buscar por Nome, Pedido ou CPF..."
+                className="w-full border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-400"
+                autoFocus
+              />
+              {linkLoading && <div className="text-xs text-gray-400 text-center">Buscando...</div>}
+              {linkResults.map((o: any) => (
+                <button key={o.id} onClick={() => linkOrder(o.id)}
+                  disabled={linkingId === o.id}
+                  className="w-full text-left border rounded-lg px-3 py-2 hover:bg-primary-50 hover:border-primary-300 transition text-xs space-y-0.5">
+                  <div className="font-mono font-semibold text-primary-700">#{o.id.slice(-8).toUpperCase()}</div>
+                  <div className="text-gray-600">{o.buyerName} · R$ {Number(o.total).toFixed(2)}</div>
+                  <div className="text-gray-400 flex gap-2">
+                    <span>{ORDER_STATUS_LABELS[o.status] || o.status}</span>
+                    <span>{new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
+                  </div>
+                </button>
+              ))}
+              {linkQ && linkQ !== '_' && linkQ.length >= 3 && !linkLoading && linkResults.length === 0 && (
+                <p className="text-xs text-gray-400 text-center">Nenhum pedido encontrado</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Outros pedidos do cliente */}
         {otherOrders?.length > 0 && (
-          <div className="p-4 border-b space-y-2">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Outros Pedidos</h3>
+          <div className="p-4 border-b space-y-1.5">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Outros Pedidos do Cliente</h3>
             {otherOrders.map((o: any) => (
               <Link key={o.id} href={`/admin/pedidos/${o.id}`}
                 className="flex items-center justify-between text-xs hover:bg-gray-50 rounded p-1.5 -mx-1.5">
@@ -666,52 +809,17 @@ export default function TicketPage() {
           </div>
         )}
 
-        {/* Ações de sessão */}
-        <div className="p-4 border-b space-y-2">
-          {ticket.status !== 'CLOSED' && (
-            <>
-              {!ticket.sessionOpenedAt ? (
-                <button
-                  onClick={openSession}
-                  disabled={sessionLoading || !ticket.buyerPhone}
-                  className="w-full flex items-center justify-center gap-2 bg-green-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
-                  title={!ticket.buyerPhone ? 'Ticket sem telefone' : ''}
-                >
-                  {sessionLoading ? <FiRefreshCw className="animate-spin" /> : null}
-                  🎫 Iniciar Atendimento
-                </button>
-              ) : (
-                <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  ✅ Atendimento iniciado em {new Date(ticket.sessionOpenedAt).toLocaleString('pt-BR')}
-                </div>
-              )}
-              <button
-                onClick={closeSession}
-                disabled={sessionLoading}
-                className="w-full flex items-center justify-center gap-2 border border-red-300 text-red-600 text-sm font-medium py-2 rounded-lg hover:bg-red-50 disabled:opacity-50"
-              >
-                {sessionLoading ? <FiRefreshCw className="animate-spin" /> : null}
-                🔒 Encerrar Atendimento
-              </button>
-            </>
-          )}
-          {ticket.status === 'CLOSED' && ticket.closedAt && (
-            <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-              🔒 Encerrado em {new Date(ticket.closedAt).toLocaleString('pt-BR')}
-            </div>
-          )}
-        </div>
-
         {/* Meta */}
         <div className="p-4 text-xs text-gray-400 space-y-1">
-          <div className="flex items-center gap-1"><FiCalendar /> Aberto: {new Date(ticket.createdAt).toLocaleString('pt-BR')}</div>
-          {ticket.assignedTo && <div className="flex items-center gap-1"><FiUser /> Atendente: {ticket.assignedTo}</div>}
-          {ticket.category && <div className="flex items-center gap-1"><FiTag /> {ticket.category}</div>}
-          {ticket.tags && <div className="flex flex-wrap gap-1 mt-1">
-            {ticket.tags.split(',').map((t: string) => (
-              <span key={t} className="bg-gray-100 px-2 py-0.5 rounded-full">{t.trim()}</span>
-            ))}
-          </div>}
+          <div className="flex items-center gap-1"><FiCalendar className="flex-shrink-0" /> Aberto: {new Date(ticket.createdAt).toLocaleString('pt-BR')}</div>
+          {ticket.assignedTo && <div className="flex items-center gap-1"><FiUser className="flex-shrink-0" /> Atendente: {ticket.assignedTo}</div>}
+          {ticket.tags && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {ticket.tags.split(',').map((t: string) => (
+                <span key={t} className="bg-gray-100 px-2 py-0.5 rounded-full">{t.trim()}</span>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 
