@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { FiStar, FiThumbsUp, FiMessageCircle, FiChevronDown, FiChevronUp, FiCheck, FiImage, FiVideo, FiX, FiUpload } from 'react-icons/fi'
+import { useState, useEffect } from 'react'
+import { FiStar, FiThumbsUp, FiMessageCircle, FiChevronDown, FiChevronUp, FiCheck, FiImage, FiVideo, FiX, FiUpload, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import Image from 'next/image'
 import AIReviewSummary from '@/components/AIReviewSummary'
 
@@ -110,9 +110,77 @@ function RatingBar({ stars, count, total }: { stars: number; count: number; tota
   )
 }
 
+// Lightbox de fotos
+function Lightbox({ images, startIndex, onClose }: { images: string[]; startIndex: number; onClose: () => void }) {
+  const [current, setCurrent] = useState(startIndex)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowRight') setCurrent(c => (c + 1) % images.length)
+      if (e.key === 'ArrowLeft') setCurrent(c => (c - 1 + images.length) % images.length)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [images.length, onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      onClick={onClose}
+    >
+      {/* Fechar */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white bg-white/20 hover:bg-white/40 rounded-full p-2 transition"
+      >
+        <FiX className="w-6 h-6" />
+      </button>
+
+      {/* Anterior */}
+      {images.length > 1 && (
+        <button
+          onClick={e => { e.stopPropagation(); setCurrent(c => (c - 1 + images.length) % images.length) }}
+          className="absolute left-4 text-white bg-white/20 hover:bg-white/40 rounded-full p-2 transition"
+        >
+          <FiChevronLeft className="w-7 h-7" />
+        </button>
+      )}
+
+      {/* Imagem */}
+      <img
+        src={images[current]}
+        alt=""
+        onClick={e => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+      />
+
+      {/* Próxima */}
+      {images.length > 1 && (
+        <button
+          onClick={e => { e.stopPropagation(); setCurrent(c => (c + 1) % images.length) }}
+          className="absolute right-4 text-white bg-white/20 hover:bg-white/40 rounded-full p-2 transition"
+        >
+          <FiChevronRight className="w-7 h-7" />
+        </button>
+      )}
+
+      {/* Contador */}
+      {images.length > 1 && (
+        <div className="absolute bottom-4 text-white text-sm bg-black/50 px-3 py-1 rounded-full">
+          {current + 1} / {images.length}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Card de Avaliação Individual
 function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: string) => void }) {
   const [showMedia, setShowMedia] = useState(true)
+  const [lightbox, setLightbox] = useState<{ index: number } | null>(null)
+
+  const imageUrls = review.media.filter(m => m.type === 'image').map(m => m.url)
   
   return (
     <div className="border-b pb-6 last:border-0">
@@ -207,8 +275,11 @@ function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: str
                       className="w-40 h-28 object-cover rounded-lg"
                     />
                   ) : (
-                    <div className="w-20 h-20 rounded-lg overflow-hidden">
-                      <img src={item.url} alt="" className="w-full h-full object-cover" />
+                    <div
+                      className="w-20 h-20 rounded-lg overflow-hidden cursor-zoom-in"
+                      onClick={() => setLightbox({ index: imageUrls.indexOf(item.url) })}
+                    >
+                      <img src={item.url} alt="" className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
                     </div>
                   )}
                 </div>
@@ -216,6 +287,11 @@ function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: str
             </div>
           )}
         </div>
+      )}
+
+      {/* Lightbox */}
+      {lightbox && imageUrls.length > 0 && (
+        <Lightbox images={imageUrls} startIndex={lightbox.index} onClose={() => setLightbox(null)} />
       )}
 
       {/* Resposta do Vendedor */}
