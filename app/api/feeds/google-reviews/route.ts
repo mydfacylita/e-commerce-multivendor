@@ -66,7 +66,11 @@ export async function GET(request: NextRequest) {
 ${reviews.map(review => {
   const productUrl = `${baseUrl}/produtos/${review.product.slug}`
   const reviewerName = review.user?.name
-    ? esc(review.user.name.split(' ')[0] + (review.user.name.split(' ').length > 1 ? ' ' + review.user.name.split(' ').slice(-1)[0][0] + '.' : ''))
+    ? esc((() => {
+        const parts = review.user!.name!.trim().split(/\s+/)
+        if (parts.length <= 1) return parts[0]
+        return parts[0] + ' ' + parts.slice(1).map(p => p[0].toUpperCase() + '.').join(' ')
+      })())
     : 'Cliente Verificado'
 
   // Monta o conteúdo combinando title + comment + pros/cons

@@ -197,7 +197,13 @@ function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: str
             )}
           </div>
           <div>
-            <div className="font-medium text-gray-800">{review.user.name}</div>
+            <div className="font-medium text-gray-800">
+              {(() => {
+                const parts = review.user.name.trim().split(/\s+/)
+                if (parts.length <= 1) return parts[0]
+                return parts[0] + ' ' + parts.slice(1).map((p: string) => p[0].toUpperCase() + '.').join(' ')
+              })()}
+            </div>
             <div className="flex items-center gap-2">
               <RatingStars rating={review.rating} size="sm" />
               {review.isVerified && (
