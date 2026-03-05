@@ -58,7 +58,6 @@ interface ContractDetail {
   }
   recentOrders: Array<{
     id: string
-    id: string
     status: string
     total: number
     createdAt: string
