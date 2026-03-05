@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import AddToCartButton from './AddToCartButton'
 import ProductSizeSelector from './ProductSizeSelector'
-import ShippingCalculator from './ShippingCalculator'
 import { useCartStore } from '@/lib/store'
 import { isSupplierInternacional } from '@/lib/import-tax'
 import { FiShoppingBag, FiMinus, FiPlus } from 'react-icons/fi'
@@ -688,14 +687,6 @@ export default function ProductSelectionWrapper({
 
   return (
     <>
-      {/* Calculadora de Frete - Agora no topo */}
-      <div className="mb-6">
-        <ShippingCalculator 
-          productId={product.id}
-          cartValue={product.price * quantity}
-        />
-      </div>
-
       {/* SELETORES MULTI-NÍVEL (para produtos com 3+ propriedades) */}
       {useMultiLevel && multiLevelData && (
         <>

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import ProductImageGallery from './ProductImageGallery'
 import ProductSelectionWrapper from './ProductSelectionWrapper'
 import ProductInfoTabs from './ProductInfoTabs'
+import ShippingCalculator from './ShippingCalculator'
 import { analytics } from '@/lib/analytics-client'
 
 // Formatar moeda brasileira
@@ -169,6 +170,14 @@ export default function ProductDetailClient({
           processedSpecs={processedSpecs}
           processedAttrs={processedAttrs}
         />
+
+        {/* Descrição do produto — abaixo das tabs */}
+        {cleanDescription && (
+          <div className="mt-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Descrição do Produto</h2>
+            <p className="text-gray-600 whitespace-pre-line">{cleanDescription}</p>
+          </div>
+        )}
       </div>
 
       <div>
@@ -190,9 +199,14 @@ export default function ProductDetailClient({
             {currentStock > 0 ? `${currentStock} em estoque` : 'Esgotado'}
           </span>
         </div>
-        {cleanDescription && (
-          <p className="text-gray-600 mb-6 whitespace-pre-line">{cleanDescription}</p>
-        )}
+
+        {/* Calcule o Frete — próximo ao estoque */}
+        <div className="mb-6">
+          <ShippingCalculator
+            productId={product.id}
+            cartValue={currentPrice}
+          />
+        </div>
         
         {/* Componente wrapper com seleção de cor/tamanho e botão */}
         <ProductSelectionWrapper
