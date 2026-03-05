@@ -204,8 +204,8 @@ function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: str
                       className="h-40 max-w-xs rounded-lg"
                     />
                   ) : (
-                    <div className="relative w-20 h-20">
-                      <Image src={item.url} alt="" fill className="object-cover" />
+                    <div className="w-20 h-20 rounded-lg overflow-hidden">
+                      <img src={item.url} alt="" className="w-full h-full object-cover" />
                     </div>
                   )}
                 </div>
@@ -522,8 +522,8 @@ export default function ProductReviews({ productId, initialReviews = [], initial
                         <FiVideo className="w-6 h-6 text-white" />
                       </div>
                     ) : (
-                      <div className="relative w-20 h-20 rounded-lg overflow-hidden">
-                        <Image src={item.url} alt="" fill className="object-cover" />
+                      <div className="w-20 h-20 rounded-lg overflow-hidden">
+                        <img src={item.url} alt="" className="w-full h-full object-cover" />
                       </div>
                     )}
                     <button
