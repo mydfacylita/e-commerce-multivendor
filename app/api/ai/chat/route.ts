@@ -134,7 +134,30 @@ Mensagem do cliente: "${message.replace(/"/g, "'")}"
     let products: any[] = []
     const productSelect = {
       id: true, name: true, slug: true, price: true,
-      comparePrice: true, images: true, category: { select: { name: true } }
+      comparePrice: true, images: true, category: { select: { name: true, slug: true } }
+    }
+
+    // Mapa de sinônimos: termos genéricos → palavras relacionadas + categorias prováveis
+    const SYNONYMS: Record<string, { terms: string[], categories: string[] }> = {
+      'celular':     { terms: ['smartphone','iphone','samsung galaxy','motorola','xiaomi','android'], categories: ['celulares','smartphones','telefones'] },
+      'smartphone':  { terms: ['celular','iphone','samsung','motorola','xiaomi'], categories: ['celulares','smartphones','telefones'] },
+      'fone':        { terms: ['fone de ouvido','headphone','headset','earphone','tws','bluetooth'], categories: ['fones','áudio','headphones'] },
+      'notebook':    { terms: ['laptop','computador portátil'], categories: ['notebooks','informática'] },
+      'tv':          { terms: ['televisão','televisor','smart tv'], categories: ['tvs','televisores'] },
+      'geladeira':   { terms: ['refrigerador','freezer'], categories: ['eletrodomésticos','refrigeração'] },
+      'roupa':       { terms: ['camiseta','calça','vestido','blusa','camisa'], categories: ['roupas','vestuário','moda'] },
+      'tenis':       { terms: ['tênis','sapato','calçado','sneaker'], categories: ['calçados','tênis'] },
+      'perfume':     { terms: ['colônia','eau de toilette','fragrância'], categories: ['perfumes','beleza'] },
+    }
+
+    const expandQuery = (q: string): { terms: string[], categoryNames: string[] } => {
+      const lower = q.toLowerCase().trim()
+      for (const [key, val] of Object.entries(SYNONYMS)) {
+        if (lower.includes(key)) {
+          return { terms: [q, ...val.terms], categoryNames: val.categories }
+        }
+      }
+      return { terms: [q], categoryNames: [] }
     }
 
     if (searchFilters.intent === 'catalog') {
@@ -155,54 +178,65 @@ Mensagem do cliente: "${message.replace(/"/g, "'")}"
         })
       }
     } else if (searchFilters.intent === 'search') {
-      const keywords = searchFilters.query?.trim().split(/\s+/).filter((k: string) => k.length > 2).slice(0, 5) || []
+      const rawQuery = searchFilters.query?.trim() || message.trim()
+      const { terms, categoryNames } = expandQuery(rawQuery)
 
-      // Montar where: tenta primeiro com todas as keywords (AND), cai para OR se vazio
-      const buildWhere = (useAnd: boolean) => {
+      // Todas as keywords incluindo sinônimos
+      const keywords = [...new Set(
+        terms.flatMap(t => t.split(/\s+/)).filter(k => k.length > 2)
+      )].slice(0, 8)
+
+      const buildWhere = (kws: string[], useAnd: boolean) => {
         const base: any = { active: true, approvalStatus: 'APPROVED' }
-        if (keywords.length > 0) {
-          const keywordsOr = keywords.map((kw: string) => ({
+        if (kws.length > 0) {
+          const clauses = kws.map(kw => ({
             OR: [
               { name: { contains: kw } },
               { description: { contains: kw } },
               { brand: { contains: kw } },
             ]
           }))
-          base[useAnd ? 'AND' : 'OR'] = useAnd ? keywordsOr : keywordsOr.flatMap((k: any) => k.OR)
+          base[useAnd ? 'AND' : 'OR'] = useAnd ? clauses : clauses.flatMap((c: any) => c.OR)
         }
         if (searchFilters.maxPrice) base.price = { ...base.price, lte: searchFilters.maxPrice }
         if (searchFilters.minPrice) base.price = { ...base.price, gte: searchFilters.minPrice }
         return base
       }
 
+      // 1. Busca por categoria informada pelo Gemini
       if (searchFilters.category) {
-        const cat = await prisma.category.findFirst({
-          where: { name: { contains: searchFilters.category } }
-        })
+        const cat = await prisma.category.findFirst({ where: { name: { contains: searchFilters.category } } })
         if (cat) {
-          const w = buildWhere(true)
-          w.categoryId = cat.id
-          products = await prisma.product.findMany({ where: w, select: productSelect, take: 5, orderBy: { featured: 'desc' } })
+          products = await prisma.product.findMany({ where: { ...buildWhere(keywords, true), categoryId: cat.id }, select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+          if (products.length === 0)
+            products = await prisma.product.findMany({ where: { active: true, approvalStatus: 'APPROVED', categoryId: cat.id }, select: productSelect, take: 6, orderBy: { featured: 'desc' } })
         }
       }
 
-      // Busca AND (precisa de todos os termos)
-      if (products.length === 0 && keywords.length > 0) {
-        products = await prisma.product.findMany({
-          where: buildWhere(true),
-          select: productSelect,
-          take: 5,
-          orderBy: { featured: 'desc' }
-        })
+      // 2. Busca AND com sinônimos
+      if (products.length === 0)
+        products = await prisma.product.findMany({ where: buildWhere(keywords, true), select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+
+      // 3. Busca OR com sinônimos
+      if (products.length === 0)
+        products = await prisma.product.findMany({ where: buildWhere(keywords, false), select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+
+      // 4. Fallback por categorias do mapa de sinônimos
+      if (products.length === 0 && categoryNames.length > 0) {
+        for (const catName of categoryNames) {
+          const cat = await prisma.category.findFirst({ where: { name: { contains: catName } } })
+          if (cat) {
+            products = await prisma.product.findMany({ where: { active: true, approvalStatus: 'APPROVED', categoryId: cat.id }, select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+            if (products.length > 0) break
+          }
+        }
       }
 
-      // Fallback OR (qualquer termo)
+      // 5. Último recurso: 1ª keyword sem filtros de preço
       if (products.length === 0 && keywords.length > 0) {
         products = await prisma.product.findMany({
-          where: buildWhere(false),
-          select: productSelect,
-          take: 5,
-          orderBy: { featured: 'desc' }
+          where: { active: true, approvalStatus: 'APPROVED', OR: [{ name: { contains: keywords[0] } }, { description: { contains: keywords[0] } }] },
+          select: productSelect, take: 6, orderBy: { featured: 'desc' }
         })
       }
     }
@@ -214,7 +248,7 @@ Mensagem do cliente: "${message.replace(/"/g, "'")}"
           `${i + 1}. "${p.name}" — R$${p.price.toFixed(2)} — /produtos/${p.slug}`
         ).join('\n')}`
       : searchFilters.intent === 'search'
-        ? '\n\nNENHUM PRODUTO ENCONTRADO no catálogo da MydShop para esta busca.'
+        ? '\n\nNENHUM PRODUTO ENCONTRADO no catálogo da MydShop para esta busca. Informe ao cliente com simpatia, sugira termos alternativos ou navegar pelas categorias em https://mydshop.com.br. NUNCA invente produtos.'
         : ''
 
     const historyContext = history.slice(-4).map((m: ChatMessage) =>
