@@ -6,6 +6,65 @@ import { useState, useEffect } from 'react'
 import { FiFacebook, FiInstagram, FiTwitter, FiMail, FiPhone, FiMapPin } from 'react-icons/fi'
 import { FaWhatsapp, FaYoutube, FaTiktok } from 'react-icons/fa'
 
+function NewsletterForm() {
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'duplicate' | 'error'>('idle')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email) return
+    setStatus('loading')
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, source: 'footer' }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setStatus(data.message === 'already_subscribed' ? 'duplicate' : 'success')
+        setEmail('')
+      } else {
+        setStatus('error')
+      }
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  if (status === 'success') {
+    return <p className="text-green-400 text-sm">✓ Cadastrado com sucesso! Você receberá nossas ofertas.</p>
+  }
+  if (status === 'duplicate') {
+    return <p className="text-yellow-400 text-sm">✓ Esse e-mail já está cadastrado.</p>
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="flex">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Seu e-mail"
+          required
+          className="flex-1 px-4 py-2 rounded-l-md text-gray-900 text-sm focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={status === 'loading'}
+          className="bg-primary-600 px-4 py-2 rounded-r-md hover:bg-primary-700 text-sm font-medium disabled:opacity-70 transition-colors"
+        >
+          {status === 'loading' ? '...' : 'Cadastrar'}
+        </button>
+      </div>
+      {status === 'error' && (
+        <p className="text-red-400 text-xs mt-1">Erro ao cadastrar. Tente novamente.</p>
+      )}
+    </form>
+  )
+}
+
 interface SocialLinks {
   facebook: string
   twitter: string
@@ -229,20 +288,11 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">Newsletter</h4>
-            <p className="text-gray-400 mb-4">
-              Receba nossas ofertas e novidades
+            <h4 className="font-semibold mb-4">Receba Ofertas</h4>
+            <p className="text-gray-400 mb-4 text-sm">
+              Cadastre seu e-mail e receba promoções exclusivas.
             </p>
-            <form className="flex">
-              <input
-                type="email"
-                placeholder="Seu e-mail"
-                className="flex-1 px-4 py-2 rounded-l-md text-gray-900"
-              />
-              <button className="bg-primary-600 px-4 py-2 rounded-r-md hover:bg-primary-700">
-                Enviar
-              </button>
-            </form>
+            <NewsletterForm />
           </div>
         </div>
 

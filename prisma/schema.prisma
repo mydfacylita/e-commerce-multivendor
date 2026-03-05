@@ -2390,3 +2390,13 @@ model NegotiationDeal {
   @@index([status])
   @@map("negotiation_deal")
 }
+
+model NewsletterSubscriber {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  active      Boolean  @default(true)
+  source      String?  // "footer", "home", etc.
+  createdAt   DateTime @default(now())
+
+  @@map("newsletter_subscriber")
+}
