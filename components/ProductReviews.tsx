@@ -112,7 +112,7 @@ function RatingBar({ stars, count, total }: { stars: number; count: number; tota
 
 // Card de Avaliação Individual
 function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: string) => void }) {
-  const [showMedia, setShowMedia] = useState(false)
+  const [showMedia, setShowMedia] = useState(true)
   
   return (
     <div className="border-b pb-6 last:border-0">
