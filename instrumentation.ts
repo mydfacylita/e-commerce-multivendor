@@ -18,14 +18,15 @@ export async function register() {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')
     
     // Importar dinamicamente para evitar problemas de build
-    const { startPaymentSync, startOrderCleanup, startRefundSync } = await import('@/lib/payment-sync')
+    const { startPaymentSync, startOrderCleanup, startRefundSync, startSubscriptionSync } = await import('@/lib/payment-sync')
     const { startConsistencyCron } = await import('@/lib/order-consistency-cron')
     
     // Iniciar sistemas
-    startPaymentSync()      // Verifica pagamentos pendentes a cada 30s
-    startOrderCleanup()     // Cancela pedidos PENDING antigos a cada 1h
-    startRefundSync()       // Processa reembolsos pendentes a cada 2min
-    startConsistencyCron()  // Verifica inconsistências a cada 10min
+    startPaymentSync()       // Verifica pagamentos pendentes a cada 30s
+    startOrderCleanup()      // Cancela pedidos PENDING antigos a cada 1h
+    startRefundSync()        // Processa reembolsos pendentes a cada 2min
+    startSubscriptionSync()  // Expira assinaturas vencidas e suspende lojas (a cada 1h)
+    startConsistencyCron()   // Verifica inconsistências a cada 10min
     
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     console.log('✅ [INSTRUMENTATION] Todos os sistemas iniciados!')
