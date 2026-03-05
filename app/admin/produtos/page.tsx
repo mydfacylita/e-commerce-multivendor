@@ -88,6 +88,36 @@ export default async function AdminProdutosPage({
     orderBy: { createdAt: 'desc' },
   })
 
+  // Buscar média de avaliações por produto
+  const reviewStats = await prisma.productReview.groupBy({
+    by: ['productId'],
+    where: { isApproved: true },
+    _avg: { rating: true },
+    _count: { id: true },
+  })
+  const reviewMap: Record<string, { avg: number; count: number }> = {}
+  reviewStats.forEach(r => {
+    reviewMap[r.productId] = { avg: r._avg.rating ?? 0, count: r._count.id }
+  })
+
+  // Buscar visitas únicas por produto (últimos 90 dias)
+  const visitRows = await prisma.$queryRaw<{ productId: string; visits: bigint }[]>`
+    SELECT
+      JSON_UNQUOTE(JSON_EXTRACT(data, '$.id')) AS productId,
+      COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(data, '$.visitorId'))) AS visits
+    FROM analytics_table
+    WHERE
+      createdAt >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+      AND (
+        name = 'view_product'
+        OR (name = 'custom' AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.eventName')) = 'view_product')
+      )
+      AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.id')) IS NOT NULL
+    GROUP BY productId
+  `
+  const visitMap: Record<string, number> = {}
+  visitRows.forEach(r => { if (r.productId) visitMap[r.productId] = Number(r.visits) })
+
   // Contadores para o filtro
   const [totalProducts, activeCount, inactiveCount, featuredCount, dropshippingCount] = await Promise.all([
     prisma.product.count({ where: { sellerId: null } }),
@@ -129,12 +159,12 @@ export default async function AdminProdutosPage({
 
       {/* Visualização em Cards */}
       {viewMode === 'cards' && (
-        <ProductsCardView products={products as any} />
+        <ProductsCardView products={products as any} reviewMap={reviewMap} visitMap={visitMap} />
       )}
 
       {/* Visualização em Lista com seleção */}
       {viewMode === 'list' && (
-        <ProductsListWithSelection products={products as any} categories={allCategories} />
+        <ProductsListWithSelection products={products as any} categories={allCategories} reviewMap={reviewMap} visitMap={visitMap} />
       )}
 
       {/* Mensagem quando não há produtos (cards) */}

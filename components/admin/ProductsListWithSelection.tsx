@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   FiPackage, FiEdit, FiAlertCircle, FiCheckCircle,
   FiTag, FiX, FiCheck, FiArrowRight, FiLoader,
-  FiChevronDown, FiSquare, FiCheckSquare, FiMinus
+  FiChevronDown, FiSquare, FiCheckSquare, FiMinus, FiStar, FiEye
 } from 'react-icons/fi'
 import DeleteProductButton from '@/components/admin/DeleteProductButton'
 import ToggleProductActiveButton from '@/components/admin/ToggleProductActiveButton'
@@ -46,6 +46,8 @@ interface Product {
 interface Props {
   products: Product[]
   categories: Category[]
+  reviewMap?: Record<string, { avg: number; count: number }>
+  visitMap?: Record<string, number>
 }
 
 // ─── utilidades ──────────────────────────────────────────────────────────────
@@ -98,7 +100,7 @@ function renderOptions(cats: Category[], level = 0): JSX.Element[] {
 }
 
 // ─── componente principal ─────────────────────────────────────────────────────
-export default function ProductsListWithSelection({ products, categories }: Props) {
+export default function ProductsListWithSelection({ products, categories, reviewMap = {}, visitMap = {} }: Props) {
   const [selected, setSelected]     = useState<Set<string>>(new Set())
   const [targetCatId, setTargetCatId] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -271,6 +273,8 @@ export default function ProductsListWithSelection({ products, categories }: Prop
           const primeiraImg  = imagens[0] ?? null
           const isSelected   = selected.has(product.id)
           const { score, pendentes } = calcularQualidade(product, imagens)
+          const review = reviewMap[product.id]
+          const visits = visitMap[product.id] ?? 0
           const scoreColor   = score >= 80 ? 'text-green-600' : score >= 50 ? 'text-yellow-500' : 'text-red-500'
           const scoreBg      = score >= 80 ? 'bg-green-50 border-green-200' : score >= 50 ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'
           const scoreLabel   = score >= 80 ? 'Boa' : score >= 50 ? 'Regular' : 'Básica'
@@ -301,12 +305,29 @@ export default function ProductsListWithSelection({ products, categories }: Prop
 
                 {/* Imagem */}
                 <div className="flex items-center p-4 flex-shrink-0">
-                  <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                  <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
                     {primeiraImg
                       ? <img src={primeiraImg} alt={product.name} className="w-full h-full object-cover" />
                       : <FiPackage className="text-gray-300 w-8 h-8" />
                     }
+                    {/* Estrelas overlay */}
+                    {review && review.avg > 0 && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-1 py-0.5 flex items-center justify-center gap-0.5">
+                        <FiStar className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400 flex-shrink-0" />
+                        <span className="text-white text-xs font-bold leading-none">{review.avg.toFixed(1)}</span>
+                        <span className="text-yellow-200 text-xs leading-none opacity-80">({review.count})</span>
+                      </div>
+                    )}
                   </div>
+                  {/* Visitas únicas */}
+                  {visits > 0 && (
+                    <div className="ml-2 flex flex-col items-center gap-0.5" title="Visitas únicas (90 dias)">
+                      <FiEye className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-xs font-semibold text-blue-600 leading-none">
+                        {visits >= 1000 ? `${(visits/1000).toFixed(1)}k` : visits}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Nome / info */}

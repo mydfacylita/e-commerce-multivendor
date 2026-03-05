@@ -20,9 +20,11 @@ interface Product {
 
 interface ProductsCardViewProps {
   products: Product[]
+  reviewMap?: Record<string, { avg: number; count: number }>
+  visitMap?: Record<string, number>
 }
 
-export default function ProductsCardView({ products }: ProductsCardViewProps) {
+export default function ProductsCardView({ products, reviewMap = {}, visitMap = {} }: ProductsCardViewProps) {
   const getImage = (product: Product): string | null => {
     try {
       if (typeof product.images === 'string' && product.images.trim()) {
@@ -41,6 +43,8 @@ export default function ProductsCardView({ products }: ProductsCardViewProps) {
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
       {products.map((product) => {
         const image = getImage(product)
+        const review = reviewMap[product.id]
+        const visits = visitMap[product.id] ?? 0
         
         return (
           <div
@@ -97,6 +101,28 @@ export default function ProductsCardView({ products }: ProductsCardViewProps) {
               {product.stock > 0 && product.stock <= 10 && (
                 <div className="absolute bottom-0 left-0 right-0 bg-yellow-500 text-white text-xs text-center py-1">
                   Últimas {product.stock} unidades
+                </div>
+              )}
+              {/* Estrelas + visitas quando há estoque */}
+              {product.stock > 10 && review && review.avg > 0 && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-2 py-0.5 flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <FiStar className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                    <span className="text-white text-xs font-bold">{review.avg.toFixed(1)}</span>
+                    <span className="text-yellow-200 text-xs opacity-80">({review.count})</span>
+                  </div>
+                  {visits > 0 && (
+                    <div className="flex items-center gap-1">
+                      <FiEye className="w-3 h-3 text-blue-300" />
+                      <span className="text-white text-xs">{visits >= 1000 ? `${(visits/1000).toFixed(1)}k` : visits}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {product.stock > 10 && (!review || review.avg === 0) && visits > 0 && (
+                <div className="absolute bottom-0 right-0 bg-black/55 px-2 py-0.5 flex items-center gap-1 rounded-tl">
+                  <FiEye className="w-3 h-3 text-blue-300" />
+                  <span className="text-white text-xs">{visits >= 1000 ? `${(visits/1000).toFixed(1)}k` : visits}</span>
                 </div>
               )}
             </div>
