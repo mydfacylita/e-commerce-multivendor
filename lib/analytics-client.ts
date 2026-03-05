@@ -120,7 +120,7 @@ class AnalyticsClient {
   }
 
   viewProduct(product: { id: string; name: string; price: number; category?: string }) {
-    this.track('view_product', product)
+    this.track('custom', { eventName: 'view_product', ...product })
     
     // Facebook Pixel
     if (fbPixelLoaded()) {
@@ -134,7 +134,7 @@ class AnalyticsClient {
   }
 
   initiateCheckout(cart: { items: { id: string; name: string; price: number; quantity: number }[]; total: number }) {
-    this.track('initiate_checkout', cart)
+    this.track('custom', { eventName: 'initiate_checkout', ...cart })
     
     // Facebook Pixel
     if (fbPixelLoaded()) {
@@ -143,7 +143,7 @@ class AnalyticsClient {
   }
 
   addPaymentInfo(total: number) {
-    this.track('add_payment_info', { total })
+    this.track('custom', { eventName: 'add_payment_info', total })
     
     // Facebook Pixel
     if (fbPixelLoaded()) {
@@ -165,7 +165,7 @@ class AnalyticsClient {
   }
 
   completeRegistration(method?: string) {
-    this.track('complete_registration', { method })
+    this.track('custom', { eventName: 'complete_registration', method })
     
     // Facebook Pixel
     if (fbPixelLoaded()) {
