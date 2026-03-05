@@ -254,7 +254,7 @@ export default function ProductReviews({ productId, initialReviews = [], initial
     pros: '',
     cons: ''
   })
-  const [mediaItems, setMediaItems] = useState<(MediaItem & { preview?: string })[]>([])
+  const [mediaItems, setMediaItems] = useState<(MediaItem & { preview?: string; uploading?: boolean })[]>([])
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -294,6 +294,13 @@ export default function ProductReviews({ productId, initialReviews = [], initial
         continue
       }
 
+      // Preview local imediato (blob URL) — não depende de rede
+      const blobUrl = URL.createObjectURL(file)
+
+      // Placeholder enquanto faz upload
+      const placeholder = { type: (isVideo ? 'video' : 'image') as 'image' | 'video', url: '', preview: blobUrl, uploading: true }
+      setMediaItems(prev => [...prev, placeholder])
+
       setUploading(true)
       try {
         const form = new FormData()
@@ -301,15 +308,23 @@ export default function ProductReviews({ productId, initialReviews = [], initial
         const res = await fetch('/api/reviews/upload', { method: 'POST', body: form })
         const data = await res.json()
         if (res.ok && data.url) {
-          setMediaItems(prev => [...prev, {
-            type: data.type as 'image' | 'video',
-            url: data.url,
-            preview: isVideo ? undefined : data.url
-          }])
+          // Substitui o placeholder pela URL real do servidor
+          setMediaItems(prev => {
+            const idx = prev.findIndex(m => m.preview === blobUrl)
+            if (idx === -1) return prev
+            const updated = [...prev]
+            updated[idx] = { type: data.type as 'image' | 'video', url: data.url, preview: blobUrl }
+            return updated
+          })
         } else {
+          // Remove o placeholder em caso de erro
+          setMediaItems(prev => prev.filter(m => m.preview !== blobUrl))
+          URL.revokeObjectURL(blobUrl)
           alert(data.message || 'Erro no upload')
         }
       } catch {
+        setMediaItems(prev => prev.filter(m => m.preview !== blobUrl))
+        URL.revokeObjectURL(blobUrl)
         alert('Erro ao fazer upload. Tente novamente.')
       } finally {
         setUploading(false)
@@ -320,6 +335,8 @@ export default function ProductReviews({ productId, initialReviews = [], initial
   }
 
   const removeMedia = (index: number) => {
+    const item = mediaItems[index]
+    if (item?.preview?.startsWith('blob:')) URL.revokeObjectURL(item.preview)
     setMediaItems(prev => prev.filter((_, i) => i !== index))
   }
 
@@ -338,7 +355,7 @@ export default function ProductReviews({ productId, initialReviews = [], initial
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          media: mediaItems.map(({ type, url }) => ({ type, url }))
+          media: mediaItems.filter(m => m.url && !m.uploading).map(({ type, url }) => ({ type, url }))
         })
       })
 
@@ -518,12 +535,21 @@ export default function ProductReviews({ productId, initialReviews = [], initial
                 {mediaItems.map((item, i) => (
                   <div key={i} className="relative group">
                     {item.type === 'video' ? (
-                      <div className="w-20 h-20 bg-gray-800 rounded-lg flex items-center justify-center">
-                        <FiVideo className="w-6 h-6 text-white" />
+                      <div className="w-20 h-20 bg-gray-800 rounded-lg flex items-center justify-center relative">
+                        {item.uploading ? (
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                        ) : (
+                          <FiVideo className="w-6 h-6 text-white" />
+                        )}
                       </div>
                     ) : (
-                      <div className="w-20 h-20 rounded-lg overflow-hidden">
-                        <img src={item.url} alt="" className="w-full h-full object-cover" />
+                      <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 relative">
+                        <img src={item.preview || item.url} alt="" className="w-full h-full object-cover" />
+                        {item.uploading && (
+                          <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />
+                          </div>
+                        )}
                       </div>
                     )}
                     <button
