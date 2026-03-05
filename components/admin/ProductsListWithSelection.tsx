@@ -36,6 +36,7 @@ interface Product {
   gtin: string | null
   brand: string | null
   specifications: string | null
+  attributes: string | null
   technicalSpecs: string | null
   variants: string | null
   category: { id: string; name: string }
@@ -51,17 +52,46 @@ interface Props {
 }
 
 // ─── utilidades ──────────────────────────────────────────────────────────────
+function countJsonFields(value: string | null): number {
+  if (!value) return 0
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item: any) => item && (item.value !== undefined ? item.value !== '' && item.value !== null : !!item.name)).length
+    }
+    if (typeof parsed === 'object' && parsed !== null) {
+      return Object.values(parsed).filter((v: any) => v !== null && v !== '' && v !== undefined).length
+    }
+  } catch { /* ignore */ }
+  return 0
+}
+
+function getTechSpecField(value: string | null, keys: string[]): boolean {
+  if (!value) return false
+  try {
+    const parsed = JSON.parse(value)
+    return keys.some(k => !!parsed?.[k])
+  } catch { return false }
+}
+
 function calcularQualidade(product: Product, imagens: string[]) {
+  const nSpecs = countJsonFields(product.specifications)
+  const nAttrs = countJsonFields(product.attributes)
   const criterios = [
-    { label: 'Tem imagem',         ok: imagens.length > 0,                                        pts: 15 },
-    { label: '3+ imagens',         ok: imagens.length >= 3,                                       pts: 15 },
-    { label: 'Descrição',          ok: !!product.description && product.description.length > 30,  pts: 10 },
-    { label: 'Descrição completa', ok: !!product.description && product.description.length > 200, pts: 15 },
-    { label: 'Preço original',     ok: !!product.comparePrice,                                    pts: 10 },
-    { label: 'GTIN (código EAN)',  ok: !!product.gtin,                                            pts: 10 },
-    { label: 'Especificações',     ok: !!product.specifications || !!product.technicalSpecs,      pts: 10 },
-    { label: 'Variações',          ok: !!product.variants,                                        pts: 10 },
-    { label: 'Marca',              ok: !!product.brand,                                           pts:  5 },
+    { label: 'Tem imagem',                  ok: imagens.length > 0,                                        pts: 10 },
+    { label: '3+ imagens',                  ok: imagens.length >= 3,                                       pts: 10 },
+    { label: 'Descrição',                   ok: !!product.description && product.description.length > 30,  pts:  5 },
+    { label: 'Descrição completa',          ok: !!product.description && product.description.length > 200, pts: 10 },
+    { label: 'Preço original',              ok: !!product.comparePrice,                                    pts:  5 },
+    { label: 'GTIN (código EAN)',           ok: !!product.gtin,                                            pts: 10 },
+    { label: 'Marca',                       ok: !!product.brand,                                           pts:  5 },
+    { label: 'Variações',                   ok: !!product.variants,                                        pts:  5 },
+    { label: 'Especificações (1+ campo)',   ok: nSpecs >= 1,                                               pts:  5 },
+    { label: 'Especificações (3+ campos)',  ok: nSpecs >= 3,                                               pts: 10 },
+    { label: 'Atributos (1+ campo)',        ok: nAttrs >= 1,                                               pts:  5 },
+    { label: 'Atributos (3+ campos)',       ok: nAttrs >= 3,                                               pts: 10 },
+    { label: 'Tipo de produto',             ok: getTechSpecField(product.technicalSpecs, ['productType']), pts:  5 },
+    { label: 'Modelo / MPN',               ok: getTechSpecField(product.technicalSpecs, ['model', 'mpn']),pts:  5 },
   ]
   const score = criterios.filter(c => c.ok).reduce((s, c) => s + c.pts, 0)
   const pendentes = criterios.filter(c => !c.ok).map(c => c.label)
