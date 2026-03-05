@@ -169,6 +169,11 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/guias" className="hover:text-white">
+                  Guias de Compras
+                </Link>
+              </li>
+              <li>
                 <Link href="/vendedor/cadastro" className="hover:text-white">
                   Seja um Parceiro
                 </Link>
@@ -185,12 +190,12 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/envio" className="hover:text-white">
+                <Link href="/politica-devolucao" className="hover:text-white">
                   Envio
                 </Link>
               </li>
               <li>
-                <Link href="/devolucoes" className="hover:text-white">
+                <Link href="/politica-devolucao" className="hover:text-white">
                   Devoluções
                 </Link>
               </li>
