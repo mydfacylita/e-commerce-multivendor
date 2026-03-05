@@ -35,6 +35,9 @@ interface Product {
   supplierSku: string | null
   gtin: string | null
   brand: string | null
+  model: string | null
+  mpn: string | null
+  color: string | null
   specifications: string | null
   attributes: string | null
   technicalSpecs: string | null
@@ -90,8 +93,8 @@ function calcularQualidade(product: Product, imagens: string[]) {
     { label: 'Especificações (3+ campos)',  ok: nSpecs >= 3,                                               pts: 10 },
     { label: 'Atributos (1+ campo)',        ok: nAttrs >= 1,                                               pts:  5 },
     { label: 'Atributos (3+ campos)',       ok: nAttrs >= 3,                                               pts: 10 },
-    { label: 'Tipo de produto',             ok: getTechSpecField(product.technicalSpecs, ['productType']), pts:  5 },
-    { label: 'Modelo / MPN',               ok: getTechSpecField(product.technicalSpecs, ['model', 'mpn']),pts:  5 },
+    { label: 'Tipo de produto',             ok: getTechSpecField(product.technicalSpecs, ['product_type']),pts:  5 },
+    { label: 'Modelo / MPN',               ok: !!(product.model || product.mpn),                          pts:  5 },
   ]
   const score = criterios.filter(c => c.ok).reduce((s, c) => s + c.pts, 0)
   const pendentes = criterios.filter(c => !c.ok).map(c => c.label)
