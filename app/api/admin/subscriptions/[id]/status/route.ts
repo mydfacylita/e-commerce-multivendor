@@ -68,22 +68,30 @@ export async function PATCH(
       data: { status }
     })
 
-    // Sincronizar status da loja com a assinatura
-    const sellerStatusMap: Record<string, 'ACTIVE' | 'SUSPENDED'> = {
-      ACTIVE: 'ACTIVE',
-      TRIAL: 'ACTIVE',
-      SUSPENDED: 'SUSPENDED',
-      CANCELLED: 'SUSPENDED',
-      EXPIRED: 'SUSPENDED',
-      PENDING_PAYMENT: 'SUSPENDED',
+    // Sincronizar visibilidade dos produtos com o status da assinatura
+    // SUSPENDED é reservado para punições manuais pelo admin (não alterado aqui)
+    if (['ACTIVE', 'TRIAL'].includes(status)) {
+      // Reativar produtos ao ativar assinatura
+      await prisma.product.updateMany({
+        where: { sellerId: subscription.seller.id },
+        data: { active: true }
+      })
+      console.log(`✅ Produtos da loja ${subscription.seller.id} reativados (assinatura ${status})`)
+    } else if (['EXPIRED', 'CANCELLED', 'PENDING_PAYMENT'].includes(status)) {
+      // Desativar produtos ao expirar/cancelar (vendedor continua podendo acessar painel e renovar)
+      await prisma.product.updateMany({
+        where: { sellerId: subscription.seller.id, active: true },
+        data: { active: false }
+      })
+      console.log(`⏸ Produtos da loja ${subscription.seller.id} desativados (assinatura ${status})`)
     }
-    const newSellerStatus = sellerStatusMap[status]
-    if (newSellerStatus) {
+    // SUSPENDED da assinatura = admin decidiu suspender — muda status da loja também
+    if (status === 'SUSPENDED') {
       await prisma.seller.update({
         where: { id: subscription.seller.id },
-        data: { status: newSellerStatus }
+        data: { status: 'SUSPENDED' }
       })
-      console.log(`🏪 Loja ${subscription.seller.id} atualizada para ${newSellerStatus} (assinatura ${status})`)
+      console.log(`🚫 Loja ${subscription.seller.id} suspensa por admin`)
     }
 
     console.log('📝 Admin atualizou status da assinatura:', {

@@ -915,13 +915,14 @@ async function expireOldSubscriptions(): Promise<void> {
         data: { status: 'EXPIRED' }
       })
 
-      // Suspender lojas dos vendedores com assinatura expirada
-      await prisma.seller.updateMany({
-        where: { id: { in: expiredSubs.map(s => s.sellerId) } },
-        data: { status: 'SUSPENDED' }
+      // Desativar produtos dos vendedores com assinatura expirada
+      // (não altera seller.status — vendedor continua podendo acessar o painel e renovar o plano)
+      await prisma.product.updateMany({
+        where: { sellerId: { in: expiredSubs.map(s => s.sellerId) }, active: true },
+        data: { active: false }
       })
 
-      console.log(`[SUBSCRIPTION-SYNC] ⏰ ${expiredSubs.length} assinaturas expiradas, lojas suspensas`)
+      console.log(`[SUBSCRIPTION-SYNC] ⏰ ${expiredSubs.length} assinaturas expiradas, produtos desativados`)
     }
 
     // Cancelar assinaturas PENDING_PAYMENT com mais de 7 dias

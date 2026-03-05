@@ -228,12 +228,21 @@ export default function ContratoDetailPage() {
       </div>
 
       {/* Alertas */}
-      {subscription.seller.status === 'SUSPENDED' && (
+      {['EXPIRED', 'CANCELLED', 'PENDING_PAYMENT'].includes(subscription.status) && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-3">
+          <FiAlertCircle className="text-yellow-500 text-xl flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-yellow-800">Assinatura inativa — produtos ocultos</p>
+            <p className="text-sm text-yellow-700">Os produtos desta loja estão desativados no site. O vendedor ainda pode acessar o painel e renovar o plano.</p>
+          </div>
+        </div>
+      )}
+      {subscription.status === 'SUSPENDED' && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
           <FiAlertCircle className="text-red-500 text-xl flex-shrink-0" />
           <div>
-            <p className="font-semibold text-red-800">Loja suspensa</p>
-            <p className="text-sm text-red-600">Os produtos desta loja estão ocultos para os compradores.</p>
+            <p className="font-semibold text-red-800">Loja suspensa pelo admin</p>
+            <p className="text-sm text-red-600">Esta loja foi suspensa manualmente. O vendedor não consegue nem ativar o plano.</p>
           </div>
         </div>
       )}
