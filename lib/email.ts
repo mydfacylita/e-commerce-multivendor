@@ -15,6 +15,8 @@ export const EMAIL_TEMPLATES = {
   ORDER_AWAITING_SHIPMENT: 'order_awaiting_shipment',
   CART_ABANDONED: 'cart_abandoned',
   PASSWORD_RESET: 'password_reset',
+  SELLER_APPROVED: 'seller_approved',
+  SELLER_REJECTED: 'seller_rejected',
 } as const
 
 type TemplateType = typeof EMAIL_TEMPLATES[keyof typeof EMAIL_TEMPLATES]
@@ -185,6 +187,53 @@ const templates: Record<TemplateType, (data: EmailTemplateData) => { subject: st
         </a>
         <hr style="margin: 20px 0;">
         <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+      </div>
+    `
+  }),
+
+  seller_approved: (data) => ({
+    subject: `✅ Cadastro Aprovado — Bem-vindo à MYDSHOP!`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #f9fafb;">
+        <div style="background: #1d4ed8; padding: 32px 24px; text-align: center;">
+          <img src="https://mydshop.com.br/logo-animated-white.svg" alt="MYDSHOP" style="height: 40px; margin-bottom: 12px;" />
+          <h1 style="color: #fff; margin: 0; font-size: 24px;">Cadastro Aprovado! 🎉</h1>
+        </div>
+        <div style="background: #fff; padding: 32px 24px;">
+          <p style="font-size: 16px; color: #374151;">Olá, <strong>${data.sellerName}</strong>!</p>
+          <p style="color: #374151;">Ótima notícia! Sua loja <strong>${data.storeName}</strong> foi aprovada na plataforma <strong>MYDSHOP</strong> e já está pronta para começar a vender.</p>
+          <div style="background: #f0fdf4; border-left: 4px solid #16a34a; padding: 16px; border-radius: 4px; margin: 24px 0;">
+            <p style="margin: 0; color: #15803d; font-weight: bold;">✅ Sua conta está aprovada e ativa!</p>
+          </div>
+          <p style="color: #374151;"><strong>Próximo passo:</strong> escolha o plano ideal para o seu negócio e comece a cadastrar seus produtos.</p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="https://mydshop.com.br/vendedor/planos" style="background: #1d4ed8; color: #fff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">👉 Escolher Meu Plano</a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">Se você tiver dúvidas, acesse seu painel em <a href="https://mydshop.com.br/vendedor" style="color: #1d4ed8;">mydshop.com.br/vendedor</a> ou entre em contato pelo nosso WhatsApp.</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 16px 24px; text-align: center;">
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">© MYDSHOP — Este é um e-mail automático, por favor não responda.</p>
+        </div>
+      </div>
+    `
+  }),
+
+  seller_rejected: (data) => ({
+    subject: `Sobre seu cadastro na MYDSHOP`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #f9fafb;">
+        <div style="background: #1d4ed8; padding: 32px 24px; text-align: center;">
+          <img src="https://mydshop.com.br/logo-animated-white.svg" alt="MYDSHOP" style="height: 40px; margin-bottom: 12px;" />
+        </div>
+        <div style="background: #fff; padding: 32px 24px;">
+          <p style="font-size: 16px; color: #374151;">Olá, <strong>${data.sellerName}</strong>!</p>
+          <p style="color: #374151;">Analisamos seu cadastro da loja <strong>${data.storeName}</strong> e, no momento, não foi possível aprová-lo.</p>
+          ${data.reason ? `<div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; border-radius: 4px; margin: 24px 0;"><p style="margin: 0; color: #991b1b;"><strong>Motivo:</strong> ${data.reason}</p></div>` : ''}
+          <p style="color: #374151;">Se tiver dúvidas ou quiser enviar novos documentos, entre em contato conosco pelo WhatsApp ou e-mail.</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 16px 24px; text-align: center;">
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">© MYDSHOP — Este é um e-mail automático, por favor não responda.</p>
+        </div>
       </div>
     `
   }),

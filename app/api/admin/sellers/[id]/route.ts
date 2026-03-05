@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { sendTemplateEmail } from '@/lib/email';
+import { WhatsAppService } from '@/lib/whatsapp';
 
 
 // Force dynamic - disable all caching
@@ -81,10 +83,45 @@ export async function PUT(
           select: {
             name: true,
             email: true,
+            phone: true,
           },
         },
       },
     });
+
+    // Notificar vendedor por e-mail e WhatsApp ao aprovar ou rejeitar
+    if (status === 'ACTIVE' || status === 'REJECTED') {
+      const sellerName = seller.user?.name || seller.storeName
+      const sellerEmail = seller.user?.email
+      const sellerPhone = seller.user?.phone || (seller as any).whatsapp
+
+      if (status === 'ACTIVE') {
+        // E-mail de aprovação
+        if (sellerEmail) {
+          sendTemplateEmail('seller_approved', sellerEmail, {
+            sellerName,
+            storeName: seller.storeName,
+          }).catch(err => console.error('[seller_approved] email error:', err))
+        }
+
+        // WhatsApp de aprovação
+        if (sellerPhone) {
+          const wppMsg = `✅ *Olá, ${sellerName}!*\n\nSua loja *${seller.storeName}* foi *aprovada* na MYDSHOP! 🎉\n\nAgora é só escolher o seu plano e começar a vender:\n👉 https://mydshop.com.br/vendedor/planos\n\nQualquer dúvida estamos aqui! 😊`
+          WhatsAppService.sendMessage({ to: sellerPhone, message: wppMsg, logType: 'seller_approved' })
+            .catch(err => console.error('[seller_approved] whatsapp error:', err))
+        }
+      }
+
+      if (status === 'REJECTED') {
+        // E-mail de rejeição
+        if (sellerEmail) {
+          sendTemplateEmail('seller_rejected', sellerEmail, {
+            sellerName,
+            storeName: seller.storeName,
+          }).catch(err => console.error('[seller_rejected] email error:', err))
+        }
+      }
+    }
 
     return NextResponse.json({ seller });
   } catch (error) {
