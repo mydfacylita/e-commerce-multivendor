@@ -76,8 +76,7 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     await writeFile(join(uploadDir, fileName), Buffer.from(bytes))
 
-    const baseUrl  = process.env.NEXTAUTH_URL?.replace(/\/$/, '') || ''
-    const publicUrl = `${baseUrl}/uploads/reviews/${fileName}`
+    const publicUrl = `/uploads/reviews/${fileName}`
 
     return NextResponse.json({
       success: true,
