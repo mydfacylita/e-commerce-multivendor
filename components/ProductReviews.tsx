@@ -1,9 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { FiStar, FiThumbsUp, FiMessageCircle, FiChevronDown, FiChevronUp, FiCheck, FiImage } from 'react-icons/fi'
+import { FiStar, FiThumbsUp, FiMessageCircle, FiChevronDown, FiChevronUp, FiCheck, FiImage, FiVideo, FiX, FiUpload } from 'react-icons/fi'
 import Image from 'next/image'
 import AIReviewSummary from '@/components/AIReviewSummary'
+
+interface MediaItem {
+  type: 'image' | 'video'
+  url: string
+}
 
 interface Review {
   id: string
@@ -12,7 +17,7 @@ interface Review {
   comment?: string
   pros?: string
   cons?: string
-  images: string[]
+  media: MediaItem[]
   isVerified: boolean
   helpfulCount: number
   sellerReply?: string
@@ -107,7 +112,7 @@ function RatingBar({ stars, count, total }: { stars: number; count: number; tota
 
 // Card de Avaliação Individual
 function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: string) => void }) {
-  const [showImages, setShowImages] = useState(false)
+  const [showMedia, setShowMedia] = useState(false)
   
   return (
     <div className="border-b pb-6 last:border-0">
@@ -167,22 +172,42 @@ function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: str
         </div>
       )}
 
-      {/* Imagens */}
-      {review.images && review.images.length > 0 && (
+      {/* Mídias (fotos e vídeos) */}
+      {review.media && review.media.length > 0 && (
         <div className="mb-3">
-          <button
-            onClick={() => setShowImages(!showImages)}
-            className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
-          >
-            <FiImage className="w-4 h-4" />
-            {review.images.length} foto{review.images.length > 1 ? 's' : ''}
-            {showImages ? <FiChevronUp /> : <FiChevronDown />}
-          </button>
-          {showImages && (
+          {(() => {
+            const imgs = review.media.filter(m => m.type === 'image')
+            const vids = review.media.filter(m => m.type === 'video')
+            const parts = []
+            if (imgs.length) parts.push(`${imgs.length} foto${imgs.length > 1 ? 's' : ''}`)
+            if (vids.length) parts.push(`${vids.length} vídeo${vids.length > 1 ? 's' : ''}`)
+            return (
+              <button
+                onClick={() => setShowMedia(!showMedia)}
+                className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
+              >
+                {imgs.length > 0 && <FiImage className="w-4 h-4" />}
+                {vids.length > 0 && <FiVideo className="w-4 h-4" />}
+                {parts.join(' + ')}
+                {showMedia ? <FiChevronUp /> : <FiChevronDown />}
+              </button>
+            )
+          })()}
+          {showMedia && (
             <div className="flex gap-2 mt-2 flex-wrap">
-              {review.images.map((img, i) => (
-                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden">
-                  <Image src={img} alt="" fill className="object-cover" />
+              {review.media.map((item, i) => (
+                <div key={i} className="rounded-lg overflow-hidden bg-gray-100">
+                  {item.type === 'video' ? (
+                    <video
+                      src={item.url}
+                      controls
+                      className="h-40 max-w-xs rounded-lg"
+                    />
+                  ) : (
+                    <div className="relative w-20 h-20">
+                      <Image src={item.url} alt="" fill className="object-cover" />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -229,6 +254,8 @@ export default function ProductReviews({ productId, initialReviews = [], initial
     pros: '',
     cons: ''
   })
+  const [mediaItems, setMediaItems] = useState<(MediaItem & { preview?: string })[]>([])
+  const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   // Carregar avaliações
@@ -248,6 +275,54 @@ export default function ProductReviews({ productId, initialReviews = [], initial
     }
   }
 
+  // Upload de mídia
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+
+    const currentImages = mediaItems.filter(m => m.type === 'image').length
+    const currentVideos = mediaItems.filter(m => m.type === 'video').length
+
+    for (const file of files) {
+      const isVideo = file.type.startsWith('video/')
+      if (isVideo && currentVideos >= 2) {
+        alert('Máximo de 2 vídeos por avaliação')
+        continue
+      }
+      if (!isVideo && currentImages >= 5) {
+        alert('Máximo de 5 fotos por avaliação')
+        continue
+      }
+
+      setUploading(true)
+      try {
+        const form = new FormData()
+        form.append('file', file)
+        const res = await fetch('/api/reviews/upload', { method: 'POST', body: form })
+        const data = await res.json()
+        if (res.ok && data.url) {
+          setMediaItems(prev => [...prev, {
+            type: data.type as 'image' | 'video',
+            url: data.url,
+            preview: isVideo ? undefined : data.url
+          }])
+        } else {
+          alert(data.message || 'Erro no upload')
+        }
+      } catch {
+        alert('Erro ao fazer upload. Tente novamente.')
+      } finally {
+        setUploading(false)
+      }
+    }
+    // Reset file input
+    e.target.value = ''
+  }
+
+  const removeMedia = (index: number) => {
+    setMediaItems(prev => prev.filter((_, i) => i !== index))
+  }
+
   // Enviar avaliação
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -261,7 +336,10 @@ export default function ProductReviews({ productId, initialReviews = [], initial
       const res = await fetch(`/api/products/${productId}/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          media: mediaItems.map(({ type, url }) => ({ type, url }))
+        })
       })
 
       const data = await res.json()
@@ -270,6 +348,7 @@ export default function ProductReviews({ productId, initialReviews = [], initial
         alert(data.message || 'Avaliação enviada com sucesso!')
         setShowForm(false)
         setFormData({ rating: 0, title: '', comment: '', pros: '', cons: '' })
+        setMediaItems([])
         loadReviews()
       } else {
         alert(data.message || data.error || 'Erro ao enviar avaliação')
@@ -428,18 +507,65 @@ export default function ProductReviews({ productId, initialReviews = [], initial
             </div>
           </div>
 
+          {/* Upload de Fotos e Vídeos */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">📎 Fotos e Vídeos (opcional)</label>
+            <p className="text-xs text-gray-500 mb-2">Até 5 fotos e 2 vídeos pequenos do produto recebido</p>
+
+            {/* Previews */}
+            {mediaItems.length > 0 && (
+              <div className="flex gap-2 flex-wrap mb-3">
+                {mediaItems.map((item, i) => (
+                  <div key={i} className="relative group">
+                    {item.type === 'video' ? (
+                      <div className="w-20 h-20 bg-gray-800 rounded-lg flex items-center justify-center">
+                        <FiVideo className="w-6 h-6 text-white" />
+                      </div>
+                    ) : (
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                        <Image src={item.url} alt="" fill className="object-cover" />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeMedia(i)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <FiX className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <label className={`flex items-center gap-2 px-4 py-2 border-2 border-dashed rounded-lg cursor-pointer w-fit text-sm transition ${
+              uploading ? 'border-gray-300 text-gray-400 cursor-not-allowed' : 'border-blue-300 text-blue-600 hover:border-blue-500 hover:bg-blue-50'
+            }`}>
+              <FiUpload className="w-4 h-4" />
+              {uploading ? 'Enviando...' : 'Adicionar foto ou vídeo'}
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+                disabled={uploading}
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
+          </div>
+
           {/* Botões */}
           <div className="flex gap-3">
             <button
               type="submit"
-              disabled={submitting || formData.rating === 0}
+              disabled={submitting || uploading || formData.rating === 0}
               className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? 'Enviando...' : 'Enviar Avaliação'}
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => { setShowForm(false); setMediaItems([]) }}
               className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
             >
               Cancelar

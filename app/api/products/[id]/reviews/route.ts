@@ -144,7 +144,12 @@ export async function GET(
         comment: r.comment,
         pros: r.pros,
         cons: r.cons,
-        images: r.images ? JSON.parse(r.images) : [],
+        media: (() => {
+          const raw = r.images ? JSON.parse(r.images) : []
+          return (raw as Array<string | { type: string; url: string }>).map(item =>
+            typeof item === 'string' ? { type: 'image', url: item } : item
+          )
+        })(),
         isVerified: r.isVerified,
         helpfulCount: r.helpfulCount,
         sellerReply: r.sellerReply,
@@ -194,7 +199,7 @@ export async function POST(
 
     const productId = params.id
     const body = await request.json()
-    const { rating, title, comment, pros, cons, images, orderId } = body
+    const { rating, title, comment, pros, cons, media, images, orderId } = body
 
     // Validações
     if (!rating || rating < 1 || rating > 5) {
@@ -266,7 +271,15 @@ export async function POST(
         comment: comment?.substring(0, 2000),
         pros: pros?.substring(0, 500),
         cons: cons?.substring(0, 500),
-        images: images ? JSON.stringify(images.slice(0, 5)) : null,
+        images: (() => {
+          const mediaArr = media ?? images
+          if (!mediaArr || mediaArr.length === 0) return null
+          // Normalize: accept both string[] (legacy) and {type,url}[]
+          const normalized = (mediaArr as Array<string | { type: string; url: string }>).map(item =>
+            typeof item === 'string' ? { type: 'image', url: item } : item
+          )
+          return JSON.stringify(normalized.slice(0, 8))
+        })(),
         isVerified,
         isApproved: true // Auto-aprovar por enquanto
       }
