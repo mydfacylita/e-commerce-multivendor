@@ -15,18 +15,52 @@ export async function GET(request: NextRequest) {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://mydshop.com.br'
     
-    // Buscar produtos ativos
-    const products = await prisma.product.findMany({
+    // Buscar produtos ativos com filtros de qualidade mínima
+    const allProducts = await prisma.product.findMany({
       where: {
         active: true,
         stock: { gt: 0 },
-        price: { gt: 0 }
+        price: { gt: 0 },
+        // Descrição mínima obrigatória
+        description: { not: null },
+        // Nome mínimo
+        name: { not: '' }
       },
       include: {
         category: true
       },
-      take: 5000 // Limite do Google
+      take: 10000
     })
+
+    // Filtros adicionais de qualidade para o Google (evitar bloqueio por conteúdo baixo)
+    const PLACEHOLDER_KEYWORDS = [
+      'lorem ipsum', 'test product', 'produto teste', 'descrição do produto',
+      'insira a descrição', 'sem descrição', 'a ser preenchido', 'em breve'
+    ]
+
+    const products = allProducts.filter(p => {
+      // 1. Deve ter imagem válida
+      let hasImage = false
+      try {
+        const imgs = JSON.parse(p.images || '[]')
+        hasImage = Array.isArray(imgs) && imgs.length > 0 && imgs[0] !== ''
+      } catch { hasImage = !!(p.images && p.images.length > 5) }
+      if (!hasImage) return false
+
+      // 2. Descrição mínima de 50 caracteres (sem HTML)
+      const descText = (p.description || '').replace(/<[^>]*>/g, '').trim()
+      if (descText.length < 50) return false
+
+      // 3. Sem texto placeholder
+      const descLower = descText.toLowerCase()
+      const titleLower = (p.name || '').toLowerCase()
+      if (PLACEHOLDER_KEYWORDS.some(kw => descLower.includes(kw) || titleLower.includes(kw))) return false
+
+      // 4. Nome mínimo de 10 caracteres
+      if ((p.name || '').trim().length < 10) return false
+
+      return true
+    }).slice(0, 5000) // Limite do Google
 
     // Gerar XML do feed
     const xml = `<?xml version="1.0" encoding="UTF-8"?>

@@ -181,8 +181,10 @@ Mensagem do cliente: "${message.replace(/"/g, "'")}"
       const rawQuery = searchFilters.query?.trim() || message.trim()
       const { terms, categoryNames } = expandQuery(rawQuery)
 
-      // Todas as keywords incluindo sinônimos
-      const keywords = [...new Set(
+      // Keywords da query original (igual à barra de busca)
+      const directKeywords = rawQuery.split(/\s+/).filter(k => k.length > 1)
+      // Keywords expandidas com sinônimos
+      const expandedKeywords = [...new Set(
         terms.flatMap(t => t.split(/\s+/)).filter(k => k.length > 2)
       )].slice(0, 8)
 
@@ -203,25 +205,31 @@ Mensagem do cliente: "${message.replace(/"/g, "'")}"
         return base
       }
 
-      // 1. Busca por categoria informada pelo Gemini
-      if (searchFilters.category) {
+      // 1. Busca direta (igual à barra de busca) — AND
+      if (products.length === 0 && directKeywords.length > 0)
+        products = await prisma.product.findMany({ where: buildWhere(directKeywords, true), select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+
+      // 2. Busca direta — OR
+      if (products.length === 0 && directKeywords.length > 0)
+        products = await prisma.product.findMany({ where: buildWhere(directKeywords, false), select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+
+      // 3. Busca por categoria identificada pelo Gemini
+      if (products.length === 0 && searchFilters.category) {
         const cat = await prisma.category.findFirst({ where: { name: { contains: searchFilters.category } } })
         if (cat) {
-          products = await prisma.product.findMany({ where: { ...buildWhere(keywords, true), categoryId: cat.id }, select: productSelect, take: 6, orderBy: { featured: 'desc' } })
-          if (products.length === 0)
-            products = await prisma.product.findMany({ where: { active: true, approvalStatus: 'APPROVED', categoryId: cat.id }, select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+          products = await prisma.product.findMany({ where: { active: true, approvalStatus: 'APPROVED', categoryId: cat.id }, select: productSelect, take: 6, orderBy: { featured: 'desc' } })
         }
       }
 
-      // 2. Busca AND com sinônimos
+      // 4. Busca com sinônimos — AND
       if (products.length === 0)
-        products = await prisma.product.findMany({ where: buildWhere(keywords, true), select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+        products = await prisma.product.findMany({ where: buildWhere(expandedKeywords, true), select: productSelect, take: 6, orderBy: { featured: 'desc' } })
 
-      // 3. Busca OR com sinônimos
+      // 5. Busca com sinônimos — OR
       if (products.length === 0)
-        products = await prisma.product.findMany({ where: buildWhere(keywords, false), select: productSelect, take: 6, orderBy: { featured: 'desc' } })
+        products = await prisma.product.findMany({ where: buildWhere(expandedKeywords, false), select: productSelect, take: 6, orderBy: { featured: 'desc' } })
 
-      // 4. Fallback por categorias do mapa de sinônimos
+      // 6. Fallback por categorias do mapa de sinônimos
       if (products.length === 0 && categoryNames.length > 0) {
         for (const catName of categoryNames) {
           const cat = await prisma.category.findFirst({ where: { name: { contains: catName } } })
@@ -230,14 +238,6 @@ Mensagem do cliente: "${message.replace(/"/g, "'")}"
             if (products.length > 0) break
           }
         }
-      }
-
-      // 5. Último recurso: 1ª keyword sem filtros de preço
-      if (products.length === 0 && keywords.length > 0) {
-        products = await prisma.product.findMany({
-          where: { active: true, approvalStatus: 'APPROVED', OR: [{ name: { contains: keywords[0] } }, { description: { contains: keywords[0] } }] },
-          select: productSelect, take: 6, orderBy: { featured: 'desc' }
-        })
       }
     }
 
