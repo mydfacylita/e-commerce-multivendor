@@ -62,11 +62,29 @@ export async function PATCH(
       return NextResponse.json({ error: 'Assinatura não encontrada' }, { status: 404 })
     }
 
-    // Atualizar status
+    // Atualizar status da assinatura
     const updated = await prisma.subscription.update({
       where: { id: params.id },
       data: { status }
     })
+
+    // Sincronizar status da loja com a assinatura
+    const sellerStatusMap: Record<string, 'ACTIVE' | 'SUSPENDED'> = {
+      ACTIVE: 'ACTIVE',
+      TRIAL: 'ACTIVE',
+      SUSPENDED: 'SUSPENDED',
+      CANCELLED: 'SUSPENDED',
+      EXPIRED: 'SUSPENDED',
+      PENDING_PAYMENT: 'SUSPENDED',
+    }
+    const newSellerStatus = sellerStatusMap[status]
+    if (newSellerStatus) {
+      await prisma.seller.update({
+        where: { id: subscription.seller.id },
+        data: { status: newSellerStatus }
+      })
+      console.log(`🏪 Loja ${subscription.seller.id} atualizada para ${newSellerStatus} (assinatura ${status})`)
+    }
 
     console.log('📝 Admin atualizou status da assinatura:', {
       subscriptionId: params.id,
@@ -75,8 +93,6 @@ export async function PATCH(
       newStatus: status,
       adminId: user.id
     })
-
-    // TODO: Enviar email ao vendedor notificando mudança de status
 
     return NextResponse.json({
       message: 'Status atualizado com sucesso',

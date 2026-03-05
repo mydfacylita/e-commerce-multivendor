@@ -901,18 +901,27 @@ async function expireOldSubscriptions(): Promise<void> {
     const now = new Date()
 
     // Expirar assinaturas ACTIVE/TRIAL com endDate no passado
-    const result = await prisma.subscription.updateMany({
+    const expiredSubs = await prisma.subscription.findMany({
       where: {
         status: { in: ['ACTIVE', 'TRIAL'] },
         endDate: { lt: now }
       },
-      data: {
-        status: 'EXPIRED'
-      }
+      select: { id: true, sellerId: true }
     })
 
-    if (result.count > 0) {
-      console.log(`[SUBSCRIPTION-SYNC] ⏰ ${result.count} assinaturas expiradas`)
+    if (expiredSubs.length > 0) {
+      await prisma.subscription.updateMany({
+        where: { id: { in: expiredSubs.map(s => s.id) } },
+        data: { status: 'EXPIRED' }
+      })
+
+      // Suspender lojas dos vendedores com assinatura expirada
+      await prisma.seller.updateMany({
+        where: { id: { in: expiredSubs.map(s => s.sellerId) } },
+        data: { status: 'SUSPENDED' }
+      })
+
+      console.log(`[SUBSCRIPTION-SYNC] ⏰ ${expiredSubs.length} assinaturas expiradas, lojas suspensas`)
     }
 
     // Cancelar assinaturas PENDING_PAYMENT com mais de 7 dias

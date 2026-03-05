@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FiCheckCircle, FiXCircle, FiClock, FiAlertCircle, FiSearch, FiCalendar, FiDollarSign, FiFileText } from 'react-icons/fi'
+import Link from 'next/link'
+import { FiCheckCircle, FiXCircle, FiClock, FiAlertCircle, FiSearch, FiCalendar, FiDollarSign, FiFileText, FiEye } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
 interface Subscription {
@@ -299,15 +300,23 @@ export default function AdminAssinaturasPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <select
-                        value={subscription.status}
-                        onChange={(e) => handleStatusChange(subscription.id, e.target.value)}
-                        className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="ACTIVE">Ativar</option>
-                        <option value="SUSPENDED">Suspender</option>
-                        <option value="CANCELLED">Cancelar</option>
-                      </select>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/admin/assinaturas/${subscription.id}`}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-md text-xs font-medium hover:bg-primary-100 transition-colors"
+                        >
+                          <FiEye className="text-sm" /> Ver
+                        </Link>
+                        <select
+                          value={subscription.status}
+                          onChange={(e) => handleStatusChange(subscription.id, e.target.value)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-primary-500"
+                        >
+                          <option value="ACTIVE">Ativar</option>
+                          <option value="SUSPENDED">Suspender</option>
+                          <option value="CANCELLED">Cancelar</option>
+                        </select>
+                      </div>
                     </td>
                   </tr>
                 ))
