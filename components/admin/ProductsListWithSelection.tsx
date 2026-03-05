@@ -60,7 +60,14 @@ function countJsonFields(value: string | null): number {
   try {
     const parsed = JSON.parse(value)
     if (Array.isArray(parsed)) {
-      return parsed.filter((item: any) => item && (item.value !== undefined ? item.value !== '' && item.value !== null : !!item.name)).length
+      // suporta {nome,valor} (PT) e {name,value} (EN)
+      return parsed.filter((item: any) => {
+        if (!item) return false
+        const v = item.valor ?? item.value ?? null
+        const n = item.nome ?? item.name ?? null
+        if (v !== null && v !== undefined) return v !== ''
+        return !!n
+      }).length
     }
     if (typeof parsed === 'object' && parsed !== null) {
       return Object.values(parsed).filter((v: any) => v !== null && v !== '' && v !== undefined).length
@@ -80,6 +87,7 @@ function getTechSpecField(value: string | null, keys: string[]): boolean {
 function calcularQualidade(product: Product, imagens: string[]) {
   const nSpecs = countJsonFields(product.specifications)
   const nAttrs = countJsonFields(product.attributes)
+  const nTotal = Math.max(nSpecs, nAttrs) // considera o campo com mais dados
   const criterios = [
     { label: 'Tem imagem',                  ok: imagens.length > 0,                                        pts: 10 },
     { label: '3+ imagens',                  ok: imagens.length >= 3,                                       pts: 10 },
@@ -89,10 +97,9 @@ function calcularQualidade(product: Product, imagens: string[]) {
     { label: 'GTIN (código EAN)',           ok: !!product.gtin,                                            pts: 10 },
     { label: 'Marca',                       ok: !!product.brand,                                           pts:  5 },
     { label: 'Variações',                   ok: !!product.variants,                                        pts:  5 },
-    { label: 'Especificações (1+ campo)',   ok: nSpecs >= 1,                                               pts:  5 },
-    { label: 'Especificações (3+ campos)',  ok: nSpecs >= 3,                                               pts: 10 },
-    { label: 'Atributos (1+ campo)',        ok: nAttrs >= 1,                                               pts:  5 },
-    { label: 'Atributos (3+ campos)',       ok: nAttrs >= 3,                                               pts: 10 },
+    { label: 'Atributos/Specs (1+ campo)',  ok: nTotal >= 1,                                               pts:  5 },
+    { label: 'Atributos/Specs (3+ campos)', ok: nTotal >= 3,                                               pts: 10 },
+    { label: 'Atributos livres (3+)',       ok: nAttrs >= 3,                                               pts: 10 },
     { label: 'Tipo de produto',             ok: getTechSpecField(product.technicalSpecs, ['product_type']),pts:  5 },
     { label: 'Modelo / MPN',               ok: !!(product.model || product.mpn),                          pts:  5 },
   ]
