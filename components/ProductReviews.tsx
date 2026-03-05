@@ -194,14 +194,17 @@ function ReviewCard({ review, onHelpful }: { review: Review; onHelpful: (id: str
             )
           })()}
           {showMedia && (
-            <div className="flex gap-2 mt-2 flex-wrap">
+            <div className="flex gap-2 mt-2 flex-wrap items-start">
               {review.media.map((item, i) => (
-                <div key={i} className="rounded-lg overflow-hidden bg-gray-100">
+                <div key={i} className="rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                   {item.type === 'video' ? (
                     <video
                       src={item.url}
                       controls
-                      className="h-40 max-w-xs rounded-lg"
+                      muted
+                      controlsList="nodownload nofullscreen noremoteplayback"
+                      disablePictureInPicture
+                      className="w-40 h-28 object-cover rounded-lg"
                     />
                   ) : (
                     <div className="w-20 h-20 rounded-lg overflow-hidden">
