@@ -634,7 +634,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               comment: r.comment || undefined,
               pros: r.pros || undefined,
               cons: r.cons || undefined,
-              images: r.images ? (typeof r.images === 'string' ? JSON.parse(r.images) : r.images) : [],
+              media: (() => {
+                const raw = r.images ? (typeof r.images === 'string' ? JSON.parse(r.images) : r.images) : []
+                return (raw as Array<string | { type: string; url: string }>).map(item =>
+                  typeof item === 'string' ? { type: 'image' as const, url: item } : { type: item.type as 'image' | 'video', url: item.url }
+                )
+              })(),
               isVerified: r.isVerified,
               helpfulCount: r.helpfulCount,
               sellerReply: r.sellerReply || undefined,
