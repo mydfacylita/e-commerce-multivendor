@@ -70,7 +70,7 @@ export async function GET(
         where: {
           sellerId,
           createdAt: { gte: start, lte: end },
-          status: { notIn: ['CANCELLED', 'REFUNDED'] }
+          status: { not: 'CANCELLED' }
         }
       }),
 
@@ -78,7 +78,7 @@ export async function GET(
         where: {
           sellerId,
           createdAt: { gte: start, lte: end },
-          status: { notIn: ['CANCELLED', 'REFUNDED'] }
+          status: { not: 'CANCELLED' }
         },
         _sum: { total: true }
       }),
@@ -87,7 +87,7 @@ export async function GET(
         where: {
           sellerId,
           createdAt: { gte: monthStart, lte: monthEnd },
-          status: { notIn: ['CANCELLED', 'REFUNDED'] }
+          status: { not: 'CANCELLED' }
         }
       }),
 
@@ -95,7 +95,7 @@ export async function GET(
         where: {
           sellerId,
           createdAt: { gte: monthStart, lte: monthEnd },
-          status: { notIn: ['CANCELLED', 'REFUNDED'] }
+          status: { not: 'CANCELLED' }
         },
         _sum: { total: true }
       }),
