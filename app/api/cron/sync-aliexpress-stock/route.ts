@@ -45,13 +45,13 @@ function generateSign(params: Record<string, string>, appSecret: string): string
   return crypto.createHmac('sha256', appSecret).update(signString).digest('hex').toUpperCase()
 }
 
-// Buscar produto na API do AliExpress
+// Buscar produto na API do AliExpress — retorna resultado completo
 async function fetchAliExpressProduct(
   productId: string,
   appKey: string,
   appSecret: string,
   accessToken: string
-): Promise<any[] | null> {
+): Promise<{ skus: any[]; result: any } | null> {
   const params: Record<string, string> = {
     app_key: appKey,
     method: 'aliexpress.ds.product.get',
@@ -78,11 +78,42 @@ async function fetchAliExpressProduct(
       return null
     }
 
-    const skuInfo = data.aliexpress_ds_product_get_response?.result?.ae_item_sku_info_dtos?.ae_item_sku_info_d_t_o
-    return Array.isArray(skuInfo) ? skuInfo : skuInfo ? [skuInfo] : null
+    const result = data.aliexpress_ds_product_get_response?.result
+    if (!result) return null
+
+    const skuInfo = result.ae_item_sku_info_dtos?.ae_item_sku_info_d_t_o
+    const skus = Array.isArray(skuInfo) ? skuInfo : skuInfo ? [skuInfo] : []
+    return { skus, result }
   } catch (error: any) {
     console.log(`[SYNC] Erro fetch ${productId}: ${error.message}`)
     return null
+  }
+}
+
+// Extrair atributos do mobile_detail (mesma lógica do import-selected)
+function extractAttributesFromMobileDetail(mobileDetailStr: string): Array<{ nome: string; valor: string }> {
+  try {
+    const mobileData = JSON.parse(mobileDetailStr)
+    const moduleList: any[] = mobileData.moduleList || []
+    const specs: Array<{ nome: string; valor: string }> = []
+
+    for (const mod of moduleList) {
+      if (mod.type !== 'text') continue
+      const content: string = (mod.data?.content || '').trim()
+      if (!content) continue
+
+      const colonIdx = content.indexOf(': ')
+      if (colonIdx > 0 && colonIdx < 80 && !content.includes('\n')) {
+        const key = content.substring(0, colonIdx).trim()
+        const value = content.substring(colonIdx + 2).trim()
+        if (key && value) {
+          specs.push({ nome: key, valor: value })
+        }
+      }
+    }
+    return specs
+  } catch {
+    return []
   }
 }
 
@@ -161,7 +192,10 @@ export async function GET(request: NextRequest) {
           margin: true,
           stock: true,
           variants: true,
-          selectedSkus: true
+          selectedSkus: true,
+          attributes: true,
+          brand: true,
+          model: true
         },
         skip: page * BATCH_SIZE,
         take: BATCH_SIZE,
@@ -190,13 +224,15 @@ export async function GET(request: NextRequest) {
       console.log(`[SYNC] Processando: ${product.name.substring(0, 50)}...`)
 
       // Buscar na API
-      const apiSkus = await fetchAliExpressProduct(productId, auth.appKey, auth.appSecret, auth.accessToken)
+      const apiResponse = await fetchAliExpressProduct(productId, auth.appKey, auth.appSecret, auth.accessToken)
 
-      if (!apiSkus || apiSkus.length === 0) {
+      if (!apiResponse || apiResponse.skus.length === 0) {
         errors++
         results.push({ id: product.id, name: product.name, status: 'error', reason: 'API não retornou SKUs' })
         continue
       }
+
+      const { skus: apiSkus, result: apiResult } = apiResponse
 
       // Criar mapa de preços/estoque da API por skuId
       const apiData: Record<string, { price: number, stock: number }> = {}
@@ -320,6 +356,37 @@ export async function GET(request: NextRequest) {
 
       const priceChanged = Math.abs(newCostPrice - previousCostPrice) > 0.01
 
+      // ========== ENRIQUECER ATRIBUTOS SE AUSENTES ==========
+      let updatedAttributes: string | undefined
+      let updatedBrand: string | undefined
+      let updatedModel: string | undefined
+      let attributesAdded = 0
+
+      const hasAttributes = !!(product as any).attributes && (product as any).attributes !== '[]'
+      if (!hasAttributes) {
+        const baseInfo = apiResult.ae_item_base_info_dto || {}
+        const mobileDetail: string = baseInfo.mobile_detail || ''
+        if (mobileDetail) {
+          const specs = extractAttributesFromMobileDetail(mobileDetail)
+          if (specs.length > 0) {
+            updatedAttributes = JSON.stringify(specs)
+            attributesAdded = specs.length
+
+            // Extrair marca e modelo
+            for (const spec of specs) {
+              const nameLower = spec.nome.toLowerCase()
+              if (!updatedBrand && (nameLower.includes('marca') || nameLower.includes('brand'))) {
+                updatedBrand = spec.valor
+              }
+              if (!updatedModel && (nameLower.includes('referência') || nameLower.includes('modelo') || nameLower.includes('model'))) {
+                updatedModel = spec.valor
+              }
+            }
+            console.log(`[SYNC] 📋 Atributos adicionados para ${product.name.substring(0, 30)}: ${specs.length} specs`)
+          }
+        }
+      }
+
       // ========== SALVAR NO BANCO ==========
       await prisma.product.update({
         where: { id: product.id },
@@ -330,7 +397,10 @@ export async function GET(request: NextRequest) {
           supplierStock: totalStock,
           lastSyncAt: new Date(),
           ...(updatedVariants && { variants: updatedVariants }),
-          ...(updatedSelectedSkus && { selectedSkus: updatedSelectedSkus })
+          ...(updatedSelectedSkus && { selectedSkus: updatedSelectedSkus }),
+          ...(updatedAttributes && { attributes: updatedAttributes }),
+          ...(updatedBrand && { brand: updatedBrand }),
+          ...(updatedModel && { model: updatedModel })
         }
       })
 
@@ -347,10 +417,11 @@ export async function GET(request: NextRequest) {
         priceChanged,
         costPrice: { old: previousCostPrice, new: newCostPrice },
         price: newPrice,
-        totalStock
+        totalStock,
+        attributesAdded
       })
 
-      console.log(`[SYNC] ✅ ${product.name.substring(0, 30)}: ${variantsUpdatedCount} variants, ${selectedUpdatedCount} selected, ${pricesRecalculated} preços recalculados`)
+      console.log(`[SYNC] ✅ ${product.name.substring(0, 30)}: ${variantsUpdatedCount} variants, ${selectedUpdatedCount} selected, ${pricesRecalculated} preços recalculados${attributesAdded > 0 ? `, ${attributesAdded} atributos adicionados` : ''}`)
     }
 
       // Próximo lote
