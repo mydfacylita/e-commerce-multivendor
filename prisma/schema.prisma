@@ -66,6 +66,7 @@ model AdminStaff {
   id          String   @id @default(cuid())
   userId      String   @unique
   permissions String   @db.Text // JSON array de permission keys
+  cargo       String?  @db.VarChar(100) // ex: Suporte, Financeiro, Logística
   isActive    Boolean  @default(true)
   notes       String?  @db.Text
   createdAt   DateTime @default(now())
