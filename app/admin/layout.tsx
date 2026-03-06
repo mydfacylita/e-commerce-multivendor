@@ -44,6 +44,7 @@ import {
   FiUserPlus,
   FiHelpCircle,
   FiHeadphones,
+  FiUserCheck,
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -67,6 +68,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }))
   }
+
+  // Controle de permissões por funcionário
+  const [staffPerms, setStaffPerms] = useState<string[] | null>(null)
+  const [permsLoaded, setPermsLoaded] = useState(false)
+
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.role === 'ADMIN') {
+      fetch('/api/admin/equipe/me')
+        .then(r => r.json())
+        .then(d => {
+          setStaffPerms(d.isMaster ? null : (d.permissions || []))
+          setPermsLoaded(true)
+        })
+        .catch(() => setPermsLoaded(true))
+    }
+  }, [status, session])
+
+  // null = master admin (acesso total); string[] = funcionário com permissões restritas
+  const can = (key: string) => staffPerms === null || staffPerms.includes(key)
 
   // Páginas públicas que não precisam de autenticação
   const isPublicPage = pathname === '/admin/login'
@@ -426,6 +446,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiFileText className="text-base" />
                   <span>Assinaturas</span>
                 </Link>
+                {can('gestao.equipe') && (
+                  <Link
+                    href="/admin/equipe"
+                    className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/equipe') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                  >
+                    <FiUserCheck className="text-base" />
+                    <span>Equipe</span>
+                  </Link>
+                )}
               </div>
             )}
           </div>
