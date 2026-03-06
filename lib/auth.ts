@@ -46,7 +46,8 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
+          where: { email: credentials.email },
+          include: { adminStaff: true },
         })
 
         const ip = (req as any)?.headers?.['x-forwarded-for']?.split(',')[0]?.trim()
@@ -115,6 +116,7 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           cpf: user.cpf || undefined,
           phone: user.phone || undefined,
+          isAdminStaff: !!(user.adminStaff?.isActive),
         }
       }
     })
@@ -126,6 +128,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role
         token.cpf = user.cpf
         token.phone = user.phone
+        token.isAdminStaff = (user as any).isAdminStaff ?? false
       }
       return token
     },
@@ -135,6 +138,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role
         session.user.cpf = token.cpf as string
         session.user.phone = token.phone as string
+        session.user.isAdminStaff = token.isAdminStaff as boolean
       }
       return session
     }

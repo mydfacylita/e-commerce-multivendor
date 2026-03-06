@@ -7,6 +7,7 @@ declare module 'next-auth' {
       role: 'USER' | 'ADMIN' | 'SELLER'
       cpf?: string
       phone?: string
+      isAdminStaff?: boolean
     } & DefaultSession['user']
   }
 
@@ -14,6 +15,7 @@ declare module 'next-auth' {
     role: 'USER' | 'ADMIN' | 'SELLER'
     cpf?: string
     phone?: string
+    isAdminStaff?: boolean
   }
 }
 
@@ -23,5 +25,6 @@ declare module 'next-auth/jwt' {
     role: 'USER' | 'ADMIN' | 'SELLER'
     cpf?: string
     phone?: string
+    isAdminStaff?: boolean
   }
 }

@@ -79,20 +79,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Este usuário já é funcionário' }, { status: 400 })
       }
 
-      const [updatedUser, staff] = await prisma.$transaction([
-        prisma.user.update({
-          where: { id: existing.id },
-          data: { role: 'ADMIN' },
-        }),
-        prisma.adminStaff.create({
-          data: {
-            userId: existing.id,
-            permissions: JSON.stringify(permissions || []),
-            notes: notes || null,
-            isActive: true,
-          },
-        }),
-      ])
+      const staff = await prisma.adminStaff.create({
+        data: {
+          userId: existing.id,
+          permissions: JSON.stringify(permissions || []),
+          notes: notes || null,
+          isActive: true,
+        },
+      })
 
       return NextResponse.json({ success: true, staffId: staff.id })
     }
@@ -107,7 +101,7 @@ export async function POST(req: NextRequest) {
           name,
           email,
           password: hashed,
-          role: 'ADMIN',
+          role: 'USER',
           isActive: true,
         },
       })

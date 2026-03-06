@@ -74,7 +74,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [permsLoaded, setPermsLoaded] = useState(false)
 
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.role === 'ADMIN') {
+    if (status === 'authenticated' && (session?.user?.role === 'ADMIN' || session?.user?.isAdminStaff)) {
       fetch('/api/admin/equipe/me')
         .then(r => r.json())
         .then(d => {
@@ -99,7 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     
     if (status === 'unauthenticated') {
       router.push('/admin/login')
-    } else if (session?.user?.role !== 'ADMIN') {
+    } else if (session?.user?.role !== 'ADMIN' && !session?.user?.isAdminStaff) {
       router.push('/')
     }
   }, [session, status, router, isPublicPage])
@@ -113,7 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <LoadingSpinner message="Carregando painel..." />
   }
 
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || (session.user.role !== 'ADMIN' && !session.user.isAdminStaff)) {
     return null
   }
 
@@ -731,7 +731,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <p className="text-sm font-medium text-gray-800 leading-tight">
                   {session?.user?.name || session?.user?.email || 'Administrador'}
                 </p>
-                <p className="text-xs text-gray-400 leading-tight">Admin</p>
+                <p className="text-xs text-gray-400 leading-tight">{session?.user?.isAdminStaff ? 'Funcionário' : 'Admin'}</p>
               </div>
               <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                 {(session?.user?.name || session?.user?.email || 'A').charAt(0).toUpperCase()}
