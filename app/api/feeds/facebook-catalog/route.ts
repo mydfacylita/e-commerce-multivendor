@@ -105,27 +105,11 @@ export async function GET(request: NextRequest) {
 
     // Cabeçalhos do feed Facebook (TSV)
     const headers = [
-      'id',
-      'title',
-      'description',
-      'availability',
-      'condition',
-      'price',
-      'link',
-      'image_link',
-      'brand',
-      'google_product_category',
-      'sale_price',
-      'gtin',
-      'mpn',
-      'product_type',
-      'additional_image_link',
-      'inventory',
-      'fb_product_category',
-      'color',
-      'model',
-      'weight_kg',
-      'custom_label_0'
+      'id', 'title', 'description', 'availability', 'condition', 'price', 'link',
+      'image_link', 'brand', 'google_product_category', 'sale_price', 'gtin', 'mpn',
+      'product_type', 'additional_image_link', 'inventory', 'fb_product_category',
+      'color', 'size', 'material', 'pattern', 'gender', 'age_group',
+      'custom_label_0', 'custom_label_1', 'custom_label_2', 'custom_label_3', 'custom_label_4'
     ]
 
     // Linhas do feed
@@ -189,48 +173,60 @@ export async function GET(request: NextRequest) {
       // SKU como MPN
       const mpn = escapeValue(product.supplierSku) || product.id
 
-      // Extrair atributos do produto (formato [{nome, valor}])
-      let colorAttr = escapeValue((product as any).color) || ''
-      let modelAttr = escapeValue((product as any).model) || ''
-      let weightAttr = (product as any).weight ? String((product as any).weight) : ''
-      let customLabel = ''
+      // Extrair TODOS os atributos do produto [{nome, valor}] → campos Meta
+      const attrFields = {
+        color: escapeValue((product as any).color) || '',
+        size: '',
+        material: '',
+        pattern: '',
+        gender: '',
+        age_group: '',
+        custom_label_0: '',
+        custom_label_1: '',
+        custom_label_2: '',
+        custom_label_3: '',
+        custom_label_4: '',
+      }
+      // custom_labels extras para atributos não mapeados nos campos padrão
+      const extraLabels: string[] = []
       try {
         const attrs = JSON.parse((product as any).attributes || '[]')
         if (Array.isArray(attrs)) {
           for (const a of attrs) {
-            const n = String(a.nome || '').toLowerCase()
-            const v = String(a.valor || '')
-            if (!colorAttr && (n.includes('cor') || n.includes('color'))) colorAttr = escapeValue(v)
-            if (!modelAttr && (n.includes('refer') || n.includes('modelo') || n.includes('model'))) modelAttr = escapeValue(v)
-            if (!weightAttr && (n.includes('peso') || n.includes('weight'))) weightAttr = escapeValue(v)
-            if (!customLabel && (n.includes('capacidade') || n.includes('voltagem') || n.includes('potência'))) customLabel = escapeValue(v)
+            const n = String(a.nome || '').toLowerCase().trim()
+            const v = escapeValue(String(a.valor || '').trim())
+            if (!v || v === 'other' || v === 'outros') continue
+            // Campos padrão Meta
+            if (!attrFields.color && (n.includes('cor') || n === 'color')) { attrFields.color = v; continue }
+            if (!attrFields.size && (n.includes('tamanho') || n.includes('capacidade') || n.includes('reservat') || n.includes('size'))) { attrFields.size = v; continue }
+            if (!attrFields.material && n.includes('material')) { attrFields.material = v; continue }
+            if (!attrFields.pattern && (n.includes('padrão') || n.includes('padrao') || n.includes('pattern'))) { attrFields.pattern = v; continue }
+            if (!attrFields.gender && (n.includes('gênero') || n.includes('genero') || n.includes('gender'))) { attrFields.gender = v; continue }
+            if (!attrFields.age_group && (n.includes('faixa') || n.includes('etária') || n.includes('age'))) { attrFields.age_group = v; continue }
+            // custom_label_0 = voltagem/potência
+            if (!attrFields.custom_label_0 && (n.includes('voltagem') || n.includes('volt') || n.includes('potência') || n.includes('watt'))) { attrFields.custom_label_0 = v; continue }
+            // custom_label_1 = linha/série/modelo
+            if (!attrFields.custom_label_1 && (n.includes('linha') || n.includes('série') || n.includes('serie') || n.includes('modelo') || n.includes('model'))) { attrFields.custom_label_1 = v; continue }
+            // Demais atributos → custom_label_2/3/4
+            extraLabels.push(v)
           }
         }
       } catch { /* sem atributos */ }
+      if (!attrFields.custom_label_2 && extraLabels[0]) attrFields.custom_label_2 = extraLabels[0]
+      if (!attrFields.custom_label_3 && extraLabels[1]) attrFields.custom_label_3 = extraLabels[1]
+      if (!attrFields.custom_label_4 && extraLabels[2]) attrFields.custom_label_4 = extraLabels[2]
 
       // Montar linha
       const row = [
-        escapeValue(product.id),                    // id
-        title,                                       // title
-        escapeValue(description),                    // description
-        availability,                                // availability
-        'new',                                       // condition
-        salePrice ? displayPrice : price,            // price
-        `${baseUrl}/produtos/${product.slug}`,       // link
-        imageUrl,                                    // image_link
-        brand,                                       // brand
-        googleCategory,                              // google_product_category
-        salePrice,                                   // sale_price
-        gtin,                                        // gtin
-        mpn,                                         // mpn
-        productType,                                 // product_type
-        additionalImages.join(','),                  // additional_image_link
-        String(product.stock),                       // inventory
-        googleCategory,                              // fb_product_category
-        colorAttr,                                   // color
-        modelAttr,                                   // model
-        weightAttr,                                  // weight_kg
-        customLabel                                  // custom_label_0 (capacidade/voltagem)
+        escapeValue(product.id), title, escapeValue(description), availability, 'new',
+        salePrice ? displayPrice : price,
+        `${baseUrl}/produtos/${product.slug}`,
+        imageUrl, brand, googleCategory, salePrice, gtin, mpn, productType,
+        additionalImages.join(','), String(product.stock), googleCategory,
+        attrFields.color, attrFields.size, attrFields.material, attrFields.pattern,
+        attrFields.gender, attrFields.age_group,
+        attrFields.custom_label_0, attrFields.custom_label_1, attrFields.custom_label_2,
+        attrFields.custom_label_3, attrFields.custom_label_4
       ]
 
       rows.push(row.join('\t'))
