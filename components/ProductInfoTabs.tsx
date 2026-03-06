@@ -195,23 +195,8 @@ export default function ProductInfoTabs({ product, processedSpecs, processedAttr
               </div>
             )}
 
-            {/* Informações Adicionais */}
-            {Object.keys(processedAttrs).length > 0 && (
-              <div className={Object.keys(processedSpecs).length > 0 ? 'pt-4 border-t border-gray-200' : ''}>
-                <h4 className="font-semibold text-sm mb-2 text-gray-700">Informações Adicionais</h4>
-                <dl className="space-y-2">
-                  {Object.entries(processedAttrs).map(([key, value]: [string, any]) => (
-                    <div key={key} className="flex items-start border-b border-gray-100 pb-2">
-                      <dt className="text-sm text-gray-600 min-w-[140px] font-medium">{key}</dt>
-                      <dd className="text-sm text-gray-800">{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
-
             {/* Mensagem se não houver características */}
-            {customAttributes.length === 0 && Object.keys(processedSpecs).length === 0 && Object.keys(processedAttrs).length === 0 && (
+            {customAttributes.length === 0 && Object.keys(processedSpecs).length === 0 && (
               <p className="text-sm text-gray-500 italic text-center py-4">
                 Nenhuma característica técnica disponível para este produto.
               </p>
