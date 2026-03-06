@@ -93,6 +93,10 @@ export async function GET(request: NextRequest) {
         supplierSku: true,
         gtin: true,
         brand: true,
+        attributes: true,
+        color: true,
+        model: true,
+        weight: true,
         category: { select: { name: true } },
         seller: { select: { storeName: true } }
       },
@@ -117,7 +121,11 @@ export async function GET(request: NextRequest) {
       'product_type',
       'additional_image_link',
       'inventory',
-      'fb_product_category'
+      'fb_product_category',
+      'color',
+      'model',
+      'weight_kg',
+      'custom_label_0'
     ]
 
     // Linhas do feed
@@ -181,6 +189,25 @@ export async function GET(request: NextRequest) {
       // SKU como MPN
       const mpn = escapeValue(product.supplierSku) || product.id
 
+      // Extrair atributos do produto (formato [{nome, valor}])
+      let colorAttr = escapeValue((product as any).color) || ''
+      let modelAttr = escapeValue((product as any).model) || ''
+      let weightAttr = (product as any).weight ? String((product as any).weight) : ''
+      let customLabel = ''
+      try {
+        const attrs = JSON.parse((product as any).attributes || '[]')
+        if (Array.isArray(attrs)) {
+          for (const a of attrs) {
+            const n = String(a.nome || '').toLowerCase()
+            const v = String(a.valor || '')
+            if (!colorAttr && (n.includes('cor') || n.includes('color'))) colorAttr = escapeValue(v)
+            if (!modelAttr && (n.includes('refer') || n.includes('modelo') || n.includes('model'))) modelAttr = escapeValue(v)
+            if (!weightAttr && (n.includes('peso') || n.includes('weight'))) weightAttr = escapeValue(v)
+            if (!customLabel && (n.includes('capacidade') || n.includes('voltagem') || n.includes('potência'))) customLabel = escapeValue(v)
+          }
+        }
+      } catch { /* sem atributos */ }
+
       // Montar linha
       const row = [
         escapeValue(product.id),                    // id
@@ -199,7 +226,11 @@ export async function GET(request: NextRequest) {
         productType,                                 // product_type
         additionalImages.join(','),                  // additional_image_link
         String(product.stock),                       // inventory
-        googleCategory                               // fb_product_category
+        googleCategory,                              // fb_product_category
+        colorAttr,                                   // color
+        modelAttr,                                   // model
+        weightAttr,                                  // weight_kg
+        customLabel                                  // custom_label_0 (capacidade/voltagem)
       ]
 
       rows.push(row.join('\t'))
