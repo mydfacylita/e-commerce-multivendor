@@ -21,7 +21,25 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const forceProductId = searchParams.get('productId') // opcional: testar produto específico
 
-  // 1. Buscar um produto dropshipping sem atributos
+  // 0. Estatísticas gerais do banco
+  const total = await prisma.product.count({ where: { isDropshipping: true } })
+  const semAttrNull = await prisma.product.count({ where: { isDropshipping: true, attributes: null } })
+  const semAttrVazio = await prisma.product.count({ where: { isDropshipping: true, attributes: '' } })
+  const semAttrArray = await prisma.product.count({ where: { isDropshipping: true, attributes: '[]' } })
+  const semAttrStringNull = await prisma.product.count({ where: { isDropshipping: true, attributes: 'null' } })
+
+  // Pegar 5 amostras para ver o formato real
+  const amostras = await prisma.product.findMany({
+    where: { isDropshipping: true, supplierSku: { startsWith: 'ali_' } },
+    select: { id: true, name: true, attributes: true },
+    take: 5
+  })
+  const amostrasFormatadas = amostras.map(p => ({
+    name: p.name.substring(0, 40),
+    attributes_raw: (p as any).attributes === null ? 'SQL NULL' : String((p as any).attributes).substring(0, 120)
+  }))
+
+  // 1. Buscar um produto dropshipping sem atributos ÚTEIS
   const product = forceProductId
     ? await prisma.product.findFirst({
         where: { supplierSku: { contains: forceProductId } },
@@ -30,14 +48,24 @@ export async function GET(request: NextRequest) {
     : await prisma.product.findFirst({
         where: {
           isDropshipping: true,
-          OR: [{ attributes: null }, { attributes: '' }, { attributes: '[]' }],
-          supplierSku: { startsWith: 'ali_' }
+          supplierSku: { startsWith: 'ali_' },
+          OR: [
+            { attributes: null },
+            { attributes: '' },
+            { attributes: '[]' },
+            { attributes: 'null' }
+          ]
         },
         select: { id: true, name: true, supplierSku: true, attributes: true }
       })
 
   if (!product) {
-    return NextResponse.json({ message: 'Nenhum produto dropshipping sem atributos encontrado!' })
+    // Retornar diagnóstico mesmo sem produto para testar
+    return NextResponse.json({
+      message: 'Nenhum produto dropshipping sem atributos encontrado pela query padrão',
+      estatisticas: { total, semAttrNull, semAttrVazio, semAttrArray, semAttrStringNull },
+      amostras: amostrasFormatadas
+    })
   }
 
   const aliProductId = (product.supplierSku || '').replace('ali_', '')
