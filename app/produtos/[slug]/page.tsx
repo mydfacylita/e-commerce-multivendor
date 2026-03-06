@@ -55,76 +55,37 @@ function processSpecifications(specs: any, supplierName?: string): Record<string
   return {}
 }
 
-// Função para processar atributos baseado no fornecedor
+// Função para processar atributos — suporta formato {nome, valor} (novo) e legados
 function processAttributes(attrs: any, supplierName?: string): Record<string, string> {
   if (!attrs) return {}
-  
-  // Se for AliExpress e for objeto com propriedades específicas
-  if (supplierName?.toLowerCase().includes('aliexpress')) {
-    if (typeof attrs === 'object' && !Array.isArray(attrs)) {
-      const processed: Record<string, string> = {}
-      
-      // Verificar se tem ae_item_base_info_dto
-      const baseInfo = attrs.ae_item_base_info_dto || attrs.aeItemBaseInfoDto || attrs
-      
-      // Lista de campos que devem ser ignorados (muito complexos ou inúteis)
-      const ignoredFields = [
-        'mobile_detail', 'mobileDetail', 
-        'module_list', 'moduleList', 
-        'package_info_dto', 'packageInfoDto'
-      ]
-      
-      for (const [key, value] of Object.entries(baseInfo)) {
-        // Ignorar campos complexos
-        if (ignoredFields.includes(key)) continue
-        
-        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-          // Não processar objetos complexos, pular
-          continue
-        } else if (Array.isArray(value)) {
-          // Não processar arrays, pular
-          continue
-        } else if (value && typeof value !== 'object') {
-          // Formatar nome da chave (remover underscores e capitalizar)
-          const formattedKey = key
-            .replace(/_/g, ' ')
-            .replace(/\b\w/g, l => l.toUpperCase())
-          
-          // Se for o campo detail, limpar HTML e limitar tamanho
-          if (key === 'detail') {
-            const cleanDetail = String(value)
-              .replace(/<[^>]*>/g, '') // Remove HTML tags
-              .replace(/&nbsp;/g, ' ') // Remove &nbsp;
-              .replace(/\s+/g, ' ') // Remove espaços múltiplos
-              .trim()
-              .substring(0, 500) // Limita a 500 caracteres
-            
-            if (cleanDetail.length > 0) {
-              processed[formattedKey] = cleanDetail + (cleanDetail.length === 500 ? '...' : '')
-            }
-          } else {
-            processed[formattedKey] = String(value)
-          }
-        }
-      }
-      
-      return processed
-    }
-  }
-  
-  // Tratamento genérico
-  if (typeof attrs === 'object') {
-    return Object.entries(attrs).reduce((acc: Record<string, string>, [key, value]: [string, any]) => {
-      if (typeof value === 'object' && value !== null) {
-        const val = value.attr_value || value.attrValue || value.value
-        if (val) acc[key] = String(val)
-      } else if (value) {
-        acc[key] = String(value)
-      }
+
+  const parsed = typeof attrs === 'string' ? (() => { try { return JSON.parse(attrs) } catch { return null } })() : attrs
+  if (!parsed) return {}
+
+  // Formato novo: [{ nome: 'Marca', valor: 'LG' }]
+  if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].nome !== undefined) {
+    return parsed.reduce((acc: Record<string, string>, item: any) => {
+      if (item.nome && item.valor) acc[String(item.nome)] = String(item.valor)
       return acc
     }, {})
   }
-  
+
+  // Formato AliExpress legado: [{ attr_name, attr_value }]
+  if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].attr_name !== undefined) {
+    return parsed.reduce((acc: Record<string, string>, item: any) => {
+      if (item.attr_name && item.attr_value) acc[String(item.attr_name)] = String(item.attr_value)
+      return acc
+    }, {})
+  }
+
+  // Formato objeto genérico
+  if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+    return Object.entries(parsed).reduce((acc: Record<string, string>, [key, value]: [string, any]) => {
+      if (typeof value !== 'object' && value) acc[key.replace(/_/g, ' ')] = String(value)
+      return acc
+    }, {})
+  }
+
   return {}
 }
 
@@ -478,6 +439,22 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   breadcrumbList.push({ '@type': 'ListItem', position: pos++, name: product.category.name, item: `${baseUrl}/categorias/${product.category.slug}` })
   breadcrumbList.push({ '@type': 'ListItem', position: pos, name: product.name, item: `${baseUrl}/produtos/${product.slug}` })
 
+  // Preparar additionalProperty para bots (Google Shopping, schema.org)
+  const attrsParsed: any[] = (() => {
+    try {
+      const raw = (product as any).attributes
+      const p = typeof raw === 'string' ? JSON.parse(raw) : raw
+      return Array.isArray(p) ? p : []
+    } catch { return [] }
+  })()
+  const additionalProperty = attrsParsed
+    .filter((a: any) => a.nome && a.valor)
+    .map((a: any) => ({
+      '@type': 'PropertyValue',
+      name: String(a.nome),
+      value: String(a.valor)
+    }))
+
   const productJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -487,7 +464,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     url: `${baseUrl}/produtos/${product.slug}`,
     sku: product.id,
     ...(product.gtin ? { gtin: product.gtin } : {}),
-    brand: { '@type': 'Brand', name: (product as any).brand || 'MYDSHOP' },
+    brand: { '@type': 'Brand', name: (product as any).brand || product.supplier?.name || 'MYDSHOP' },
+    ...(additionalProperty.length > 0 ? { additionalProperty } : {}),
     offers: {
       '@type': 'Offer',
       url: `${baseUrl}/produtos/${product.slug}`,
