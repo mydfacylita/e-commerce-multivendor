@@ -150,6 +150,153 @@ const USER_REQUIRED_ROUTES = [
 // 🔑 Secret para CRON jobs (configurar em produção!)
 const CRON_SECRET = process.env.CRON_SECRET || ''
 
+// 🔐 Mapa de ROTAS DE PÁGINA → permissão exigida para admin staff
+// Ordem importa: mais específico PRIMEIRO
+const STAFF_PAGE_PERMISSIONS: Array<[string, string]> = [
+  // Catálogo
+  ['/admin/produtos/aprovacao',          'catalogo.aprovacao'],
+  ['/admin/produtos',                    'catalogo.produtos'],
+  ['/admin/categorias',                  'catalogo.categorias'],
+  ['/admin/tipos-produtos',              'catalogo.tipos'],
+  ['/admin/ean',                         'catalogo.ean'],
+  ['/admin/fornecedores',                'catalogo.fornecedores'],
+  // Vendas
+  ['/admin/pedidos/dropshipping',        'vendas.dropshipping'],
+  ['/admin/pedidos/entregas',            'vendas.entregas'],
+  ['/admin/pedidos/mapa',                'monitoramento.mapa'],
+  ['/admin/pedidos',                     'vendas.pedidos'],
+  ['/admin/devolucoes',                  'vendas.devolucoes'],
+  ['/admin/cupons',                      'vendas.cupons'],
+  ['/admin/marketing',                   'vendas.marketing'],
+  ['/admin/perguntas',                   'vendas.perguntas'],
+  ['/admin/ia-conversas',                'vendas.ia_conversas'],
+  ['/admin/carne',                       'vendas.carne'],
+  ['/admin/afiliados',                   'vendas.afiliados'],
+  // Logística
+  ['/admin/expedicao',                   'logistica.expedicao'],
+  ['/admin/fretes',                      'logistica.fretes'],
+  ['/admin/embalagens',                  'logistica.embalagens'],
+  ['/admin/etiquetas-produtos',          'logistica.etiquetas'],
+  // Gestão
+  ['/admin/usuarios',                    'gestao.usuarios'],
+  ['/admin/vendedores/contas',           'gestao.contas_digitais'],
+  ['/admin/vendedores',                  'gestao.vendedores'],
+  ['/admin/cashback',                    'gestao.cashback'],
+  ['/admin/empresa',                     'gestao.empresa'],
+  ['/admin/financeiro',                  'gestao.financeiro'],
+  ['/admin/contabilidade',               'gestao.contabilidade'],
+  ['/admin/invoices',                    'gestao.notas_fiscais'],
+  ['/admin/planos',                      'gestao.planos'],
+  ['/admin/assinaturas',                 'gestao.assinaturas'],
+  ['/admin/equipe',                      'gestao.equipe'],
+  // Monitoramento
+  ['/admin/analytics/vendas',            'monitoramento.vendas'],
+  ['/admin/analytics/ip-investigacao',   'monitoramento.ips'],
+  ['/admin/analytics/bots',              'monitoramento.bots'],
+  ['/admin/analytics',                   'monitoramento.analytics'],
+  ['/admin/antifraude',                  'monitoramento.antifraude'],
+  ['/admin/consistency',                 'monitoramento.consistencia'],
+  ['/admin/performance',                 'monitoramento.performance'],
+  ['/admin/logs',                        'monitoramento.logs'],
+  // Integrações
+  ['/admin/integracao/envios',           'integracoes.correios'],
+  ['/admin/integracao/mercadopago',      'integracoes.mercadopago'],
+  ['/admin/integracao/whatsapp',         'integracoes.whatsapp'],
+  ['/admin/integracao/aliexpress',       'integracoes.dropshipping'],
+  ['/admin/integracao/shopify',          'integracoes.shopify'],
+  ['/admin/integracao/shopee',           'integracoes.shopee'],
+  ['/admin/integracao/developer-apps',   'integracoes.developer_apps'],
+  ['/admin/integracao',                  'integracoes.geral'],
+  // Email / Ajuda
+  ['/admin/email',                       'email'],
+  ['/admin/ajuda',                       'ajuda'],
+  // Configurações
+  ['/admin/configuracoes/nota-fiscal',   'config.nfe'],
+  ['/admin/configuracoes/aparencia-app', 'config.aparencia'],
+  ['/admin/configuracoes/email',         'config.email_config'],
+  ['/admin/configuracoes/impressoras',   'config.impressoras'],
+  ['/admin/configuracoes/ia',            'config.ia'],
+  ['/admin/configuracoes',               'config.geral'],
+  ['/admin/automation',                  'config.automacoes'],
+  // SAC
+  ['/admin/sac',                         'sac'],
+  // Dashboard — último (mais genérico)
+  ['/admin',                             'dashboard'],
+]
+
+// 🔐 Mapa de ROTAS DE API → permissão exigida para admin staff
+const STAFF_API_PERMISSIONS: Array<[string, string]> = [
+  // Catálogo
+  ['/api/admin/products',                'catalogo.produtos'],
+  ['/api/admin/categories',              'catalogo.categorias'],
+  ['/api/admin/types',                   'catalogo.tipos'],
+  ['/api/admin/ean',                     'catalogo.ean'],
+  ['/api/admin/suppliers',               'catalogo.fornecedores'],
+  // Vendas
+  ['/api/admin/orders',                  'vendas.pedidos'],
+  ['/api/admin/devolutions',             'vendas.devolucoes'],
+  ['/api/admin/coupons',                 'vendas.cupons'],
+  ['/api/admin/marketing',               'vendas.marketing'],
+  ['/api/admin/questions',               'vendas.perguntas'],
+  ['/api/admin/ia-conversations',        'vendas.ia_conversas'],
+  ['/api/admin/installments',            'vendas.carne'],
+  ['/api/admin/affiliates',              'vendas.afiliados'],
+  // Logística
+  ['/api/admin/expedicao',               'logistica.expedicao'],
+  ['/api/admin/shipping',                'logistica.fretes'],
+  ['/api/admin/packages',                'logistica.embalagens'],
+  ['/api/admin/product-labels',          'logistica.etiquetas'],
+  // Gestão
+  ['/api/admin/users',                   'gestao.usuarios'],
+  ['/api/admin/sellers',                 'gestao.vendedores'],
+  ['/api/admin/digital-accounts',        'gestao.contas_digitais'],
+  ['/api/admin/cashback',                'gestao.cashback'],
+  ['/api/admin/company',                 'gestao.empresa'],
+  ['/api/admin/financial',               'gestao.financeiro'],
+  ['/api/admin/accounting',              'gestao.contabilidade'],
+  ['/api/admin/invoices',                'gestao.notas_fiscais'],
+  ['/api/admin/plans',                   'gestao.planos'],
+  ['/api/admin/subscriptions',           'gestao.assinaturas'],
+  ['/api/admin/equipe',                  'gestao.equipe'],
+  // Monitoramento
+  ['/api/admin/analytics',               'monitoramento.analytics'],
+  ['/api/admin/antifraude',              'monitoramento.antifraude'],
+  ['/api/admin/consistency',             'monitoramento.consistencia'],
+  ['/api/admin/performance',             'monitoramento.performance'],
+  ['/api/admin/logs',                    'monitoramento.logs'],
+  // Integrações
+  ['/api/admin/integracao',              'integracoes.geral'],
+  ['/api/admin/mercadopago',             'integracoes.mercadopago'],
+  ['/api/admin/aliexpress',              'integracoes.dropshipping'],
+  ['/api/admin/shopify',                 'integracoes.shopify'],
+  ['/api/admin/shopee',                  'integracoes.shopee'],
+  ['/api/admin/developer-apps',          'integracoes.developer_apps'],
+  // Email / configurações
+  ['/api/admin/email',                   'email'],
+  ['/api/admin/configuracoes',           'config.geral'],
+  ['/api/admin/automation',              'config.automacoes'],
+  // Dashboard
+  ['/api/admin/dashboard',              'dashboard'],
+  // SAC
+  ['/api/admin/sac',                     'sac'],
+]
+
+/**
+ * Encontra a permissão exigida para uma rota (página ou API) de funcionário.
+ * Retorna null se a rota não exige permissão específica (globais do painel).
+ */
+function getRequiredPermission(
+  path: string,
+  map: Array<[string, string]>
+): string | null {
+  for (const [prefix, perm] of map) {
+    if (path === prefix || path.startsWith(prefix + '/') || path.startsWith(prefix + '?')) {
+      return perm
+    }
+  }
+  return null
+}
+
 /**
  * 🔧 Buscar modo de manutenção (com cache inteligente)
  */
@@ -359,6 +506,31 @@ export async function middleware(request: NextRequest) {
     if (!isAllowed) {
       return NextResponse.redirect(new URL('/admin', request.url))
     }
+
+    // 🔐 PROTEÇÃO DE ROTA POR PERMISSÃO para funcionários (páginas /admin/*)
+    // Ignora: login, raiz do painel e rotas de API (verificadas separadamente)
+    const isPageRoute = !pathname.startsWith('/api/')
+    const isLoginPage = pathname === '/admin/login'
+    if (isPageRoute && !isLoginPage) {
+      const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
+
+      // Se não está logado: redireciona para login
+      if (!token) {
+        return NextResponse.redirect(new URL('/admin/login', request.url))
+      }
+
+      // Se é funcionário (isAdminStaff) — verifica permissões da rota
+      const isStaff = token.isAdminStaff === true && token.role !== 'ADMIN'
+      if (isStaff) {
+        const staffPerms = (token.adminStaffPermissions as string[] | undefined) ?? []
+        const required = getRequiredPermission(pathname, STAFF_PAGE_PERMISSIONS)
+        if (required !== null && !staffPerms.includes(required)) {
+          // Sem permissão — redireciona para home do painel com parâmetro de aviso
+          return NextResponse.redirect(new URL('/admin?forbidden=1', request.url))
+        }
+      }
+    }
+
     // 🤖 Injeta x-page-type: admin para o root layout pular Navbar/Footer da loja
     const reqHeadersAdmin = new Headers(request.headers)
     reqHeadersAdmin.set('x-page-type', 'admin')
@@ -453,15 +625,28 @@ export async function middleware(request: NextRequest) {
         )
       }
       
-      // ✅ Permitir ADMIN e SELLER nas rotas de API admin
-      // Sellers precisam acessar /api/admin/products, /api/admin/categories, etc
-      // A validação específica de permissões é feita em cada rota
-      if (token.role !== 'ADMIN' && token.role !== 'SELLER') {
+      // ✅ Permitir ADMIN, SELLER e AdminStaff ativo nas rotas de API admin
+      const isStaff = token.isAdminStaff === true && token.role !== 'ADMIN'
+      const isAdminOrSeller = token.role === 'ADMIN' || token.role === 'SELLER'
+      if (!isAdminOrSeller && !isStaff) {
         console.warn(`🚫 [Security] Acesso admin negado para role ${token.role}: ${pathname}`)
         return NextResponse.json(
           { error: 'Forbidden - Admin or Seller access required' },
           { status: 403 }
         )
+      }
+
+      // 🔐 Funcionário: verifica permissões por rota de API
+      if (isStaff) {
+        const staffPerms = (token.adminStaffPermissions as string[] | undefined) ?? []
+        const required = getRequiredPermission(pathname, STAFF_API_PERMISSIONS)
+        if (required !== null && !staffPerms.includes(required)) {
+          console.warn(`🚫 [Staff] API bloqueada por falta de permissão '${required}': ${pathname}`)
+          return NextResponse.json(
+            { error: 'Forbidden - Insufficient permissions', required },
+            { status: 403 }
+          )
+        }
       }
       
       const response = NextResponse.next()

@@ -108,6 +108,16 @@ export const authOptions: NextAuthOptions = {
           userAgent,
         })
 
+        // Carregar permissões do funcionário para gravar no token
+        let adminStaffPermissions: string[] | undefined
+        if (user.adminStaff?.isActive) {
+          try {
+            adminStaffPermissions = JSON.parse(user.adminStaff.permissions || '[]')
+          } catch {
+            adminStaffPermissions = []
+          }
+        }
+
         return {
           id: user.id,
           email: user.email,
@@ -117,6 +127,7 @@ export const authOptions: NextAuthOptions = {
           cpf: user.cpf || undefined,
           phone: user.phone || undefined,
           isAdminStaff: !!(user.adminStaff?.isActive),
+          adminStaffPermissions,
         }
       }
     })
@@ -129,6 +140,7 @@ export const authOptions: NextAuthOptions = {
         token.cpf = user.cpf
         token.phone = user.phone
         token.isAdminStaff = (user as any).isAdminStaff ?? false
+        token.adminStaffPermissions = (user as any).adminStaffPermissions ?? undefined
       }
       return token
     },
