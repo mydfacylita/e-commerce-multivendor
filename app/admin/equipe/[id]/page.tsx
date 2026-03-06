@@ -27,6 +27,7 @@ export default function EditStaffPage() {
   const [data, setData] = useState<StaffData | null>(null)
   const [permissions, setPermissions] = useState<string[]>([])
   const [name, setName] = useState('')
+  const [cargo, setCargo] = useState('')
   const [notes, setNotes] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [newPassword, setNewPassword] = useState('')
@@ -46,6 +47,7 @@ export default function EditStaffPage() {
           setData(d)
           setPermissions(d.permissions || [])
           setName(d.name || '')
+          setCargo(d.cargo || '')
           setNotes(d.notes || '')
           setIsActive(d.isActive)
         }
@@ -83,7 +85,7 @@ export default function EditStaffPage() {
     setSaved(false)
     setError('')
     try {
-      const body: any = { permissions, notes, isActive, name }
+      const body: any = { permissions, notes, isActive, name, cargo }
       if (newPassword.trim()) body.password = newPassword.trim()
 
       const res = await fetch(`/api/admin/equipe/${staffId}`, {
@@ -173,6 +175,16 @@ export default function EditStaffPage() {
               <FiMail size={13} />
               {data.email}
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Cargo</label>
+            <input
+              type="text"
+              value={cargo}
+              onChange={e => setCargo(e.target.value)}
+              placeholder="Ex: Suporte, Financeiro, Logística"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Nova Senha (opcional)</label>

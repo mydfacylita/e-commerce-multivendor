@@ -35,6 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       isActive: staff.isActive,
       userActive: staff.user.isActive,
       notes: staff.notes,
+      cargo: staff.cargo || null,
       permissions: JSON.parse(staff.permissions || '[]') as string[],
       createdAt: staff.createdAt,
     })
@@ -51,7 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!(await isMasterAdmin(session.user.email))) return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
 
     const body = await req.json()
-    const { permissions, isActive, notes, name, password } = body
+    const { permissions, isActive, notes, name, password, cargo } = body
 
     const staff = await prisma.adminStaff.findUnique({ where: { id: params.id } })
     if (!staff) return NextResponse.json({ error: 'Funcionário não encontrado' }, { status: 404 })
@@ -61,6 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (permissions !== undefined) updates.permissions = JSON.stringify(permissions)
     if (isActive !== undefined) updates.isActive = isActive
     if (notes !== undefined) updates.notes = notes
+    if (cargo !== undefined) updates.cargo = cargo || null
 
     await prisma.adminStaff.update({ where: { id: params.id }, data: updates })
 
