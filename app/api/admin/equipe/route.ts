@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { name, email, password, permissions, notes } = body
+    const { name, email, password, permissions, notes, cargo } = body
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'Nome, e-mail e senha são obrigatórios' }, { status: 400 })
@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
         data: {
           userId: existing.id,
           permissions: JSON.stringify(permissions || []),
+          cargo: cargo || null,
           notes: notes || null,
           isActive: true,
         },
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest) {
         data: {
           userId: user.id,
           permissions: JSON.stringify(permissions || []),
+          cargo: cargo || null,
           notes: notes || null,
           isActive: true,
         },

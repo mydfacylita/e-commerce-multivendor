@@ -72,6 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Controle de permissões por funcionário
   const [staffPerms, setStaffPerms] = useState<string[] | null>(null)
+  const [staffCargo, setStaffCargo] = useState<string | null>(null)
   const [permsLoaded, setPermsLoaded] = useState(false)
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         .then(r => r.json())
         .then(d => {
           setStaffPerms(d.isMaster ? null : (d.permissions || []))
+          setStaffCargo(d.cargo || null)
           setPermsLoaded(true)
         })
         .catch(() => setPermsLoaded(true))
@@ -865,7 +867,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Botão de Sair */}
           <div className="mt-4 pt-4 border-t border-gray-200">
             <button
-              onClick={() => signOut({ redirect: true, callbackUrl: `${window.location.origin}/admin/login` })}
+              onClick={async () => { await signOut({ redirect: false }); window.location.href = 'https://gerencial-sys.mydshop.com.br/admin/login' }}
               className="w-full flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-red-50 hover:text-red-600 text-gray-700"
             >
               <FiLogOut className="text-lg" />
@@ -890,7 +892,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <p className="text-sm font-medium text-gray-800 leading-tight">
                   {session?.user?.name || session?.user?.email || 'Administrador'}
                 </p>
-                <p className="text-xs text-gray-400 leading-tight">{session?.user?.isAdminStaff ? 'Funcionário' : 'Admin'}</p>
+                <p className="text-xs text-gray-400 leading-tight">{session?.user?.isAdminStaff ? (staffCargo || 'Funcionário') : 'Admin'}</p>
               </div>
               <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                 {(session?.user?.name || session?.user?.email || 'A').charAt(0).toUpperCase()}
@@ -902,7 +904,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="fixed inset-0 z-10" onClick={() => setOpenSections(prev => ({ ...prev, _userMenu: false }))} />
                 <div className="absolute right-0 top-12 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[140px]">
                   <button
-                    onClick={() => signOut({ redirect: true, callbackUrl: `${window.location.origin}/admin/login` })}
+                    onClick={async () => { await signOut({ redirect: false }); window.location.href = 'https://gerencial-sys.mydshop.com.br/admin/login' }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
                   >
                     <FiLogOut size={15} />

@@ -22,6 +22,7 @@ interface NewStaffForm {
   name: string
   email: string
   password: string
+  cargo: string
   notes: string
 }
 
@@ -29,7 +30,7 @@ export default function EquipePage() {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState<NewStaffForm>({ name: '', email: '', password: '', notes: '' })
+  const [form, setForm] = useState<NewStaffForm>({ name: '', email: '', password: '', cargo: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -63,7 +64,7 @@ export default function EquipePage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Erro ao criar'); return }
       setShowModal(false)
-      setForm({ name: '', email: '', password: '', notes: '' })
+      setForm({ name: '', email: '', password: '', cargo: '', notes: '' })
       await load()
     } finally {
       setSaving(false)
@@ -253,6 +254,16 @@ export default function EquipePage() {
                   onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
                   placeholder="Senha de acesso"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Cargo</label>
+                <input
+                  type="text"
+                  value={form.cargo}
+                  onChange={e => setForm(p => ({ ...p, cargo: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  placeholder="Ex: Suporte, Financeiro, Logística"
                 />
               </div>
               <div>
