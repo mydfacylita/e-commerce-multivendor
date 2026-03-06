@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { getShopifyConfig } from '@/lib/shopify'
 import crypto from 'crypto'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/shopify/finalize
  *
