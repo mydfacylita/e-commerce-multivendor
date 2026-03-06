@@ -222,8 +222,8 @@ const STAFF_PAGE_PERMISSIONS: Array<[string, string]> = [
   ['/admin/automation',                  'config.automacoes'],
   // SAC
   ['/admin/sac',                         'sac'],
-  // Dashboard — último (mais genérico)
-  ['/admin',                             'dashboard'],
+  // Dashboard — root /admin não é bloqueado (evita loop com ?forbidden=1)
+  // ['/admin',                             'dashboard'],  // removido: raiz sempre acessível
 ]
 
 // 🔐 Mapa de ROTAS DE API → permissão exigida para admin staff
@@ -513,7 +513,8 @@ export async function middleware(request: NextRequest) {
     // Ignora: login, raiz do painel e rotas de API (verificadas separadamente)
     const isPageRoute = !pathname.startsWith('/api/')
     const isLoginPage = pathname === '/admin/login'
-    if (isPageRoute && !isLoginPage) {
+    const isAdminRoot = pathname === '/admin'  // root nunca bloqueia — evita redirect loop
+    if (isPageRoute && !isLoginPage && !isAdminRoot) {
       const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
 
       // Se não está logado: redireciona para login
