@@ -362,28 +362,61 @@ export async function GET(request: NextRequest) {
       let updatedModel: string | undefined
       let attributesAdded = 0
 
-      const hasAttributes = !!(product as any).attributes && (product as any).attributes !== '[]'
+      // Verificar se atributos já existem NO FORMATO CORRETO { nome, valor }
+      let hasAttributes = false
+      const rawAttrStr = (product as any).attributes
+      if (rawAttrStr && rawAttrStr !== '[]' && rawAttrStr !== 'null') {
+        try {
+          const parsed = JSON.parse(rawAttrStr)
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].nome !== undefined) {
+            hasAttributes = true // formato correto, pular
+          }
+          // Se tem entries mas key é 'name' (formato antigo), hasAttributes fica false → vai reescrever
+        } catch { /* parsing falhou, vai sobrescrever */ }
+      }
       if (!hasAttributes) {
         const baseInfo = apiResult.ae_item_base_info_dto || {}
         const mobileDetail: string = baseInfo.mobile_detail || ''
-        if (mobileDetail) {
-          const specs = extractAttributesFromMobileDetail(mobileDetail)
-          if (specs.length > 0) {
-            updatedAttributes = JSON.stringify(specs)
-            attributesAdded = specs.length
+        let specs: Array<{ nome: string; valor: string }> = []
 
-            // Extrair marca e modelo
-            for (const spec of specs) {
-              const nameLower = spec.nome.toLowerCase()
-              if (!updatedBrand && (nameLower.includes('marca') || nameLower.includes('brand'))) {
-                updatedBrand = spec.valor
-              }
-              if (!updatedModel && (nameLower.includes('referência') || nameLower.includes('modelo') || nameLower.includes('model'))) {
-                updatedModel = spec.valor
-              }
-            }
-            console.log(`[SYNC] 📋 Atributos adicionados para ${product.name.substring(0, 30)}: ${specs.length} specs`)
+        // Tentativa 1: mobile_detail (produtos de grandes marcas)
+        if (mobileDetail) {
+          specs = extractAttributesFromMobileDetail(mobileDetail)
+          if (specs.length > 0) {
+            console.log(`[SYNC] 📋 mobile_detail: ${specs.length} specs para ${product.name.substring(0, 30)}`)
           }
+        }
+
+        // Tentativa 2: ae_item_properties (sempre presente — pelo menos Marca e Modelo)
+        if (specs.length === 0) {
+          const propsRaw = apiResult.ae_item_properties?.ae_item_property
+          if (propsRaw) {
+            const propList: any[] = Array.isArray(propsRaw) ? propsRaw : [propsRaw]
+            specs = propList
+              .filter((p: any) => p.attr_name && p.attr_value)
+              .map((p: any) => ({ nome: String(p.attr_name), valor: String(p.attr_value) }))
+            if (specs.length > 0) {
+              console.log(`[SYNC] 📋 ae_item_properties: ${specs.length} specs para ${product.name.substring(0, 30)}`)
+            }
+          }
+        }
+
+        if (specs.length > 0) {
+          updatedAttributes = JSON.stringify(specs)
+          attributesAdded = specs.length
+
+          // Extrair marca e modelo
+          for (const spec of specs) {
+            const nameLower = spec.nome.toLowerCase()
+            if (!updatedBrand && (nameLower.includes('marca') || nameLower.includes('brand') || nameLower.includes('nome da marca'))) {
+              updatedBrand = spec.valor
+            }
+            if (!updatedModel && (nameLower.includes('referência') || nameLower.includes('modelo') || nameLower.includes('model') || nameLower.includes('número do modelo'))) {
+              updatedModel = spec.valor
+            }
+          }
+        } else {
+          console.log(`[SYNC] ⚠️ Sem atributos disponíveis para ${product.name.substring(0, 30)}`)
         }
       }
 
