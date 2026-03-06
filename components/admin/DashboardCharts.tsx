@@ -95,7 +95,7 @@ function KPICard({
           <span className={up ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
             {up ? '+' : ''}{change}%
           </span>
-          <span className="text-gray-400">{changeLabel || 'vs mÃªs anterior'}</span>
+          <span className="text-gray-400">{changeLabel || 'vs mês anterior'}</span>
         </div>
       )}
     </div>
@@ -157,7 +157,7 @@ export default function DashboardCharts() {
 
   const { kpis, ordersByStatus, revenueByDay, topProducts, topSellers, paymentMethods, recentOrders } = data
 
-  // Ãšltimos 14 dias para exibiÃ§Ã£o mais limpa no chart
+  // Últimos 14 dias para exibição mais limpa no chart
   const chartData = revenueByDay.slice(-14)
 
   return (
@@ -190,7 +190,7 @@ export default function DashboardCharts() {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
         {([
-          { key: 'overview', label: 'VisÃ£o Geral' },
+          { key: 'overview', label: 'Visão Geral' },
           { key: 'sales', label: 'Vendas & Pedidos' },
           { key: 'sellers', label: 'Vendedores' },
         ] as const).map(tab => (
@@ -208,13 +208,13 @@ export default function DashboardCharts() {
         ))}
       </div>
 
-      {/* ========== VISÃƒO GERAL ========== */}
+      {/* ========== VISÃO GERAL ========== */}
       {activeTab === 'overview' && (
         <>
           {/* KPIs principais */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KPICard
-              title="Receita do MÃªs"
+              title="Receita do Mês"
               value={fmt(kpis.revenueThisMonth)}
               sub={`Total: ${fmt(kpis.totalRevenue)}`}
               icon={FiDollarSign}
@@ -222,7 +222,7 @@ export default function DashboardCharts() {
               change={kpis.revenueChange}
             />
             <KPICard
-              title="Pedidos do MÃªs"
+              title="Pedidos do Mês"
               value={kpis.ordersThisMonth}
               sub={`Hoje: ${kpis.ordersToday}`}
               icon={FiShoppingBag}
@@ -230,7 +230,7 @@ export default function DashboardCharts() {
               change={kpis.ordersChange}
             />
             <KPICard
-              title="UsuÃ¡rios Cadastrados"
+              title="Usuários Cadastrados"
               value={kpis.totalUsers}
               sub={`+${kpis.newUsersThisWeek} esta semana`}
               icon={FiUsers}
@@ -265,7 +265,7 @@ export default function DashboardCharts() {
             <KPICard
               title="Vendedores Ativos"
               value={kpis.activeSellers}
-              sub={`${kpis.pendingSellers} aguardando aprovaÃ§Ã£o`}
+              sub={`${kpis.pendingSellers} aguardando aprovação`}
               icon={FiShoppingCart}
               color="text-emerald-600"
               alert={kpis.pendingSellers > 0}
@@ -280,13 +280,13 @@ export default function DashboardCharts() {
             />
           </div>
 
-          {/* GrÃ¡fico receita 14 dias + donut status */}
+          {/* Gráfico receita 14 dias + donut status */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Area chart receita */}
             <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-800">Receita â€” Ãšltimos 14 dias</h3>
-                <span className="text-xs text-gray-400">Pedidos nÃ£o cancelados</span>
+                <h3 className="font-semibold text-gray-800">Receita — Últimos 14 dias</h3>
+                <span className="text-xs text-gray-400">Pedidos não cancelados</span>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <AreaChart data={chartData}>
@@ -363,7 +363,7 @@ export default function DashboardCharts() {
                 <tbody>
                   {recentOrders.map(order => (
                     <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                      <td className="py-2.5 px-3 font-mono text-xs text-gray-400">{order.id.slice(0, 8)}â€¦</td>
+                      <td className="py-2.5 px-3 font-mono text-xs text-gray-400">{order.id.slice(0, 8)}…</td>
                       <td className="py-2.5 px-3 font-medium text-gray-800">{order.buyerName}</td>
                       <td className="py-2.5 px-3 font-semibold text-gray-900">{fmt(order.total)}</td>
                       <td className="py-2.5 px-3">
@@ -376,7 +376,7 @@ export default function DashboardCharts() {
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-gray-500 text-xs capitalize">
-                        {order.paymentMethod?.replace('_', ' ').toLowerCase() || 'â€”'}
+                        {order.paymentMethod?.replace('_', ' ').toLowerCase() || '—'}
                       </td>
                       <td className="py-2.5 px-3 text-gray-400 text-xs">
                         {new Date(order.createdAt).toLocaleDateString('pt-BR')}
@@ -393,9 +393,9 @@ export default function DashboardCharts() {
       {/* ========== VENDAS & PEDIDOS ========== */}
       {activeTab === 'sales' && (
         <>
-          {/* GrÃ¡fico de barras â€” pedidos por dia */}
+          {/* Gráfico de barras — pedidos por dia */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-            <h3 className="font-semibold text-gray-800 mb-4">Receita & Pedidos â€” Ãšltimos 30 dias</h3>
+            <h3 className="font-semibold text-gray-800 mb-4">Receita & Pedidos — Últimos 30 dias</h3>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={revenueByDay} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
@@ -469,7 +469,7 @@ export default function DashboardCharts() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KPICard title="Total Vendedores" value={kpis.totalSellers} icon={FiShoppingCart} color="text-indigo-600" />
             <KPICard title="Vendedores Ativos" value={kpis.activeSellers} icon={FiTrendingUp} color="text-green-600" />
-            <KPICard title="Pendentes AprovaÃ§Ã£o" value={kpis.pendingSellers} icon={FiClock} color="text-yellow-600" alert={kpis.pendingSellers > 0} />
+            <KPICard title="Pendentes Aprovação" value={kpis.pendingSellers} icon={FiClock} color="text-yellow-600" alert={kpis.pendingSellers > 0} />
             <KPICard title="Planos Ativos" value={kpis.activeSubscriptions} sub={`${kpis.expiredSubscriptions} expirados`} icon={FiStar} color="text-purple-600" />
           </div>
 
@@ -488,7 +488,7 @@ export default function DashboardCharts() {
                   <Tooltip formatter={(v) => [fmt(Number(v)), 'Receita']} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="receita" name="Receita" fill="#6366F1" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="comissao" name="ComissÃ£o" fill="#10B981" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="comissao" name="Comissão" fill="#10B981" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -508,7 +508,7 @@ export default function DashboardCharts() {
                     <th className="text-left py-2 px-3 text-xs text-gray-400 font-medium">Loja</th>
                     <th className="text-right py-2 px-3 text-xs text-gray-400 font-medium">Pedidos</th>
                     <th className="text-right py-2 px-3 text-xs text-gray-400 font-medium">Receita</th>
-                    <th className="text-right py-2 px-3 text-xs text-gray-400 font-medium">ComissÃ£o</th>
+                    <th className="text-right py-2 px-3 text-xs text-gray-400 font-medium">Comissão</th>
                   </tr>
                 </thead>
                 <tbody>
