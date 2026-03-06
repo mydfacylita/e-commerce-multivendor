@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
             try {
               const mobileData = JSON.parse(baseInfo.mobile_detail);
               const moduleList: any[] = mobileData.moduleList || [];
-              const mobileSpecs: Array<{ name: string; value: string }> = [];
+              const mobileSpecs: Array<{ nome: string; valor: string }> = [];
 
               for (const mod of moduleList) {
                 if (mod.type !== 'text') continue;
@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
                   const key = content.substring(0, colonIdx).trim();
                   const value = content.substring(colonIdx + 2).trim();
                   if (key && value) {
-                    mobileSpecs.push({ name: key, value });
+                    mobileSpecs.push({ nome: key, valor: value });
                   }
                 }
               }
@@ -313,12 +313,12 @@ export async function POST(request: NextRequest) {
 
                 // Extrair marca e modelo das specs
                 for (const spec of mobileSpecs) {
-                  const nameLower = spec.name.toLowerCase();
+                  const nameLower = spec.nome.toLowerCase();
                   if (!brand && (nameLower.includes('marca') || nameLower.includes('brand'))) {
-                    brand = spec.value;
+                    brand = spec.valor;
                   }
-                  if (!model && (nameLower.includes('referência') || nameLower.includes('modelo') || nameLower.includes('model'))) {
-                    model = spec.value;
+                  if (!model && (nameLower.includes('refer') || nameLower.includes('modelo') || nameLower.includes('model'))) {
+                    model = spec.valor;
                   }
                 }
 
@@ -343,13 +343,13 @@ export async function POST(request: NextRequest) {
             if (propsRaw) {
               const propList: any[] = Array.isArray(propsRaw) ? propsRaw : [propsRaw];
               attributes = propList.map((p: any) => ({
-                name: p.attr_name,
-                value: p.attr_value
+                nome: p.attr_name,
+                valor: p.attr_value
               }));
               for (const prop of attributes) {
-                const nameLower = String(prop.name || '').toLowerCase();
-                if (!brand && (nameLower.includes('brand') || nameLower.includes('marca'))) brand = prop.value;
-                if (!model && (nameLower.includes('model') || nameLower.includes('modelo'))) model = prop.value;
+                const nameLower = String(prop.nome || '').toLowerCase();
+                if (!brand && (nameLower.includes('brand') || nameLower.includes('marca'))) brand = prop.valor;
+                if (!model && (nameLower.includes('model') || nameLower.includes('modelo'))) model = prop.valor;
               }
               specifications = {
                 rating: product.rating,
