@@ -504,7 +504,8 @@ export async function middleware(request: NextRequest) {
   // Bloqueia acesso a outras rotas (loja, carrinho, etc) pelo subdomínio admin
   if (isAdminSubdomain) {
     const allowedPaths = ['/admin', '/api/', '/_next/', '/favicon', '/logo', '/login']
-    const isAllowed = allowedPaths.some(p => pathname.startsWith(p)) || pathname === '/'
+    const isStaticFile = /\.(png|jpg|jpeg|webp|svg|ico|gif|woff|woff2|ttf|otf|css|js|map)$/.test(pathname)
+    const isAllowed = isStaticFile || allowedPaths.some(p => pathname.startsWith(p)) || pathname === '/'
     if (!isAllowed) {
       return NextResponse.redirect(new URL('/admin', request.url))
     }

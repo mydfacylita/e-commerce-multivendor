@@ -30,6 +30,7 @@ export async function GET() {
       isMaster: false,
       permissions,
       isActive: user.adminStaff.isActive,
+      cargo: user.adminStaff.cargo || null,
     })
   } catch (error) {
     console.error('Equipe me error:', error)

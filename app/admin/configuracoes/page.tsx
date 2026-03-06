@@ -43,6 +43,7 @@ const DEFAULT_CONFIGS: ConfigItem[] = [
   { key: 'site.whatsapp', value: '', category: 'geral', label: 'WhatsApp', type: 'text', description: 'Número com código do país. Ex: 5511999999999' },
   { key: 'site.cnpj', value: '', category: 'geral', label: 'CNPJ', type: 'text', description: 'CNPJ da empresa' },
   { key: 'site.address', value: '', category: 'geral', label: 'Endereço', type: 'textarea', description: 'Endereço completo da empresa' },
+  { key: 'staff.welcomeBanner', value: '', category: 'geral', label: 'Banner de Boas-vindas (Funcionários)', type: 'image', description: 'Imagem exibida no centro da tela inicial para funcionários sem acesso ao Dashboard. Tamanho recomendado: 672×240px.' },
   
   // Aparência
   { key: 'appearance.primaryColor', value: '#3B82F6', category: 'aparencia', label: 'Cor Primária', type: 'color' },

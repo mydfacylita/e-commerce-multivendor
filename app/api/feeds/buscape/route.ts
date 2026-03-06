@@ -57,6 +57,9 @@ export async function GET(request: NextRequest) {
       'gtin',
       'mpn',
       'shipping_label',
+      'color',
+      'model',
+      'custom_label_0',
     ].join(',')
 
     const rows = products.map(product => {
@@ -74,6 +77,23 @@ export async function GET(request: NextRequest) {
         ? `${product.price.toFixed(2)} BRL`
         : ''
 
+      // Extrair atributos do produto
+      let colorAttr = (product as any).color || ''
+      let modelAttr = (product as any).model || ''
+      let customLabel = ''
+      try {
+        const attrs = JSON.parse((product as any).attributes || '[]')
+        if (Array.isArray(attrs)) {
+          for (const a of attrs) {
+            const n = String(a.nome || '').toLowerCase()
+            const v = String(a.valor || '')
+            if (!colorAttr && (n.includes('cor') || n.includes('color'))) colorAttr = v
+            if (!modelAttr && (n.includes('modelo') || n.includes('refer') || n.includes('model'))) modelAttr = v
+            if (!customLabel && (n.includes('capacidade') || n.includes('voltagem') || n.includes('potência'))) customLabel = v
+          }
+        }
+      } catch { /* sem atributos */ }
+
       const cols = [
         esc(product.id),
         esc(product.name),
@@ -89,6 +109,9 @@ export async function GET(request: NextRequest) {
         esc((product as any).gtin || ''),
         esc(product.id),
         'free',
+        esc(colorAttr),
+        esc(modelAttr),
+        esc(customLabel),
       ]
 
       return cols.map(c => `"${c}"`).join(',')
