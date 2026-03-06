@@ -209,11 +209,12 @@ export async function POST(request: NextRequest) {
             description = baseInfo.detail;
           }
 
-          // Imagens — main_imgs: string separado por espaço/ponto-e-vírgula
+          // Imagens — ae_multimedia_info_dto.image_urls: string separado por ';'
           const rawImages: string[] = [];
-          if (baseInfo.main_imgs) {
-            const imgs = String(baseInfo.main_imgs)
-              .split(/[\s,;]+/)
+          const multimediaUrls = details.ae_multimedia_info_dto?.image_urls;
+          if (multimediaUrls) {
+            const imgs = String(multimediaUrls)
+              .split(';')
               .map((s: string) => s.trim())
               .filter(Boolean);
             rawImages.push(...imgs);
@@ -223,22 +224,25 @@ export async function POST(request: NextRequest) {
           }
           allImages = rawImages.join(',');
 
-          // Peso e dimensões da embalagem
-          if (baseInfo.package_weight) {
-            weightWithPackage = parseFloat(String(baseInfo.package_weight)) || null;
-            weight = weightWithPackage;
-          }
-          if (baseInfo.package_length) {
-            lengthWithPackage = parseFloat(String(baseInfo.package_length)) || null;
-            length = lengthWithPackage;
-          }
-          if (baseInfo.package_width) {
-            widthWithPackage = parseFloat(String(baseInfo.package_width)) || null;
-            width = widthWithPackage;
-          }
-          if (baseInfo.package_height) {
-            heightWithPackage = parseFloat(String(baseInfo.package_height)) || null;
-            height = heightWithPackage;
+          // Peso e dimensões — package_info_dto (nível raiz do details, não dentro de baseInfo)
+          const pkgInfo = details.package_info_dto;
+          if (pkgInfo) {
+            if (pkgInfo.gross_weight) {
+              weightWithPackage = parseFloat(String(pkgInfo.gross_weight)) || null;
+              weight = weightWithPackage;
+            }
+            if (pkgInfo.package_length) {
+              lengthWithPackage = parseFloat(String(pkgInfo.package_length)) || null;
+              length = lengthWithPackage;
+            }
+            if (pkgInfo.package_width) {
+              widthWithPackage = parseFloat(String(pkgInfo.package_width)) || null;
+              width = widthWithPackage;
+            }
+            if (pkgInfo.package_height) {
+              heightWithPackage = parseFloat(String(pkgInfo.package_height)) || null;
+              height = heightWithPackage;
+            }
           }
 
           // País de origem
@@ -279,34 +283,82 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          // ─── Propriedades / Atributos ───
-          const propsRaw = details.ae_item_properties?.ae_item_property;
-          if (propsRaw) {
-            const propList: any[] = Array.isArray(propsRaw) ? propsRaw : [propsRaw];
-            attributes = propList.map((p: any) => ({
-              name: p.attr_name,
-              value: p.attr_value
-            }));
+          // ─── Especificações completas via mobile_detail (moduleList) ───
+          // mobile_detail contém JSON com todos os pares "Chave: Valor" do produto
+          if (baseInfo.mobile_detail) {
+            try {
+              const mobileData = JSON.parse(baseInfo.mobile_detail);
+              const moduleList: any[] = mobileData.moduleList || [];
+              const mobileSpecs: Array<{ name: string; value: string }> = [];
 
-            // Extrair marca e modelo das propriedades
-            for (const prop of attributes) {
-              const nameLower = String(prop.name || '').toLowerCase();
-              if (!brand && (nameLower.includes('brand') || nameLower.includes('marca'))) {
-                brand = prop.value;
+              for (const mod of moduleList) {
+                if (mod.type !== 'text') continue;
+                const content: string = (mod.data?.content || '').trim();
+                if (!content) continue;
+
+                // Linha curta com ":" = especificação (ex: "Marca: LG")
+                // Ignora parágrafos longos (descrição principal)
+                const colonIdx = content.indexOf(': ');
+                if (colonIdx > 0 && colonIdx < 80 && !content.includes('\n')) {
+                  const key = content.substring(0, colonIdx).trim();
+                  const value = content.substring(colonIdx + 2).trim();
+                  if (key && value) {
+                    mobileSpecs.push({ name: key, value });
+                  }
+                }
               }
-              if (!model && (nameLower.includes('model') || nameLower.includes('modelo'))) {
-                model = prop.value;
+
+              if (mobileSpecs.length > 0) {
+                attributes = mobileSpecs;
+
+                // Extrair marca e modelo das specs
+                for (const spec of mobileSpecs) {
+                  const nameLower = spec.name.toLowerCase();
+                  if (!brand && (nameLower.includes('marca') || nameLower.includes('brand'))) {
+                    brand = spec.value;
+                  }
+                  if (!model && (nameLower.includes('referência') || nameLower.includes('modelo') || nameLower.includes('model'))) {
+                    model = spec.value;
+                  }
+                }
+
+                specifications = {
+                  rating: product.rating,
+                  orders: product.orders,
+                  nicho: product.nicho,
+                  importedAt: new Date().toISOString(),
+                  attrs: mobileSpecs
+                };
+
+                console.log(`   📋 ${mobileSpecs.length} especificações extraídas do mobile_detail`);
               }
+            } catch (e) {
+              console.warn('[import] Falha ao parsear mobile_detail:', e);
             }
+          }
 
-            // Adicionar atributos nas especificações
-            specifications = {
-              rating: product.rating,
-              orders: product.orders,
-              nicho: product.nicho,
-              importedAt: new Date().toISOString(),
-              attrs: attributes
-            };
+          // Fallback: ae_item_properties se mobile_detail não trouxe nada
+          if (attributes.length === 0) {
+            const propsRaw = details.ae_item_properties?.ae_item_property;
+            if (propsRaw) {
+              const propList: any[] = Array.isArray(propsRaw) ? propsRaw : [propsRaw];
+              attributes = propList.map((p: any) => ({
+                name: p.attr_name,
+                value: p.attr_value
+              }));
+              for (const prop of attributes) {
+                const nameLower = String(prop.name || '').toLowerCase();
+                if (!brand && (nameLower.includes('brand') || nameLower.includes('marca'))) brand = prop.value;
+                if (!model && (nameLower.includes('model') || nameLower.includes('modelo'))) model = prop.value;
+              }
+              specifications = {
+                rating: product.rating,
+                orders: product.orders,
+                nicho: product.nicho,
+                importedAt: new Date().toISOString(),
+                attrs: attributes
+              };
+            }
           }
         } else {
           console.warn(`⚠️ Sem detalhes para ${product.productId} — importando com dados básicos da busca`);
