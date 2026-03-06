@@ -202,14 +202,4 @@ export default async function StorePage({ params }: Props) {
   );
 }
 
-// Gerar páginas estáticas para todas as lojas
-export async function generateStaticParams() {
-  const sellers = await prisma.seller.findMany({
-    where: { status: 'ACTIVE' },
-    select: { storeSlug: true },
-  });
 
-  return sellers.map((seller) => ({
-    slug: seller.storeSlug,
-  }));
-}
