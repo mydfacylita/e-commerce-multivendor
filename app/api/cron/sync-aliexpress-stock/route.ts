@@ -362,16 +362,19 @@ export async function GET(request: NextRequest) {
       let updatedModel: string | undefined
       let attributesAdded = 0
 
-      // Verificar se atributos já existem NO FORMATO CORRETO { nome, valor }
+      // Verificar se atributos já existem COM CONTEÚDO ÚTIL
       let hasAttributes = false
       const rawAttrStr = (product as any).attributes
       if (rawAttrStr && rawAttrStr !== '[]' && rawAttrStr !== 'null') {
         try {
           const parsed = JSON.parse(rawAttrStr)
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].nome !== undefined) {
-            hasAttributes = true // formato correto, pular
+          if (Array.isArray(parsed) && parsed.length >= 3) {
+            // Tem 3 ou mais atributos no formato { nome, valor } → considera completo
+            if (parsed[0].nome !== undefined) {
+              hasAttributes = true
+            }
           }
-          // Se tem entries mas key é 'name' (formato antigo), hasAttributes fica false → vai reescrever
+          // Se tem 0, 1 ou 2 atributos (ex: só "Nome da marca: other"), vai enriquecer
         } catch { /* parsing falhou, vai sobrescrever */ }
       }
       if (!hasAttributes) {
