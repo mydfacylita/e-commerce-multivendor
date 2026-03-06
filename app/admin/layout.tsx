@@ -45,6 +45,7 @@ import {
   FiHelpCircle,
   FiHeadphones,
   FiUserCheck,
+  FiRefreshCw,
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -695,10 +696,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {can('integracoes.dropshipping') && (
                 <Link
                   href="/admin/integracao/aliexpress"
-                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/integracao/aliexpress') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/aliexpress' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
                 >
                   <FiShoppingCart className="text-base" />
                   <span>Dropshipping</span>
+                </Link>
+                )}
+                {can('integracoes.aliexpress_nichos') && (
+                <Link
+                  href="/admin/integracao/aliexpress/nichos"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/aliexpress/nichos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiShoppingCart className="text-base" />
+                  <span>Nichos AliExpress</span>
+                </Link>
+                )}
+                {can('integracoes.aliexpress_sync') && (
+                <Link
+                  href="/admin/integracao/aliexpress/sync-estoque"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/aliexpress/sync-estoque' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiRefreshCw className="text-base" />
+                  <span>Sync Estoque</span>
                 </Link>
                 )}
                 {can('integracoes.shopify') && (
@@ -859,9 +878,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Barra superior */}
         <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0 sticky top-0 z-30">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-black text-xs">M</span>
-            </div>
+            <img src="/logo-animated.svg" alt="Logo" className="w-7 h-7 object-contain" />
             <span className="font-bold text-gray-800 text-sm tracking-wide">MYDShop</span>
           </div>
           <div className="relative flex items-center gap-3">

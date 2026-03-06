@@ -97,6 +97,8 @@ export const ADMIN_PERMISSIONS: PermissionGroup[] = [
       { key: 'integracoes.mercadopago', label: 'Mercado Pago' },
       { key: 'integracoes.whatsapp', label: 'WhatsApp' },
       { key: 'integracoes.dropshipping', label: 'Dropshipping API' },
+      { key: 'integracoes.aliexpress_nichos', label: 'Nichos AliExpress' },
+      { key: 'integracoes.aliexpress_sync', label: 'Sync Estoque AliExpress' },
       { key: 'integracoes.shopify', label: 'Shopify' },
       { key: 'integracoes.shopee', label: 'Shopee' },
       { key: 'integracoes.developer_apps', label: 'Apps de Devs' },
