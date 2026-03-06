@@ -87,6 +87,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // null = master admin (acesso total); string[] = funcionário com permissões restritas
   const can = (key: string) => staffPerms === null || staffPerms.includes(key)
+  const canAny = (keys: string[]) => keys.some(k => can(k))
 
   // Páginas públicas que não precisam de autenticação
   const isPublicPage = pathname === '/admin/login'
@@ -124,23 +125,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <h2 className="text-2xl font-bold text-primary-600">Admin Panel</h2>
         </div>
         <nav className="px-4 pb-6 space-y-1">
-          <Link
-            href="/admin"
-            className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname === '/admin' ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
-          >
-            <FiHome className="text-lg" />
-            <span>Dashboard</span>
-          </Link>
+          {can('dashboard') && (
+            <Link
+              href="/admin"
+              className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname === '/admin' ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
+            >
+              <FiHome className="text-lg" />
+              <span>Dashboard</span>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/sac"
-            className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname?.startsWith('/admin/sac') ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
-          >
-            <FiHeadphones className="text-lg" />
-            <span>SAC</span>
-          </Link>
+          {can('sac') && (
+            <Link
+              href="/admin/sac"
+              className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname?.startsWith('/admin/sac') ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
+            >
+              <FiHeadphones className="text-lg" />
+              <span>SAC</span>
+            </Link>
+          )}
 
           {/* Catálogo */}
+          {canAny(['catalogo.produtos','catalogo.aprovacao','catalogo.categorias','catalogo.tipos','catalogo.ean','catalogo.fornecedores']) && (
           <div>
             <button
               onClick={() => toggleSection('catalogo')}
@@ -154,6 +160,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             {openSections.catalogo && (
               <div className="ml-4 mt-1 space-y-1">
+                {can('catalogo.produtos') && (
                 <Link
                   href="/admin/produtos"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/produtos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -161,6 +168,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiPackage className="text-base" />
                   <span>Produtos</span>
                 </Link>
+                )}
+                {can('catalogo.aprovacao') && (
                 <Link
                   href="/admin/produtos/aprovacao"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/produtos/aprovacao' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -168,6 +177,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiCheckCircle className="text-base" />
                   <span>Aprovação de Produtos</span>
                 </Link>
+                )}
+                {can('catalogo.categorias') && (
                 <Link
                   href="/admin/categorias"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/categorias' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -175,6 +186,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiGrid className="text-base" />
                   <span>Categorias</span>
                 </Link>
+                )}
+                {can('catalogo.tipos') && (
                 <Link
                   href="/admin/tipos-produtos"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/tipos-produtos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -182,6 +195,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTag className="text-base" />
                   <span>Tipos</span>
                 </Link>
+                )}
+                {can('catalogo.ean') && (
                 <Link
                   href="/admin/ean"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/ean' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -189,6 +204,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiBarChart2 className="text-base" />
                   <span>Solicitações EAN</span>
                 </Link>
+                )}
+                {can('catalogo.ean') && (
                 <Link
                   href="/admin/ean/codigos"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/ean/codigos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -196,6 +213,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTag className="text-base" />
                   <span>Meus Códigos EAN</span>
                 </Link>
+                )}
+                {can('catalogo.ean') && (
                 <Link
                   href="/admin/ean/pacotes"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/ean/pacotes' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -203,6 +222,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiPackage className="text-base" />
                   <span>Pacotes EAN</span>
                 </Link>
+                )}
+                {can('catalogo.fornecedores') && (
                 <Link
                   href="/admin/fornecedores"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/fornecedores' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -210,11 +231,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTruck className="text-base" />
                   <span>Fornecedores</span>
                 </Link>
+                )}
               </div>
             )}
           </div>
+          )}
 
           {/* Vendas & Pedidos */}
+          {canAny(['vendas.pedidos','vendas.dropshipping','vendas.entregas','vendas.devolucoes','vendas.cupons','vendas.marketing','vendas.perguntas','vendas.ia_conversas','vendas.carne','vendas.afiliados']) && (
           <div>
             <button
               onClick={() => toggleSection('vendas')}
@@ -228,6 +252,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             {openSections.vendas && (
               <div className="ml-4 mt-1 space-y-1">
+                {can('vendas.pedidos') && (
                 <Link
                   href="/admin/pedidos"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/pedidos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -235,6 +260,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiShoppingCart className="text-base" />
                   <span>Pedidos</span>
                 </Link>
+                )}
+                {can('vendas.dropshipping') && (
                 <Link
                   href="/admin/pedidos/dropshipping/dsers"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.includes('/admin/pedidos/dropshipping') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -242,6 +269,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiBox className="text-base" />
                   <span>Dropshipping</span>
                 </Link>
+                )}
+                {can('vendas.entregas') && (
                 <Link
                   href="/admin/pedidos/entregas"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/pedidos/entregas' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -249,6 +278,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTruck className="text-base" />
                   <span>Entregas</span>
                 </Link>
+                )}
+                {can('vendas.devolucoes') && (
                 <Link
                   href="/admin/devolucoes"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/devolucoes' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -256,6 +287,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiFileText className="text-base" />
                   <span>Devoluções</span>
                 </Link>
+                )}
+                {can('vendas.cupons') && (
                 <Link
                   href="/admin/cupons"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/cupons' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -263,6 +296,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTag className="text-base" />
                   <span>Cupons</span>
                 </Link>
+                )}
+                {can('vendas.marketing') && (
                 <Link
                   href="/admin/marketing"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/marketing' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -270,6 +305,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiZap className="text-base" />
                   <span>Marketing</span>
                 </Link>
+                )}
+                {can('vendas.perguntas') && (
                 <Link
                   href="/admin/perguntas"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/perguntas' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -277,6 +314,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiMessageSquare className="text-base" />
                   <span>Perguntas</span>
                 </Link>
+                )}
+                {can('vendas.ia_conversas') && (
                 <Link
                   href="/admin/ia-conversas"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/ia-conversas' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -284,6 +323,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiCpu className="text-base" />
                   <span>Mydi — Conversas IA</span>
                 </Link>
+                )}
+                {can('vendas.carne') && (
                 <Link
                   href="/admin/carne"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/carne' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -291,6 +332,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiDollarSign className="text-base" />
                   <span>Carnê / Parcelado</span>
                 </Link>
+                )}
+                {can('vendas.carne') && (
                 <Link
                   href="/admin/carne/simulador"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/carne/simulador' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -298,6 +341,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiDollarSign className="text-base" />
                   <span>Simulador de Financiamento</span>
                 </Link>
+                )}
+                {can('vendas.afiliados') && (
                 <Link
                   href="/admin/afiliados"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.startsWith('/admin/afiliados') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -305,11 +350,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiUserPlus className="text-base" />
                   <span>Afiliados</span>
                 </Link>
+                )}
               </div>
             )}
           </div>
+          )}
 
           {/* Logística */}
+          {canAny(['logistica.expedicao','logistica.fretes','logistica.embalagens','logistica.etiquetas']) && (
           <div>
             <button
               onClick={() => toggleSection('logistica')}
@@ -323,6 +371,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             {openSections.logistica && (
               <div className="ml-4 mt-1 space-y-1">
+                {can('logistica.expedicao') && (
                 <Link
                   href="/admin/expedicao"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/expedicao' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -330,6 +379,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTruck className="text-base" />
                   <span>Expedição</span>
                 </Link>
+                )}
+                {can('logistica.fretes') && (
                 <Link
                   href="/admin/fretes"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/fretes' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -337,6 +388,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiSend className="text-base" />
                   <span>Fretes</span>
                 </Link>
+                )}
+                {can('logistica.embalagens') && (
                 <Link
                   href="/admin/embalagens"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/embalagens' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -344,6 +397,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiBox className="text-base" />
                   <span>Embalagens</span>
                 </Link>
+                )}
+                {can('logistica.etiquetas') && (
                 <Link
                   href="/admin/etiquetas-produtos"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/etiquetas-produtos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -351,11 +406,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTag className="text-base" />
                   <span>Etiquetas Produtos</span>
                 </Link>
+                )}
               </div>
             )}
           </div>
+          )}
 
           {/* Gestão */}
+          {canAny(['gestao.usuarios','gestao.vendedores','gestao.contas_digitais','gestao.cashback','gestao.empresa','gestao.financeiro','gestao.saques','gestao.contabilidade','gestao.notas_fiscais','gestao.planos','gestao.assinaturas','gestao.equipe']) && (
           <div>
             <button
               onClick={() => toggleSection('gestao')}
@@ -369,6 +427,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             {openSections.gestao && (
               <div className="ml-4 mt-1 space-y-1">
+                {can('gestao.usuarios') && (
                 <Link
                   href="/admin/usuarios"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/usuarios' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -376,6 +435,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiUsers className="text-base" />
                   <span>Usuários</span>
                 </Link>
+                )}
+                {can('gestao.vendedores') && (
                 <Link
                   href="/admin/vendedores"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/vendedores' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -383,6 +444,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiShoppingBag className="text-base" />
                   <span>Vendedores</span>
                 </Link>
+                )}
+                {can('gestao.contas_digitais') && (
                 <Link
                   href="/admin/vendedores/contas"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/vendedores/contas') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -390,6 +453,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiCreditCard className="text-base" />
                   <span>Contas Digitais (Vendedores/Afiliados)</span>
                 </Link>
+                )}
+                {can('gestao.cashback') && (
                 <Link
                   href="/admin/cashback"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/cashback') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -397,6 +462,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiGift className="text-base" />
                   <span>Cashback</span>
                 </Link>
+                )}
+                {can('gestao.empresa') && (
                 <Link
                   href="/admin/empresa"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/empresa' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -404,6 +471,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiBriefcase className="text-base" />
                   <span>Empresa</span>
                 </Link>
+                )}
+                {can('gestao.empresa') && (
                 <Link
                   href="/admin/empresa/filiais"
                   className={`flex items-center space-x-3 pl-8 pr-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/empresa/filiais') ? 'bg-primary-50 text-primary-600' : 'text-gray-600'}`}
@@ -411,6 +480,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiMapPin className="text-base" />
                   <span>Filiais / Galpões</span>
                 </Link>
+                )}
+                {can('gestao.financeiro') && (
                 <Link
                   href="/admin/financeiro"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/financeiro' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -418,6 +489,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiDollarSign className="text-base" />
                   <span>Financeiro</span>
                 </Link>
+                )}
+                {can('gestao.contabilidade') && (
                 <Link
                   href="/admin/contabilidade"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/contabilidade') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -425,6 +498,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiFileText className="text-base" />
                   <span>Contabilidade</span>
                 </Link>
+                )}
+                {can('gestao.notas_fiscais') && (
                 <Link
                   href="/admin/invoices"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/invoices') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -432,6 +507,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiFileText className="text-base" />
                   <span>Notas Fiscais</span>
                 </Link>
+                )}
+                {can('gestao.planos') && (
                 <Link
                   href="/admin/planos"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/planos' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -439,6 +516,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiCreditCard className="text-base" />
                   <span>Planos</span>
                 </Link>
+                )}
+                {can('gestao.assinaturas') && (
                 <Link
                   href="/admin/assinaturas"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/assinaturas' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -446,6 +525,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiFileText className="text-base" />
                   <span>Assinaturas</span>
                 </Link>
+                )}
                 {can('gestao.equipe') && (
                   <Link
                     href="/admin/equipe"
@@ -458,8 +538,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
             )}
           </div>
+          )}
 
           {/* Monitoramento */}
+          {canAny(['monitoramento.vendas','monitoramento.analytics','monitoramento.ips','monitoramento.bots','monitoramento.mapa','monitoramento.antifraude','monitoramento.consistencia','monitoramento.performance','monitoramento.logs']) && (
           <div>
             <button
               onClick={() => toggleSection('monitoramento')}
@@ -473,6 +555,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             {openSections.monitoramento && (
               <div className="ml-4 mt-1 space-y-1">
+                {can('monitoramento.vendas') && (
                 <Link
                   href="/admin/analytics/vendas"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/analytics/vendas' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -480,6 +563,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiDollarSign className="text-base" />
                   <span>Vendas</span>
                 </Link>
+                )}
+                {can('monitoramento.analytics') && (
                 <Link
                   href="/admin/analytics"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/analytics' && !pathname.includes('/vendas') && !pathname.includes('/ip-investigacao') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -487,6 +572,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiPieChart className="text-base" />
                   <span>Analytics</span>
                 </Link>
+                )}
+                {can('monitoramento.ips') && (
                 <Link
                   href="/admin/analytics/ip-investigacao"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.includes('/ip-investigacao') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -494,6 +581,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiShield className="text-base" />
                   <span>IPs Suspeitos</span>
                 </Link>
+                )}
+                {can('monitoramento.bots') && (
                 <Link
                   href="/admin/analytics/bots"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.includes('/analytics/bots') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -501,6 +590,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiActivity className="text-base" />
                   <span>Bots Aliados</span>
                 </Link>
+                )}
+                {can('monitoramento.mapa') && (
                 <Link
                   href="/admin/pedidos/mapa"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/pedidos/mapa' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -508,6 +599,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiMapPin className="text-base" />
                   <span>Mapa de Pedidos</span>
                 </Link>
+                )}
+                {can('monitoramento.antifraude') && (
                 <Link
                   href="/admin/antifraude"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.includes('/admin/antifraude') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -515,6 +608,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiShield className="text-base" />
                   <span>Antifraude</span>
                 </Link>
+                )}
+                {can('monitoramento.consistencia') && (
                 <Link
                   href="/admin/consistency"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/consistency' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -522,6 +617,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiActivity className="text-base" />
                   <span>Consistência</span>
                 </Link>
+                )}
+                {can('monitoramento.performance') && (
                 <Link
                   href="/admin/performance"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/performance' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -529,6 +626,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTrendingUp className="text-base" />
                   <span>Performance</span>
                 </Link>
+                )}
+                {can('monitoramento.logs') && (
                 <Link
                   href="/admin/logs"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/logs' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -536,11 +635,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiActivity className="text-base" />
                   <span>Logs API</span>
                 </Link>
+                )}
               </div>
             )}
           </div>
+          )}
 
           {/* Integrações */}
+          {canAny(['integracoes.geral','integracoes.correios','integracoes.mercadopago','integracoes.whatsapp','integracoes.dropshipping','integracoes.shopify','integracoes.shopee','integracoes.developer_apps']) && (
           <div>
             <button
               onClick={() => toggleSection('integracoes')}
@@ -554,6 +656,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             {openSections.integracoes && (
               <div className="ml-4 mt-1 space-y-1">
+                {can('integracoes.geral') && (
                 <Link
                   href="/admin/integracao"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -561,6 +664,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiZap className="text-base" />
                   <span>Todas Integrações</span>
                 </Link>
+                )}
+                {can('integracoes.correios') && (
                 <Link
                   href="/admin/integracao/envios"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/envios' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -568,6 +673,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiTruck className="text-base" />
                   <span>Correios</span>
                 </Link>
+                )}
+                {can('integracoes.mercadopago') && (
                 <Link
                   href="/admin/integracao/mercadopago"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/mercadopago' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -575,6 +682,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiCreditCard className="text-base" />
                   <span>Mercado Pago</span>
                 </Link>
+                )}
+                {can('integracoes.whatsapp') && (
                 <Link
                   href="/admin/integracao/whatsapp"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/integracao/whatsapp' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -582,6 +691,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiSmartphone className="text-base" />
                   <span>WhatsApp</span>
                 </Link>
+                )}
+                {can('integracoes.dropshipping') && (
                 <Link
                   href="/admin/integracao/aliexpress"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/integracao/aliexpress') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -589,6 +700,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiShoppingCart className="text-base" />
                   <span>Dropshipping</span>
                 </Link>
+                )}
+                {can('integracoes.shopify') && (
                 <Link
                   href="/admin/integracao/shopify"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/integracao/shopify') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -596,6 +709,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiShoppingBag className="text-base" />
                   <span>Shopify</span>
                 </Link>
+                )}
+                {can('integracoes.shopee') && (
                 <Link
                   href="/admin/integracao/shopee"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/integracao/shopee') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -603,6 +718,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiShoppingBag className="text-base" />
                   <span>Shopee</span>
                 </Link>
+                )}
+                {can('integracoes.developer_apps') && (
                 <Link
                   href="/admin/integracao/developer-apps"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname?.startsWith('/admin/integracao/developer-apps') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -610,27 +727,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiCpu className="text-base" />
                   <span>Apps de Devs</span>
                 </Link>
+                )}
               </div>
             )}
           </div>
+          )}
 
-          <Link
-            href="/admin/email"
-            className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname === '/admin/email' ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
-          >
-            <FiMail className="text-lg" />
-            <span>E-mail</span>
-          </Link>
+          {can('email') && (
+            <Link
+              href="/admin/email"
+              className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname === '/admin/email' ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
+            >
+              <FiMail className="text-lg" />
+              <span>E-mail</span>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/ajuda"
-            className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname?.startsWith('/admin/ajuda') ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
-          >
-            <FiHelpCircle className="text-lg" />
-            <span>Central de Ajuda</span>
-          </Link>
+          {can('ajuda') && (
+            <Link
+              href="/admin/ajuda"
+              className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname?.startsWith('/admin/ajuda') ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
+            >
+              <FiHelpCircle className="text-lg" />
+              <span>Central de Ajuda</span>
+            </Link>
+          )}
 
           {/* Configurações */}
+          {canAny(['config.geral','config.nfe','config.aparencia','config.email_config','config.impressoras','config.ia','config.automacoes']) && (
           <div>
             <button
               onClick={() => toggleSection('configuracoes')}
@@ -644,6 +768,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
             {openSections.configuracoes && (
               <div className="ml-4 mt-1 space-y-1">
+                {can('config.geral') && (
                 <Link
                   href="/admin/configuracoes"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -651,6 +776,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiSettings className="text-base" />
                   <span>Geral</span>
                 </Link>
+                )}
+                {can('config.nfe') && (
                 <Link
                   href="/admin/configuracoes/nota-fiscal"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/nota-fiscal' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -658,6 +785,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiFileText className="text-base" />
                   <span>Nota Fiscal (NF-e)</span>
                 </Link>
+                )}
+                {can('config.aparencia') && (
                 <Link
                   href="/admin/configuracoes/aparencia-app"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/aparencia-app' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -665,6 +794,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiSmartphone className="text-base" />
                   <span>Aparência App</span>
                 </Link>
+                )}
+                {can('config.email_config') && (
                 <Link
                   href="/admin/configuracoes/email"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/email' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -672,6 +803,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiMail className="text-base" />
                   <span>Contas de E-mail</span>
                 </Link>
+                )}
+                {can('config.impressoras') && (
                 <Link
                   href="/admin/configuracoes/impressoras"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/impressoras' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -679,6 +812,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiPrinter className="text-base" />
                   <span>Impressoras</span>
                 </Link>
+                )}
+                {can('config.ia') && (
                 <Link
                   href="/admin/configuracoes/ia"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/configuracoes/ia' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -686,6 +821,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <FiCpu className="text-base" />
                   <span>Inteligência Artificial</span>
                 </Link>
+                )}
+                {can('config.automacoes') && (
                 <Link
                   href="/admin/automation"
                   className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/automation' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
@@ -700,9 +837,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     )}
                   </span>
                 </Link>
+                )}
               </div>
             )}
           </div>
+          )}
 
           {/* Botão de Sair */}
           <div className="mt-4 pt-4 border-t border-gray-200">
