@@ -69,7 +69,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Verificar se já existe
-    const existing = await prisma.user.findUnique({ where: { email } })
+    const existing = await prisma.user.findUnique({
+      where: { email },
+      include: { adminStaff: true },
+    })
     if (existing) {
       // Se já existe, só adicionar AdminStaff se ainda não tiver
       if (existing.adminStaff) {
