@@ -857,9 +857,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
       <div className="flex-1 flex flex-col min-h-0">
         {/* Barra superior */}
-        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-8 flex-shrink-0">
-          <div className="text-sm text-gray-400">
-            {/* breadcrumb vazio — espaço reservado */}
+        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0 sticky top-0 z-30">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-black text-xs">M</span>
+            </div>
+            <span className="font-bold text-gray-800 text-sm tracking-wide">MYDShop</span>
           </div>
           <div className="relative flex items-center gap-3">
             <button
