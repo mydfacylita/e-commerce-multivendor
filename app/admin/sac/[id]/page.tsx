@@ -47,10 +47,27 @@ const DEAL_STATUS_COLORS: Record<string, string> = {
   EXPIRED:   'bg-gray-100 text-gray-500',
 }
 
+// Normaliza conteúdo legado ou desconhecido para exibição amigável
+function normalizeContent(content: string): string {
+  const legacyMap: Record<string, string> = {
+    '[unsupported]':  '⚠️ Mensagem não suportada (enquete, reação avançada ou outro tipo)',
+    '[Imagem]':       '📷 Imagem',
+    '[Áudio]':        '🎤 Áudio',
+    '[Interativo]':   '🔘 Mensagem interativa',
+    '[Botão]':        '🔘 Botão',
+  }
+  return legacyMap[content] ?? content
+}
+
 // ── Componente de mensagem ───────────────────────────────────────────────────
 function MsgBubble({ msg }: { msg: any }) {
   const isOut = msg.direction === 'out'
   const Icon = CHANNEL_ICON[msg.channel] || CHANNEL_ICON.internal
+  const displayContent = normalizeContent(msg.content || '')
+  const isMedia = displayContent.startsWith('📷') || displayContent.startsWith('🎤') ||
+                  displayContent.startsWith('🎥') || displayContent.startsWith('📄') ||
+                  displayContent.startsWith('⚠️') || displayContent.startsWith('😊') ||
+                  displayContent.startsWith('📍') || displayContent.startsWith('👤')
 
   return (
     <div className={`flex ${isOut ? 'justify-end' : 'justify-start'} gap-2`}>
@@ -81,7 +98,9 @@ function MsgBubble({ msg }: { msg: any }) {
           {msg.status === 'read'      && isOut && <span className="opacity-70">✓✓ Lido</span>}
           {msg.status === 'delivered' && isOut && <span className="opacity-70">✓✓</span>}
         </div>
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+        <p className={`text-sm whitespace-pre-wrap leading-relaxed ${isMedia ? 'italic opacity-80' : ''}`}>
+          {displayContent}
+        </p>
       </div>
     </div>
   )

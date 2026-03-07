@@ -106,21 +106,36 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
     if (type === 'text') {
       content = message.text?.body || '';
     } else if (type === 'image') {
-      content = '[Imagem]';
-    } else if (type === 'audio') {
-      content = '[Áudio]';
+      const caption = message.image?.caption ? ` — ${message.image.caption}` : '';
+      content = `📷 Imagem${caption}`;
+    } else if (type === 'audio' || type === 'voice') {
+      content = '🎤 Áudio';
+    } else if (type === 'video') {
+      const caption = message.video?.caption ? ` — ${message.video.caption}` : '';
+      content = `🎥 Vídeo${caption}`;
     } else if (type === 'document') {
-      content = `[Documento: ${message.document?.filename || 'arquivo'}]`;
+      content = `📄 Documento: ${message.document?.filename || 'arquivo'}`;
+    } else if (type === 'sticker') {
+      content = '😊 Sticker';
     } else if (type === 'location') {
-      content = `[Localização: ${message.location?.latitude}, ${message.location?.longitude}]`;
+      content = `📍 Localização: ${message.location?.latitude}, ${message.location?.longitude}`;
+    } else if (type === 'contacts') {
+      const names = (message.contacts || []).map((c: any) => c.name?.formatted_name || '?').join(', ')
+      content = `👤 Contato: ${names || 'compartilhado'}`;
+    } else if (type === 'reaction') {
+      content = `${message.reaction?.emoji || '👍'} (reação à mensagem)`;
     } else if (type === 'button') {
-      content = message.button?.text || '[Botão]';
+      content = message.button?.text || '🔘 Botão';
     } else if (type === 'interactive') {
       content = message.interactive?.button_reply?.title ||
                 message.interactive?.list_reply?.title ||
-                '[Interativo]';
+                '🔘 Mensagem interativa';
+    } else if (type === 'order') {
+      content = '🛒 Pedido via WhatsApp';
+    } else if (type === 'unsupported') {
+      content = '⚠️ Mensagem não suportada (pode ser enquete, reação avançada ou outro tipo)';
     } else {
-      content = `[${type}]`;
+      content = `📨 Mensagem do tipo: ${type}`;
     }
 
     if (!content) return;
