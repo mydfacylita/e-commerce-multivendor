@@ -19,6 +19,7 @@ interface AnalyticsData {
   devices: Array<{ device: string; count: number }>
   browsers: Array<{ browser: string; count: number }>
   conversions: Array<{ type: string; count: number; value: number }>
+  topProducts: Array<{ id: string; name: string; slug: string; image: string; price: number; category: string; views: number }>
 }
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
@@ -310,6 +311,86 @@ export default function AnalyticsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Top 50 Produtos Mais Visualizados */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">Top 50 Produtos Mais Visualizados</h3>
+          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            Período: {period === '7d' ? '7 dias' : period === '30d' ? '30 dias' : '90 dias'}
+          </span>
+        </div>
+        {data.topProducts.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">Nenhum produto visualizado neste período.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-gray-600">
+                  <th className="text-left py-3 px-2 w-10">#</th>
+                  <th className="text-left py-3 px-2">Produto</th>
+                  <th className="text-left py-3 px-2 hidden md:table-cell">Categoria</th>
+                  <th className="text-right py-3 px-2">Preço</th>
+                  <th className="text-right py-3 px-2">Visualizações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.topProducts.map((product, index) => (
+                  <tr
+                    key={product.id}
+                    className="border-b border-gray-100 hover:bg-gray-50 transition"
+                  >
+                    <td className="py-3 px-2">
+                      <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                        index === 0 ? 'bg-yellow-400 text-white' :
+                        index === 1 ? 'bg-gray-300 text-white' :
+                        index === 2 ? 'bg-orange-400 text-white' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {index + 1}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="flex items-center gap-3">
+                        {product.image ? (
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-gray-100 rounded-lg flex-shrink-0" />
+                        )}
+                        <a
+                          href={`/produtos/${product.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-800 font-medium hover:text-blue-600 transition line-clamp-2"
+                        >
+                          {product.name}
+                        </a>
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 hidden md:table-cell">
+                      <span className="text-gray-500 text-xs bg-gray-100 px-2 py-1 rounded-full">
+                        {product.category || '—'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-right text-gray-700 font-medium whitespace-nowrap">
+                      R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-2 text-right">
+                      <span className="font-bold text-blue-600">{product.views.toLocaleString()}</span>
+                      <span className="block text-xs text-gray-400">views</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

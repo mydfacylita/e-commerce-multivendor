@@ -88,6 +88,66 @@ export async function GET(req: NextRequest) {
         avgTime: '3m 15s' // TODO: calcular tempo médio real
       }))
 
+    // Produtos mais visualizados (páginas /produtos/slug)
+    const productViewCount = new Map<string, number>()
+    pageViews.forEach(view => {
+      try {
+        const parsed = JSON.parse(view.data)
+        const page: string = parsed.page || parsed.url || ''
+        const match = page.match(/\/produtos\/([^?#/]+)/)
+        if (match) {
+          const slug = match[1]
+          productViewCount.set(slug, (productViewCount.get(slug) || 0) + 1)
+        }
+      } catch {}
+    })
+
+    const topSlugs = Array.from(productViewCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 50)
+      .map(([slug]) => slug)
+
+    const topProductsDb = topSlugs.length > 0
+      ? await prisma.product.findMany({
+          where: { slug: { in: topSlugs } },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            images: true,
+            price: true,
+            category: { select: { name: true } }
+          }
+        })
+      : []
+
+    const topProducts = topSlugs
+      .map(slug => {
+        const p = topProductsDb.find(p => p.slug === slug)
+        if (!p) return null
+        const firstImage = (() => {
+          try {
+            const imgs = JSON.parse(p.images as string)
+            return Array.isArray(imgs) ? imgs[0] : p.images
+          } catch {
+            return p.images
+          }
+        })()
+        return {
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          image: firstImage || '',
+          price: p.price,
+          category: p.category?.name || '',
+          views: productViewCount.get(slug) || 0
+        }
+      })
+      .filter(Boolean) as Array<{
+        id: string; name: string; slug: string; image: string;
+        price: number; category: string; views: number
+      }>
+
     // Buscar conversões (pedidos realizados)
     const orders = await prisma.order.findMany({
       where: {
@@ -139,7 +199,8 @@ export async function GET(req: NextRequest) {
         { type: 'Cadastros', count: uniqueVisitors.size, value: 0 },
         { type: 'Newsletter', count: 0, value: 0 },
         { type: 'Add ao Carrinho', count: addToCartEvents.length, value: 0 }
-      ]
+      ],
+      topProducts
     }
 
     return NextResponse.json(data)
