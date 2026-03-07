@@ -148,6 +148,70 @@ export async function GET(req: NextRequest) {
         price: number; category: string; views: number
       }>
 
+    // Top 50 produtos por visitantes únicos reais (evento view_product com visitorId distinto)
+    const uniqueVisitorRows = await prisma.$queryRaw<{ productId: string; uniqueVisitors: bigint }[]>`
+      SELECT
+        JSON_UNQUOTE(JSON_EXTRACT(data, '$.id')) AS productId,
+        COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(data, '$.visitorId'))) AS uniqueVisitors
+      FROM analytics_table
+      WHERE
+        createdAt >= ${startDate}
+        AND (
+          name = 'view_product'
+          OR (name = 'custom' AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.eventName')) = 'view_product')
+        )
+        AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.id')) IS NOT NULL
+        AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.visitorId')) IS NOT NULL
+      GROUP BY productId
+      ORDER BY uniqueVisitors DESC
+      LIMIT 50
+    `
+
+    const uniqueVisitorMap = new Map<string, number>()
+    uniqueVisitorRows.forEach(r => {
+      if (r.productId) uniqueVisitorMap.set(r.productId, Number(r.uniqueVisitors))
+    })
+
+    const topUniqueIds = uniqueVisitorRows.map(r => r.productId).filter(Boolean)
+    const topUniqueProductsDb = topUniqueIds.length > 0
+      ? await prisma.product.findMany({
+          where: { id: { in: topUniqueIds } },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            images: true,
+            price: true,
+            category: { select: { name: true } }
+          }
+        })
+      : []
+
+    const topProductsUnique = topUniqueIds
+      .map(id => {
+        const p = topUniqueProductsDb.find(p => p.id === id)
+        if (!p) return null
+        const firstImage = (() => {
+          try {
+            const imgs = JSON.parse(p.images as string)
+            return Array.isArray(imgs) ? imgs[0] : p.images
+          } catch { return p.images }
+        })()
+        return {
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          image: firstImage || '',
+          price: p.price,
+          category: p.category?.name || '',
+          uniqueVisitors: uniqueVisitorMap.get(id) || 0
+        }
+      })
+      .filter(Boolean) as Array<{
+        id: string; name: string; slug: string; image: string;
+        price: number; category: string; uniqueVisitors: number
+      }>
+
     // Buscar conversões (pedidos realizados)
     const orders = await prisma.order.findMany({
       where: {
@@ -200,7 +264,8 @@ export async function GET(req: NextRequest) {
         { type: 'Newsletter', count: 0, value: 0 },
         { type: 'Add ao Carrinho', count: addToCartEvents.length, value: 0 }
       ],
-      topProducts
+      topProducts,
+      topProductsUnique
     }
 
     return NextResponse.json(data)
