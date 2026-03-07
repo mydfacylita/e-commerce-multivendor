@@ -60,7 +60,7 @@ function normalizeContent(content: string): string {
 }
 
 // ── Componente de mensagem ───────────────────────────────────────────────────
-function MsgBubble({ msg }: { msg: any }) {
+function MsgBubble({ msg, ticketId }: { msg: any; ticketId: string }) {
   const isOut = msg.direction === 'out'
   const Icon = CHANNEL_ICON[msg.channel] || CHANNEL_ICON.internal
   const displayContent = normalizeContent(msg.content || '')
@@ -68,6 +68,21 @@ function MsgBubble({ msg }: { msg: any }) {
                   displayContent.startsWith('🎥') || displayContent.startsWith('📄') ||
                   displayContent.startsWith('⚠️') || displayContent.startsWith('😊') ||
                   displayContent.startsWith('📍') || displayContent.startsWith('👤')
+
+  // Verificar se tem mídia disponível para download
+  let mediaAttach: { mediaId: string; mimeType: string; filename: string } | null = null
+  if (msg.attachments) {
+    try { mediaAttach = JSON.parse(msg.attachments) } catch {}
+  }
+
+  const handleDownload = () => {
+    const a = document.createElement('a')
+    a.href = `/api/admin/sac/${ticketId}/messages/${msg.id}/media`
+    a.download = mediaAttach?.filename || 'arquivo'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
 
   return (
     <div className={`flex ${isOut ? 'justify-end' : 'justify-start'} gap-2`}>
@@ -101,6 +116,22 @@ function MsgBubble({ msg }: { msg: any }) {
         <p className={`text-sm whitespace-pre-wrap leading-relaxed ${isMedia ? 'italic opacity-80' : ''}`}>
           {displayContent}
         </p>
+        {/* Botão de download para mídia com mediaId disponível */}
+        {mediaAttach?.mediaId && (
+          <button
+            onClick={handleDownload}
+            className={`mt-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+              isOut
+                ? 'bg-white/20 hover:bg-white/30 text-white'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11" />
+            </svg>
+            {mediaAttach.filename || 'Baixar arquivo'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -916,7 +947,7 @@ export default function TicketPage() {
                 </div>
               )}
               {ticket.messages?.map((msg: any) => (
-                <MsgBubble key={msg.id} msg={msg} />
+                <MsgBubble key={msg.id} msg={msg} ticketId={id} />
               ))}
               <div ref={msgEndRef} />
             </div>

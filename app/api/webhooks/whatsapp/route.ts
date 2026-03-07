@@ -103,20 +103,29 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
 
     // Conteúdo da mensagem baseado no tipo
     let content = '';
+    // Dados de mídia (para download posterior)
+    let attachmentsJson: string | undefined = undefined;
     if (type === 'text') {
       content = message.text?.body || '';
     } else if (type === 'image') {
       const caption = message.image?.caption ? ` — ${message.image.caption}` : '';
       content = `📷 Imagem${caption}`;
+      if (message.image?.id) attachmentsJson = JSON.stringify({ mediaId: message.image.id, mimeType: message.image.mime_type || 'image/jpeg', filename: `imagem_${messageId}.jpg` });
     } else if (type === 'audio' || type === 'voice') {
       content = '🎤 Áudio';
+      if (message.audio?.id) attachmentsJson = JSON.stringify({ mediaId: message.audio.id, mimeType: message.audio.mime_type || 'audio/ogg', filename: `audio_${messageId}.ogg` });
+      else if (message.voice?.id) attachmentsJson = JSON.stringify({ mediaId: message.voice.id, mimeType: message.voice.mime_type || 'audio/ogg', filename: `audio_${messageId}.ogg` });
     } else if (type === 'video') {
       const caption = message.video?.caption ? ` — ${message.video.caption}` : '';
       content = `🎥 Vídeo${caption}`;
+      if (message.video?.id) attachmentsJson = JSON.stringify({ mediaId: message.video.id, mimeType: message.video.mime_type || 'video/mp4', filename: `video_${messageId}.mp4` });
     } else if (type === 'document') {
-      content = `📄 Documento: ${message.document?.filename || 'arquivo'}`;
+      const fname = message.document?.filename || 'arquivo';
+      content = `📄 Documento: ${fname}`;
+      if (message.document?.id) attachmentsJson = JSON.stringify({ mediaId: message.document.id, mimeType: message.document.mime_type || 'application/octet-stream', filename: fname });
     } else if (type === 'sticker') {
       content = '😊 Sticker';
+      if (message.sticker?.id) attachmentsJson = JSON.stringify({ mediaId: message.sticker.id, mimeType: message.sticker.mime_type || 'image/webp', filename: `sticker_${messageId}.webp` });
     } else if (type === 'location') {
       content = `📍 Localização: ${message.location?.latitude}, ${message.location?.longitude}`;
     } else if (type === 'contacts') {
@@ -184,13 +193,14 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
       // Salvar mensagem recebida no ticket
       await prisma.ticketMessage.create({
         data: {
-          ticketId:   ticket.id,
-          channel:    'whatsapp',
-          direction:  'in',
-          from:       contactName,
+          ticketId:    ticket.id,
+          channel:     'whatsapp',
+          direction:   'in',
+          from:        contactName,
           content,
-          externalId: messageId,
-          status:     'sent',
+          externalId:  messageId,
+          attachments: attachmentsJson || null,
+          status:      'sent',
         },
       });
 
@@ -220,13 +230,14 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
 
       await prisma.ticketMessage.create({
         data: {
-          ticketId:   newTicket.id,
-          channel:    'whatsapp',
-          direction:  'in',
-          from:       contactName,
+          ticketId:    newTicket.id,
+          channel:     'whatsapp',
+          direction:   'in',
+          from:        contactName,
           content,
-          externalId: messageId,
-          status:     'sent',
+          externalId:  messageId,
+          attachments: attachmentsJson || null,
+          status:      'sent',
         },
       });
 
