@@ -871,6 +871,43 @@ export default function TicketPage() {
         {/* ── TAB: Conversa ─────────────────────────────── */}
         {tab === 'chat' && (
           <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Banner: todas as mensagens são não suportadas */}
+            {(() => {
+              const inMsgs = (ticket.messages || []).filter((m: any) => m.direction === 'in')
+              const allUnsupported = inMsgs.length > 0 && inMsgs.every((m: any) =>
+                normalizeContent(m.content || '').startsWith('⚠️')
+              )
+              if (!allUnsupported) return null
+              return (
+                <div className="mx-5 mt-4 bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-start gap-3">
+                  <span className="text-orange-500 text-lg mt-0.5">⚠️</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-orange-800">
+                      Mensagem ilegível — tipo não suportado pelo WhatsApp Business API
+                    </p>
+                    <p className="text-xs text-orange-600 mt-0.5">
+                      O cliente pode ter enviado uma enquete, GIF animado, mensagem de transmissão ou outro tipo que o Meta não disponibiliza o conteúdo. Solicite que reenvie como texto.
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await fetch(`/api/admin/sac/${id}/messages`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          channel: 'whatsapp',
+                          content: 'Olá! Recebemos sua mensagem, mas não conseguimos lê-la. Por favor, descreva sua dúvida ou problema em texto. 😊',
+                        }),
+                      })
+                      load()
+                    }}
+                    className="shrink-0 bg-orange-500 hover:bg-orange-600 text-white text-xs px-3 py-1.5 rounded-lg transition"
+                  >
+                    Solicitar reenvio
+                  </button>
+                </div>
+              )
+            })()}
             <div className="flex-1 overflow-y-auto p-5 space-y-3">
               {ticket.messages?.length === 0 && (
                 <div className="text-center text-gray-400 py-12">

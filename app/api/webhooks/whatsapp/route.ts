@@ -133,7 +133,11 @@ async function processIncomingMessage(message: any, contacts: any[], metadata: a
     } else if (type === 'order') {
       content = '🛒 Pedido via WhatsApp';
     } else if (type === 'unsupported') {
-      content = '⚠️ Mensagem não suportada (pode ser enquete, reação avançada ou outro tipo)';
+      const errorTitle = message.errors?.[0]?.title || ''
+      const errorDetail = message.errors?.[0]?.error_data?.details || ''
+      const subtype = message.unsupported?.type || ''
+      const detail = [errorTitle, errorDetail, subtype ? `(sub-type: ${subtype})` : ''].filter(Boolean).join(' — ')
+      content = `⚠️ Mensagem não suportada pelo WhatsApp Business API${detail ? ': ' + detail : ''}`;
     } else {
       content = `📨 Mensagem do tipo: ${type}`;
     }
