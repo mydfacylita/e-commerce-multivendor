@@ -217,7 +217,7 @@ model Product {
   margin                   Float?
   isDropshipping           Boolean              @default(false)
   dropshippingCommission   Float?
-  images                   String               @db.Text
+  images                   String               @db.LongText
   stock                    Int                  @default(0)
   featured                 Boolean              @default(false)
   categoryId               String
@@ -225,15 +225,15 @@ model Product {
   supplierId               String?
   supplierSku              String?
   supplierUrl              String?              @db.Text
-  specifications           String?              @db.Text
-  variants                 String?              @db.Text
-  attributes               String?              @db.Text
+  specifications           String?              @db.LongText
+  variants                 String?              @db.LongText
+  attributes               String?              @db.LongText
   gtin                     String?
   brand                    String?
   model                    String?
   color                    String?
   mpn                      String?
-  technicalSpecs           String?              @db.Text
+  technicalSpecs           String?              @db.LongText
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
   availableForDropship     Boolean              @default(true)
@@ -250,8 +250,8 @@ model Product {
   bookIsbn                 String?
   bookPublisher            String?
   bookTitle                String?
-  selectedSkus             String?              @db.Text
-  sizes                    String?              @db.Text
+  selectedSkus             String?              @db.LongText
+  sizes                    String?              @db.LongText
   sizeType                 String?
   sizeCategory             String?
   acceptsCreditCard        Boolean?
