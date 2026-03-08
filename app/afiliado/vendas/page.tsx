@@ -2,6 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { FiTrendingUp, FiFilter, FiDownload } from 'react-icons/fi';
+import { formatOrderNumber } from '@/lib/order';
+
+function abbreviateName(name: string): string {
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return parts[0] + ' ' + parts.slice(1).map(p => p[0].toUpperCase() + '.').join(' ');
+}
+
+function maskEmail(email: string): string {
+  if (!email) return '';
+  const [local, domain] = email.split('@');
+  if (!domain) return email;
+  return local[0] + '****@' + domain;
+}
 
 interface Sale {
   id: string;
@@ -165,15 +180,15 @@ export default function AffiliateVendasPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-mono font-medium text-gray-900">
-                          #{sale.orderId}
+                          {formatOrderNumber(sale.orderId)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {sale.customerName}
+                          {abbreviateName(sale.customerName)}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {sale.customerEmail}
+                          {maskEmail(sale.customerEmail)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">

@@ -8,6 +8,14 @@ import {
   FiDollarSign, FiTrendingUp, FiUsers, FiLink, FiCopy, 
   FiCheck, FiEye, FiArrowUpRight, FiClock, FiShare2 
 } from 'react-icons/fi';
+import { formatOrderNumber } from '@/lib/order';
+
+function abbreviateName(name: string): string {
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return parts[0] + ' ' + parts.slice(1).map(p => p[0].toUpperCase() + '.').join(' ');
+}
 
 interface AffiliateStats {
   totalSales: number;
@@ -323,10 +331,10 @@ export default function AffiliateDashboard() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {sale.customerName}
+                          {abbreviateName(sale.customerName)}
                         </div>
                         <div className="text-xs text-gray-500">
-                          Pedido #{sale.orderId}
+                          Pedido {formatOrderNumber(sale.orderId)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
