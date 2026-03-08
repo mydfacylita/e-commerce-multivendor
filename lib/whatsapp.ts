@@ -505,8 +505,52 @@ Obrigado por comprar na MYDSHOP.`
       }
     ], { orderId: data.orderId })
   }
-}
 
-// Exports para compatibilidade
+  /**
+   * Envia notificação de aprovação de afiliado via template Meta
+   * Template: myd_afiliado_aprovado
+   */
+  static async sendAffiliateApproved(
+    phone: string,
+    data: {
+      affiliateName: string
+      affiliateCode: string
+      commissionRate: number
+    }
+  ): Promise<SendMessageResult> {
+    return this.sendTemplate(phone, 'myd_afiliado_aprovado', 'pt_BR', [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: data.affiliateName },
+          { type: 'text', text: data.affiliateCode },
+          { type: 'text', text: `${data.commissionRate}%` }
+        ]
+      }
+    ])
+  }
+
+  /**
+   * Envia notificação de rejeição de afiliado via template Meta
+   * Template: myd_afiliado_rejeitado
+   */
+  static async sendAffiliateRejected(
+    phone: string,
+    data: {
+      affiliateName: string
+      reason?: string
+    }
+  ): Promise<SendMessageResult> {
+    return this.sendTemplate(phone, 'myd_afiliado_rejeitado', 'pt_BR', [
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: data.affiliateName },
+          { type: 'text', text: data.reason || 'Não atendeu aos requisitos do programa' }
+        ]
+      }
+    ])
+  }
+}
 export const sendWhatsAppMessage = WhatsAppService.sendMessage.bind(WhatsAppService)
 export const getWhatsAppConfig = WhatsAppService.getConfig.bind(WhatsAppService)

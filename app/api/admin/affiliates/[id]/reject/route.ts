@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
+import { WhatsAppService } from '@/lib/whatsapp'
 
 export async function POST(
   request: NextRequest,
@@ -31,7 +33,27 @@ export async function POST(
       }
     })
 
-    // TODO: Enviar email de rejeição ao afiliado
+    // Enviar e-mail de rejeição
+    try {
+      await sendTemplateEmail(EMAIL_TEMPLATES.AFFILIATE_REJECTED, affiliate.email, {
+        affiliateName: affiliate.name,
+        reason: reason || ''
+      })
+    } catch (emailErr) {
+      console.error('[Affiliate Reject] Erro ao enviar e-mail:', emailErr)
+    }
+
+    // Enviar WhatsApp de rejeição (se tiver telefone)
+    if (affiliate.phone) {
+      try {
+        await WhatsAppService.sendAffiliateRejected(affiliate.phone, {
+          affiliateName: affiliate.name,
+          reason: reason || undefined
+        })
+      } catch (waErr) {
+        console.error('[Affiliate Reject] Erro ao enviar WhatsApp:', waErr)
+      }
+    }
 
     return NextResponse.json({
       success: true,

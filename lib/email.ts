@@ -17,6 +17,8 @@ export const EMAIL_TEMPLATES = {
   PASSWORD_RESET: 'password_reset',
   SELLER_APPROVED: 'seller_approved',
   SELLER_REJECTED: 'seller_rejected',
+  AFFILIATE_APPROVED: 'affiliate_approved',
+  AFFILIATE_REJECTED: 'affiliate_rejected',
 } as const
 
 type TemplateType = typeof EMAIL_TEMPLATES[keyof typeof EMAIL_TEMPLATES]
@@ -230,6 +232,60 @@ const templates: Record<TemplateType, (data: EmailTemplateData) => { subject: st
           <p style="color: #374151;">Analisamos seu cadastro da loja <strong>${data.storeName}</strong> e, no momento, não foi possível aprová-lo.</p>
           ${data.reason ? `<div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; border-radius: 4px; margin: 24px 0;"><p style="margin: 0; color: #991b1b;"><strong>Motivo:</strong> ${data.reason}</p></div>` : ''}
           <p style="color: #374151;">Se tiver dúvidas ou quiser enviar novos documentos, entre em contato conosco pelo WhatsApp ou e-mail.</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 16px 24px; text-align: center;">
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">© MYDSHOP — Este é um e-mail automático, por favor não responda.</p>
+        </div>
+      </div>
+    `
+  }),
+
+  affiliate_approved: (data) => ({
+    subject: `🎉 Parabéns! Você foi aprovado(a) como Afiliado(a) MYDSHOP`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #f9fafb;">
+        <div style="background: #16a34a; padding: 32px 24px; text-align: center;">
+          <img src="https://mydshop.com.br/logo-animated-white.svg" alt="MYDSHOP" style="height: 40px; margin-bottom: 12px;" />
+          <h1 style="color: #fff; margin: 0; font-size: 24px;">Afiliado Aprovado! 🎉</h1>
+        </div>
+        <div style="background: #fff; padding: 32px 24px;">
+          <p style="font-size: 16px; color: #374151;">Olá, <strong>${data.affiliateName}</strong>!</p>
+          <p style="color: #374151;">Seu cadastro como afiliado(a) da <strong>MYDSHOP</strong> foi aprovado! A partir de agora você pode começar a divulgar seus links e ganhar comissões.</p>
+          <div style="background: #f0fdf4; border-left: 4px solid #16a34a; padding: 16px; border-radius: 4px; margin: 24px 0;">
+            <p style="margin: 0 0 8px 0; color: #15803d; font-weight: bold;">✅ Conta ativa!</p>
+            <p style="margin: 0; color: #374151;"><strong>Seu código de afiliado:</strong> <span style="font-family: monospace; font-size: 18px; color: #1d4ed8;">${data.affiliateCode}</span></p>
+            <p style="margin: 8px 0 0 0; color: #374151;"><strong>Comissão:</strong> ${data.commissionRate}% por venda confirmada</p>
+          </div>
+          <p style="color: #374151;"><strong>Seu link de afiliado:</strong></p>
+          <div style="background: #f3f4f6; padding: 12px; border-radius: 6px; font-family: monospace; word-break: break-all; color: #1d4ed8;">
+            https://www.mydshop.com.br?ref=${data.affiliateCode}
+          </div>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="https://www.mydshop.com.br/afiliado/dashboard" style="background: #16a34a; color: #fff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">👉 Acessar Meu Painel</a>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">Dúvidas? Entre em contato pelo nosso WhatsApp ou acesse seu painel em <a href="https://mydshop.com.br/afiliado" style="color: #16a34a;">mydshop.com.br/afiliado</a>.</p>
+        </div>
+        <div style="background: #f3f4f6; padding: 16px 24px; text-align: center;">
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">© MYDSHOP — Este é um e-mail automático, por favor não responda.</p>
+        </div>
+      </div>
+    `
+  }),
+
+  affiliate_rejected: (data) => ({
+    subject: `Sobre seu cadastro de afiliado na MYDSHOP`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #f9fafb;">
+        <div style="background: #1d4ed8; padding: 32px 24px; text-align: center;">
+          <img src="https://mydshop.com.br/logo-animated-white.svg" alt="MYDSHOP" style="height: 40px; margin-bottom: 12px;" />
+          <h1 style="color: #fff; margin: 0; font-size: 22px;">Retorno sobre seu Cadastro de Afiliado</h1>
+        </div>
+        <div style="background: #fff; padding: 32px 24px;">
+          <p style="font-size: 16px; color: #374151;">Olá, <strong>${data.affiliateName}</strong>!</p>
+          <p style="color: #374151;">Analisamos seu cadastro como afiliado(a) da <strong>MYDSHOP</strong> e, no momento, não foi possível aprovar sua solicitação.</p>
+          ${data.reason ? `<div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; border-radius: 4px; margin: 24px 0;"><p style="margin: 0; color: #991b1b;"><strong>Motivo:</strong> ${data.reason}</p></div>` : ''}
+          <p style="color: #374151;">Se tiver dúvidas ou quiser enviar mais informações, entre em contato conosco pelo WhatsApp ou e-mail de suporte.</p>
+          <p style="color: #374151;">Você pode tentar se cadastrar novamente após regularizar as pendências indicadas.</p>
         </div>
         <div style="background: #f3f4f6; padding: 16px 24px; text-align: center;">
           <p style="color: #9ca3af; font-size: 12px; margin: 0;">© MYDSHOP — Este é um e-mail automático, por favor não responda.</p>

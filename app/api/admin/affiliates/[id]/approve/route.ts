@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
+import { WhatsAppService } from '@/lib/whatsapp'
 
 export async function POST(
   request: NextRequest,
@@ -103,6 +105,30 @@ export async function POST(
     })
 
     // TODO: Enviar email de aprovação ao afiliado com dados da conta MYD
+
+    // Enviar e-mail de aprovação
+    try {
+      await sendTemplateEmail(EMAIL_TEMPLATES.AFFILIATE_APPROVED, result.affiliate.email, {
+        affiliateName: result.affiliate.name,
+        affiliateCode: result.affiliate.code,
+        commissionRate: result.affiliate.commissionRate
+      })
+    } catch (emailErr) {
+      console.error('[Affiliate Approve] Erro ao enviar e-mail:', emailErr)
+    }
+
+    // Enviar WhatsApp de aprovação (se tiver telefone)
+    if (result.affiliate.phone) {
+      try {
+        await WhatsAppService.sendAffiliateApproved(result.affiliate.phone, {
+          affiliateName: result.affiliate.name,
+          affiliateCode: result.affiliate.code,
+          commissionRate: result.affiliate.commissionRate
+        })
+      } catch (waErr) {
+        console.error('[Affiliate Approve] Erro ao enviar WhatsApp:', waErr)
+      }
+    }
 
     return NextResponse.json({
       success: true,
