@@ -169,10 +169,10 @@ export default function ProductInfoTabs({ product, processedSpecs, processedAttr
                 <h4 className="font-semibold text-sm mb-2 text-gray-700 flex items-center gap-2">
                   🏷️ Características do Produto
                 </h4>
-                <dl className="space-y-2">
+                <dl className="space-y-1">
                   {customAttributes.map((attr, index) => (
-                    <div key={index} className="flex items-start border-b border-gray-100 pb-2">
-                      <dt className="text-sm text-gray-600 min-w-[140px] font-medium">{attr.nome}</dt>
+                    <div key={index} className="grid grid-cols-[45%_55%] gap-x-3 border-b border-gray-100 py-2">
+                      <dt className="text-sm font-semibold text-gray-700">{attr.nome}</dt>
                       <dd className="text-sm text-gray-800">{attr.valor}</dd>
                     </div>
                   ))}
@@ -184,10 +184,10 @@ export default function ProductInfoTabs({ product, processedSpecs, processedAttr
             {Object.keys(processedSpecs).length > 0 && (
               <div className={customAttributes.length > 0 ? 'pt-4 border-t border-gray-200' : ''}>
                 <h4 className="font-semibold text-sm mb-2 text-gray-700">Especificações Técnicas</h4>
-                <dl className="space-y-2">
+                <dl className="space-y-1">
                   {Object.entries(processedSpecs).map(([key, value]: [string, any]) => (
-                    <div key={key} className="flex items-start border-b border-gray-100 pb-2">
-                      <dt className="text-sm text-gray-600 min-w-[140px] font-medium">{key}</dt>
+                    <div key={key} className="grid grid-cols-[45%_55%] gap-x-3 border-b border-gray-100 py-2">
+                      <dt className="text-sm font-semibold text-gray-700">{key}</dt>
                       <dd className="text-sm text-gray-800">{value}</dd>
                     </div>
                   ))}
