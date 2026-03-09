@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiCamera, FiExternalLink, FiCheck, FiClock, FiX, FiSend, FiHash } from 'react-icons/fi';
+import { FiCamera, FiExternalLink, FiCheck, FiClock, FiX, FiSend, FiHash, FiVideo, FiImage, FiFileText, FiLink } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 interface MyPost {
@@ -12,6 +12,12 @@ interface MyPost {
   submittedAt: string;
 }
 
+interface Material {
+  type: 'video' | 'image' | 'document' | 'link';
+  url: string;
+  title: string;
+}
+
 interface Campaign {
   id: string;
   title: string;
@@ -19,6 +25,7 @@ interface Campaign {
   hashtags: string | null;
   contentGuide: string | null;
   products: string[];
+  materials: Material[];
   startDate: string;
   endDate: string;
   totalPosts: number;
@@ -168,6 +175,30 @@ export default function AffiliateCampanhasPage() {
                   <div className="mx-5 mb-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
                     <p className="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Guia de Conteúdo</p>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.contentGuide}</p>
+                  </div>
+                )}
+
+                {/* Material de Apoio */}
+                {c.materials && c.materials.length > 0 && (
+                  <div className="mx-5 mb-4 bg-blue-50 border border-blue-100 rounded-lg p-4">
+                    <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Material de Apoio</p>
+                    <div className="space-y-2">
+                      {c.materials.map((m, i) => (
+                        <a
+                          key={i}
+                          href={m.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900 hover:underline"
+                        >
+                          {m.type === 'video' && <FiVideo size={14} className="text-red-500 shrink-0" />}
+                          {m.type === 'image' && <FiImage size={14} className="text-blue-500 shrink-0" />}
+                          {m.type === 'document' && <FiFileText size={14} className="text-orange-500 shrink-0" />}
+                          {m.type === 'link' && <FiLink size={14} className="text-gray-500 shrink-0" />}
+                          <span>{m.title || m.url}</span>
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
 

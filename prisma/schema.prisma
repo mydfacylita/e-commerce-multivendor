@@ -1731,6 +1731,7 @@ model AffiliateCampaign {
   hashtags     String?                  @db.VarChar(500)
   contentGuide String?                  @db.LongText
   products     String?                  @db.LongText // JSON array de product ids
+  materials    String?                  @db.LongText // JSON array de {type, url, title}
   startDate    DateTime
   endDate      DateTime
   isActive     Boolean                  @default(true)

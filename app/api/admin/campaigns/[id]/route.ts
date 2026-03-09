@@ -53,6 +53,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         ...(data.hashtags !== undefined && { hashtags: data.hashtags?.trim() || null }),
         ...(data.contentGuide !== undefined && { contentGuide: data.contentGuide?.trim() || null }),
         ...(data.products !== undefined && { products: data.products ? JSON.stringify(data.products) : null }),
+        ...(data.materials !== undefined && { materials: data.materials?.length ? JSON.stringify(data.materials) : null }),
         ...(data.startDate !== undefined && { startDate: new Date(data.startDate) }),
         ...(data.endDate !== undefined && { endDate: new Date(data.endDate) }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),

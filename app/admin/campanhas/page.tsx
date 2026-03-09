@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FiCamera, FiPlus, FiEdit2, FiTrash2, FiToggleLeft, FiToggleRight, FiX, FiCheck, FiXCircle, FiExternalLink, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiCamera, FiPlus, FiEdit2, FiTrash2, FiToggleLeft, FiToggleRight, FiX, FiCheck, FiXCircle, FiExternalLink, FiChevronDown, FiChevronUp, FiLink, FiVideo, FiImage, FiFileText } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 interface Post {
@@ -16,6 +16,12 @@ interface Post {
   affiliate: { id: string; name: string; email: string; instagram: string | null };
 }
 
+interface Material {
+  type: 'video' | 'image' | 'document' | 'link';
+  url: string;
+  title: string;
+}
+
 interface Campaign {
   id: string;
   title: string;
@@ -23,6 +29,7 @@ interface Campaign {
   hashtags: string | null;
   contentGuide: string | null;
   products: string | null;
+  materials: string | null;
   startDate: string;
   endDate: string;
   isActive: boolean;
@@ -38,6 +45,7 @@ const emptyForm = {
   startDate: '',
   endDate: '',
   isActive: true,
+  materials: [] as Material[],
 };
 
 function fmt(date: string) {
@@ -73,6 +81,7 @@ export default function AdminCampanhasPage() {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [reviewNote, setReviewNote] = useState('');
   const [reviewingPostId, setReviewingPostId] = useState<string | null>(null);
+  const [newMaterial, setNewMaterial] = useState<Material>({ type: 'video', url: '', title: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,6 +139,7 @@ export default function AdminCampanhasPage() {
 
   function openEdit(c: Campaign) {
     setEditingId(c.id);
+    setNewMaterial({ type: 'video', url: '', title: '' });
     setForm({
       title: c.title,
       description: c.description ?? '',
@@ -138,6 +148,7 @@ export default function AdminCampanhasPage() {
       startDate: toInputDate(c.startDate),
       endDate: toInputDate(c.endDate),
       isActive: c.isActive,
+      materials: c.materials ? JSON.parse(c.materials) : [],
     });
     setShowModal(true);
   }
@@ -154,6 +165,7 @@ export default function AdminCampanhasPage() {
         startDate: form.startDate,
         endDate: form.endDate,
         isActive: form.isActive,
+        materials: form.materials,
       };
       const url = editingId ? `/api/admin/campaigns/${editingId}` : '/api/admin/campaigns';
       const method = editingId ? 'PUT' : 'POST';
@@ -430,6 +442,77 @@ export default function AdminCampanhasPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none"
                   placeholder="Oriente os influenciadores sobre o conteúdo ideal: tom de voz, produtos a destacar, CTA, etc."
                 />
+              </div>
+
+              {/* Material de Apoio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Material de Apoio</label>
+
+                {form.materials.length > 0 && (
+                  <div className="mb-3 space-y-2">
+                    {form.materials.map((m, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                        {m.type === 'video' && <FiVideo size={14} className="text-red-500 shrink-0" />}
+                        {m.type === 'image' && <FiImage size={14} className="text-blue-500 shrink-0" />}
+                        {m.type === 'document' && <FiFileText size={14} className="text-orange-500 shrink-0" />}
+                        {m.type === 'link' && <FiLink size={14} className="text-gray-500 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-700 text-xs">{m.title || m.url}</p>
+                          {m.title && <p className="text-gray-400 text-xs truncate">{m.url}</p>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, materials: f.materials.filter((_, j) => j !== i) }))}
+                          className="text-gray-400 hover:text-red-500 shrink-0"
+                        >
+                          <FiX size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="border border-dashed border-gray-300 rounded-lg p-3 space-y-2">
+                  <div className="flex gap-2">
+                    <select
+                      value={newMaterial.type}
+                      onChange={(e) => setNewMaterial((m) => ({ ...m, type: e.target.value as Material['type'] }))}
+                      className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-pink-500"
+                    >
+                      <option value="video">🎥 Vídeo</option>
+                      <option value="image">🖼️ Imagem</option>
+                      <option value="document">📄 Documento</option>
+                      <option value="link">🔗 Link</option>
+                    </select>
+                    <input
+                      type="url"
+                      value={newMaterial.url}
+                      onChange={(e) => setNewMaterial((m) => ({ ...m, url: e.target.value }))}
+                      placeholder="URL"
+                      className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-pink-500"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newMaterial.title}
+                      onChange={(e) => setNewMaterial((m) => ({ ...m, title: e.target.value }))}
+                      placeholder="Título / Descrição"
+                      className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-pink-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!newMaterial.url.trim()) return;
+                        setForm((f) => ({ ...f, materials: [...f.materials, { ...newMaterial }] }));
+                        setNewMaterial({ type: 'video', url: '', title: '' });
+                      }}
+                      className="bg-pink-600 text-white px-3 py-1.5 rounded text-sm hover:bg-pink-700 transition-colors flex items-center gap-1"
+                    >
+                      <FiPlus size={14} /> Adicionar
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

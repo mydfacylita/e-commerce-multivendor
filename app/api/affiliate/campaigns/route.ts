@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
         hashtags: campaign.hashtags,
         contentGuide: campaign.contentGuide,
         products: campaign.products ? JSON.parse(campaign.products) : [],
+        materials: campaign.materials ? JSON.parse(campaign.materials) : [],
         startDate: campaign.startDate,
         endDate: campaign.endDate,
         totalPosts: campaign._count.posts,
