@@ -538,8 +538,9 @@ export default async function AdminOrderDetailPage({
             />
           </div>
         </div>
+      </div>
 
-        {/* Mensagens do Comprador */}
+      {/* Mensagens do Comprador */}
       {order.buyerMessages && (
         <div className="mt-6 bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center gap-3 mb-4">
