@@ -9,6 +9,7 @@ import AliExpressOrderStatus from '@/components/admin/AliExpressOrderStatus'
 import MLOrderActionsButton from '@/components/admin/MLOrderActionsButton'
 import { formatOrderNumber } from '@/lib/order'
 import ClientDate from '@/components/admin/ClientDate'
+import CorreiosLabelButton from '@/components/admin/CorreiosLabelButton'
 
 
 // Force dynamic - disable all caching
@@ -529,10 +530,16 @@ export default async function AdminOrderDetailPage({
                 <p className="text-sm text-red-700">{order.cancelReason}</p>
               </div>
             )}
+
+            <CorreiosLabelButton
+              orderId={order.id}
+              initialTrackingCode={(order as any).trackingCode}
+              initialPrePostagemId={(order as any).correiosIdPrePostagem}
+            />
           </div>
         </div>
-      </div>
-      {/* Mensagens do Comprador */}
+
+        {/* Mensagens do Comprador */}
       {order.buyerMessages && (
         <div className="mt-6 bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center gap-3 mb-4">

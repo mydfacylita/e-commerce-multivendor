@@ -105,6 +105,8 @@ export default function AffiliateEnderecoPage() {
 
       if (res.ok) {
         setMessage({ type: 'success', text: 'Endereço salvo com sucesso!' });
+        // Recarrega do banco para confirmar persistência
+        await fetchAddress();
       } else {
         const d = await res.json();
         setMessage({ type: 'error', text: d.error || 'Erro ao salvar endereço.' });

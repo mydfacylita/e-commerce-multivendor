@@ -75,7 +75,8 @@ export default function AdminKitsPage() {
       const res = await fetch(`/api/admin/products?search=${encodeURIComponent(q)}&limit=10`);
       if (res.ok) {
         const data = await res.json();
-        setProductResults(data.products || []);
+        // API retorna array direto
+        setProductResults(Array.isArray(data) ? data : (data.products || []));
       }
     } catch {}
   }, []);
