@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   FiHome, FiDollarSign, FiTrendingUp, FiSettings, 
-  FiLogOut, FiMenu, FiX, FiMapPin, FiGift, FiTarget, FiCamera
+  FiLogOut, FiMenu, FiX, FiMapPin, FiGift, FiTarget, FiCamera, FiUser
 } from 'react-icons/fi';
 import { useState } from 'react';
 
@@ -42,18 +42,45 @@ export default function AffiliateLayout({
     <div className="min-h-screen bg-gray-50">
       {shouldShowSidebar ? (
         // Layout com sidebar para usuários logados
-        <div className="container mx-auto px-4 py-6">
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden fixed bottom-4 right-4 z-50 p-4 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-700"
-          >
-            {mobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
-          </button>
-          <div className="flex gap-6">
+        <div className="container mx-auto px-4 pb-6">
+          {/* Mobile Top Bar */}
+          <div className="lg:hidden sticky top-0 z-50 bg-white border-b shadow-sm flex items-center justify-between px-4 py-3 -mx-4 mb-4">
+            <Link
+              href="/afiliado/configuracoes"
+              className="flex items-center gap-2 min-w-0"
+            >
+              <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center shrink-0">
+                <FiUser size={16} className="text-primary-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400 leading-none">Afiliado</p>
+                <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{session?.user?.name ?? '...'}</p>
+              </div>
+            </Link>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 shrink-0"
+            >
+              {mobileMenuOpen ? <FiX size={22} /> : <FiMenu size={22} />}
+            </button>
+          </div>
+
+          <div className="pt-0 lg:pt-6 flex gap-6">
             {/* Sidebar - Desktop */}
             <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="bg-white rounded-xl shadow-sm border p-4 sticky top-6">
+                {/* User info on desktop sidebar */}
+                <div className="mb-4 pb-4 border-b">
+                  <Link href="/afiliado/configuracoes" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                    <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center shrink-0">
+                      <FiUser size={18} className="text-primary-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-400 leading-none">Afiliado</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{session?.user?.name ?? '...'}</p>
+                    </div>
+                  </Link>
+                </div>
                 <nav className="space-y-1">
                   {menuItems.map((item) => {
                     const isActive = pathname === item.href;

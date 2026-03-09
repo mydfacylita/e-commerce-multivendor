@@ -36,23 +36,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Validar tipo de arquivo
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon']
-    // Para SVG e ICO, verificar também pela extensão
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    // Para SVG, ICO e documentos, verificar também pela extensão
     const extension = file.name.split('.').pop()?.toLowerCase()
-    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'ico']
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'ico', 'pdf', 'doc', 'docx']
     
     if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(extension || '')) {
       return NextResponse.json(
-        { error: 'Tipo de arquivo não permitido. Use JPG, PNG, WEBP, GIF, SVG ou ICO' },
+        { error: 'Tipo de arquivo não permitido. Use JPG, PNG, WEBP, GIF, SVG, ICO, PDF, DOC ou DOCX' },
         { status: 400 }
       )
     }
 
-    // Validar tamanho (5MB)
-    const maxSize = 5 * 1024 * 1024 // 5MB
+    // Validar tamanho: documentos 20MB, imagens 5MB
+    const isDoc = ['pdf', 'doc', 'docx'].includes(extension || '')
+    const maxSize = isDoc ? 20 * 1024 * 1024 : 5 * 1024 * 1024
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'Arquivo muito grande. Máximo 5MB' },
+        { error: isDoc ? 'Arquivo muito grande. Máximo 20MB para documentos' : 'Arquivo muito grande. Máximo 5MB' },
         { status: 400 }
       )
     }

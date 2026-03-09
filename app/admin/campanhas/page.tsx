@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FiCamera, FiPlus, FiEdit2, FiTrash2, FiToggleLeft, FiToggleRight, FiX, FiCheck, FiXCircle, FiExternalLink, FiChevronDown, FiChevronUp, FiLink, FiVideo, FiImage, FiFileText } from 'react-icons/fi';
+import { FiCamera, FiPlus, FiEdit2, FiTrash2, FiToggleLeft, FiToggleRight, FiX, FiCheck, FiXCircle, FiExternalLink, FiChevronDown, FiChevronUp, FiLink, FiVideo, FiImage, FiFileText, FiUpload } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 interface Post {
@@ -82,6 +82,7 @@ export default function AdminCampanhasPage() {
   const [reviewNote, setReviewNote] = useState('');
   const [reviewingPostId, setReviewingPostId] = useState<string | null>(null);
   const [newMaterial, setNewMaterial] = useState<Material>({ type: 'video', url: '', title: '' });
+  const [uploadingMaterial, setUploadingMaterial] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,7 +135,37 @@ export default function AdminCampanhasPage() {
   function openCreate() {
     setEditingId(null);
     setForm({ ...emptyForm });
+    setNewMaterial({ type: 'video', url: '', title: '' });
     setShowModal(true);
+  }
+
+  async function handleMaterialUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingMaterial(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      let endpoint = '/api/upload';
+      if (newMaterial.type === 'video') {
+        endpoint = '/api/upload/video';
+      } else {
+        fd.append('folder', 'materials');
+      }
+      const res = await fetch(endpoint, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? 'Erro ao enviar arquivo');
+        return;
+      }
+      setNewMaterial((m) => ({ ...m, url: data.url, title: m.title || file.name.replace(/\.[^.]+$/, '') }));
+      toast.success('Arquivo enviado!');
+    } catch {
+      toast.error('Erro ao enviar arquivo');
+    } finally {
+      setUploadingMaterial(false);
+      e.target.value = '';
+    }
   }
 
   function openEdit(c: Campaign) {
@@ -476,7 +507,7 @@ export default function AdminCampanhasPage() {
                   <div className="flex gap-2">
                     <select
                       value={newMaterial.type}
-                      onChange={(e) => setNewMaterial((m) => ({ ...m, type: e.target.value as Material['type'] }))}
+                      onChange={(e) => setNewMaterial((m) => ({ ...m, type: e.target.value as Material['type'], url: '', title: '' }))}
                       className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-pink-500"
                     >
                       <option value="video">🎥 Vídeo</option>
@@ -488,9 +519,29 @@ export default function AdminCampanhasPage() {
                       type="url"
                       value={newMaterial.url}
                       onChange={(e) => setNewMaterial((m) => ({ ...m, url: e.target.value }))}
-                      placeholder="URL"
+                      placeholder={newMaterial.type === 'link' ? 'https://...' : 'URL ou faça upload ↓'}
                       className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-pink-500"
                     />
+                    {newMaterial.type !== 'link' && (
+                      <label className={`shrink-0 border border-gray-300 rounded px-2 py-1.5 text-sm flex items-center gap-1 text-gray-600 ${
+                        uploadingMaterial ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:bg-gray-50'
+                      }`}>
+                        {uploadingMaterial
+                          ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-500" />
+                          : <FiUpload size={13} />}
+                        {uploadingMaterial ? 'Enviando…' : 'Upload'}
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept={
+                            newMaterial.type === 'video' ? 'video/*' :
+                            newMaterial.type === 'image' ? 'image/*' :
+                            '.pdf,.doc,.docx'
+                          }
+                          onChange={handleMaterialUpload}
+                        />
+                      </label>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <input
