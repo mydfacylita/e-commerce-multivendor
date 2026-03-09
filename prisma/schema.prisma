@@ -1585,6 +1585,8 @@ model Affiliate {
   withdrawals      AffiliateWithdrawal[]
   account          SellerAccount?
   kits             AffiliateKitAssignment[]
+  goals            AffiliateGoal[]
+  campaignPosts    AffiliateCampaignPost[]
 
   @@index([code])
   @@index([status])
@@ -1699,6 +1701,67 @@ model AffiliateKitAssignment {
   @@index([kitId])
   @@index([affiliateId])
   @@map("affiliate_kit_assignment")
+}
+
+model AffiliateGoal {
+  id           String      @id @default(cuid())
+  affiliateId  String?     // null = meta global para todos
+  title        String
+  description  String?     @db.Text
+  type         GoalType
+  targetValue  Float
+  startDate    DateTime
+  endDate      DateTime
+  reward       String?     @db.Text
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  affiliate    Affiliate?  @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@index([isActive])
+  @@index([startDate, endDate])
+  @@map("affiliate_goal")
+}
+
+model AffiliateCampaign {
+  id           String                   @id @default(cuid())
+  title        String
+  description  String?                  @db.Text
+  hashtags     String?                  @db.VarChar(500)
+  contentGuide String?                  @db.LongText
+  products     String?                  @db.LongText // JSON array de product ids
+  startDate    DateTime
+  endDate      DateTime
+  isActive     Boolean                  @default(true)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  posts        AffiliateCampaignPost[]
+
+  @@index([isActive])
+  @@index([startDate, endDate])
+  @@map("affiliate_campaign")
+}
+
+model AffiliateCampaignPost {
+  id           String              @id @default(cuid())
+  campaignId   String
+  affiliateId  String
+  postUrl      String              @db.VarChar(500)
+  platform     String              @default("INSTAGRAM")
+  caption      String?             @db.Text
+  status       CampaignPostStatus  @default(PENDING)
+  adminNotes   String?             @db.Text
+  submittedAt  DateTime            @default(now())
+  reviewedAt   DateTime?
+  campaign     AffiliateCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  affiliate    Affiliate           @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, affiliateId])
+  @@index([campaignId])
+  @@index([affiliateId])
+  @@index([status])
+  @@map("affiliate_campaign_post")
 }
 
 model SocialConnection {
@@ -2127,6 +2190,19 @@ enum PostStatus {
   PUBLISHING
   PUBLISHED
   FAILED
+}
+
+enum GoalType {
+  SALES_AMOUNT
+  SALES_COUNT
+  CLICKS_COUNT
+  COMMISSION_AMOUNT
+}
+
+enum CampaignPostStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum DevAppStatus {

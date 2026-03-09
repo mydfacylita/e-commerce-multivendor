@@ -47,6 +47,8 @@ import {
   FiUserCheck,
   FiRefreshCw,
   FiHeart,
+  FiTarget,
+  FiCamera,
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -369,6 +371,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiGift className="text-base" />
                   <span>Kits de Divulgação</span>
+                </Link>
+                )}
+                {can('vendas.afiliados') && (
+                <Link
+                  href="/admin/metas"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.startsWith('/admin/metas') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiTarget className="text-base" />
+                  <span>Metas</span>
+                </Link>
+                )}
+                {can('vendas.afiliados') && (
+                <Link
+                  href="/admin/campanhas"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.startsWith('/admin/campanhas') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiCamera className="text-base" />
+                  <span>Campanhas</span>
                 </Link>
                 )}
               </div>
