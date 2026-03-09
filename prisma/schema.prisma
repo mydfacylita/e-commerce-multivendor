@@ -1732,6 +1732,9 @@ model AffiliateCampaign {
   contentGuide String?                  @db.LongText
   products     String?                  @db.LongText // JSON array de product ids
   materials    String?                  @db.LongText // JSON array de {type, url, title}
+  reelsCount   Int?                     @default(0)  // meta de Reels por afiliado
+  postsCount   Int?                     @default(0)  // meta de Posts por afiliado
+  storiesCount Int?                     @default(0)  // meta de Stories por afiliado
   startDate    DateTime
   endDate      DateTime
   isActive     Boolean                  @default(true)

@@ -46,6 +46,9 @@ const emptyForm = {
   endDate: '',
   isActive: true,
   materials: [] as Material[],
+  reelsCount: 0,
+  postsCount: 0,
+  storiesCount: 0,
 };
 
 function fmt(date: string) {
@@ -180,6 +183,9 @@ export default function AdminCampanhasPage() {
       endDate: toInputDate(c.endDate),
       isActive: c.isActive,
       materials: c.materials ? JSON.parse(c.materials) : [],
+      reelsCount: (c as any).reelsCount ?? 0,
+      postsCount: (c as any).postsCount ?? 0,
+      storiesCount: (c as any).storiesCount ?? 0,
     });
     setShowModal(true);
   }
@@ -197,6 +203,9 @@ export default function AdminCampanhasPage() {
         endDate: form.endDate,
         isActive: form.isActive,
         materials: form.materials,
+        reelsCount: form.reelsCount,
+        postsCount: form.postsCount,
+        storiesCount: form.storiesCount,
       };
       const url = editingId ? `/api/admin/campaigns/${editingId}` : '/api/admin/campaigns';
       const method = editingId ? 'PUT' : 'POST';
@@ -564,6 +573,44 @@ export default function AdminCampanhasPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* Meta de Conteúdo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Meta de Conteúdo por Afiliado</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">🎬 Reels</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.reelsCount}
+                      onChange={(e) => setForm((f) => ({ ...f, reelsCount: parseInt(e.target.value) || 0 }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">🖼️ Posts</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.postsCount}
+                      onChange={(e) => setForm((f) => ({ ...f, postsCount: parseInt(e.target.value) || 0 }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">📱 Stories</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.storiesCount}
+                      onChange={(e) => setForm((f) => ({ ...f, storiesCount: parseInt(e.target.value) || 0 }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Coloque 0 para não definir meta</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

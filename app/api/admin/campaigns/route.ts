@@ -46,6 +46,9 @@ export async function POST(req: NextRequest) {
         contentGuide: data.contentGuide?.trim() || null,
         products: data.products ? JSON.stringify(data.products) : null,
         materials: data.materials?.length ? JSON.stringify(data.materials) : null,
+        reelsCount: data.reelsCount ?? 0,
+        postsCount: data.postsCount ?? 0,
+        storiesCount: data.storiesCount ?? 0,
         startDate: new Date(data.startDate),
         endDate: new Date(data.endDate),
         isActive: data.isActive !== false

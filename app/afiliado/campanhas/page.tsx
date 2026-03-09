@@ -26,6 +26,9 @@ interface Campaign {
   contentGuide: string | null;
   products: string[];
   materials: Material[];
+  reelsCount: number;
+  postsCount: number;
+  storiesCount: number;
   startDate: string;
   endDate: string;
   totalPosts: number;
@@ -163,6 +166,27 @@ export default function AffiliateCampanhasPage() {
                           <FiHash size={10} />{tag.replace(/^#/, '')}
                         </span>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Meta de conteúdo */}
+                  {(c.reelsCount > 0 || c.postsCount > 0 || c.storiesCount > 0) && (
+                    <div className="flex flex-wrap gap-2 mt-2 mb-1">
+                      {c.reelsCount > 0 && (
+                        <span className="inline-flex items-center gap-1 bg-red-50 text-red-600 text-xs px-2.5 py-1 rounded-full font-medium">
+                          🎬 {c.reelsCount} Reel{c.reelsCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {c.postsCount > 0 && (
+                        <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-xs px-2.5 py-1 rounded-full font-medium">
+                          🖼️ {c.postsCount} Post{c.postsCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {c.storiesCount > 0 && (
+                        <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-600 text-xs px-2.5 py-1 rounded-full font-medium">
+                          📱 {c.storiesCount} Storie{c.storiesCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                   )}
 
