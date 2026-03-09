@@ -6,7 +6,7 @@ import { logApi } from '@/lib/api-logger'
 import { syncDropshippingProducts, checkAndReactivateDropProduct } from '@/lib/dropshipping-sync'
 import { updateEANAssignment, releaseEANFromProduct } from '@/lib/ean-utils'
 import { auditLog } from '@/lib/audit'
-import { sendEmail, EMAIL_TEMPLATES } from '@/lib/email'
+import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
@@ -531,17 +531,17 @@ export async function PUT(
           for (const item of wishlistItems) {
             if (item.user.email) {
               try {
-                await sendEmail({
-                  to: item.user.email,
-                  template: EMAIL_TEMPLATES.WISHLIST_PRICE_DROP,
-                  data: {
+                await sendTemplateEmail(
+                  EMAIL_TEMPLATES.WISHLIST_PRICE_DROP,
+                  item.user.email,
+                  {
                     customerName: item.user.name || 'Cliente',
                     productName: product.name,
                     oldPrice: existingProduct.price,
                     newPrice: data.price,
                     productUrl: `https://mydshop.com.br/produtos/${product.slug}`
                   }
-                })
+                )
               } catch (err) {
                 console.error(`   ❌ Falha ao notificar ${item.user.email}:`, err)
               }
