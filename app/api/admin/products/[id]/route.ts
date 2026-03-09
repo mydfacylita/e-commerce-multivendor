@@ -6,6 +6,7 @@ import { logApi } from '@/lib/api-logger'
 import { syncDropshippingProducts, checkAndReactivateDropProduct } from '@/lib/dropshipping-sync'
 import { updateEANAssignment, releaseEANFromProduct } from '@/lib/ean-utils'
 import { auditLog } from '@/lib/audit'
+import { sendEmail, EMAIL_TEMPLATES } from '@/lib/email'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
@@ -515,7 +516,44 @@ export async function PUT(
       }
     }
 
-    // 🔄 SE FOR VENDEDOR ATUALIZANDO PREÇO DE UM DROP, VERIFICAR REATIVAÇÃO
+    // � NOTIFICAÇÃO DE BAIXA DE PREÇO - LISTA DE DESEJOS
+    if (data.price < existingProduct.price) {
+      console.log(`\n📉 [WISHLIST] Baixa de preço detectada: ${existingProduct.price} -> ${data.price}`)
+      
+      // Rodar em background (não esperar para responder ao admin)
+      prisma.wishlist.findMany({
+        where: { productId: params.id },
+        include: { user: true }
+      }).then(async (wishlistItems) => {
+        if (wishlistItems.length > 0) {
+          console.log(`   📧 Notificando ${wishlistItems.length} clientes...`)
+          
+          for (const item of wishlistItems) {
+            if (item.user.email) {
+              try {
+                await sendEmail({
+                  to: item.user.email,
+                  template: EMAIL_TEMPLATES.WISHLIST_PRICE_DROP,
+                  data: {
+                    customerName: item.user.name || 'Cliente',
+                    productName: product.name,
+                    oldPrice: existingProduct.price,
+                    newPrice: data.price,
+                    productUrl: `https://mydshop.com.br/produtos/${product.slug}`
+                  }
+                })
+              } catch (err) {
+                console.error(`   ❌ Falha ao notificar ${item.user.email}:`, err)
+              }
+            }
+          }
+        }
+      }).catch(err => {
+        console.error('   ❌ Erro ao buscar lista de desejos para notificação:', err)
+      })
+    }
+
+    // �🔄 SE FOR VENDEDOR ATUALIZANDO PREÇO DE UM DROP, VERIFICAR REATIVAÇÃO
     if (session.user.role === 'SELLER' && product.supplierSku && data.price) {
       const reactivateResult = await checkAndReactivateDropProduct(params.id, data.price)
       if (reactivateResult.reactivated) {
