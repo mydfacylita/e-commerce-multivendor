@@ -23,7 +23,15 @@ export async function PUT(req: NextRequest) {
       agencia,
       conta,
       tipoConta,
-      chavePix
+      chavePix,
+      // Endereço
+      cep,
+      logradouro,
+      numero,
+      complemento,
+      bairro,
+      cidade,
+      estado,
     } = data;
 
     const affiliate = await prisma.affiliate.findUnique({
@@ -48,6 +56,14 @@ export async function PUT(req: NextRequest) {
         conta,
         tipoConta,
         chavePix,
+        // Endereço
+        ...(cep !== undefined && { cep }),
+        ...(logradouro !== undefined && { logradouro }),
+        ...(numero !== undefined && { numero }),
+        ...(complemento !== undefined && { complemento }),
+        ...(bairro !== undefined && { bairro }),
+        ...(cidade !== undefined && { cidade }),
+        ...(estado !== undefined && { estado }),
         updatedAt: new Date()
       }
     });
