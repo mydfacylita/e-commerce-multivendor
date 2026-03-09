@@ -111,6 +111,14 @@ export async function GET(req: NextRequest) {
         conta: affiliate.conta,
         tipoConta: affiliate.tipoConta,
         chavePix: affiliate.chavePix,
+        // Endereço
+        cep: affiliate.cep,
+        logradouro: affiliate.logradouro,
+        numero: affiliate.numero,
+        complemento: affiliate.complemento,
+        bairro: affiliate.bairro,
+        cidade: affiliate.cidade,
+        estado: affiliate.estado,
         account: affiliate.account
       },
       stats: {
