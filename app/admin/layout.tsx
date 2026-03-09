@@ -46,6 +46,7 @@ import {
   FiHeadphones,
   FiUserCheck,
   FiRefreshCw,
+  FiHeart,
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
