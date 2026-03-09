@@ -311,55 +311,6 @@ const templates: Record<TemplateType, (data: EmailTemplateData) => { subject: st
       </div>
     `
   }),
-
-  wishlist_price_drop: (data) => ({
-    subject: `📉 O preço baixou! O item que você salvou está em oferta!`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background: #f9fafb;">
-        <div style="background: #2563eb; padding: 32px 24px; text-align: center;">
-          <img src="https://mydshop.com.br/logo-animated-white.svg" alt="MYDSHOP" style="height: 40px; margin-bottom: 12px;" />
-          <h1 style="color: #fff; margin: 0; font-size: 24px;">Boas Notícias! 📉</h1>
-        </div>
-        <div style="background: #fff; padding: 32px 24px;">
-          <p style="font-size: 16px; color: #374151;">Olá, <strong>${data.customerName}</strong>!</p>
-          <p style="color: #374151;">Temos uma ótima notícia: o produto que você salvou na sua <strong>Lista de Desejos</strong> acaba de baixar de preço!</p>
-          
-          <div style="border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 24px 0; display: flex; align-items: center; gap: 16px;">
-            <div style="flex: 1;">
-              <h3 style="margin: 0; color: #111827; font-size: 18px;">${data.productName}</h3>
-              <p style="margin: 8px 0 0 0; color: #6b7280; text-decoration: line-through; font-size: 14px;">De: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(data.oldPrice))}</p>
-              <p style="margin: 4px 0 0 0; color: #059669; font-size: 22px; font-weight: bold;">Por: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(data.newPrice))}</p>
-            </div>
-          </div>
-
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.productUrl}" style="background: #2563eb; color: #fff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">🛒 Aproveitar agora</a>
-          </div>
-          
-          <p style="color: #6b7280; font-size: 14px; text-align: center;">Aproveite logo, pois o estoque pode acabar rápido!</p>
-        </div>
-        <div style="background: #f3f4f6; padding: 16px 24px; text-align: center;">
-          <p style="color: #9ca3af; font-size: 12px; margin: 0;">© MYDSHOP — Este é um e-mail automático enviado porque você salvou este item em seus desejos.</p>
-        </div>
-      </div>
-    `
-  }),
-
-        <h1 style="color: #2563eb;">Recuperação de Senha 🔐</h1>
-        <p>Olá <strong>${data.customerName}</strong>,</p>
-        <p>Recebemos uma solicitação para redefinir sua senha.</p>
-        <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0;">Clique no botão abaixo para criar uma nova senha:</p>
-        </div>
-        <a href="${data.resetLink}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 10px 0;">
-          Redefinir Senha
-        </a>
-        <p style="color: #991b1b; font-size: 14px;">⚠️ Se você não solicitou esta redefinição, ignore este email.</p>
-        <hr style="margin: 20px 0;">
-        <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
-      </div>
-    `
-  }),
 }
 
 /**
