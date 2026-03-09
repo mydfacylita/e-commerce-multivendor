@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           select: { id: true, name: true, email: true, instagram: true }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { submittedAt: 'desc' }
     });
 
     return NextResponse.json({ posts });
