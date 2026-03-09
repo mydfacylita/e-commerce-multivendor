@@ -264,6 +264,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Pedidos</span>
                 </Link>
                 )}
+                <Link
+                  href="/admin/wishlist"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/wishlist' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiHeart className="text-base" />
+                  <span>Listas de Desejos</span>
+                </Link>
                 {can('vendas.dropshipping') && (
                 <Link
                   href="/admin/pedidos/dropshipping/dsers"
