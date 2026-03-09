@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiDollarSign, FiAlertCircle, FiCheckCircle, FiClock, FiXCircle } from 'react-icons/fi';
+import { FiDollarSign, FiAlertCircle, FiCheckCircle, FiClock, FiXCircle, FiKey, FiSettings } from 'react-icons/fi';
+import Link from 'next/link';
 
 interface Withdrawal {
   id: string;
@@ -25,6 +26,14 @@ interface AccountInfo {
   minWithdrawalAmount: number;
 }
 
+interface BankInfo {
+  chavePix: string | null;
+  banco: string | null;
+  agencia: string | null;
+  conta: string | null;
+  tipoConta: string | null;
+}
+
 const statusLabels: Record<string, { label: string; color: string; icon: any }> = {
   PENDING: { label: 'Aguardando', color: 'bg-yellow-100 text-yellow-800', icon: FiClock },
   APPROVED: { label: 'Aprovado', color: 'bg-blue-100 text-blue-800', icon: FiCheckCircle },
@@ -36,6 +45,7 @@ const statusLabels: Record<string, { label: string; color: string; icon: any }> 
 export default function AffiliateSaquesPage() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
+  const [bankInfo, setBankInfo] = useState<BankInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [amount, setAmount] = useState('');
@@ -49,9 +59,10 @@ export default function AffiliateSaquesPage() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [withdrawalsRes, accountRes] = await Promise.all([
+      const [withdrawalsRes, accountRes, meRes] = await Promise.all([
         fetch('/api/affiliate/withdrawals'),
-        fetch('/api/affiliate/account')
+        fetch('/api/affiliate/account'),
+        fetch('/api/affiliate/me')
       ]);
 
       if (withdrawalsRes.ok) {
@@ -62,6 +73,18 @@ export default function AffiliateSaquesPage() {
       if (accountRes.ok) {
         const data = await accountRes.json();
         setAccountInfo(data.account);
+      }
+
+      if (meRes.ok) {
+        const data = await meRes.json();
+        const a = data.affiliate;
+        setBankInfo({
+          chavePix: a.chavePix || null,
+          banco: a.banco || null,
+          agencia: a.agencia || null,
+          conta: a.conta || null,
+          tipoConta: a.tipoConta || null,
+        });
       }
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
@@ -142,6 +165,49 @@ export default function AffiliateSaquesPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Saques</h1>
         <p className="text-gray-600">Solicite saques e acompanhe seu histórico</p>
       </div>
+
+      {/* Dados para Recebimento */}
+      {bankInfo && (
+        <div className={`rounded-xl border p-4 mb-6 ${
+          bankInfo.chavePix || bankInfo.conta
+            ? 'bg-green-50 border-green-200'
+            : 'bg-orange-50 border-orange-200'
+        }`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <FiKey size={20} className={bankInfo.chavePix || bankInfo.conta ? 'text-green-600 shrink-0 mt-0.5' : 'text-orange-500 shrink-0 mt-0.5'} />
+              <div>
+                <p className={`text-sm font-semibold mb-1 ${
+                  bankInfo.chavePix || bankInfo.conta ? 'text-green-800' : 'text-orange-800'
+                }`}>Conta para Recebimento</p>
+                {bankInfo.chavePix ? (
+                  <p className="text-sm text-gray-700">
+                    <span className="text-gray-500">PIX:</span>{' '}
+                    <span className="font-mono font-medium">{bankInfo.chavePix}</span>
+                  </p>
+                ) : bankInfo.conta ? (
+                  <div className="text-sm text-gray-700 space-y-0.5">
+                    {bankInfo.banco && <p><span className="text-gray-500">Banco:</span> {bankInfo.banco}</p>}
+                    <p>
+                      <span className="text-gray-500">Ag:</span> {bankInfo.agencia}{' '}
+                      <span className="text-gray-500 ml-2">Conta:</span> {bankInfo.conta}
+                      {bankInfo.tipoConta && <span className="text-gray-400"> ({bankInfo.tipoConta})</span>}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-orange-700">Nenhum dado bancário cadastrado. Saques não serão processados.</p>
+                )}
+              </div>
+            </div>
+            <Link
+              href="/afiliado/configuracoes"
+              className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-primary-600 bg-white border border-gray-200 rounded-lg px-3 py-1.5 transition-colors"
+            >
+              <FiSettings size={13} /> Alterar
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Account Info Cards */}
       {accountInfo && (

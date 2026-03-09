@@ -112,13 +112,18 @@ export default function AffiliateLayout({
 
             {/* Mobile Menu */}
             {mobileMenuOpen && (
-              <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
-                <div className="bg-white w-64 h-full p-4" onClick={(e) => e.stopPropagation()}>
-                  <div className="mb-4 pb-4 border-b">
-                    <p className="text-sm text-gray-600">Bem-vindo,</p>
-                    <p className="font-medium text-gray-900">{session?.user?.name}</p>
+              <div className="lg:hidden fixed inset-0 z-[60] bg-black/50" onClick={() => setMobileMenuOpen(false)}>
+                <div className="bg-white w-64 h-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between px-4 py-4 border-b">
+                    <div>
+                      <p className="text-xs text-gray-400">Afiliado</p>
+                      <p className="font-semibold text-gray-900">{session?.user?.name}</p>
+                    </div>
+                    <button onClick={() => setMobileMenuOpen(false)} className="text-gray-400 hover:text-gray-600">
+                      <FiX size={20} />
+                    </button>
                   </div>
-                  <nav className="space-y-1">
+                  <nav className="p-3 space-y-1">
                     {menuItems.map((item) => {
                       const isActive = pathname === item.href;
                       return (

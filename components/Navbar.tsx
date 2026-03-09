@@ -811,6 +811,55 @@ export default function Navbar() {
                 Login
               </Link>
             )}
+            {session && (
+              <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                <div className="px-1">
+                  <p className="text-xs text-gray-400">Olá,</p>
+                  <p className="text-sm font-semibold text-gray-800 truncate">{session.user?.name}</p>
+                </div>
+                {session.user?.role === 'ADMIN' && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-md hover:bg-primary-700 font-medium w-full"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <FiLock size={16} /> Painel Admin
+                  </Link>
+                )}
+                {session.user?.role === 'SELLER' && (
+                  <Link
+                    href="/vendedor/dashboard"
+                    className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2.5 rounded-md hover:bg-primary-700 font-medium w-full"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <FiUser size={16} /> Painel Vendedor
+                  </Link>
+                )}
+                {isAffiliate && (
+                  <Link
+                    href="/afiliado/dashboard"
+                    className="flex items-center gap-2 bg-accent-500 text-white px-4 py-2.5 rounded-md hover:bg-accent-600 font-medium w-full"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <FiUser size={16} /> Painel Afiliado
+                  </Link>
+                )}
+                <Link
+                  href="/perfil"
+                  className="flex items-center gap-2 py-2 text-gray-700 hover:text-primary-600"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <FiUser size={16} /> Meu Perfil
+                </Link>
+                <Link
+                  href="/pedidos"
+                  className="flex items-center gap-2 py-2 text-gray-700 hover:text-primary-600"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <FiPackage size={16} /> Meus Pedidos
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}
