@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
       include: {
         account: {
           select: {
+            accountNumber: true,
             balance: true,
             totalReceived: true,
             totalWithdrawn: true,

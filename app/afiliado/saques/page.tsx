@@ -20,6 +20,7 @@ interface Withdrawal {
 }
 
 interface AccountInfo {
+  accountNumber: string;
   balance: number;
   totalReceived: number;
   totalWithdrawn: number;
@@ -196,6 +197,11 @@ export default function AffiliateSaquesPage() {
                   </div>
                 ) : (
                   <p className="text-sm text-orange-700">Nenhum dado bancário cadastrado. Saques não serão processados.</p>
+                )}
+                {accountInfo?.accountNumber && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Conta MYD: <span className="font-mono">{accountInfo.accountNumber}</span>
+                  </p>
                 )}
               </div>
             </div>
