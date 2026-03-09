@@ -53,6 +53,7 @@ model User {
   carnesCreated    Carne[]           @relation("CarneCreatedBy")
   serviceTickets   ServiceTicket[]   @relation("UserTickets")
   adminStaff       AdminStaff?
+  wishlists        Wishlist[]
 
   @@index([workForSellerId])
   @@index([role])
@@ -297,6 +298,7 @@ model Product {
   questions                ProductQuestion[]
   reviews                  ProductReview[]
   socialPosts              SocialPost[]
+  wishlists                Wishlist[]
 
   @@index([categoryId])
   @@index([sellerId])
@@ -313,6 +315,19 @@ model Product {
   @@index([createdAt])
   @@index([warehouseCode], map: "idx_product_warehouse")
   @@map("product")
+}
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("wishlist")
 }
 
 model Supplier {

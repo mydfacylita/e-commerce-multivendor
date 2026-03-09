@@ -7,6 +7,8 @@ import ProductImageGallery from './ProductImageGallery'
 import ProductSelectionWrapper from './ProductSelectionWrapper'
 import ProductInfoTabs from './ProductInfoTabs'
 import ShippingCalculator from './ShippingCalculator'
+import WishlistButton from './WishlistButton'
+import ShareButtons from './ShareButtons'
 import { analytics } from '@/lib/analytics-client'
 
 // Formatar moeda brasileira
@@ -198,6 +200,16 @@ export default function ProductDetailClient({
           }`}>
             {currentStock > 0 ? `${currentStock} em estoque` : 'Esgotado'}
           </span>
+        </div>
+
+        {/* Desejos + Compartilhar */}
+        <div className="flex items-center gap-2 mb-6">
+          <WishlistButton productId={product.id} />
+          <ShareButtons
+            url={`https://mydshop.com.br/produtos/${product.slug}`}
+            title={product.name}
+            price={formatCurrency(currentPrice)}
+          />
         </div>
 
         {/* Calcule o Frete — próximo ao estoque */}
