@@ -18,16 +18,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') || 'ALL'
+    const search = searchParams.get('search') || ''
+    const limit = parseInt(searchParams.get('limit') || '0')
 
     // Filtros
     const where: any = {}
     if (status !== 'ALL') {
       where.status = status
     }
+    if (search) {
+      where.OR = [
+        { name: { contains: search } },
+        { email: { contains: search } },
+        { code: { contains: search } }
+      ]
+    }
 
     // Buscar afiliados
     const affiliates = await prisma.affiliate.findMany({
       where,
+      ...(limit > 0 && { take: limit }),
       include: {
         user: {
           select: {

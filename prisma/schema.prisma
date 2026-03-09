@@ -299,6 +299,7 @@ model Product {
   reviews                  ProductReview[]
   socialPosts              SocialPost[]
   wishlists                Wishlist[]
+  affiliateKits            AffiliateKitProduct[]
 
   @@index([categoryId])
   @@index([sellerId])
@@ -1578,11 +1579,12 @@ model Affiliate {
   approvedBy       String?
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
-  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   clicks           AffiliateClick[]
   sales            AffiliateSale[]
   withdrawals      AffiliateWithdrawal[]
   account          SellerAccount?
+  kits             AffiliateKitAssignment[]
 
   @@index([code])
   @@index([status])
@@ -1656,6 +1658,47 @@ model AffiliateClick {
   @@index([createdAt])
   @@index([converted])
   @@map("affiliate_click")
+}
+
+model AffiliateKit {
+  id          String                   @id @default(cuid())
+  name        String
+  description String?                  @db.Text
+  isActive    Boolean                  @default(true)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  products    AffiliateKitProduct[]
+  assignments AffiliateKitAssignment[]
+
+  @@index([isActive])
+  @@map("affiliate_kit")
+}
+
+model AffiliateKitProduct {
+  id        String       @id @default(cuid())
+  kitId     String
+  productId String
+  kit       AffiliateKit @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([kitId, productId])
+  @@index([kitId])
+  @@index([productId])
+  @@map("affiliate_kit_product")
+}
+
+model AffiliateKitAssignment {
+  id          String       @id @default(cuid())
+  kitId       String
+  affiliateId String
+  assignedAt  DateTime     @default(now())
+  kit         AffiliateKit @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  affiliate   Affiliate    @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@unique([kitId, affiliateId])
+  @@index([kitId])
+  @@index([affiliateId])
+  @@map("affiliate_kit_assignment")
 }
 
 model SocialConnection {

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   FiHome, FiDollarSign, FiTrendingUp, FiSettings, 
-  FiLogOut, FiMenu, FiX, FiMapPin
+  FiLogOut, FiMenu, FiX, FiMapPin, FiGift
 } from 'react-icons/fi';
 import { useState } from 'react';
 
@@ -23,6 +23,7 @@ export default function AffiliateLayout({
     { href: '/afiliado/dashboard', icon: FiHome, label: 'Dashboard' },
     { href: '/afiliado/vendas', icon: FiTrendingUp, label: 'Vendas' },
     { href: '/afiliado/saques', icon: FiDollarSign, label: 'Saques' },
+    { href: '/afiliado/kits', icon: FiGift, label: 'Kits' },
     { href: '/afiliado/endereco', icon: FiMapPin, label: 'Endereço' },
     { href: '/afiliado/configuracoes', icon: FiSettings, label: 'Configurações' },
   ];

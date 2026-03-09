@@ -362,6 +362,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Afiliados</span>
                 </Link>
                 )}
+                {can('vendas.afiliados') && (
+                <Link
+                  href="/admin/kits"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.startsWith('/admin/kits') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiGift className="text-base" />
+                  <span>Kits de Divulgação</span>
+                </Link>
+                )}
               </div>
             )}
           </div>

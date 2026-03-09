@@ -7,7 +7,7 @@ import {
   FiArrowLeft, FiUser, FiMail, FiPhone, FiInstagram, FiYoutube, 
   FiDollarSign, FiTrendingUp, FiMousePointer, FiShoppingBag,
   FiCheck, FiX, FiEdit, FiCopy, FiExternalLink, FiClock,
-  FiCheckCircle, FiXCircle, FiAlertCircle
+  FiCheckCircle, FiXCircle, FiAlertCircle, FiGift, FiTrash2, FiSearch
 } from 'react-icons/fi'
 import { FaTiktok } from 'react-icons/fa'
 import toast from 'react-hot-toast'
@@ -108,6 +108,12 @@ export default function AffiliateDetailPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+
+  // Kits
+  const [assignedKits, setAssignedKits] = useState<{id:string, kitId:string, assignedAt:string, kit:{id:string, name:string, products:{product:{name:string}}[]}}[]>([])
+  const [availableKits, setAvailableKits] = useState<{id:string, name:string}[]>([])
+  const [kitSearchOpen, setKitSearchOpen] = useState(false)
+  const [loadingKits, setLoadingKits] = useState(false)
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
@@ -140,6 +146,10 @@ export default function AffiliateDetailPage() {
     loadData()
   }, [params.id])
 
+  useEffect(() => {
+    if (params.id) loadKits()
+  }, [params.id])
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -158,6 +168,46 @@ export default function AffiliateDetailPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadKits = async () => {
+    if (!params.id) return
+    setLoadingKits(true)
+    try {
+      const [kitRes, allRes] = await Promise.all([
+        fetch(`/api/admin/affiliates/${params.id}/kits`),
+        fetch('/api/admin/kits')
+      ])
+      if (kitRes.ok) setAssignedKits((await kitRes.json()).assignments || [])
+      if (allRes.ok) setAvailableKits((await allRes.json()).kits || [])
+    } finally {
+      setLoadingKits(false)
+    }
+  }
+
+  const assignKit = async (kitId: string) => {
+    try {
+      const res = await fetch(`/api/admin/kits/${kitId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ affiliateId: params.id })
+      })
+      if (res.ok) {
+        toast.success('Kit atribuído!')
+        loadKits()
+      } else {
+        const d = await res.json()
+        toast.error(d.error || 'Erro')
+      }
+    } catch { toast.error('Erro') }
+  }
+
+  const removeKit = async (kitId: string) => {
+    try {
+      await fetch(`/api/admin/kits/${kitId}/assign?affiliateId=${params.id}`, { method: 'DELETE' })
+      toast.success('Kit removido')
+      loadKits()
+    } catch { toast.error('Erro') }
   }
 
   const handleApprove = async () => {
@@ -731,6 +781,78 @@ export default function AffiliateDetailPage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Kits de Divulgação */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FiGift className="text-blue-500" /> Kits de Divulgação
+              </h3>
+              <button
+                onClick={() => setKitSearchOpen(v => !v)}
+                className="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                + Atribuir
+              </button>
+            </div>
+
+            {/* Buscar kit para atribuir */}
+            {kitSearchOpen && (
+              <div className="mb-4">
+                <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                  {availableKits.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">
+                      {loadingKits ? 'Carregando...' : 'Nenhum kit cadastrado'}
+                    </p>
+                  ) : (
+                    availableKits.map(k => {
+                      const already = assignedKits.some(a => a.kit?.id === k.id || a.kitId === k.id)
+                      return (
+                        <button
+                          key={k.id}
+                          onClick={() => { if (!already) assignKit(k.id) }}
+                          disabled={already}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 disabled:opacity-50 text-left text-sm"
+                        >
+                          <FiGift size={14} className="text-blue-400 shrink-0" />
+                          <span className="flex-1 truncate">{k.name}</span>
+                          {already && <span className="text-xs text-green-500">✓ Enviado</span>}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Kits atribuídos */}
+            {loadingKits ? (
+              <p className="text-xs text-gray-400">Carregando...</p>
+            ) : assignedKits.length === 0 ? (
+              <p className="text-sm text-gray-400">Nenhum kit atribuído ainda.</p>
+            ) : (
+              <div className="space-y-2">
+                {assignedKits.map(a => (
+                  <div key={a.id} className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+                    <FiGift size={14} className="text-blue-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{a.kit?.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {a.kit?.products?.length || 0} produto(s)
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => removeKit(a.kit?.id || a.kitId)}
+                      className="text-red-400 hover:text-red-600 p-1 shrink-0"
+                      title="Remover kit"
+                    >
+                      <FiTrash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
