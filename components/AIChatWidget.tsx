@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { X, ShoppingCart, Trash2, CheckCircle } from 'lucide-react'
 import { useCartStore } from '@/lib/store'
 import toast from 'react-hot-toast'
@@ -230,6 +230,10 @@ export default function AIChatWidget() {
       setLoading(false)
     }
   }
+
+  const pathname = usePathname();
+  // Não mostrar o chat nas rotas internas (afiliado, vendedor)
+  if (pathname?.startsWith('/afiliado') || pathname?.startsWith('/vendedor')) return null;
 
   return (
     <>

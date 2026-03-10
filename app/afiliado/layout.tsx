@@ -123,7 +123,7 @@ export default function AffiliateLayout({ children }: { children: React.ReactNod
           </div>
 
           {/* ── Mobile Bottom Navigation ── */}
-          <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+          <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[100] bg-white border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
             <div className="flex items-stretch">
               {bottomNavItems.map((item) => {
                 const isActive = pathname === item.href;
@@ -162,7 +162,7 @@ export default function AffiliateLayout({ children }: { children: React.ReactNod
           {/* ── Bottom Sheet "Mais" ── */}
           {moreOpen && (
             <div
-              className="lg:hidden fixed inset-0 z-[60] flex flex-col justify-end"
+              className="lg:hidden fixed inset-0 z-[110] flex flex-col justify-end"
               onClick={() => setMoreOpen(false)}
             >
               <div className="absolute inset-0 bg-black/40" />
