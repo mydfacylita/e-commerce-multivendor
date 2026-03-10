@@ -108,7 +108,9 @@ export default function SobrePage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-3">Informações Legais</h2>
               <div className="bg-gray-50 rounded-xl p-5 not-prose text-sm text-gray-600 space-y-1">
-                <p><strong>Razão Social:</strong> MYDSHOP TECNOLOGIA E COMERCIO LTDA</p>
+                <p><strong>Razão Social:</strong> MYD Facilyta Technology (MYDSHOP)</p>
+                <p><strong>CNPJ:</strong> 24.223.868/0001-19</p>
+                <p><strong>Endereço:</strong> Av. dos Holandeses, Nº 15 – Sala 15, Bairro Chau, CEP 65065-180 – São Luís / MA</p>
                 <p><strong>Site:</strong> https://mydshop.com.br</p>
                 <p><strong>E-mail:</strong> <a href="mailto:contato@mydshop.com.br" className="text-blue-600 hover:underline">contato@mydshop.com.br</a></p>
                 <p><strong>Atendimento:</strong> Segunda a Sexta, das 9h às 18h</p>

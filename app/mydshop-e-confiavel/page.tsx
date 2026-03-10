@@ -59,11 +59,12 @@ export default function ConfiaveisPage() {
             {[
               { label: 'CNPJ', value: '24.223.868/0001-19' },
               { label: 'Situação Cadastral', value: '✅ ATIVA', green: true },
-              { label: 'Razão Social', value: 'M FEITOZA RIBEIRO' },
-              { label: 'Nome Fantasia', value: 'MYD FACILYTA TECHNOLOGY' },
+              { label: 'Razão Social', value: 'MYD Facilyta Technology (MYDSHOP)' },
+              { label: 'Nome Fantasia', value: 'MYDSHOP' },
+              { label: 'Endereço', value: 'Av. dos Holandeses, Nº 15 – Sala 15, Chau – CEP 65065-180' },
+              { label: 'Cidade / UF', value: 'São Luís – MA' },
               { label: 'Data de Abertura', value: '22/02/2016' },
               { label: 'Natureza Jurídica', value: 'Empresário Individual' },
-              { label: 'Cidade / UF', value: 'São Luís – MA' },
               { label: 'Atividade Principal', value: 'Consultoria em Tecnologia da Informação' },
             ].map(({ label, value, green }) => (
               <div key={label} className="bg-gray-50 rounded-xl p-4">
