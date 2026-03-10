@@ -69,26 +69,20 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Calcular comissões disponíveis (7 dias já passaram)
-    const availableCommissions = await prisma.affiliateSale.aggregate({
-      where: {
-        affiliateId: affiliate.id,
-        status: 'CONFIRMED',
-        availableAt: {
-          lte: new Date() // Menor ou igual a hoje
-        }
-      },
-      _sum: {
-        commissionAmount: true
-      }
-    });
+    // Usar SellerAccount.balance como fonte de verdade (cobre comissões e bônus)
+    const account = affiliate.account;
+    if (!account) {
+      return NextResponse.json({ 
+        error: 'Conta MYD não encontrada. Entre em contato com o suporte.' 
+      }, { status: 400 });
+    }
 
-    const availableAmount = availableCommissions._sum.commissionAmount || 0;
+    const availableAmount = Number(account.balance) - Number(account.blockedBalance || 0);
 
     // Verificar se há saldo disponível
-    if (availableAmount === 0) {
+    if (availableAmount <= 0) {
       return NextResponse.json({ 
-        error: 'Você não possui comissões disponíveis. Aguarde o período de carência de 7 dias após a entrega.' 
+        error: 'Você não possui saldo disponível para saque.' 
       }, { status: 400 });
     }
 
@@ -100,67 +94,83 @@ export async function POST(req: NextRequest) {
     }
 
     // Verificar valor mínimo (R$ 50,00)
-    const minAmount = 50;
+    const minAmount = Number(account.minWithdrawalAmount) || 50;
     if (amount < minAmount) {
       return NextResponse.json({ 
         error: `Valor mínimo para saque: R$ ${minAmount.toFixed(2)}` 
       }, { status: 400 });
     }
 
-    // Buscar vendas disponíveis para marcar como sendo sacadas
+    // Buscar vendas confirmadas disponíveis para marcar como sacadas (se houver)
     const salesToWithdraw = await prisma.affiliateSale.findMany({
       where: {
         affiliateId: affiliate.id,
         status: 'CONFIRMED',
-        availableAt: {
-          lte: new Date()
-        }
+        availableAt: { lte: new Date() }
       },
-      orderBy: {
-        availableAt: 'asc' // Mais antigas primeiro
-      }
+      orderBy: { availableAt: 'asc' }
     });
 
-    // Selecionar vendas até atingir o valor solicitado
     let remainingAmount = amount;
     const selectedSales: string[] = [];
-
     for (const sale of salesToWithdraw) {
       if (remainingAmount <= 0) break;
-      
       selectedSales.push(sale.id);
       remainingAmount -= Number(sale.commissionAmount);
     }
 
-    // Criar solicitação de saque
-    const withdrawal = await prisma.affiliateWithdrawal.create({
-      data: {
-        affiliateId: affiliate.id,
-        amount: amount,
-        status: 'PENDING',
-        method: affiliate.chavePix ? 'PIX' : 'BANK_TRANSFER',
-        pixKey: affiliate.chavePix,
-        bankInfo: JSON.stringify({
-          banco: affiliate.banco,
-          agencia: affiliate.agencia,
-          conta: affiliate.conta,
-          tipoConta: affiliate.tipoConta
-        }),
-        requestedAt: new Date()
-      }
-    });
+    const newBalance = Number(account.balance) - amount;
 
-    // Marcar vendas como PAID (sendo processadas para pagamento)
-    await prisma.affiliateSale.updateMany({
-      where: {
-        id: {
-          in: selectedSales
+    // Criar solicitação de saque e deduzir saldo atomicamente
+    const [withdrawal] = await prisma.$transaction([
+      prisma.affiliateWithdrawal.create({
+        data: {
+          affiliateId: affiliate.id,
+          amount: amount,
+          status: 'PENDING',
+          method: affiliate.chavePix ? 'PIX' : 'BANK_TRANSFER',
+          pixKey: affiliate.chavePix,
+          bankInfo: JSON.stringify({
+            banco: affiliate.banco,
+            agencia: affiliate.agencia,
+            conta: affiliate.conta,
+            tipoConta: affiliate.tipoConta
+          }),
+          requestedAt: new Date()
         }
-      },
-      data: {
-        status: 'PAID'
-      }
-    });
+      }),
+      // Debitar do SellerAccount (que é o que a UI exibe)
+      prisma.sellerAccount.update({
+        where: { id: account.id },
+        data: {
+          balance: { decrement: amount },
+          totalWithdrawn: { increment: amount }
+        }
+      }),
+      // Registrar transação
+      prisma.sellerAccountTransaction.create({
+        data: {
+          accountId: account.id,
+          type: 'WITHDRAWAL',
+          amount: amount,
+          balanceBefore: Number(account.balance),
+          balanceAfter: newBalance,
+          description: `Saque solicitado via ${affiliate.chavePix ? 'PIX' : 'Transferência Bancária'}`,
+          status: 'PENDING',
+        }
+      }),
+      // Atualizar availableBalance do affiliate para manter consistência
+      prisma.affiliate.update({
+        where: { id: affiliate.id },
+        data: { totalWithdrawn: { increment: amount } }
+      }),
+      ...(selectedSales.length > 0 ? [
+        prisma.affiliateSale.updateMany({
+          where: { id: { in: selectedSales } },
+          data: { status: 'PAID' }
+        })
+      ] : [])
+    ]);
 
     return NextResponse.json({
       success: true,
