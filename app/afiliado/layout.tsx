@@ -1,6 +1,6 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -54,7 +54,7 @@ export default function AffiliateLayout({ children }: { children: React.ReactNod
   }, []);
 
   const handleLogout = () => {
-    router.push('/api/auth/signout');
+    signOut({ callbackUrl: '/' });
   };
 
   const pagesWithoutSidebar = ['/afiliado/cadastro', '/afiliado/cadastro/sucesso'];
