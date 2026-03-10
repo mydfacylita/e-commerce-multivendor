@@ -52,6 +52,107 @@ export default function AffiliateLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* ── Mobile Bottom Navigation ── FORA do container, sempre fixo ── */}
+      {shouldShowSidebar && (
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[100] bg-white border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
+          <div className="flex items-stretch">
+            {bottomNavItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex-1 flex flex-col items-center justify-center gap-0.5 pt-1 pb-3 relative transition-colors ${
+                    isActive ? 'text-primary-600' : 'text-gray-400'
+                  }`}
+                >
+                  {isActive && (
+                    <span className="absolute top-0 left-3 right-3 h-[3px] bg-primary-500 rounded-b-full" />
+                  )}
+                  <item.icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
+                  <span className={`text-[10px] ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
+                </Link>
+              );
+            })}
+            {/* Botão Mais */}
+            <button
+              onClick={() => setMoreOpen(true)}
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 pt-1 pb-3 relative transition-colors ${
+                isMoreActive ? 'text-primary-600' : 'text-gray-400'
+              }`}
+            >
+              {isMoreActive && (
+                <span className="absolute top-0 left-3 right-3 h-[3px] bg-primary-500 rounded-b-full" />
+              )}
+              <FiMoreHorizontal size={22} strokeWidth={isMoreActive ? 2.5 : 1.8} />
+              <span className={`text-[10px] ${isMoreActive ? 'font-semibold' : 'font-medium'}`}>Mais</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
+      {/* ── Bottom Sheet "Mais" ── FORA do container ── */}
+      {moreOpen && shouldShowSidebar && (
+        <div
+          className="lg:hidden fixed inset-0 z-[110] flex flex-col justify-end"
+          onClick={() => setMoreOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="relative bg-white rounded-t-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-gray-200 rounded-full" />
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                  <FiUser size={18} className="text-primary-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Afiliado</p>
+                  <p className="font-semibold text-gray-900 text-sm">{session?.user?.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setMoreOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                <FiX size={18} />
+              </button>
+            </div>
+            <nav className="px-3 pt-2 pb-1">
+              {moreItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl mb-1 transition-colors ${
+                      isActive
+                        ? 'bg-primary-50 text-primary-600 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <item.icon size={20} />
+                    <span className="flex-1">{item.label}</span>
+                    {isActive && <span className="w-2 h-2 bg-primary-500 rounded-full shrink-0" />}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="px-3 pb-8 pt-1 border-t mx-3 mt-1">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <FiLogOut size={20} />
+                Sair da conta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {shouldShowSidebar ? (
         <div className="container mx-auto px-4 pb-6">
 
@@ -122,111 +223,8 @@ export default function AffiliateLayout({ children }: { children: React.ReactNod
             </main>
           </div>
 
-          {/* ── Mobile Bottom Navigation ── */}
-          <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[100] bg-white border-t border-gray-200 shadow-[0_-2px_12px_rgba(0,0,0,0.08)]">
-            <div className="flex items-stretch">
-              {bottomNavItems.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex-1 flex flex-col items-center justify-center gap-0.5 pt-1 pb-3 relative transition-colors ${
-                      isActive ? 'text-primary-600' : 'text-gray-400'
-                    }`}
-                  >
-                    {isActive && (
-                      <span className="absolute top-0 left-3 right-3 h-[3px] bg-primary-500 rounded-b-full" />
-                    )}
-                    <item.icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
-                    <span className={`text-[10px] ${isActive ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
-                  </Link>
-                );
-              })}
-              {/* Botão Mais */}
-              <button
-                onClick={() => setMoreOpen(true)}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 pt-1 pb-3 relative transition-colors ${
-                  isMoreActive ? 'text-primary-600' : 'text-gray-400'
-                }`}
-              >
-                {isMoreActive && (
-                  <span className="absolute top-0 left-3 right-3 h-[3px] bg-primary-500 rounded-b-full" />
-                )}
-                <FiMoreHorizontal size={22} strokeWidth={isMoreActive ? 2.5 : 1.8} />
-                <span className={`text-[10px] ${isMoreActive ? 'font-semibold' : 'font-medium'}`}>Mais</span>
-              </button>
-            </div>
-          </nav>
-
-          {/* ── Bottom Sheet "Mais" ── */}
-          {moreOpen && (
-            <div
-              className="lg:hidden fixed inset-0 z-[110] flex flex-col justify-end"
-              onClick={() => setMoreOpen(false)}
-            >
-              <div className="absolute inset-0 bg-black/40" />
-              <div
-                className="relative bg-white rounded-t-2xl shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Handle */}
-                <div className="flex justify-center pt-3 pb-1">
-                  <div className="w-10 h-1 bg-gray-200 rounded-full" />
-                </div>
-
-                {/* User info */}
-                <div className="flex items-center justify-between px-5 py-3 border-b">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                      <FiUser size={18} className="text-primary-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-400">Afiliado</p>
-                      <p className="font-semibold text-gray-900 text-sm">{session?.user?.name}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setMoreOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
-                    <FiX size={18} />
-                  </button>
-                </div>
-
-                {/* Items */}
-                <nav className="px-3 pt-2 pb-1">
-                  {moreItems.map((item) => {
-                    const isActive = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setMoreOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-3.5 rounded-xl mb-1 transition-colors ${
-                          isActive
-                            ? 'bg-primary-50 text-primary-600 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <item.icon size={20} />
-                        <span className="flex-1">{item.label}</span>
-                        {isActive && <span className="w-2 h-2 bg-primary-500 rounded-full shrink-0" />}
-                      </Link>
-                    );
-                  })}
-                </nav>
-
-                {/* Logout */}
-                <div className="px-3 pb-8 pt-1 border-t mx-3 mt-1">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    <FiLogOut size={20} />
-                    Sair da conta
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+        </div>
+      ) : (
 
         </div>
       ) : (
