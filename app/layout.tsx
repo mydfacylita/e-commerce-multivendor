@@ -138,18 +138,6 @@ export default async function RootLayout({
     )
   }
 
-  // Afiliado: layout próprio sem Navbar/Footer/AIChatWidget da loja
-  const isAffiliatePage = pageType === 'affiliate'
-  if (isAffiliatePage) {
-    return (
-      <html lang="pt-BR" className={inter.className}>
-        <body className="antialiased">
-          <Providers>{children}</Providers>
-        </body>
-      </html>
-    )
-  }
-
   // Buscar IDs no server
   const gaId = await getGoogleAnalyticsId()
   const fbPixelId = await getFacebookPixelId()

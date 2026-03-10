@@ -713,14 +713,6 @@ export async function middleware(request: NextRequest) {
     return setCorsHeaders(response, origin)
   }
 
-  // Rotas de afiliado — layout próprio, sem Navbar/Footer da loja
-  if (pathname.startsWith('/afiliado')) {
-    const reqHeadersAffiliate = new Headers(request.headers)
-    reqHeadersAffiliate.set('x-page-type', 'affiliate')
-    const affiliateRes = NextResponse.next({ request: { headers: reqHeadersAffiliate } })
-    return setSecurityHeaders(affiliateRes, true)
-  }
-
   // Rotas protegidas de vendedor
   if (pathname.startsWith('/vendedor')) {
     // Rotas que não precisam ser SELLER (cadastro inicial e escolha de planos)
