@@ -82,7 +82,7 @@ export default function PagamentosPage() {
   const [expandido, setExpandido] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'pagamentos' | 'saques'>('saques')
   
-  // Estados para saques
+  // Estados para saques de vendedores
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [statsWithdrawals, setStatsWithdrawals] = useState<any[]>([])
   const [filterStatus, setFilterStatus] = useState('')
@@ -93,6 +93,18 @@ export default function PagamentosPage() {
   const [rejectionReason, setRejectionReason] = useState('')
   const [transactionId, setTransactionId] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Estados para saques de afiliados
+  const [affiliateWithdrawals, setAffiliateWithdrawals] = useState<any[]>([])
+  const [affiliateStats, setAffiliateStats] = useState<any[]>([])
+  const [affiliateFilterStatus, setAffiliateFilterStatus] = useState('')
+  const [selectedAffiliateWithdrawal, setSelectedAffiliateWithdrawal] = useState<any | null>(null)
+  const [showAffiliateModal, setShowAffiliateModal] = useState(false)
+  const [affiliateActionType, setAffiliateActionType] = useState<'aprovar' | 'rejeitar' | 'concluir' | null>(null)
+  const [affiliateAdminNote, setAffiliateAdminNote] = useState('')
+  const [affiliateRejectionReason, setAffiliateRejectionReason] = useState('')
+  const [affiliateTransactionId, setAffiliateTransactionId] = useState('')
+  const [affiliateSubmitting, setAffiliateSubmitting] = useState(false)
   
   // Estados para pagamentos em massa
   const [selectedPayments, setSelectedPayments] = useState<string[]>([])
@@ -103,7 +115,8 @@ export default function PagamentosPage() {
   useEffect(() => {
     loadData()
     loadWithdrawals()
-  }, [filterStatus])
+    loadAffiliateWithdrawals()
+  }, [filterStatus, affiliateFilterStatus])
 
   async function loadData() {
     try {
@@ -148,7 +161,7 @@ export default function PagamentosPage() {
     }
   }
 
-  // Funções para saques
+  // Funções para saques de vendedores
   const loadWithdrawals = async () => {
     try {
       const url = filterStatus 
@@ -163,6 +176,81 @@ export default function PagamentosPage() {
       }
     } catch (error) {
       console.error('Erro ao carregar saques:', error)
+    }
+  }
+
+  // Funções para saques de afiliados
+  const loadAffiliateWithdrawals = async () => {
+    try {
+      const url = affiliateFilterStatus
+        ? `/api/admin/saques/afiliados?status=${affiliateFilterStatus}`
+        : '/api/admin/saques/afiliados'
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json()
+        setAffiliateWithdrawals(data.withdrawals)
+        setAffiliateStats(data.stats)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar saques de afiliados:', error)
+    }
+  }
+
+  const getAffiliateCountByStatus = (status: string) => {
+    const s = affiliateStats.find((x: any) => x.status === status)
+    return s ? s._count : 0
+  }
+
+  const getAffiliateTotalByStatus = (status: string) => {
+    const s = affiliateStats.find((x: any) => x.status === status)
+    return s ? (s._sum?.amount || 0) : 0
+  }
+
+  const openAffiliateModal = (w: any, action: 'aprovar' | 'rejeitar' | 'concluir') => {
+    setSelectedAffiliateWithdrawal(w)
+    setAffiliateActionType(action)
+    setShowAffiliateModal(true)
+    setAffiliateAdminNote('')
+    setAffiliateRejectionReason('')
+    setAffiliateTransactionId('')
+  }
+
+  const closeAffiliateModal = () => {
+    setShowAffiliateModal(false)
+    setSelectedAffiliateWithdrawal(null)
+    setAffiliateActionType(null)
+  }
+
+  const handleAffiliateAction = async () => {
+    if (!selectedAffiliateWithdrawal || !affiliateActionType) return
+    if (affiliateActionType === 'rejeitar' && !affiliateRejectionReason) {
+      alert('Motivo da rejeição é obrigatório')
+      return
+    }
+    setAffiliateSubmitting(true)
+    try {
+      const res = await fetch(`/api/admin/saques/afiliados/${selectedAffiliateWithdrawal.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: affiliateActionType,
+          adminNote: affiliateAdminNote,
+          rejectionReason: affiliateRejectionReason,
+          transactionId: affiliateTransactionId
+        })
+      })
+      const result = await res.json()
+      if (res.ok) {
+        alert(result.message || 'Ação realizada com sucesso!')
+        closeAffiliateModal()
+        loadAffiliateWithdrawals()
+      } else {
+        alert(result.error || 'Erro ao processar ação')
+      }
+    } catch (error) {
+      alert('Erro ao processar ação')
+    } finally {
+      setAffiliateSubmitting(false)
     }
   }
 
@@ -350,175 +438,180 @@ export default function PagamentosPage() {
         </div>
       </div>
 
-      {/* Conteúdo - Pagamentos */}
+      {/* Conteúdo - Saques Afiliados */}
       {activeTab === 'pagamentos' && (
         <>
-          {/* Cards de Resumo Pagamentos */}
+          {/* Cards de Resumo */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="text-sm text-yellow-600 mb-1">Pendentes</div>
+              <div className="text-xl font-bold text-yellow-700">{getAffiliateCountByStatus('PENDING')}</div>
+              <div className="text-sm text-yellow-600">R$ {getAffiliateTotalByStatus('PENDING').toFixed(2)}</div>
+            </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="text-sm text-blue-600 mb-1">Aprovados (Pagar)</div>
-              <div className="text-xl font-bold text-blue-700">
-                {getCountByStatus('APPROVED')}
-              </div>
-              <div className="text-sm text-blue-600">
-                R$ {getTotalByStatus('APPROVED').toFixed(2)}
-              </div>
+              <div className="text-xl font-bold text-blue-700">{getAffiliateCountByStatus('APPROVED')}</div>
+              <div className="text-sm text-blue-600">R$ {getAffiliateTotalByStatus('APPROVED').toFixed(2)}</div>
             </div>
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
               <div className="text-sm text-purple-600 mb-1">Processando</div>
-              <div className="text-xl font-bold text-purple-700">
-                {getCountByStatus('PROCESSING')}
-              </div>
-              <div className="text-sm text-purple-600">
-                R$ {getTotalByStatus('PROCESSING').toFixed(2)}
-              </div>
+              <div className="text-xl font-bold text-purple-700">{getAffiliateCountByStatus('PROCESSING')}</div>
+              <div className="text-sm text-purple-600">R$ {getAffiliateTotalByStatus('PROCESSING').toFixed(2)}</div>
             </div>
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="text-sm text-green-600 mb-1">Pagos Hoje</div>
-              <div className="text-xl font-bold text-green-700">
-                {withdrawals.filter(w => w.status === 'COMPLETED' && new Date(w.processedAt || '').toDateString() === new Date().toDateString()).length}
-              </div>
-              <div className="text-sm text-green-600">
-                R$ {withdrawals.filter(w => w.status === 'COMPLETED' && new Date(w.processedAt || '').toDateString() === new Date().toDateString()).reduce((sum, w) => sum + w.amount, 0).toFixed(2)}
-              </div>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <div className="text-sm text-gray-600 mb-1">Selecionados</div>
-              <div className="text-xl font-bold text-gray-700">
-                {selectedPayments.length}
-              </div>
-              <div className="text-sm text-gray-600">
-                R$ {withdrawals.filter(w => selectedPayments.includes(w.id)).reduce((sum, w) => sum + w.amount, 0).toFixed(2)}
-              </div>
+              <div className="text-sm text-green-600 mb-1">Concluídos</div>
+              <div className="text-xl font-bold text-green-700">{getAffiliateCountByStatus('COMPLETED')}</div>
+              <div className="text-sm text-green-600">R$ {getAffiliateTotalByStatus('COMPLETED').toFixed(2)}</div>
             </div>
           </div>
 
-          {/* Botões de Ação em Massa */}
-          <div className="mb-6 flex gap-3">
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              disabled={selectedPayments.length === 0}
-              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          {/* Filtro */}
+          <div className="mb-4">
+            <select
+              value={affiliateFilterStatus}
+              onChange={(e) => setAffiliateFilterStatus(e.target.value)}
+              className="px-4 py-2 border rounded-lg text-sm"
             >
-              Processar Pagamentos ({selectedPayments.length})
-            </button>
-            <button
-              onClick={toggleSelectAll}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              {selectedPayments.length === withdrawals.filter(w => w.status === 'APPROVED' || w.status === 'PROCESSING').length ? 'Desmarcar Todos' : 'Selecionar Todos'}
-            </button>
+              <option value="">Todos os status</option>
+              <option value="PENDING">Pendentes</option>
+              <option value="APPROVED">Aprovados</option>
+              <option value="PROCESSING">Processando</option>
+              <option value="COMPLETED">Concluídos</option>
+              <option value="REJECTED">Rejeitados</option>
+            </select>
           </div>
 
-          {/* Lista de Pagamentos */}
+          {/* Tabela de saques de afiliados */}
           <div className="bg-white border rounded-lg overflow-hidden">
-            {withdrawals.filter(w => w.status === 'APPROVED' || w.status === 'PROCESSING').length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                Nenhum pagamento pendente
-              </div>
+            {affiliateWithdrawals.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">Nenhum saque de afiliado encontrado</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b">
                     <tr>
-                      <th className="px-4 py-3 text-left">
-                        <input
-                          type="checkbox"
-                          checked={selectedPayments.length > 0 && selectedPayments.length === withdrawals.filter(w => w.status === 'APPROVED' || w.status === 'PROCESSING').length}
-                          onChange={toggleSelectAll}
-                          className="w-4 h-4"
-                        />
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Afiliado</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Método</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dados</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chave PIX</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ação</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {withdrawals
-                      .filter(w => w.status === 'APPROVED' || w.status === 'PROCESSING')
-                      .map((withdrawal) => (
-                        <tr key={withdrawal.id} className={`hover:bg-gray-50 ${selectedPayments.includes(withdrawal.id) ? 'bg-blue-50' : ''}`}>
-                          <td className="px-4 py-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedPayments.includes(withdrawal.id)}
-                              onChange={() => togglePaymentSelection(withdrawal.id)}
-                              className="w-4 h-4"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium">{withdrawal.seller.storeName}</div>
-                            <div className="text-sm text-gray-500">{withdrawal.seller.user.name}</div>
-                            <div className="text-xs text-gray-500">{withdrawal.seller.user.email}</div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap font-bold text-lg">
-                            R$ {withdrawal.amount.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
-                              {withdrawal.paymentMethod}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            {withdrawal.paymentMethod === 'PIX' && withdrawal.pixKey ? (
-                              <div className="text-sm">
-                                <div className="font-medium">{withdrawal.pixKeyType}</div>
-                                <div className="text-blue-600 font-mono">{withdrawal.pixKey}</div>
-                              </div>
-                            ) : (
-                              <div className="text-xs">
-                                <div>{withdrawal.bankName}</div>
-                                <div>Ag: {withdrawal.agencia} | Conta: {withdrawal.conta}</div>
-                                <div className="text-gray-500">{withdrawal.contaTipo}</div>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs rounded-full ${STATUS_COLORS[withdrawal.status]}`}>
-                              {STATUS_LABELS[withdrawal.status]}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={async () => {
-                                if (!confirm(`Enviar R$ ${withdrawal.amount.toFixed(2)} via Nubank PJ para ${withdrawal.seller.storeName}?\n\nChave PIX: ${withdrawal.pixKey}`)) return
-                                
-                                try {
-                                  const res = await fetch(`/api/admin/saques/${withdrawal.id}/pagar`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ adminNote: 'Pagamento individual via Nubank PJ' })
-                                  })
-                                  
-                                  const result = await res.json()
-                                  
-                                  if (res.ok) {
-                                    alert(`✅ Pagamento enviado via Nubank PJ!\n\nID Transação: ${result.nubankTransactionId}\nStatus: ${result.transferStatus}`)
-                                    loadWithdrawals()
-                                  } else {
-                                    alert(`❌ Erro: ${result.error}\n${result.details || ''}`)
-                                  }
-                                } catch (error) {
-                                  alert('Erro ao processar pagamento')
-                                }
-                              }}
-                              className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 text-sm font-medium"
-                            >
-                              🟣 Pagar via Nubank
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                    {affiliateWithdrawals.map((w) => (
+                      <tr key={w.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm whitespace-nowrap">
+                          {new Date(w.requestedAt).toLocaleDateString('pt-BR')}
+                          <div className="text-xs text-gray-500">{new Date(w.requestedAt).toLocaleTimeString('pt-BR')}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{w.affiliate.name}</div>
+                          <div className="text-sm text-gray-500">{w.affiliate.email}</div>
+                          {w.affiliate.account && (
+                            <div className="text-xs text-gray-400">Saldo: R$ {Number(w.affiliate.account.balance).toFixed(2)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap font-bold text-lg">
+                          R$ {Number(w.amount).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {w.pixKey ? (
+                            <div className="text-sm font-mono text-blue-600">{w.pixKey}</div>
+                          ) : w.bankInfo ? (
+                            (() => {
+                              try {
+                                const b = JSON.parse(w.bankInfo)
+                                return <div className="text-xs text-gray-600">{b.banco}<br/>Ag: {b.agencia} / {b.conta}</div>
+                              } catch {
+                                return <span className="text-gray-400">-</span>
+                              }
+                            })()
+                          ) : <span className="text-gray-400">-</span>}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs rounded-full ${STATUS_COLORS[w.status] || 'bg-gray-100 text-gray-800'}`}>
+                            {STATUS_LABELS[w.status] || w.status}
+                          </span>
+                          {w.rejectionReason && <div className="text-xs text-red-600 mt-1">{w.rejectionReason}</div>}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm">
+                          {w.status === 'PENDING' && (
+                            <div className="flex gap-2">
+                              <button onClick={() => openAffiliateModal(w, 'aprovar')} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Aprovar</button>
+                              <button onClick={() => openAffiliateModal(w, 'rejeitar')} className="text-red-600 hover:text-red-800 text-xs font-medium">Rejeitar</button>
+                            </div>
+                          )}
+                          {(w.status === 'APPROVED' || w.status === 'PROCESSING') && (
+                            <button onClick={() => openAffiliateModal(w, 'concluir')} className="text-green-600 hover:text-green-800 text-xs font-medium">Concluir / Pago</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
         </>
+      )}
+
+      {/* Modal Ação Afiliado */}
+      {showAffiliateModal && selectedAffiliateWithdrawal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold mb-4">
+              {affiliateActionType === 'aprovar' ? 'Aprovar Saque' : affiliateActionType === 'rejeitar' ? 'Rejeitar Saque' : 'Concluir Saque'}
+            </h2>
+            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2 text-sm">
+              <div><strong>Afiliado:</strong> {selectedAffiliateWithdrawal.affiliate.name}</div>
+              <div><strong>E-mail:</strong> {selectedAffiliateWithdrawal.affiliate.email}</div>
+              <div><strong>Valor:</strong> R$ {Number(selectedAffiliateWithdrawal.amount).toFixed(2)}</div>
+              <div><strong>PIX:</strong> {selectedAffiliateWithdrawal.pixKey || 'Não informado'}</div>
+            </div>
+            {affiliateActionType === 'rejeitar' && (
+              <textarea
+                value={affiliateRejectionReason}
+                onChange={e => setAffiliateRejectionReason(e.target.value)}
+                placeholder="Motivo da rejeição *"
+                className="w-full border rounded-lg p-2 mb-3 text-sm"
+                rows={3}
+              />
+            )}
+            {affiliateActionType === 'concluir' && (
+              <input
+                type="text"
+                value={affiliateTransactionId}
+                onChange={e => setAffiliateTransactionId(e.target.value)}
+                placeholder="ID da transação (opcional)"
+                className="w-full border rounded-lg p-2 mb-3 text-sm"
+              />
+            )}
+            <textarea
+              value={affiliateAdminNote}
+              onChange={e => setAffiliateAdminNote(e.target.value)}
+              placeholder="Observação (opcional)"
+              className="w-full border rounded-lg p-2 mb-4 text-sm"
+              rows={2}
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleAffiliateAction}
+                disabled={affiliateSubmitting}
+                className={`flex-1 text-white py-2 rounded-lg disabled:opacity-50 ${affiliateActionType === 'aprovar' ? 'bg-blue-600 hover:bg-blue-700' : affiliateActionType === 'rejeitar' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+              >
+                {affiliateSubmitting ? 'Processando...' : 'Confirmar'}
+              </button>
+              <button
+                onClick={closeAffiliateModal}
+                disabled={affiliateSubmitting}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 py-2 rounded-lg"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Conteúdo - Saques Vendedores */}
