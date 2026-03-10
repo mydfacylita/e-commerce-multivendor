@@ -1586,7 +1586,8 @@ model Affiliate {
   account          SellerAccount?
   kits             AffiliateKitAssignment[]
   goals            AffiliateGoal[]
-  campaignPosts    AffiliateCampaignPost[]
+  campaignPosts          AffiliateCampaignPost[]
+  campaignParticipations  AffiliateCampaignParticipant[]
 
   @@index([code])
   @@index([status])
@@ -1741,10 +1742,25 @@ model AffiliateCampaign {
   createdAt    DateTime                 @default(now())
   updatedAt    DateTime                 @updatedAt
   posts        AffiliateCampaignPost[]
+  participants AffiliateCampaignParticipant[]
 
   @@index([isActive])
   @@index([startDate, endDate])
   @@map("affiliate_campaign")
+}
+
+model AffiliateCampaignParticipant {
+  id          String            @id @default(cuid())
+  campaignId  String
+  affiliateId String
+  invitedAt   DateTime          @default(now())
+  campaign    AffiliateCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  affiliate   Affiliate         @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, affiliateId])
+  @@index([campaignId])
+  @@index([affiliateId])
+  @@map("affiliate_campaign_participant")
 }
 
 model AffiliateCampaignPost {
@@ -1754,6 +1770,7 @@ model AffiliateCampaignPost {
   postUrl      String              @db.VarChar(500)
   platform     String              @default("INSTAGRAM")
   caption      String?             @db.Text
+  postType     String              @default("POST") // REEL | POST | STORY
   status       CampaignPostStatus  @default(PENDING)
   adminNotes   String?             @db.Text
   submittedAt  DateTime            @default(now())
@@ -1761,7 +1778,7 @@ model AffiliateCampaignPost {
   campaign     AffiliateCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   affiliate    Affiliate           @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
 
-  @@unique([campaignId, affiliateId])
+  @@unique([campaignId, affiliateId, postType])
   @@index([campaignId])
   @@index([affiliateId])
   @@index([status])

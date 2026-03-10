@@ -26,21 +26,33 @@ export async function GET(req: NextRequest) {
       where: {
         isActive: true,
         startDate: { lte: now },
-        endDate: { gte: now }
+        endDate: { gte: now },
+        participants: {
+          some: { affiliateId: affiliate.id }
+        }
       },
       include: {
         posts: {
           where: { affiliateId: affiliate.id },
-          select: { id: true, status: true, postUrl: true, adminNotes: true, submittedAt: true }
+          select: { id: true, postType: true, status: true, postUrl: true, adminNotes: true, submittedAt: true }
         },
-        _count: { select: { posts: true } }
+        _count: { select: { participants: true } }
       },
       orderBy: { endDate: 'asc' }
     });
 
-    // Map post submission status per affiliate
+    // Map post submission status per affiliate per type
     const result = campaigns.map((campaign) => {
-      const myPost = campaign.posts[0] ?? null;
+      const myPosts: Record<string, { id: string; status: string; postUrl: string; adminNotes: string | null; submittedAt: string }> = {};
+      campaign.posts.forEach((p) => {
+        myPosts[p.postType] = {
+          id: p.id,
+          status: p.status,
+          postUrl: p.postUrl,
+          adminNotes: p.adminNotes,
+          submittedAt: p.submittedAt.toISOString()
+        };
+      });
       return {
         id: campaign.id,
         title: campaign.title,
@@ -54,8 +66,8 @@ export async function GET(req: NextRequest) {
         storiesCount: campaign.storiesCount ?? 0,
         startDate: campaign.startDate,
         endDate: campaign.endDate,
-        totalPosts: campaign._count.posts,
-        myPost
+        totalParticipants: campaign._count.participants,
+        myPosts
       };
     });
 

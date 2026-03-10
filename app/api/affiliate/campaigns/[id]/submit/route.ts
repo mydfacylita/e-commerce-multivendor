@@ -34,7 +34,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const data = await req.json();
-    const { postUrl, caption } = data;
+    const { postUrl, caption, postType } = data;
+    const type = ['REEL', 'POST', 'STORY'].includes(postType) ? postType : 'POST';
 
     if (!postUrl?.trim()) {
       return NextResponse.json({ error: 'URL do post é obrigatória' }, { status: 400 });
@@ -47,13 +48,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'URL do post inválida' }, { status: 400 });
     }
 
-    // Upsert: allow updating submission if still REJECTED, otherwise block re-submission
-    const existing = await prisma.affiliateCampaignPost.findUnique({
+    // Check if affiliate is a participant
+    const participation = await prisma.affiliateCampaignParticipant.findUnique({
       where: { campaignId_affiliateId: { campaignId: params.id, affiliateId: affiliate.id } }
+    });
+    if (!participation) {
+      return NextResponse.json({ error: 'Você não está inscrito nesta campanha' }, { status: 403 });
+    }
+
+    // Upsert by type: allow updating if still REJECTED
+    const existing = await prisma.affiliateCampaignPost.findUnique({
+      where: { campaignId_affiliateId_postType: { campaignId: params.id, affiliateId: affiliate.id, postType: type } }
     });
 
     if (existing && existing.status !== 'REJECTED') {
-      return NextResponse.json({ error: 'Você já enviou um post para esta campanha' }, { status: 409 });
+      return NextResponse.json({ error: 'Você já enviou um post deste tipo para esta campanha' }, { status: 409 });
     }
 
     let post;
@@ -76,6 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           affiliateId: affiliate.id,
           postUrl: postUrl.trim(),
           caption: caption?.trim() || null,
+          postType: type,
           platform: 'INSTAGRAM',
           status: 'PENDING'
         }

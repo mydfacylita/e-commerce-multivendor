@@ -31,8 +31,8 @@ interface Campaign {
   storiesCount: number;
   startDate: string;
   endDate: string;
-  totalPosts: number;
-  myPost: MyPost | null;
+  totalParticipants: number;
+  myPosts: Record<string, MyPost>;
 }
 
 function fmt(date: string) {
@@ -53,8 +53,9 @@ const STATUS_INFO: Record<string, { label: string; color: string; icon: React.Re
 export default function AffiliateCampanhasPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitState, setSubmitState] = useState<Record<string, { url: string; caption: string; open: boolean }>>({});
-  const [submitting, setSubmitting] = useState<string | null>(null);
+  // submitState: campaignId -> postType -> url string
+  const [submitState, setSubmitState] = useState<Record<string, Record<string, string>>>({});
+  const [submitting, setSubmitting] = useState<string | null>(null); // "campaignId_postType"
 
   useEffect(() => {
     fetch('/api/affiliate/campaigns')
@@ -63,41 +64,39 @@ export default function AffiliateCampanhasPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  function getSubmit(id: string) {
-    return submitState[id] ?? { url: '', caption: '', open: false };
+  function getUrl(campaignId: string, postType: string) {
+    return submitState[campaignId]?.[postType] ?? '';
   }
 
-  function setSubmit(id: string, patch: Partial<{ url: string; caption: string; open: boolean }>) {
-    setSubmitState((prev) => ({ ...prev, [id]: { ...getSubmit(id), ...patch } }));
+  function setUrl(campaignId: string, postType: string, url: string) {
+    setSubmitState((prev) => ({
+      ...prev,
+      [campaignId]: { ...(prev[campaignId] ?? {}), [postType]: url }
+    }));
   }
 
-  async function handleSubmit(campaign: Campaign) {
-    const s = getSubmit(campaign.id);
-    if (!s.url.trim()) {
-      toast.error('Informe a URL do post');
-      return;
-    }
-    setSubmitting(campaign.id);
+  async function handleSubmit(campaign: Campaign, postType: string) {
+    const url = getUrl(campaign.id, postType).trim();
+    if (!url) { toast.error('Informe a URL do post'); return; }
+    const key = `${campaign.id}_${postType}`;
+    setSubmitting(key);
     try {
       const res = await fetch(`/api/affiliate/campaigns/${campaign.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postUrl: s.url.trim(), caption: s.caption.trim() || null }),
+        body: JSON.stringify({ postUrl: url, postType }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? 'Erro ao enviar post');
-        return;
-      }
-      toast.success('Post enviado! Aguarde a revisão da equipe.');
+      if (!res.ok) { toast.error(data.error ?? 'Erro ao enviar post'); return; }
+      toast.success('Link enviado! Aguarde a revisão.');
       setCampaigns((prev) =>
         prev.map((c) =>
           c.id === campaign.id
-            ? { ...c, myPost: data.post, totalPosts: c.myPost ? c.totalPosts : c.totalPosts + 1 }
+            ? { ...c, myPosts: { ...c.myPosts, [postType]: data.post } }
             : c
         )
       );
-      setSubmit(campaign.id, { open: false, url: '', caption: '' });
+      setUrl(campaign.id, postType, '');
     } finally {
       setSubmitting(null);
     }
@@ -135,8 +134,6 @@ export default function AffiliateCampanhasPage() {
         <div className="space-y-5">
           {campaigns.map((c) => {
             const days = daysLeft(c.endDate);
-            const s = getSubmit(c.id);
-            const canResubmit = c.myPost?.status === 'REJECTED';
 
             return (
               <div key={c.id} className="bg-white rounded-xl shadow border border-gray-100 overflow-hidden">
@@ -191,7 +188,7 @@ export default function AffiliateCampanhasPage() {
                   )}
 
                   {/* Stats */}
-                  <p className="text-xs text-gray-400">{c.totalPosts} influenciador{c.totalPosts !== 1 ? 'es' : ''} participando</p>
+                  <p className="text-xs text-gray-400">{c.totalParticipants} influenciador{c.totalParticipants !== 1 ? 'es' : ''} participando</p>
                 </div>
 
                 {/* Content guide */}
@@ -226,99 +223,75 @@ export default function AffiliateCampanhasPage() {
                   </div>
                 )}
 
-                {/* My post status OR submission form */}
-                <div className="px-5 pb-5">
-                  {c.myPost && !canResubmit ? (
-                    // Post already submitted and not rejected
-                    <div className={`rounded-lg p-4 ${c.myPost.status === 'APPROVED' ? 'bg-green-50 border border-green-100' : 'bg-yellow-50 border border-yellow-100'}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_INFO[c.myPost.status]?.color}`}>
-                          {STATUS_INFO[c.myPost.status]?.icon}
-                          {STATUS_INFO[c.myPost.status]?.label}
-                        </span>
-                      </div>
-                      <a
-                        href={c.myPost.postUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline flex items-center gap-1 mb-1"
-                      >
-                        <FiExternalLink size={13} /> {c.myPost.postUrl}
-                      </a>
-                      {c.myPost.adminNotes && (
-                        <p className="text-xs text-gray-600 mt-2">
-                          <span className="font-medium">Nota da equipe:</span> {c.myPost.adminNotes}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    // Show form (either no submission yet, or rejected and can resubmit)
-                    <>
-                      {canResubmit && (
-                        <div className="mb-3 bg-red-50 border border-red-100 rounded-lg p-3">
-                          <p className="text-xs text-red-600 font-medium mb-0.5">Post rejeitado</p>
-                          {c.myPost?.adminNotes && (
-                            <p className="text-xs text-red-500">Motivo: {c.myPost.adminNotes}</p>
-                          )}
-                          <p className="text-xs text-red-600 mt-1">Corrija seu post e envie novamente.</p>
-                        </div>
-                      )}
+                {/* Envio de links por tipo */}
+                <div className="px-5 pb-5 space-y-3">
+                  {[
+                    ...(c.reelsCount > 0 ? [{ type: 'REEL', emoji: '🎬', label: 'Reel', color: 'red' }] : []),
+                    ...(c.postsCount > 0 ? [{ type: 'POST', emoji: '🖼️', label: 'Post no Feed', color: 'blue' }] : []),
+                    ...(c.storiesCount > 0 ? [{ type: 'STORY', emoji: '📱', label: 'Story', color: 'purple' }] : []),
+                  ].map(({ type, emoji, label, color }) => {
+                    const myPost = c.myPosts[type];
+                    const key = `${c.id}_${type}`;
+                    const isSubmitting = submitting === key;
+                    const canResubmit = myPost?.status === 'REJECTED';
 
-                      {!s.open && !canResubmit ? (
-                        <button
-                          onClick={() => setSubmit(c.id, { open: true })}
-                          className="w-full bg-pink-600 text-white py-2.5 rounded-lg hover:bg-pink-700 transition-colors flex items-center justify-center gap-2 font-medium"
-                        >
-                          <FiCamera size={16} /> Participar e Enviar Post
-                        </button>
-                      ) : (
-                        <div className="space-y-3">
+                    const borderColor = color === 'red' ? 'border-red-100' : color === 'blue' ? 'border-blue-100' : 'border-purple-100';
+                    const bgColor = color === 'red' ? 'bg-red-50' : color === 'blue' ? 'bg-blue-50' : 'bg-purple-50';
+                    const textColor = color === 'red' ? 'text-red-700' : color === 'blue' ? 'text-blue-700' : 'text-purple-700';
+
+                    return (
+                      <div key={type} className={`rounded-lg border p-4 ${borderColor} ${bgColor}`}>
+                        <p className={`text-xs font-semibold ${textColor} mb-2`}>{emoji} {label}</p>
+
+                        {myPost && !canResubmit ? (
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              URL do Post no Instagram *
-                            </label>
-                            <input
-                              type="url"
-                              value={s.url}
-                              onChange={(e) => setSubmit(c.id, { url: e.target.value })}
-                              placeholder="https://www.instagram.com/p/..."
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Legenda do Post <span className="text-gray-400 font-normal">(opcional)</span>
-                            </label>
-                            <textarea
-                              value={s.caption}
-                              onChange={(e) => setSubmit(c.id, { caption: e.target.value })}
-                              rows={3}
-                              placeholder="Cole a legenda que você usou no post..."
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            {!canResubmit && (
-                              <button
-                                type="button"
-                                onClick={() => setSubmit(c.id, { open: false, url: '', caption: '' })}
-                                className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                              >
-                                Cancelar
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleSubmit(c)}
-                              disabled={submitting === c.id}
-                              className="flex-1 bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition-colors flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50"
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_INFO[myPost.status]?.color}`}>
+                                {STATUS_INFO[myPost.status]?.icon}
+                                {STATUS_INFO[myPost.status]?.label}
+                              </span>
+                            </div>
+                            <a href={myPost.postUrl} target="_blank" rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                             >
-                              <FiSend size={14} />
-                              {submitting === c.id ? 'Enviando…' : 'Enviar para Revisão'}
-                            </button>
+                              <FiExternalLink size={13} /> {myPost.postUrl}
+                            </a>
+                            {myPost.adminNotes && (
+                              <p className="text-xs text-gray-600 mt-1"><span className="font-medium">Nota:</span> {myPost.adminNotes}</p>
+                            )}
                           </div>
-                        </div>
-                      )}
-                    </>
+                        ) : (
+                          <div className="space-y-2">
+                            {canResubmit && (
+                              <div className="mb-2 bg-red-100 rounded p-2">
+                                <p className="text-xs text-red-600 font-medium">Rejeitado — corrija e reenvie</p>
+                                {myPost?.adminNotes && <p className="text-xs text-red-500">Motivo: {myPost.adminNotes}</p>}
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <input
+                                type="url"
+                                value={getUrl(c.id, type)}
+                                onChange={(e) => setUrl(c.id, type, e.target.value)}
+                                placeholder={`https://www.instagram.com/${type === 'REEL' ? 'reel' : type === 'STORY' ? 'stories' : 'p'}/...`}
+                                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white"
+                              />
+                              <button
+                                onClick={() => handleSubmit(c, type)}
+                                disabled={isSubmitting || !getUrl(c.id, type).trim()}
+                                className="shrink-0 bg-pink-600 text-white px-3 py-2 rounded-lg hover:bg-pink-700 transition-colors flex items-center gap-1 text-sm font-medium disabled:opacity-50"
+                              >
+                                <FiSend size={14} />
+                                {isSubmitting ? '…' : 'Enviar'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {c.reelsCount === 0 && c.postsCount === 0 && c.storiesCount === 0 && (
+                    <p className="text-center text-gray-400 text-sm py-2">Nenhuma meta de conteúdo definida para esta campanha</p>
                   )}
                 </div>
               </div>

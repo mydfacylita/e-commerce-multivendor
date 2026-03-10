@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { FiCamera, FiPlus, FiEdit2, FiTrash2, FiToggleLeft, FiToggleRight, FiX, FiCheck, FiXCircle, FiExternalLink, FiChevronDown, FiChevronUp, FiLink, FiVideo, FiImage, FiFileText, FiUpload } from 'react-icons/fi';
+import { FiCamera, FiPlus, FiEdit2, FiTrash2, FiToggleLeft, FiToggleRight, FiX, FiCheck, FiXCircle, FiExternalLink, FiChevronDown, FiChevronUp, FiLink, FiVideo, FiImage, FiFileText, FiUpload, FiUsers, FiSearch, FiUserPlus, FiUserMinus } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 interface Post {
   id: string;
   postUrl: string;
+  postType: string;
   platform: string;
   caption: string | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -14,6 +15,28 @@ interface Post {
   submittedAt: string;
   reviewedAt: string | null;
   affiliate: { id: string; name: string; email: string; instagram: string | null };
+}
+
+interface PostSubmission {
+  id: string;
+  postType: string;
+  postUrl: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  submittedAt: string;
+  adminNotes: string | null;
+}
+
+interface Participant {
+  id: string;
+  invitedAt: string;
+  affiliate: {
+    id: string;
+    name: string;
+    email: string;
+    instagram: string | null;
+    code: string;
+    campaignPosts: PostSubmission[];
+  };
 }
 
 interface Material {
@@ -80,8 +103,16 @@ export default function AdminCampanhasPage() {
 
   // Posts review state
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Record<string, 'participants' | 'posts'>>({});
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [affiliateSearch, setAffiliateSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<{ id: string; name: string; email: string; code: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [reviewingPostId, setReviewingPostId] = useState<string | null>(null);
   const [newMaterial, setNewMaterial] = useState<Material>({ type: 'video', url: '', title: '' });
@@ -99,18 +130,105 @@ export default function AdminCampanhasPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  function getTab(id: string): 'participants' | 'posts' {
+    return activeTab[id] ?? 'participants';
+  }
+
   async function toggleExpand(id: string) {
     if (expandedId === id) {
       setExpandedId(null);
       return;
     }
     setExpandedId(id);
+    setAffiliateSearch('');
+    setSearchResults([]);
+    // Load participants (default tab)
+    setLoadingParticipants(true);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${id}/participants`);
+      if (res.ok) setParticipants((await res.json()).participants ?? []);
+    } finally {
+      setLoadingParticipants(false);
+    }
+  }
+
+  async function loadPosts(id: string) {
     setLoadingPosts(true);
     try {
       const res = await fetch(`/api/admin/campaigns/${id}/posts`);
       if (res.ok) setPosts((await res.json()).posts ?? []);
     } finally {
       setLoadingPosts(false);
+    }
+  }
+
+  async function switchTab(id: string, tab: 'participants' | 'posts') {
+    setActiveTab((prev) => ({ ...prev, [id]: tab }));
+    if (tab === 'posts' && posts.length === 0) {
+      await loadPosts(id);
+    }
+    if (tab === 'participants' && participants.length === 0) {
+      setLoadingParticipants(true);
+      const res = await fetch(`/api/admin/campaigns/${id}/participants`);
+      if (res.ok) setParticipants((await res.json()).participants ?? []);
+      setLoadingParticipants(false);
+    }
+  }
+
+  async function searchAffiliates(query: string) {
+    if (!query.trim()) { setSearchResults([]); return; }
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/admin/affiliates?search=${encodeURIComponent(query)}&status=APPROVED&limit=8`);
+      if (res.ok) {
+        const d = await res.json();
+        setSearchResults((d.affiliates ?? []).map((a: any) => ({ id: a.id, name: a.name, email: a.email, code: a.code })));
+      }
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function addParticipant(campaignId: string, affiliateId: string) {
+    setAddingId(affiliateId);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaignId}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ affiliateId })
+      });
+      const d = await res.json();
+      if (!res.ok) { toast.error(d.error ?? 'Erro ao adicionar'); return; }
+      toast.success('Influenciador adicionado!');
+      setParticipants((prev) => [d.participant, ...prev]);
+      setSearchResults((prev) => prev.filter((a) => a.id !== affiliateId));
+      setAffiliateSearch('');
+      setSearchResults([]);
+      // Update count on campaign
+      load();
+    } finally {
+      setAddingId(null);
+    }
+  }
+
+  async function removeParticipant(campaignId: string, affiliateId: string) {
+    if (!confirm('Remover este influenciador da campanha?')) return;
+    setRemovingId(affiliateId);
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaignId}/participants`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ affiliateId })
+      });
+      if (res.ok) {
+        toast.success('Influenciador removido');
+        setParticipants((prev) => prev.filter((p) => p.affiliate.id !== affiliateId));
+        load();
+      } else {
+        toast.error('Erro ao remover');
+      }
+    } finally {
+      setRemovingId(null);
     }
   }
 
@@ -336,92 +454,226 @@ export default function AdminCampanhasPage() {
                         onClick={() => toggleExpand(c.id)}
                         className="flex items-center gap-1 text-pink-600 hover:text-pink-700 text-sm font-medium"
                       >
-                        Posts {isOpen ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+                        <FiUsers size={15} /> {isOpen ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
                       </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Posts panel */}
-                {isOpen && (
-                  <div className="border-t bg-gray-50 p-5">
-                    {loadingPosts ? (
-                      <div className="flex items-center justify-center py-6">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-500" />
+                {/* Painel expandido: Participantes + Posts */}
+                {isOpen && (() => {
+                  const tab = getTab(c.id);
+                  return (
+                    <div className="border-t bg-gray-50">
+                      {/* Tabs */}
+                      <div className="flex border-b bg-white">
+                        <button
+                          onClick={() => switchTab(c.id, 'participants')}
+                          className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                            tab === 'participants' ? 'text-pink-600 border-b-2 border-pink-500' : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          <FiUsers size={14} /> Influenciadores ({participants.length})
+                        </button>
+                        <button
+                          onClick={() => switchTab(c.id, 'posts')}
+                          className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                            tab === 'posts' ? 'text-pink-600 border-b-2 border-pink-500' : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          <FiExternalLink size={14} /> Posts ({posts.length})
+                        </button>
                       </div>
-                    ) : posts.length === 0 ? (
-                      <p className="text-center text-gray-400 text-sm py-4">Nenhum post enviado ainda</p>
-                    ) : (
-                      <div className="space-y-4">
-                        {posts.map((post) => (
-                          <div key={post.id} className="bg-white rounded-lg border p-4">
-                            <div className="flex items-start gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <span className="font-medium text-gray-900 text-sm">{post.affiliate.name}</span>
-                                  {post.affiliate.instagram && (
-                                    <span className="text-xs text-gray-400">@{post.affiliate.instagram}</span>
-                                  )}
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[post.status]}`}>
-                                    {STATUS_LABEL[post.status]}
-                                  </span>
-                                </div>
-                                <a
-                                  href={post.postUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline text-sm flex items-center gap-1 truncate"
-                                >
-                                  <FiExternalLink size={12} /> {post.postUrl}
-                                </a>
-                                {post.caption && (
-                                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{post.caption}</p>
-                                )}
-                                {post.adminNotes && (
-                                  <p className="text-xs text-orange-600 mt-1">Nota: {post.adminNotes}</p>
-                                )}
-                                <p className="text-xs text-gray-400 mt-1">
-                                  Enviado em {new Date(post.submittedAt).toLocaleDateString('pt-BR')}
-                                </p>
-                              </div>
 
-                              {post.status === 'PENDING' && (
-                                <div className="flex flex-col gap-2 shrink-0">
-                                  <input
-                                    type="text"
-                                    placeholder="Nota (opcional)"
-                                    value={reviewingPostId === post.id ? reviewNote : ''}
-                                    onChange={(e) => {
-                                      setReviewingPostId(post.id);
-                                      setReviewNote(e.target.value);
-                                    }}
-                                    className="border border-gray-300 rounded px-2 py-1 text-xs w-36 focus:ring-1 focus:ring-pink-500"
-                                  />
-                                  <div className="flex gap-1">
-                                    <button
-                                      onClick={() => reviewPost(post.id, 'APPROVED')}
-                                      disabled={reviewingPostId === post.id}
-                                      className="flex-1 bg-green-100 text-green-700 text-xs py-1.5 rounded hover:bg-green-200 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
-                                    >
-                                      <FiCheck size={12} /> Aprovar
-                                    </button>
-                                    <button
-                                      onClick={() => reviewPost(post.id, 'REJECTED')}
-                                      disabled={reviewingPostId === post.id}
-                                      className="flex-1 bg-red-50 text-red-700 text-xs py-1.5 rounded hover:bg-red-100 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
-                                    >
-                                      <FiXCircle size={12} /> Rejeitar
-                                    </button>
-                                  </div>
-                                </div>
+                      {/* ── ABA PARTICIPANTES ── */}
+                      {tab === 'participants' && (
+                        <div className="p-5">
+                          {/* Busca para adicionar */}
+                          <div className="mb-4">
+                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Adicionar Influenciador</p>
+                            <div className="relative">
+                              <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <input
+                                type="text"
+                                value={affiliateSearch}
+                                onChange={(e) => {
+                                  setAffiliateSearch(e.target.value);
+                                  searchAffiliates(e.target.value);
+                                }}
+                                placeholder="Buscar por nome, e-mail ou código..."
+                                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                              />
+                              {searching && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin rounded-full h-3 w-3 border-b-2 border-pink-500" />
                               )}
                             </div>
+                            {searchResults.length > 0 && (
+                              <div className="mt-1 border border-gray-200 rounded-lg bg-white shadow-sm divide-y">
+                                {searchResults.map((a) => (
+                                  <div key={a.id} className="flex items-center justify-between px-3 py-2">
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-900">{a.name}</p>
+                                      <p className="text-xs text-gray-400">{a.email} · {a.code}</p>
+                                    </div>
+                                    <button
+                                      onClick={() => addParticipant(c.id, a.id)}
+                                      disabled={addingId === a.id}
+                                      className="ml-3 shrink-0 bg-pink-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-pink-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      <FiUserPlus size={12} /> Adicionar
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+
+                          {/* Lista de participantes */}
+                          {loadingParticipants ? (
+                            <div className="flex items-center justify-center py-6">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-500" />
+                            </div>
+                          ) : participants.length === 0 ? (
+                            <p className="text-center text-gray-400 text-sm py-4">Nenhum influenciador nesta campanha ainda</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {participants.map((p) => {
+                                const postsByType: Record<string, PostSubmission> = {};
+                                p.affiliate.campaignPosts.forEach((cp) => { postsByType[cp.postType] = cp; });
+                                return (
+                                  <div key={p.id} className="bg-white rounded-lg border p-4">
+                                    <div className="flex items-start gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-gray-900 text-sm">{p.affiliate.name}</p>
+                                        <p className="text-xs text-gray-400">{p.affiliate.email} · {p.affiliate.code}</p>
+                                        {p.affiliate.instagram && (
+                                          <p className="text-xs text-pink-500">@{p.affiliate.instagram}</p>
+                                        )}
+                                        {/* Post submissions por tipo */}
+                                        {p.affiliate.campaignPosts.length > 0 && (
+                                          <div className="mt-2 flex flex-wrap gap-1.5">
+                                            {p.affiliate.campaignPosts.map((cp) => (
+                                              <a
+                                                key={cp.id}
+                                                href={cp.postUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[cp.status]}`}
+                                              >
+                                                {cp.postType === 'REEL' ? '🎬' : cp.postType === 'STORY' ? '📱' : '🖼️'}
+                                                {cp.postType} · {STATUS_LABEL[cp.status]}
+                                                <FiExternalLink size={10} />
+                                              </a>
+                                            ))}
+                                          </div>
+                                        )}
+                                        {p.affiliate.campaignPosts.length === 0 && (
+                                          <p className="text-xs text-gray-400 mt-1">Nenhum link enviado ainda</p>
+                                        )}
+                                      </div>
+                                      <button
+                                        onClick={() => removeParticipant(c.id, p.affiliate.id)}
+                                        disabled={removingId === p.affiliate.id}
+                                        className="shrink-0 text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 disabled:opacity-50"
+                                        title="Remover da campanha"
+                                      >
+                                        <FiUserMinus size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── ABA POSTS ── */}
+                      {tab === 'posts' && (
+                        <div className="p-5">
+                          {loadingPosts ? (
+                            <div className="flex items-center justify-center py-6">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-pink-500" />
+                            </div>
+                          ) : posts.length === 0 ? (
+                            <p className="text-center text-gray-400 text-sm py-4">Nenhum post enviado ainda</p>
+                          ) : (
+                            <div className="space-y-4">
+                              {posts.map((post) => (
+                                <div key={post.id} className="bg-white rounded-lg border p-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <span className="font-medium text-gray-900 text-sm">{post.affiliate.name}</span>
+                                        {post.affiliate.instagram && (
+                                          <span className="text-xs text-gray-400">@{post.affiliate.instagram}</span>
+                                        )}
+                                        <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">
+                                          {post.postType === 'REEL' ? '🎬 Reel' : post.postType === 'STORY' ? '📱 Story' : '🖼️ Post'}
+                                        </span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[post.status]}`}>
+                                          {STATUS_LABEL[post.status]}
+                                        </span>
+                                      </div>
+                                      <a
+                                        href={post.postUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline text-sm flex items-center gap-1 truncate"
+                                      >
+                                        <FiExternalLink size={12} /> {post.postUrl}
+                                      </a>
+                                      {post.caption && (
+                                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{post.caption}</p>
+                                      )}
+                                      {post.adminNotes && (
+                                        <p className="text-xs text-orange-600 mt-1">Nota: {post.adminNotes}</p>
+                                      )}
+                                      <p className="text-xs text-gray-400 mt-1">
+                                        Enviado em {new Date(post.submittedAt).toLocaleDateString('pt-BR')}
+                                      </p>
+                                    </div>
+
+                                    {post.status === 'PENDING' && (
+                                      <div className="flex flex-col gap-2 shrink-0">
+                                        <input
+                                          type="text"
+                                          placeholder="Nota (opcional)"
+                                          value={reviewingPostId === post.id ? reviewNote : ''}
+                                          onChange={(e) => {
+                                            setReviewingPostId(post.id);
+                                            setReviewNote(e.target.value);
+                                          }}
+                                          className="border border-gray-300 rounded px-2 py-1 text-xs w-36 focus:ring-1 focus:ring-pink-500"
+                                        />
+                                        <div className="flex gap-1">
+                                          <button
+                                            onClick={() => reviewPost(post.id, 'APPROVED')}
+                                            disabled={reviewingPostId === post.id}
+                                            className="flex-1 bg-green-100 text-green-700 text-xs py-1.5 rounded hover:bg-green-200 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                                          >
+                                            <FiCheck size={12} /> Aprovar
+                                          </button>
+                                          <button
+                                            onClick={() => reviewPost(post.id, 'REJECTED')}
+                                            disabled={reviewingPostId === post.id}
+                                            className="flex-1 bg-red-50 text-red-700 text-xs py-1.5 rounded hover:bg-red-100 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                                          >
+                                            <FiXCircle size={12} /> Rejeitar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
