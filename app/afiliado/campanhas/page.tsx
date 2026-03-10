@@ -53,9 +53,10 @@ const STATUS_INFO: Record<string, { label: string; color: string; icon: React.Re
 export default function AffiliateCampanhasPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newUrls, setNewUrls] = useState<Record<string, string>>({}); // `${cid}_${type}` -> url
-  const [resubUrls, setResubUrls] = useState<Record<string, string>>({}); // postId -> url
+  const [newUrls, setNewUrls] = useState<Record<string, string>>({});
+  const [resubUrls, setResubUrls] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch('/api/affiliate/campaigns')
@@ -198,39 +199,7 @@ export default function AffiliateCampanhasPage() {
                   <p className="text-xs text-gray-400">{c.totalParticipants} influenciador{c.totalParticipants !== 1 ? 'es' : ''} participando</p>
                 </div>
 
-                {/* Content guide */}
-                {c.contentGuide && (
-                  <div className="mx-5 mb-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
-                    <p className="text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Guia de Conteúdo</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.contentGuide}</p>
-                  </div>
-                )}
-
-                {/* Material de Apoio */}
-                {c.materials && c.materials.length > 0 && (
-                  <div className="mx-5 mb-4 bg-blue-50 border border-blue-100 rounded-lg p-4">
-                    <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Material de Apoio</p>
-                    <div className="space-y-2">
-                      {c.materials.map((m, i) => (
-                        <a
-                          key={i}
-                          href={m.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900 hover:underline"
-                        >
-                          {m.type === 'video' && <FiVideo size={14} className="text-red-500 shrink-0" />}
-                          {m.type === 'image' && <FiImage size={14} className="text-blue-500 shrink-0" />}
-                          {m.type === 'document' && <FiFileText size={14} className="text-orange-500 shrink-0" />}
-                          {m.type === 'link' && <FiLink size={14} className="text-gray-500 shrink-0" />}
-                          <span>{m.title || m.url}</span>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Envio de links por tipo — múltiplos */}
+                {/* Envio de links por tipo — múltiplos (acima do guia) */}
                 <div className="px-5 pb-5 space-y-3">
                   {[
                     ...(c.reelsCount > 0 ? [{ type: 'REEL', emoji: '🎬', label: 'Reels', target: c.reelsCount, barColor: 'bg-red-500', borderColor: 'border-red-100', bgColor: 'bg-red-50', textColor: 'text-red-700' }] : []),
@@ -339,6 +308,48 @@ export default function AffiliateCampanhasPage() {
                     <p className="text-center text-gray-400 text-sm py-2">Nenhuma meta de conteúdo definida</p>
                   )}
                 </div>
+
+                {/* Guia de Conteúdo — recolhível */}
+                {c.contentGuide && (
+                  <div className="mx-5 mb-4 border border-gray-100 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setGuideOpen((prev) => ({ ...prev, [c.id]: !prev[c.id] }))}
+                      className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                    >
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">📋 Guia de Conteúdo</span>
+                      <span className="text-gray-400 text-xs">{guideOpen[c.id] ? '▲ Recolher' : '▼ Ver guia'}</span>
+                    </button>
+                    {guideOpen[c.id] && (
+                      <div className="px-4 py-3 bg-white">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.contentGuide}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Material de Apoio */}
+                {c.materials && c.materials.length > 0 && (
+                  <div className="mx-5 mb-5 bg-blue-50 border border-blue-100 rounded-lg p-4">
+                    <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Material de Apoio</p>
+                    <div className="space-y-2">
+                      {c.materials.map((m, i) => (
+                        <a
+                          key={i}
+                          href={m.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-900 hover:underline"
+                        >
+                          {m.type === 'video' && <FiVideo size={14} className="text-red-500 shrink-0" />}
+                          {m.type === 'image' && <FiImage size={14} className="text-blue-500 shrink-0" />}
+                          {m.type === 'document' && <FiFileText size={14} className="text-orange-500 shrink-0" />}
+                          {m.type === 'link' && <FiLink size={14} className="text-gray-500 shrink-0" />}
+                          <span>{m.title || m.url}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
