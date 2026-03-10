@@ -34,17 +34,18 @@ export default function ZoomProvider({ children }: { children: React.ReactNode }
 
     // Limpa o zoom quando o componente é desmontado
     return () => {
-      document.documentElement.style.removeProperty('zoom')
+      document.body.style.removeProperty('zoom')
     }
   }, [])
 
-  // Aplica o zoom diretamente no HTML
+  // Aplica o zoom no body (não no html) para preservar position:fixed
+  // Zoom no <html> quebra position:fixed em Chrome/Edge — o initial containing block
+  // para fixed é o viewport, definido pelo <html>. No <body>, fixed funciona corretamente.
   const applyZoom = (zoomValue: number) => {
     if (zoomValue !== 100) {
-      // Usa CSS zoom nativo (funciona bem em Chrome, Edge, Safari)
-      document.documentElement.style.zoom = `${zoomValue}%`
+      document.body.style.zoom = `${zoomValue}%`
     } else {
-      document.documentElement.style.removeProperty('zoom')
+      document.body.style.removeProperty('zoom')
     }
   }
 

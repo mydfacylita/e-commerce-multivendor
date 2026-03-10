@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 
 export default function CookieConsent() {
   const [showBanner, setShowBanner] = useState(false)
+  const pathname = usePathname()
 
   useEffect(() => {
     // Verifica se já respondeu sobre cookies
@@ -26,6 +28,9 @@ export default function CookieConsent() {
     localStorage.setItem('cookieConsent', 'declined')
     setShowBanner(false)
   }
+
+  // Não mostrar no painel afiliado nem vendedor
+  if (pathname?.startsWith('/afiliado') || pathname?.startsWith('/vendedor')) return null
 
   if (!showBanner) return null
 
