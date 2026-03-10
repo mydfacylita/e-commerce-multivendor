@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar afiliados
+    const now = new Date();
     const affiliates = await prisma.affiliate.findMany({
       where,
       ...(limit > 0 && { take: limit }),
@@ -50,6 +51,29 @@ export async function GET(request: NextRequest) {
             sales: true,
             clicks: true
           }
+        },
+        kits: {
+          include: {
+            kit: { select: { id: true, name: true } }
+          }
+        },
+        goals: {
+          where: {
+            isActive: true,
+            startDate: { lte: now },
+            endDate: { gte: now }
+          },
+          select: { id: true, title: true, type: true, targetValue: true, endDate: true }
+        },
+        campaignParticipations: {
+          include: {
+            campaign: {
+              select: { id: true, title: true, reelsCount: true, postsCount: true, storiesCount: true, isActive: true, endDate: true }
+            }
+          }
+        },
+        campaignPosts: {
+          select: { id: true, campaignId: true, postType: true, status: true }
         }
       },
       orderBy: {
