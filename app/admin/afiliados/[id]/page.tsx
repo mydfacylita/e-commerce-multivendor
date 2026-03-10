@@ -7,7 +7,8 @@ import {
   FiArrowLeft, FiUser, FiMail, FiPhone, FiInstagram, FiYoutube, 
   FiDollarSign, FiTrendingUp, FiMousePointer, FiShoppingBag,
   FiCheck, FiX, FiEdit, FiCopy, FiExternalLink, FiClock,
-  FiCheckCircle, FiXCircle, FiAlertCircle, FiGift, FiTrash2, FiSearch
+  FiCheckCircle, FiXCircle, FiAlertCircle, FiGift, FiTrash2, FiSearch,
+  FiCamera, FiTarget, FiCalendar, FiPlus
 } from 'react-icons/fi'
 import { FaTiktok } from 'react-icons/fa'
 import toast from 'react-hot-toast'
@@ -114,6 +115,18 @@ export default function AffiliateDetailPage() {
   const [availableKits, setAvailableKits] = useState<{id:string, name:string}[]>([])
   const [kitSearchOpen, setKitSearchOpen] = useState(false)
   const [loadingKits, setLoadingKits] = useState(false)
+
+  // Campanhas
+  const [assignedCampaigns, setAssignedCampaigns] = useState<{id:string, campaignId:string, campaign:{id:string, title:string, startDate:string, endDate:string, isActive:boolean}}[]>([])
+  const [availableCampaigns, setAvailableCampaigns] = useState<{id:string, title:string, isActive:boolean}[]>([])
+  const [campaignSearchOpen, setCampaignSearchOpen] = useState(false)
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false)
+
+  // Metas
+  const [affiliateGoals, setAffiliateGoals] = useState<{id:string, title:string, type:string, targetValue:number, startDate:string, endDate:string, reward?:string, isActive:boolean}[]>([])
+  const [loadingGoals, setLoadingGoals] = useState(false)
+  const [showGoalForm, setShowGoalForm] = useState(false)
+  const [goalForm, setGoalForm] = useState({ title: '', type: 'SALES_AMOUNT', targetValue: '', startDate: '', endDate: '', reward: '' })
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
@@ -150,6 +163,13 @@ export default function AffiliateDetailPage() {
     if (params.id) loadKits()
   }, [params.id])
 
+  useEffect(() => {
+    if (params.id) {
+      loadCampaigns()
+      loadGoals()
+    }
+  }, [params.id])
+
   const loadData = async () => {
     try {
       setLoading(true)
@@ -183,6 +203,83 @@ export default function AffiliateDetailPage() {
     } finally {
       setLoadingKits(false)
     }
+  }
+
+  const loadCampaigns = async () => {
+    if (!params.id) return
+    setLoadingCampaigns(true)
+    try {
+      const [partRes, allRes] = await Promise.all([
+        fetch(`/api/admin/affiliates/${params.id}/campaigns`),
+        fetch('/api/admin/campaigns')
+      ])
+      if (partRes.ok) setAssignedCampaigns((await partRes.json()).participations || [])
+      if (allRes.ok) setAvailableCampaigns((await allRes.json()).campaigns || [])
+    } finally {
+      setLoadingCampaigns(false)
+    }
+  }
+
+  const assignCampaign = async (campaignId: string) => {
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaignId}/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ affiliateId: params.id })
+      })
+      if (res.ok) { toast.success('Campanha atribuída!'); loadCampaigns() }
+      else { const d = await res.json(); toast.error(d.error || 'Erro') }
+    } catch { toast.error('Erro') }
+  }
+
+  const removeCampaign = async (campaignId: string) => {
+    try {
+      const res = await fetch(`/api/admin/campaigns/${campaignId}/participants`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ affiliateId: params.id })
+      })
+      if (res.ok) { toast.success('Removido da campanha'); loadCampaigns() }
+      else toast.error('Erro ao remover')
+    } catch { toast.error('Erro') }
+  }
+
+  const loadGoals = async () => {
+    if (!params.id) return
+    setLoadingGoals(true)
+    try {
+      const res = await fetch(`/api/admin/affiliates/${params.id}/goals`)
+      if (res.ok) setAffiliateGoals((await res.json()).goals || [])
+    } finally {
+      setLoadingGoals(false)
+    }
+  }
+
+  const createGoal = async () => {
+    if (!goalForm.title || !goalForm.targetValue || !goalForm.startDate || !goalForm.endDate) {
+      toast.error('Preencha todos os campos obrigatórios'); return
+    }
+    try {
+      const res = await fetch('/api/admin/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...goalForm, affiliateId: params.id, targetValue: parseFloat(goalForm.targetValue) })
+      })
+      if (res.ok) {
+        toast.success('Meta criada!')
+        setShowGoalForm(false)
+        setGoalForm({ title: '', type: 'SALES_AMOUNT', targetValue: '', startDate: '', endDate: '', reward: '' })
+        loadGoals()
+      } else { const d = await res.json(); toast.error(d.error || 'Erro') }
+    } catch { toast.error('Erro') }
+  }
+
+  const removeGoal = async (goalId: string) => {
+    try {
+      const res = await fetch(`/api/admin/goals/${goalId}`, { method: 'DELETE' })
+      if (res.ok) { toast.success('Meta removida'); loadGoals() }
+      else toast.error('Erro ao remover')
+    } catch { toast.error('Erro') }
   }
 
   const assignKit = async (kitId: string) => {
@@ -854,10 +951,202 @@ export default function AffiliateDetailPage() {
               </div>
             )}
           </div>
+          {/* Campanhas */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FiCamera className="text-purple-500" /> Campanhas
+              </h3>
+              <button
+                onClick={() => setCampaignSearchOpen(v => !v)}
+                className="text-xs bg-purple-600 text-white px-3 py-1 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                + Atribuir
+              </button>
+            </div>
+
+            {campaignSearchOpen && (
+              <div className="mb-4">
+                <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                  {availableCampaigns.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">
+                      {loadingCampaigns ? 'Carregando...' : 'Nenhuma campanha cadastrada'}
+                    </p>
+                  ) : (
+                    availableCampaigns.map(c => {
+                      const already = assignedCampaigns.some(a => a.campaign?.id === c.id || a.campaignId === c.id)
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => { if (!already) assignCampaign(c.id) }}
+                          disabled={already}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-purple-50 disabled:opacity-50 text-left text-sm"
+                        >
+                          <FiCamera size={14} className="text-purple-400 shrink-0" />
+                          <span className="flex-1 truncate">{c.title}</span>
+                          {!c.isActive && <span className="text-xs text-gray-400">inativa</span>}
+                          {already && <span className="text-xs text-green-500">✓ Inscrito</span>}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {loadingCampaigns ? (
+              <p className="text-xs text-gray-400">Carregando...</p>
+            ) : assignedCampaigns.length === 0 ? (
+              <p className="text-sm text-gray-400">Nenhuma campanha atribuída.</p>
+            ) : (
+              <div className="space-y-2">
+                {assignedCampaigns.map(a => (
+                  <div key={a.id} className="flex items-center gap-2 p-2 bg-purple-50 rounded-lg">
+                    <FiCamera size={14} className="text-purple-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{a.campaign?.title}</p>
+                      <p className="text-xs text-gray-400">
+                        {a.campaign?.isActive ? '🟢 Ativa' : '⚪ Inativa'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => removeCampaign(a.campaign?.id || a.campaignId)}
+                      className="text-red-400 hover:text-red-600 p-1 shrink-0"
+                      title="Remover da campanha"
+                    >
+                      <FiTrash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Metas */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FiTarget className="text-green-500" /> Metas
+              </h3>
+              <button
+                onClick={() => setShowGoalForm(v => !v)}
+                className="text-xs bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                + Nova Meta
+              </button>
+            </div>
+
+            {showGoalForm && (
+              <div className="mb-4 border rounded-lg p-3 bg-green-50 space-y-2">
+                <input
+                  type="text"
+                  placeholder="Título da meta *"
+                  value={goalForm.title}
+                  onChange={e => setGoalForm(f => ({ ...f, title: e.target.value }))}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                />
+                <select
+                  value={goalForm.type}
+                  onChange={e => setGoalForm(f => ({ ...f, type: e.target.value }))}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                >
+                  <option value="SALES_AMOUNT">Valor em Vendas (R$)</option>
+                  <option value="SALES_COUNT">Número de Vendas</option>
+                  <option value="CLICKS_COUNT">Número de Cliques</option>
+                  <option value="COMMISSION_AMOUNT">Valor em Comissão (R$)</option>
+                </select>
+                <input
+                  type="number"
+                  placeholder="Meta (valor) *"
+                  value={goalForm.targetValue}
+                  onChange={e => setGoalForm(f => ({ ...f, targetValue: e.target.value }))}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                  min="1"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500">Início *</label>
+                    <input
+                      type="date"
+                      value={goalForm.startDate}
+                      onChange={e => setGoalForm(f => ({ ...f, startDate: e.target.value }))}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Fim *</label>
+                    <input
+                      type="date"
+                      value={goalForm.endDate}
+                      onChange={e => setGoalForm(f => ({ ...f, endDate: e.target.value }))}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Recompensa (opcional)"
+                  value={goalForm.reward}
+                  onChange={e => setGoalForm(f => ({ ...f, reward: e.target.value }))}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={createGoal}
+                    className="flex-1 bg-green-600 text-white py-1.5 rounded text-sm hover:bg-green-700 transition-colors font-medium"
+                  >
+                    Criar Meta
+                  </button>
+                  <button
+                    onClick={() => setShowGoalForm(false)}
+                    className="flex-1 bg-gray-200 text-gray-700 py-1.5 rounded text-sm hover:bg-gray-300 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {loadingGoals ? (
+              <p className="text-xs text-gray-400">Carregando...</p>
+            ) : affiliateGoals.length === 0 ? (
+              <p className="text-sm text-gray-400">Nenhuma meta atribuída.</p>
+            ) : (
+              <div className="space-y-2">
+                {affiliateGoals.map(g => {
+                  const typeLabel: Record<string, string> = {
+                    SALES_AMOUNT: `R$ ${g.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                    SALES_COUNT: `${g.targetValue} vendas`,
+                    CLICKS_COUNT: `${g.targetValue} cliques`,
+                    COMMISSION_AMOUNT: `R$ ${g.targetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} comissão`
+                  }
+                  return (
+                    <div key={g.id} className="flex items-start gap-2 p-2 bg-green-50 rounded-lg">
+                      <FiTarget size={14} className="text-green-500 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{g.title}</p>
+                        <p className="text-xs text-gray-500">{typeLabel[g.type] || g.targetValue}</p>
+                        {g.reward && <p className="text-xs text-yellow-600">🏆 {g.reward}</p>}
+                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                          <FiCalendar size={10} />
+                          {new Date(g.startDate).toLocaleDateString('pt-BR')} – {new Date(g.endDate).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => removeGoal(g.id)}
+                        className="text-red-400 hover:text-red-600 p-1 shrink-0"
+                        title="Remover meta"
+                      >
+                        <FiTrash2 size={13} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Modal de Edição de Cadastro */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-lg w-full max-w-2xl my-8">
