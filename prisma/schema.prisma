@@ -1778,7 +1778,7 @@ model AffiliateCampaignPost {
   campaign     AffiliateCampaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   affiliate    Affiliate           @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
 
-  @@unique([campaignId, affiliateId, postType])
+  @@index([campaignId, affiliateId, postType])
   @@index([campaignId])
   @@index([affiliateId])
   @@index([status])

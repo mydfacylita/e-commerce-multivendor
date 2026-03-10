@@ -41,17 +41,19 @@ export async function GET(req: NextRequest) {
       orderBy: { endDate: 'asc' }
     });
 
-    // Map post submission status per affiliate per type
+    // Map posts per type as arrays
     const result = campaigns.map((campaign) => {
-      const myPosts: Record<string, { id: string; status: string; postUrl: string; adminNotes: string | null; submittedAt: string }> = {};
-      campaign.posts.forEach((p) => {
-        myPosts[p.postType] = {
+      const myPosts: Record<string, Array<{ id: string; status: string; postUrl: string; adminNotes: string | null; submittedAt: string }>> = { REEL: [], POST: [], STORY: [] };
+      campaign.posts.forEach((p: any) => {
+        const t = p.postType ?? 'POST';
+        if (!myPosts[t]) myPosts[t] = [];
+        myPosts[t].push({
           id: p.id,
           status: p.status,
           postUrl: p.postUrl,
           adminNotes: p.adminNotes,
-          submittedAt: p.submittedAt.toISOString()
-        };
+          submittedAt: p.submittedAt instanceof Date ? p.submittedAt.toISOString() : p.submittedAt
+        });
       });
       return {
         id: campaign.id,

@@ -34,21 +34,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const data = await req.json();
-    const { postUrl, caption, postType } = data;
+    const { postUrl, postType, postId } = data;
     const type = ['REEL', 'POST', 'STORY'].includes(postType) ? postType : 'POST';
 
     if (!postUrl?.trim()) {
       return NextResponse.json({ error: 'URL do post é obrigatória' }, { status: 400 });
     }
-
-    // Validate URL format
-    try {
-      new URL(postUrl.trim());
-    } catch {
+    try { new URL(postUrl.trim()); } catch {
       return NextResponse.json({ error: 'URL do post inválida' }, { status: 400 });
     }
 
-    // Check if affiliate is a participant
+    // Check participant
     const participation = await prisma.affiliateCampaignParticipant.findUnique({
       where: { campaignId_affiliateId: { campaignId: params.id, affiliateId: affiliate.id } }
     });
@@ -56,35 +52,37 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Você não está inscrito nesta campanha' }, { status: 403 });
     }
 
-    // Upsert by type: allow updating if still REJECTED
-    const existing = await prisma.affiliateCampaignPost.findUnique({
-      where: { campaignId_affiliateId_postType: { campaignId: params.id, affiliateId: affiliate.id, postType: type } }
-    });
-
-    if (existing && existing.status !== 'REJECTED') {
-      return NextResponse.json({ error: 'Você já enviou um post deste tipo para esta campanha' }, { status: 409 });
-    }
-
     let post;
-    if (existing) {
+
+    if (postId) {
+      // RESUBMIT: update a specific rejected post
+      const existing = await prisma.affiliateCampaignPost.findUnique({ where: { id: postId } });
+      if (!existing || existing.affiliateId !== affiliate.id || existing.campaignId !== params.id) {
+        return NextResponse.json({ error: 'Post não encontrado' }, { status: 404 });
+      }
+      if (existing.status !== 'REJECTED') {
+        return NextResponse.json({ error: 'Apenas posts rejeitados podem ser reenviados' }, { status: 409 });
+      }
       post = await prisma.affiliateCampaignPost.update({
-        where: { id: existing.id },
-        data: {
-          postUrl: postUrl.trim(),
-          caption: caption?.trim() || null,
-          status: 'PENDING',
-          adminNotes: null,
-          reviewedAt: null,
-          submittedAt: new Date()
-        }
+        where: { id: postId },
+        data: { postUrl: postUrl.trim(), status: 'PENDING', adminNotes: null, reviewedAt: null, submittedAt: new Date() }
       });
     } else {
+      // NEW: check quota (count non-rejected)
+      const target = type === 'REEL' ? (campaign.reelsCount ?? 0)
+                   : type === 'POST' ? (campaign.postsCount ?? 0)
+                   : (campaign.storiesCount ?? 0);
+      const submitted = await prisma.affiliateCampaignPost.count({
+        where: { campaignId: params.id, affiliateId: affiliate.id, postType: type, status: { not: 'REJECTED' } }
+      });
+      if (target > 0 && submitted >= target) {
+        return NextResponse.json({ error: `Meta de ${type === 'REEL' ? 'Reels' : type === 'POST' ? 'Posts' : 'Stories'} já atingida (${target})` }, { status: 409 });
+      }
       post = await prisma.affiliateCampaignPost.create({
         data: {
           campaignId: params.id,
           affiliateId: affiliate.id,
           postUrl: postUrl.trim(),
-          caption: caption?.trim() || null,
           postType: type,
           platform: 'INSTAGRAM',
           status: 'PENDING'

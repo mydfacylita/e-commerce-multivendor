@@ -32,7 +32,7 @@ interface Campaign {
   startDate: string;
   endDate: string;
   totalParticipants: number;
-  myPosts: Record<string, MyPost>;
+  myPosts: Record<string, MyPost[]>;
 }
 
 function fmt(date: string) {
@@ -53,9 +53,9 @@ const STATUS_INFO: Record<string, { label: string; color: string; icon: React.Re
 export default function AffiliateCampanhasPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
-  // submitState: campaignId -> postType -> url string
-  const [submitState, setSubmitState] = useState<Record<string, Record<string, string>>>({});
-  const [submitting, setSubmitting] = useState<string | null>(null); // "campaignId_postType"
+  const [newUrls, setNewUrls] = useState<Record<string, string>>({}); // `${cid}_${type}` -> url
+  const [resubUrls, setResubUrls] = useState<Record<string, string>>({}); // postId -> url
+  const [submitting, setSubmitting] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/affiliate/campaigns')
@@ -64,42 +64,49 @@ export default function AffiliateCampanhasPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  function getUrl(campaignId: string, postType: string) {
-    return submitState[campaignId]?.[postType] ?? '';
+  function getNUrl(cid: string, type: string) { return newUrls[`${cid}_${type}`] ?? ''; }
+  function setNUrl(cid: string, type: string, url: string) {
+    setNewUrls((p) => ({ ...p, [`${cid}_${type}`]: url }));
   }
 
-  function setUrl(campaignId: string, postType: string, url: string) {
-    setSubmitState((prev) => ({
-      ...prev,
-      [campaignId]: { ...(prev[campaignId] ?? {}), [postType]: url }
-    }));
-  }
-
-  async function handleSubmit(campaign: Campaign, postType: string) {
-    const url = getUrl(campaign.id, postType).trim();
-    if (!url) { toast.error('Informe a URL do post'); return; }
-    const key = `${campaign.id}_${postType}`;
+  async function handleNew(campaign: Campaign, type: string) {
+    const url = getNUrl(campaign.id, type).trim();
+    if (!url) { toast.error('Informe a URL'); return; }
+    const key = `new_${campaign.id}_${type}`;
     setSubmitting(key);
     try {
       const res = await fetch(`/api/affiliate/campaigns/${campaign.id}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postUrl: url, postType }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postUrl: url, postType: type }),
       });
       const data = await res.json();
-      if (!res.ok) { toast.error(data.error ?? 'Erro ao enviar post'); return; }
-      toast.success('Link enviado! Aguarde a revisão.');
-      setCampaigns((prev) =>
-        prev.map((c) =>
-          c.id === campaign.id
-            ? { ...c, myPosts: { ...c.myPosts, [postType]: data.post } }
-            : c
-        )
-      );
-      setUrl(campaign.id, postType, '');
-    } finally {
-      setSubmitting(null);
-    }
+      if (!res.ok) { toast.error(data.error ?? 'Erro'); return; }
+      toast.success('Link enviado!');
+      setCampaigns((prev) => prev.map((c) => c.id !== campaign.id ? c : {
+        ...c, myPosts: { ...c.myPosts, [type]: [...(c.myPosts[type] ?? []), data.post] }
+      }));
+      setNUrl(campaign.id, type, '');
+    } finally { setSubmitting(null); }
+  }
+
+  async function handleResub(campaign: Campaign, postId: string, type: string) {
+    const url = (resubUrls[postId] ?? '').trim();
+    if (!url) { toast.error('Informe a nova URL'); return; }
+    const key = `resub_${postId}`;
+    setSubmitting(key);
+    try {
+      const res = await fetch(`/api/affiliate/campaigns/${campaign.id}/submit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postUrl: url, postType: type, postId }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? 'Erro'); return; }
+      toast.success('Reenviado!');
+      setCampaigns((prev) => prev.map((c) => c.id !== campaign.id ? c : {
+        ...c, myPosts: { ...c.myPosts, [type]: (c.myPosts[type] ?? []).map((p) => p.id === postId ? data.post : p) }
+      }));
+      setResubUrls((p) => ({ ...p, [postId]: '' }));
+    } finally { setSubmitting(null); }
   }
 
   if (loading) {
@@ -223,75 +230,113 @@ export default function AffiliateCampanhasPage() {
                   </div>
                 )}
 
-                {/* Envio de links por tipo */}
+                {/* Envio de links por tipo — múltiplos */}
                 <div className="px-5 pb-5 space-y-3">
                   {[
-                    ...(c.reelsCount > 0 ? [{ type: 'REEL', emoji: '🎬', label: 'Reel', color: 'red' }] : []),
-                    ...(c.postsCount > 0 ? [{ type: 'POST', emoji: '🖼️', label: 'Post no Feed', color: 'blue' }] : []),
-                    ...(c.storiesCount > 0 ? [{ type: 'STORY', emoji: '📱', label: 'Story', color: 'purple' }] : []),
-                  ].map(({ type, emoji, label, color }) => {
-                    const myPost = c.myPosts[type];
-                    const key = `${c.id}_${type}`;
-                    const isSubmitting = submitting === key;
-                    const canResubmit = myPost?.status === 'REJECTED';
-
-                    const borderColor = color === 'red' ? 'border-red-100' : color === 'blue' ? 'border-blue-100' : 'border-purple-100';
-                    const bgColor = color === 'red' ? 'bg-red-50' : color === 'blue' ? 'bg-blue-50' : 'bg-purple-50';
-                    const textColor = color === 'red' ? 'text-red-700' : color === 'blue' ? 'text-blue-700' : 'text-purple-700';
+                    ...(c.reelsCount > 0 ? [{ type: 'REEL', emoji: '🎬', label: 'Reels', target: c.reelsCount, barColor: 'bg-red-500', borderColor: 'border-red-100', bgColor: 'bg-red-50', textColor: 'text-red-700' }] : []),
+                    ...(c.postsCount > 0 ? [{ type: 'POST', emoji: '🖼️', label: 'Posts no Feed', target: c.postsCount, barColor: 'bg-blue-500', borderColor: 'border-blue-100', bgColor: 'bg-blue-50', textColor: 'text-blue-700' }] : []),
+                    ...(c.storiesCount > 0 ? [{ type: 'STORY', emoji: '📱', label: 'Stories', target: c.storiesCount, barColor: 'bg-purple-500', borderColor: 'border-purple-100', bgColor: 'bg-purple-50', textColor: 'text-purple-700' }] : []),
+                  ].map(({ type, emoji, label, target, barColor, borderColor, bgColor, textColor }) => {
+                    const posts = c.myPosts[type] ?? [];
+                    const nonRejected = posts.filter((p) => p.status !== 'REJECTED');
+                    const approved = posts.filter((p) => p.status === 'APPROVED');
+                    const canAddMore = nonRejected.length < target;
+                    const allDone = approved.length >= target;
+                    const progress = Math.min(100, (nonRejected.length / target) * 100);
+                    const newKey = `new_${c.id}_${type}`;
 
                     return (
-                      <div key={type} className={`rounded-lg border p-4 ${borderColor} ${bgColor}`}>
-                        <p className={`text-xs font-semibold ${textColor} mb-2`}>{emoji} {label}</p>
-
-                        {myPost && !canResubmit ? (
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_INFO[myPost.status]?.color}`}>
-                                {STATUS_INFO[myPost.status]?.icon}
-                                {STATUS_INFO[myPost.status]?.label}
-                              </span>
-                            </div>
-                            <a href={myPost.postUrl} target="_blank" rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <FiExternalLink size={13} /> {myPost.postUrl}
-                            </a>
-                            {myPost.adminNotes && (
-                              <p className="text-xs text-gray-600 mt-1"><span className="font-medium">Nota:</span> {myPost.adminNotes}</p>
-                            )}
+                      <div key={type} className={`rounded-lg border ${borderColor} ${bgColor}`}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                          <p className={`text-sm font-semibold ${textColor}`}>{emoji} {label}</p>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            allDone ? 'bg-green-100 text-green-700' : 'bg-white/80 text-gray-600'
+                          }`}>
+                            {allDone ? '✓ Meta concluída!' : `${nonRejected.length} / ${target} enviados`}
+                          </span>
+                        </div>
+                        {/* Barra de progresso */}
+                        <div className="px-4 pb-3">
+                          <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
+                            <div className={`h-full transition-all ${allDone ? 'bg-green-500' : barColor}`} style={{ width: `${progress}%` }} />
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {canResubmit && (
-                              <div className="mb-2 bg-red-100 rounded p-2">
-                                <p className="text-xs text-red-600 font-medium">Rejeitado — corrija e reenvie</p>
-                                {myPost?.adminNotes && <p className="text-xs text-red-500">Motivo: {myPost.adminNotes}</p>}
+                        </div>
+
+                        {/* Lista de posts enviados */}
+                        {posts.length > 0 && (
+                          <div className="px-4 pb-2 space-y-2">
+                            {posts.map((post, idx) => (
+                              <div key={post.id} className="bg-white rounded-lg p-2.5 border border-white shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs text-gray-400 font-medium">#{idx + 1}</span>
+                                  <span className={`inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full ${STATUS_INFO[post.status]?.color}`}>
+                                    {STATUS_INFO[post.status]?.icon} {STATUS_INFO[post.status]?.label}
+                                  </span>
+                                </div>
+                                <a href={post.postUrl} target="_blank" rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 hover:underline flex items-center gap-1 truncate"
+                                >
+                                  <FiExternalLink size={11} className="shrink-0" />
+                                  <span className="truncate">{post.postUrl}</span>
+                                </a>
+                                {post.adminNotes && (
+                                  <p className="text-xs text-orange-600 mt-1">Nota: {post.adminNotes}</p>
+                                )}
+                                {/* Campo de reenvio para rejeitados */}
+                                {post.status === 'REJECTED' && (
+                                  <div className="mt-2 flex gap-1.5">
+                                    <input
+                                      type="url"
+                                      value={resubUrls[post.id] ?? ''}
+                                      onChange={(e) => setResubUrls((p) => ({ ...p, [post.id]: e.target.value }))}
+                                      placeholder="Cole nova URL..."
+                                      className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-pink-500 bg-gray-50"
+                                    />
+                                    <button
+                                      onClick={() => handleResub(c, post.id, type)}
+                                      disabled={submitting === `resub_${post.id}` || !(resubUrls[post.id] ?? '').trim()}
+                                      className="shrink-0 bg-pink-600 text-white px-2.5 py-1 rounded text-xs font-medium hover:bg-pink-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                      <FiSend size={11} />
+                                      {submitting === `resub_${post.id}` ? '…' : 'Reenviar'}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Campo para adicionar novo */}
+                        <div className="px-4 pb-4">
+                          {canAddMore ? (
                             <div className="flex gap-2">
                               <input
                                 type="url"
-                                value={getUrl(c.id, type)}
-                                onChange={(e) => setUrl(c.id, type, e.target.value)}
+                                value={getNUrl(c.id, type)}
+                                onChange={(e) => setNUrl(c.id, type, e.target.value)}
                                 placeholder={`https://www.instagram.com/${type === 'REEL' ? 'reel' : type === 'STORY' ? 'stories' : 'p'}/...`}
-                                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white"
+                                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-500 bg-white"
                               />
                               <button
-                                onClick={() => handleSubmit(c, type)}
-                                disabled={isSubmitting || !getUrl(c.id, type).trim()}
-                                className="shrink-0 bg-pink-600 text-white px-3 py-2 rounded-lg hover:bg-pink-700 transition-colors flex items-center gap-1 text-sm font-medium disabled:opacity-50"
+                                onClick={() => handleNew(c, type)}
+                                disabled={submitting === newKey || !getNUrl(c.id, type).trim()}
+                                className="shrink-0 bg-pink-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-pink-700 disabled:opacity-50 flex items-center gap-1"
                               >
                                 <FiSend size={14} />
-                                {isSubmitting ? '…' : 'Enviar'}
+                                {submitting === newKey ? '…' : 'Enviar'}
                               </button>
                             </div>
-                          </div>
-                        )}
+                          ) : !allDone ? (
+                            <p className="text-xs text-center text-gray-500 bg-white/60 rounded py-2">⏳ Aguardando revisão dos {nonRejected.length} envios</p>
+                          ) : null}
+                        </div>
                       </div>
                     );
                   })}
                   {c.reelsCount === 0 && c.postsCount === 0 && c.storiesCount === 0 && (
-                    <p className="text-center text-gray-400 text-sm py-2">Nenhuma meta de conteúdo definida para esta campanha</p>
+                    <p className="text-center text-gray-400 text-sm py-2">Nenhuma meta de conteúdo definida</p>
                   )}
                 </div>
               </div>
