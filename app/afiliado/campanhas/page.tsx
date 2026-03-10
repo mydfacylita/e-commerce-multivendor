@@ -140,11 +140,12 @@ export default function AffiliateCampanhasPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-          {campaigns.map((c) => {
+          {campaigns.map((c, idx) => {
             const days = daysLeft(c.endDate);
+            const isLastOdd = campaigns.length % 2 !== 0 && idx === campaigns.length - 1;
 
             return (
-              <div key={c.id} className="bg-white rounded-xl shadow border border-gray-100 overflow-hidden">
+              <div key={c.id} className={`bg-white rounded-xl shadow border border-gray-100 overflow-hidden${isLastOdd ? ' xl:col-span-2' : ''}`}>
                 {/* Campaign header */}
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-3 mb-3">
