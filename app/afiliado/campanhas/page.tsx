@@ -111,7 +111,7 @@ export default function AffiliateCampanhasPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <FiCamera className="text-pink-500" />
@@ -131,7 +131,7 @@ export default function AffiliateCampanhasPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
           {campaigns.map((c) => {
             const days = daysLeft(c.endDate);
 

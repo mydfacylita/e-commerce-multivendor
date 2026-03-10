@@ -64,7 +64,7 @@ export default function AffiliateMetasPage() {
   const expired = goals.filter((g) => g.isExpired);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <FiTarget className="text-blue-600" />
@@ -88,7 +88,7 @@ export default function AffiliateMetasPage() {
           {active.length > 0 && (
             <section className="mb-8">
               <h2 className="text-base font-semibold text-gray-700 mb-3">Metas Ativas</h2>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
                 {active.map((g) => (
                   <GoalCard key={g.id} goal={g} />
                 ))}
@@ -99,7 +99,7 @@ export default function AffiliateMetasPage() {
           {expired.length > 0 && (
             <section>
               <h2 className="text-base font-semibold text-gray-500 mb-3">Metas Encerradas</h2>
-              <div className="space-y-4 opacity-70">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start opacity-70">
                 {expired.map((g) => (
                   <GoalCard key={g.id} goal={g} />
                 ))}

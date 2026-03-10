@@ -61,7 +61,7 @@ export default function AffiliateKitsPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <FiGift className="text-blue-600" />
@@ -81,7 +81,7 @@ export default function AffiliateKitsPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
           {kits.map(kit => (
             <div key={kit.id} className="bg-white rounded-xl shadow overflow-hidden">
               {/* Header do kit */}
