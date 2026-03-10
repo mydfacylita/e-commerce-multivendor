@@ -376,8 +376,8 @@ export default function AdminAfiliadosPage() {
                           )}
                         </div>
 
-                        {/* Row 3: Stats + Kit + Meta + Campanhas */}
-                        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3 items-start">
+                        {/* Row 3: Stats + Kits + Endereço + Campanhas */}
+                        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 items-start">
 
                           {/* Stats */}
                           <div className="flex gap-4">
@@ -413,46 +413,13 @@ export default function AdminAfiliadosPage() {
                             </div>
                           )}
 
-                          {/* Metas */}
-                          {affiliate.goals.length > 0 && (
-                            <div className="w-full">
-                              <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">
-                                <FiTarget className="w-3 h-3" /> Metas ativas ({affiliate.goals.length})
-                              </p>
-                              <div className="flex flex-col gap-2">
-                                {affiliate.goals.map((g) => {
-                                  let current = 0
-                                  if (g.type === 'SALES_AMOUNT') current = affiliate.totalSales
-                                  else if (g.type === 'SALES_COUNT') current = affiliate._count.sales
-                                  else if (g.type === 'CLICKS') current = affiliate._count.clicks
-                                  const pct = g.targetValue > 0 ? Math.min(100, Math.round((current / g.targetValue) * 100)) : 0
-                                  const done = pct >= 100
-                                  return (
-                                    <div key={g.id} className="text-xs">
-                                      <div className="flex justify-between items-center mb-0.5">
-                                        <span className="text-gray-700 font-medium truncate max-w-[160px]">{g.title}</span>
-                                        <span className={`font-semibold ${done ? 'text-green-600' : 'text-blue-600'}`}>{pct}%</span>
-                                      </div>
-                                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                        <div
-                                          className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
-                                          style={{ width: `${pct}%` }}
-                                        />
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )}
-
                           {/* Endereço */}
                           {affiliate.cidade ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full self-start mt-4">
                               📍 {affiliate.cidade}{affiliate.estado ? `/${affiliate.estado}` : ''}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full self-start mt-4">
                               ⚠️ Sem endereço
                             </span>
                           )}
@@ -493,6 +460,40 @@ export default function AdminAfiliadosPage() {
                           )}
 
                         </div>
+
+                        {/* Row 4: Metas (separada para não bagunçar layout) */}
+                        {affiliate.goals.length > 0 && (
+                          <div className="mt-2 border-t border-gray-50 pt-2">
+                            <p className="text-xs text-gray-400 flex items-center gap-1 mb-1.5">
+                              <FiTarget className="w-3 h-3" /> Metas ativas ({affiliate.goals.length})
+                            </p>
+                            <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+                              {affiliate.goals.map((g) => {
+                                let current = 0
+                                if (g.type === 'SALES_AMOUNT') current = affiliate.totalSales
+                                else if (g.type === 'SALES_COUNT') current = affiliate._count.sales
+                                else if (g.type === 'CLICKS_COUNT') current = affiliate._count.clicks
+                                else if (g.type === 'COMMISSION_AMOUNT') current = affiliate.totalCommission
+                                const pct = g.targetValue > 0 ? Math.min(100, Math.round((current / g.targetValue) * 100)) : 0
+                                const done = pct >= 100
+                                return (
+                                  <div key={g.id} className="text-xs min-w-[180px] flex-1 max-w-xs">
+                                    <div className="flex justify-between items-center mb-0.5">
+                                      <span className="text-gray-600 truncate max-w-[140px]">{g.title}</span>
+                                      <span className={`font-semibold ml-2 ${done ? 'text-green-600' : 'text-blue-600'}`}>{pct}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
