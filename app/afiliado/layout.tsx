@@ -225,9 +225,6 @@ export default function AffiliateLayout({ children }: { children: React.ReactNod
 
         </div>
       ) : (
-
-        </div>
-      ) : (
         <div className="min-h-screen">
           {children}
         </div>
