@@ -35,6 +35,10 @@ interface Affiliate {
   _count: { sales: number; clicks: number }
   kits: Array<{ kit: { id: string; name: string } }>
   goals: Array<{ id: string; title: string; type: string; targetValue: number; endDate: string }>
+  cep?: string
+  logradouro?: string
+  cidade?: string
+  estado?: string
   campaignParticipations: Array<{
     campaign: { id: string; title: string; reelsCount: number | null; postsCount: number | null; storiesCount: number | null; isActive: boolean; endDate: string }
   }>
@@ -411,18 +415,46 @@ export default function AdminAfiliadosPage() {
 
                           {/* Metas */}
                           {affiliate.goals.length > 0 && (
-                            <div>
-                              <p className="text-xs text-gray-400 flex items-center gap-1 mb-1">
+                            <div className="w-full">
+                              <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">
                                 <FiTarget className="w-3 h-3" /> Metas ativas ({affiliate.goals.length})
                               </p>
-                              <div className="flex flex-wrap gap-1">
-                                {affiliate.goals.map((g) => (
-                                  <span key={g.id} className="text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full font-medium">
-                                    {g.title}
-                                  </span>
-                                ))}
+                              <div className="flex flex-col gap-2">
+                                {affiliate.goals.map((g) => {
+                                  let current = 0
+                                  if (g.type === 'SALES_AMOUNT') current = affiliate.totalSales
+                                  else if (g.type === 'SALES_COUNT') current = affiliate._count.sales
+                                  else if (g.type === 'CLICKS') current = affiliate._count.clicks
+                                  const pct = g.targetValue > 0 ? Math.min(100, Math.round((current / g.targetValue) * 100)) : 0
+                                  const done = pct >= 100
+                                  return (
+                                    <div key={g.id} className="text-xs">
+                                      <div className="flex justify-between items-center mb-0.5">
+                                        <span className="text-gray-700 font-medium truncate max-w-[160px]">{g.title}</span>
+                                        <span className={`font-semibold ${done ? 'text-green-600' : 'text-blue-600'}`}>{pct}%</span>
+                                      </div>
+                                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                        <div
+                                          className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
+                                          style={{ width: `${pct}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )
+                                })}
                               </div>
                             </div>
+                          )}
+
+                          {/* Endereço */}
+                          {affiliate.cidade ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
+                              📍 {affiliate.cidade}{affiliate.estado ? `/${affiliate.estado}` : ''}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                              ⚠️ Sem endereço
+                            </span>
                           )}
 
                           {/* Campanhas */}

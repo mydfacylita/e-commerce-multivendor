@@ -863,6 +863,34 @@ export default function AffiliateDetailPage() {
             </div>
           </div>
 
+          {/* Endereço */}
+          {(affiliate.logradouro || affiliate.cep) && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                📍 Endereço
+              </h3>
+              <div className="space-y-2 text-sm">
+                {affiliate.logradouro && (
+                  <p className="text-gray-800">
+                    {affiliate.logradouro}{affiliate.numero ? `, ${affiliate.numero}` : ''}
+                    {affiliate.complemento ? ` - ${affiliate.complemento}` : ''}
+                  </p>
+                )}
+                {affiliate.bairro && (
+                  <p className="text-gray-600">{affiliate.bairro}</p>
+                )}
+                {(affiliate.cidade || affiliate.estado) && (
+                  <p className="text-gray-800 font-medium">
+                    {affiliate.cidade}{affiliate.estado ? `/${affiliate.estado}` : ''}
+                  </p>
+                )}
+                {affiliate.cep && (
+                  <p className="text-gray-500">CEP: {affiliate.cep}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Configurações */}
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Configurações</h3>
