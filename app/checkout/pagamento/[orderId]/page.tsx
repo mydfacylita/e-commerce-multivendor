@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { FiCreditCard, FiLock, FiCheck, FiFileText } from 'react-icons/fi'
+import { FiCreditCard, FiLock, FiCheck, FiFileText, FiDollarSign } from 'react-icons/fi'
 import { SiPix } from 'react-icons/si'
 import toast from 'react-hot-toast'
 import QRCode from 'qrcode'
@@ -27,7 +27,7 @@ export default function CheckoutPagamentoPage() {
   
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
-  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'boleto'>('credit_card')
+  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix' | 'boleto' | 'myd_account'>('credit_card')
   const [processing, setProcessing] = useState(false)
   const [cardData, setCardData] = useState({
     number: '',
@@ -41,6 +41,8 @@ export default function CheckoutPagamentoPage() {
   const [checkingPayment, setCheckingPayment] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [publicKey, setPublicKey] = useState<string | null>(null)
+  const [mydBalance, setMydBalance] = useState<number>(0)
+  const [mydBalanceLoading, setMydBalanceLoading] = useState(false)
   
   // Regras de parcelamento
   const [paymentRules, setPaymentRules] = useState<{
@@ -73,7 +75,23 @@ export default function CheckoutPagamentoPage() {
     loadOrder()
     loadPublicKey()
     loadPaymentRules()
+    loadMydBalance()
   }, [orderId])
+
+  const loadMydBalance = async () => {
+    setMydBalanceLoading(true)
+    try {
+      const response = await fetch('/api/cashback')
+      if (response.ok) {
+        const data = await response.json()
+        setMydBalance(data.balance ?? 0)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar saldo MYD:', error)
+    } finally {
+      setMydBalanceLoading(false)
+    }
+  }
 
   const loadPaymentRules = async () => {
     try {
@@ -255,7 +273,7 @@ export default function CheckoutPagamentoPage() {
   }
 
   // Handler para mudança de método de pagamento com tracking
-  const handlePaymentMethodChange = (method: 'credit_card' | 'pix' | 'boleto') => {
+  const handlePaymentMethodChange = (method: 'credit_card' | 'pix' | 'boleto' | 'myd_account') => {
     setPaymentMethod(method)
     
     // Rastrear AddPaymentInfo no Facebook Pixel
@@ -370,6 +388,38 @@ export default function CheckoutPagamentoPage() {
     }
   }
 
+  const handleMydAccountPayment = async () => {
+    setProcessing(true)
+    try {
+      const response = await fetch('/api/payment/myd-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setMydBalance(data.saldoAtual)
+        toast.success('Pagamento realizado com sucesso! 🎉')
+        if (order?.total) {
+          trackPurchaseConversion(orderId, order.total)
+          analytics.purchase({ orderId, total: order.total })
+        }
+        setTimeout(() => {
+          router.push(`/pedidos/${orderId}`)
+        }, 1500)
+      } else {
+        toast.error(data.error || 'Erro ao pagar com Conta MYD')
+      }
+    } catch (error) {
+      console.error('Erro ao pagar com Conta MYD:', error)
+      toast.error('Erro ao processar pagamento')
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   const handleBoletoPayment = async () => {
     setProcessing(true)
     try {
@@ -478,6 +528,17 @@ export default function CheckoutPagamentoPage() {
                 >
                   <FiFileText className="inline mr-2" />
                   Boleto
+                </button>
+                <button
+                  onClick={() => handlePaymentMethodChange('myd_account')}
+                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
+                    paymentMethod === 'myd_account'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <FiDollarSign className="inline mr-2" />
+                  Conta MYD
                 </button>
               </div>
 
@@ -589,6 +650,49 @@ export default function CheckoutPagamentoPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Conta MYD */}
+              {paymentMethod === 'myd_account' && (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary-100 mb-4">
+                    <FiDollarSign className="text-primary-600" size={36} />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">Conta MYD</h3>
+                  <p className="text-gray-500 mb-6 text-sm">Use seu saldo MYD para pagar este pedido</p>
+
+                  <div className={`inline-block rounded-2xl px-8 py-5 mb-6 ${
+                    mydBalance >= (order?.total ?? 0)
+                      ? 'bg-green-50 border-2 border-green-300'
+                      : 'bg-red-50 border-2 border-red-200'
+                  }`}>
+                    <p className="text-xs text-gray-500 mb-1">Saldo disponível</p>
+                    <p className={`text-3xl font-bold ${
+                      mydBalance >= (order?.total ?? 0) ? 'text-green-700' : 'text-red-600'
+                    }`}>
+                      {mydBalanceLoading ? '...' : `R$ ${mydBalance.toFixed(2)}`}
+                    </p>
+                  </div>
+
+                  {mydBalance < (order?.total ?? 0) ? (
+                    <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                      ⚠️ Saldo insuficiente. Você precisa de <strong>R$ {((order?.total ?? 0) - mydBalance).toFixed(2)}</strong> a mais.
+                      Escolha outra forma de pagamento.
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleMydAccountPayment}
+                      disabled={processing}
+                      className="bg-primary-600 text-white px-10 py-3 rounded-lg font-bold hover:bg-primary-700 disabled:bg-gray-400 shadow-md hover:shadow-lg transition-all"
+                    >
+                      {processing ? 'Processando...' : `Pagar R$ ${order?.total.toFixed(2)} com Conta MYD`}
+                    </button>
+                  )}
+
+                  <p className="text-xs text-gray-400 mt-4">
+                    O saldo será debitado imediatamente e seu pedido será confirmado na hora.
+                  </p>
                 </div>
               )}
 
