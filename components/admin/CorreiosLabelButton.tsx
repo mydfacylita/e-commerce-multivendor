@@ -1,7 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { FiPrinter, FiDownload, FiLoader, FiCheckCircle, FiAlertCircle } from 'react-icons/fi'
+import { FiPrinter, FiDownload, FiLoader, FiCheckCircle, FiAlertCircle, FiMapPin, FiRefreshCw, FiChevronDown, FiChevronUp } from 'react-icons/fi'
+
+interface TrackingEvento {
+  descricao: string
+  local: string
+  data: string
+  hora: string
+}
 
 interface CorreiosLabelButtonProps {
   orderId: string
@@ -19,6 +26,38 @@ export default function CorreiosLabelButton({
   const [prePostagemId, setPrePostagemId] = useState(initialPrePostagemId || null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+
+  const [showTracking, setShowTracking] = useState(false)
+  const [trackingLoading, setTrackingLoading] = useState(false)
+  const [trackingError, setTrackingError] = useState<string | null>(null)
+  const [trackingEventos, setTrackingEventos] = useState<TrackingEvento[] | null>(null)
+
+  const handleLoadTracking = async (codigo: string) => {
+    setTrackingLoading(true)
+    setTrackingError(null)
+    try {
+      const res = await fetch(`/api/shipping/tracking?codigo=${encodeURIComponent(codigo)}`)
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setTrackingError(data.error || 'Erro ao buscar rastreamento')
+        setTrackingEventos(null)
+      } else {
+        setTrackingEventos(data.eventos || [])
+      }
+    } catch {
+      setTrackingError('Falha ao consultar os Correios')
+      setTrackingEventos(null)
+    } finally {
+      setTrackingLoading(false)
+    }
+  }
+
+  const handleToggleTracking = () => {
+    if (!showTracking && trackingCode) {
+      handleLoadTracking(trackingCode)
+    }
+    setShowTracking(prev => !prev)
+  }
 
   const handleGenerate = async () => {
     setLoading(true)
@@ -118,6 +157,73 @@ export default function CorreiosLabelButton({
         <p className="text-xs text-gray-400">
           Pedido com rastreio manual. Clique em &quot;Regerar&quot; para criar via Correios.
         </p>
+      )}
+
+      {/* Painel de Rastreamento */}
+      {trackingCode && (
+        <div className="border-t border-gray-100 pt-3">
+          <button
+            onClick={handleToggleTracking}
+            disabled={trackingLoading}
+            className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+          >
+            {trackingLoading ? (
+              <FiLoader size={13} className="animate-spin" />
+            ) : showTracking ? (
+              <FiChevronUp size={13} />
+            ) : (
+              <FiChevronDown size={13} />
+            )}
+            {showTracking ? 'Ocultar rastreamento' : 'Ver rastreamento'}
+            {!trackingLoading && (
+              <FiRefreshCw
+                size={11}
+                className="ml-1 opacity-50 hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLoadTracking(trackingCode)
+                }}
+              />
+            )}
+          </button>
+
+          {showTracking && (
+            <div className="mt-3">
+              {trackingError && (
+                <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                  <FiAlertCircle size={12} className="mt-0.5 shrink-0" />
+                  {trackingError}
+                </div>
+              )}
+
+              {trackingEventos && trackingEventos.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-2">
+                  Nenhum evento encontrado ainda.
+                </p>
+              )}
+
+              {trackingEventos && trackingEventos.length > 0 && (
+                <ol className="relative border-l border-gray-200 ml-2 space-y-3">
+                  {trackingEventos.map((ev, idx) => (
+                    <li key={idx} className="ml-4">
+                      <span className={`absolute -left-[7px] flex items-center justify-center w-3.5 h-3.5 rounded-full ring-2 ring-white ${idx === 0 ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                      <p className={`text-xs font-semibold ${idx === 0 ? 'text-blue-700' : 'text-gray-700'}`}>
+                        {ev.descricao}
+                      </p>
+                      <p className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                        <FiMapPin size={10} />
+                        {ev.local}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {ev.data}{ev.hora ? ` às ${ev.hora}` : ''}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

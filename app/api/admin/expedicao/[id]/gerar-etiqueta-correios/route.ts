@@ -161,10 +161,14 @@ export async function POST(
     console.log('[GerarEtiqueta] Dados da empresa:', empresa)
 
     // Determinar código de serviço
+    // shippingMethod = 'correios' | 'jadlog' etc.
+    // shippingService = 'SEDEX' | 'PAC' | 'SEDEX 10' etc.
+    const serviceStr = ((order as any).shippingService || order.shippingMethod || '').toLowerCase()
     let codigoServico = '03298' // PAC por padrão
-    if (order.shippingMethod?.toLowerCase().includes('sedex')) {
+    if (serviceStr.includes('sedex')) {
       codigoServico = '03220' // SEDEX
     }
+    console.log(`[GerarEtiqueta] shippingMethod=${order.shippingMethod} | shippingService=${(order as any).shippingService} → codigoServico=${codigoServico}`)
 
     // Calcular peso e dimensões do pedido
     let pesoTotal = 0
