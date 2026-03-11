@@ -218,6 +218,7 @@ class CorreiosCWSService {
       method,
       headers: {
         'Accept': 'application/json',
+        'Accept-Language': 'pt-BR',
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
