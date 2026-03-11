@@ -511,6 +511,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [trackingInfo, setTrackingInfo] = useState<TrackingInfo | null>(null)
   const [isLoadingTracking, setIsLoadingTracking] = useState(false)
+
+  // Rastreamento Correios (pedidos nacionais)
+  const [correiosEventos, setCorreiosEventos] = useState<{ descricao: string; local: string; data: string; hora: string }[] | null>(null)
+  const [correiosLoading, setCorreiosLoading] = useState(false)
+  const [correiosError, setCorreiosError] = useState<string | null>(null)
   const [isAcceptingFinancing, setIsAcceptingFinancing] = useState(false)
   const [financingError, setFinancingError] = useState<string | null>(null)
   const [showContrato, setShowContrato] = useState(false)
@@ -616,6 +621,24 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       fetchTrackingInfo(order.supplierOrderId)
     }
   }, [order?.supplierOrderId])
+
+  // Buscar rastreamento Correios para pedidos nacionais despachados
+  useEffect(() => {
+    const isCorreios = order?.shippingCarrier?.toLowerCase().includes('correio')
+    const isDespachado = order?.status === 'SHIPPED' || order?.status === 'DELIVERED'
+    if (isDespachado && order?.trackingCode && isCorreios) {
+      setCorreiosLoading(true)
+      setCorreiosError(null)
+      fetch(`/api/shipping/tracking?codigo=${encodeURIComponent(order.trackingCode)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) setCorreiosError(data.error)
+          else setCorreiosEventos(data.eventos || [])
+        })
+        .catch(() => setCorreiosError('Não foi possível carregar o rastreamento'))
+        .finally(() => setCorreiosLoading(false))
+    }
+  }, [order?.trackingCode, order?.status, order?.shippingCarrier])
 
   const getStatusText = (status: string) => {
     // Casos especiais de financiamento
@@ -1477,7 +1500,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       <span className="text-white">✓</span>
                     )}
                   </div>
-                  <div className="ml-4">
+                  <div className="ml-4 flex-1">
                     <p className="font-medium">Despachado</p>
                     {order.shippedAt && (
                       <p className="text-sm text-gray-500">{formatDateTime(order.shippedAt)}</p>
@@ -1485,10 +1508,42 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     {order.trackingCode && (
                       <p className="text-sm text-blue-600 font-mono">Rastreio: {order.trackingCode}</p>
                     )}
+
+                    {/* Timeline Correios */}
+                    {(order.status === 'SHIPPED' || order.status === 'DELIVERED') &&
+                      order.trackingCode &&
+                      order.shippingCarrier?.toLowerCase().includes('correio') && (
+                      <div className="mt-3 border-l-2 border-blue-100 pl-4 space-y-1">
+                        {correiosLoading && (
+                          <div className="flex items-center gap-2 text-sm text-gray-500 py-1">
+                            <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                            Carregando rastreamento...
+                          </div>
+                        )}
+                        {correiosError && (
+                          <p className="text-xs text-red-500 py-1">{correiosError}</p>
+                        )}
+                        {correiosEventos && correiosEventos.length === 0 && !correiosLoading && (
+                          <p className="text-xs text-gray-400 py-1">Aguardando movimento nos Correios...</p>
+                        )}
+                        {correiosEventos && correiosEventos.map((ev, idx) => (
+                          <div key={idx} className="flex gap-2 py-1">
+                            <div className="flex flex-col items-center pt-1">
+                              <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${idx === 0 ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                            </div>
+                            <div>
+                              <p className={`text-xs font-medium ${idx === 0 ? 'text-blue-700' : 'text-gray-600'}`}>{ev.descricao}</p>
+                              <p className="text-xs text-gray-400">{ev.local}</p>
+                              <p className="text-xs text-gray-400">{ev.data}{ev.hora ? ` às ${ev.hora}` : ''}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Entregue */}
+                {/* Entregue */
                 <div className="flex items-center">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${
