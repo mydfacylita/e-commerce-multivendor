@@ -1,10 +1,31 @@
 import { prisma } from '@/lib/prisma'
+import type { Metadata } from 'next'
 import ProductCard from '@/components/ProductCard'
 import Hero from '@/components/Hero'
 import CategoryGrid from '@/components/CategoryGrid'
 import InfiniteHomeSections from '@/components/InfiniteHomeSections'
 import { serializeProducts } from '@/lib/serialize'
 import CouponPromoModal from '@/components/CouponPromoModal'
+
+export const metadata: Metadata = {
+  title: 'MYDSHOP - Marketplace Online | Compre com os Melhores Preços',
+  description: 'MYDSHOP: marketplace brasileiro com maior variedade de produtos, preços imbatíveis e entrega rápida para todo o Brasil. Eletrônicos, moda, perfumes, casa e muito mais!',
+  keywords: [
+    'marketplace brasil', 'loja online', 'comprar online barato', 'eletrônicos',
+    'moda', 'perfumes', 'casa decoração', 'mydshop', 'frete grátis'
+  ],
+  alternates: {
+    canonical: 'https://mydshop.com.br',
+  },
+  openGraph: {
+    type: 'website',
+    url: 'https://mydshop.com.br',
+    title: 'MYDSHOP - Marketplace Online | Compre com os Melhores Preços',
+    description: 'MYDSHOP: marketplace brasileiro com maior variedade de produtos, preços imbatíveis e entrega rápida para todo o Brasil.',
+    siteName: 'MYDSHOP',
+    images: [{ url: 'https://mydshop.com.br/og-home.jpg', width: 1200, height: 630, alt: 'MYDSHOP Marketplace' }],
+  },
+}
 
 export default async function HomePage() {
   const [featuredProductsRaw, categories] = await Promise.all([

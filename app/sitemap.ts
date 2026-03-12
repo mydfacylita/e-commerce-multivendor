@@ -66,6 +66,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly',
       priority: 0.8,
     },
+    {
+      url: `${baseUrl}/mydshop-e-confiavel`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/carreiras`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.4,
+    },
+    {
+      url: `${baseUrl}/rastrear-pedido`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.4,
+    },
   ]
 
   // Buscar todos os produtos ativos
@@ -160,5 +178,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error('Error fetching sellers for sitemap:', error)
   }
 
-  return [...staticUrls, ...productUrls, ...categoryUrls, ...guiaUrls, ...sellerUrls]
+  // Páginas /guias/[categoria] individuais (rich content, alta prioridade)
+  let guiaCategoryPageUrls: MetadataRoute.Sitemap = []
+  try {
+    const guiasRootCategories = await prisma.category.findMany({
+      where: { parentId: null },
+      select: { slug: true, updatedAt: true },
+    })
+    guiaCategoryPageUrls = guiasRootCategories.map((c) => ({
+      url: `${baseUrl}/guias/${c.slug}`,
+      lastModified: c.updatedAt,
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }))
+  } catch (error) {
+    console.error('Error fetching guia category pages for sitemap:', error)
+  }
+
+  return [...staticUrls, ...productUrls, ...categoryUrls, ...guiaUrls, ...guiaCategoryPageUrls, ...sellerUrls]
 }

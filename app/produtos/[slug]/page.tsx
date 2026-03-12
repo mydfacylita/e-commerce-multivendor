@@ -129,7 +129,7 @@ export async function generateMetadata(
       title,
       description,
       siteName: 'MYDSHOP',
-      images: [{ url: imageUrl, width: 800, height: 800, alt: product.name }],
+      images: [{ url: imageUrl, width: 1200, height: 1200, alt: product.name }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -329,13 +329,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     }
   }
 
-  // Log do que vem do banco
-  console.log('📦 Produto do banco - ID:', product.id)
-  console.log('📦 Campo images:', product.images)
-  console.log('📦 Tipo do campo images:', typeof product.images)
-  console.log('📦 Campo variants (raw):', productRaw.variants)
-  console.log('📦 Campo sizes (raw):', productRaw.sizes)
-
   // Processar especificações e atributos baseado no fornecedor
   const processedSpecs = processSpecifications(product.specifications, product.supplier?.name)
   const processedAttrs = processAttributes(product.attributes, product.supplier?.name)
@@ -354,11 +347,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       if (standardVariants) {
         // Converter para formato multi-nível (novo) para exibição dinâmica
         multiLevelData = convertToMultiLevel(standardVariants)
-        console.log('✅ MultiLevel properties:', multiLevelData?.properties.map(p => p.name))
         
         // Converter para formato legado usado pelo ProductSelectionWrapper (fallback)
         variants = convertToLegacyFormat(standardVariants)
-        console.log('✅ Variants (novo formato) convertidos:', variants?.length)
       } else {
         // Fallback para formato legado antigo
         let parsed = product.variants
@@ -371,7 +362,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         if (Array.isArray(parsed) && parsed.length > 0) {
           if (parsed[0].size !== undefined || parsed[0].color !== undefined) {
             variants = parsed as LegacyVariant[]
-            console.log('✅ Variants (formato legado) parseados:', variants)
           }
         }
       }
@@ -379,8 +369,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       console.error('❌ Erro ao parsear variants:', e)
       variants = null
     }
-  } else {
-    console.log('⚠️ Produto sem campo variants')
   }
   
   // Parse de selectedSkus (SKUs com preços personalizados)
@@ -393,7 +381,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       }
       if (Array.isArray(parsed)) {
         selectedSkus = parsed.filter((s: any) => s.enabled) // Apenas SKUs habilitados
-        console.log('✅ SelectedSkus parseados:', selectedSkus.length, 'ativos')
       }
     } catch (e) {
       console.error('❌ Erro ao parsear selectedSkus:', e)
@@ -412,7 +399,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       // Se não tem skuId (formato legado), manter
       return true
     })
-    console.log('✅ Variants filtradas:', variants.length, 'disponíveis')
   }
 
   // Preparar dados para JSON-LD
@@ -492,6 +478,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     itemListElement: breadcrumbList
   }
 
+  // FAQPage schema — apenas se houver perguntas respondidas (rich result no Google)
+  const answeredQuestions = questionsData.filter(q => q.answer)
+  const faqJsonLd = answeredQuestions.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: answeredQuestions.slice(0, 10).map(q => ({
+      '@type': 'Question',
+      name: q.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: q.answer
+      }
+    }))
+  } : null
+
   return (
     <>
     <script
@@ -502,6 +503,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       type="application/ld+json"
       dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
     />
+    {faqJsonLd && (
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+    )}
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Breadcrumb de navegação com hierarquia completa */}
       <Breadcrumb 
