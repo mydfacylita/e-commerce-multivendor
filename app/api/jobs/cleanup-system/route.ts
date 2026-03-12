@@ -16,6 +16,13 @@ import { prisma } from '@/lib/prisma'
  * 7. 🔐 LGPD: Purga AuditLog antigo (> 1 ano — prazo de retenção)
  */
 export async function POST(req: NextRequest) {
+  // 🔐 CRON Secret
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production'
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
   try {
     const startTime = Date.now()
     const results = {

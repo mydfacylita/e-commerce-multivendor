@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 /**
  * Lista todas as conexões de redes sociais
  * GET /api/social/connections
+ * 🔐 Requer ADMIN
  */
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
+
   try {
     const connections = await prisma.socialConnection.findMany({
       orderBy: { createdAt: 'desc' },
@@ -39,8 +47,14 @@ export async function GET(request: NextRequest) {
 /**
  * Desconecta uma rede social
  * DELETE /api/social/connections?id=xxx
+ * 🔐 Requer ADMIN
  */
 export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')

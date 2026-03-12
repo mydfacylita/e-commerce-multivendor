@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 
 /**
  * API para buscar histórico de rastreamento detalhado do AliExpress
  * Usa: aliexpress.ds.order.tracking.get (método correto para todos os tipos de logística)
+ * 🔐 Requer autenticação (ADMIN ou SELLER)
  */
 
 
@@ -41,6 +44,12 @@ function generateSign(params: Record<string, string>, appSecret: string): string
 }
 
 export async function POST(request: NextRequest) {
+  // 🔐 Apenas ADMIN e SELLER podem consultar rastreamento interno (AliExpress)
+  const session = await getServerSession(authOptions)
+  if (!session?.user || !['ADMIN', 'SELLER'].includes(session.user.role ?? '')) {
+    return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 })
+  }
+
   try {
     const body = await request.json()
     const { orderId, trackingNumber } = body

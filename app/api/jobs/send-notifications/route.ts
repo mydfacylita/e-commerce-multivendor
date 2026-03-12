@@ -14,6 +14,13 @@ import { sendTemplateEmail, EMAIL_TEMPLATES } from '@/lib/email'
  * 4. Retry automático para falhas (máx 3 tentativas)
  */
 export async function POST(req: NextRequest) {
+  // 🔐 CRON Secret
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production'
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
   try {
     const startTime = Date.now()
 

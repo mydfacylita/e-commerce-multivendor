@@ -17,6 +17,13 @@ import { correiosCWS } from '@/lib/correios-cws'
  * Execução recomendada: a cada 2 horas via cron.
  */
 export async function POST(req: NextRequest) {
+  // 🔐 CRON Secret
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production'
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
   try {
     const startTime = Date.now()
 

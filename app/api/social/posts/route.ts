@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 /**
  * Lista posts com filtros
  * GET /api/social/posts
+ * 🔐 Requer ADMIN
  */
 export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const platform = searchParams.get('platform')
@@ -53,8 +61,14 @@ export async function GET(request: NextRequest) {
 /**
  * Cria um novo post (draft)
  * POST /api/social/posts
+ * 🔐 Requer ADMIN
  */
 export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+  }
+
   try {
     const body = await request.json()
     const { connectionId, productId, platform, caption, images, scheduledFor } = body

@@ -17,6 +17,13 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  // 🔐 CRON Secret
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production'
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
   try {
     console.log('💰 [JOB] Iniciando processamento automático de pagamentos de afiliados...')
 

@@ -13,6 +13,13 @@ import { prisma } from '@/lib/prisma'
  * 4. Auto-completar pedidos DELIVERED há mais de 7 dias
  */
 export async function POST(req: NextRequest) {
+  // 🔐 CRON Secret — impede execução não autorizada por terceiros
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production'
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
+
   try {
     const startTime = Date.now()
     const results = {
