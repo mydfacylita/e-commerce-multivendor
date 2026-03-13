@@ -1,0 +1,53 @@
+{
+  "name": "MYDSHOP - Marketplace Online",
+  "short_name": "MYDSHOP",
+  "description": "Sua loja online com produtos de qualidade, preços imbatíveis e entrega para todo o Brasil.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2C4A9E",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "pt-BR",
+  "categories": ["shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icone_mydshop.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "MYDSHOP Marketplace"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Carrinho",
+      "url": "/carrinho",
+      "description": "Ver carrinho de compras"
+    },
+    {
+      "name": "Meus Pedidos",
+      "url": "/pedidos",
+      "description": "Acompanhar pedidos"
+    },
+    {
+      "name": "Produtos",
+      "url": "/produtos",
+      "description": "Explorar produtos"
+    }
+  ]
+}

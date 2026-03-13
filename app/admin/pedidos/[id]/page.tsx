@@ -531,11 +531,14 @@ export default async function AdminOrderDetailPage({
               </div>
             )}
 
-            <CorreiosLabelButton
-              orderId={order.id}
-              initialTrackingCode={(order as any).trackingCode}
-              initialPrePostagemId={(order as any).correiosIdPrePostagem}
-            />
+            {/* Só exibe Correios se não for pedido 100% dropshipping (quem despacha é o vendedor/fornecedor, não o admin) */}
+            {!order.items.every(item => item.itemType === 'DROPSHIPPING') && (
+              <CorreiosLabelButton
+                orderId={order.id}
+                initialTrackingCode={(order as any).trackingCode}
+                initialPrePostagemId={(order as any).correiosIdPrePostagem}
+              />
+            )}
           </div>
         </div>
       </div>

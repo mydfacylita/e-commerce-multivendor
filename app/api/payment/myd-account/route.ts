@@ -7,8 +7,57 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 /**
+ * GET /api/payment/myd-account
+ * Retorna saldo da Conta MYD (SellerAccount) + cashback somados
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+
+    const userId = session.user.id
+
+    // Saldo da Conta MYD (afiliado ou vendedor)
+    let mydAccountBalance = 0
+
+    const affiliate = await prisma.affiliate.findUnique({
+      where: { userId },
+      include: { account: { select: { balance: true } } }
+    })
+    if (affiliate?.account) {
+      mydAccountBalance = affiliate.account.balance ?? 0
+    } else {
+      const seller = await prisma.seller.findFirst({
+        where: { userId },
+        include: { account: { select: { balance: true } } }
+      })
+      if (seller?.account) {
+        mydAccountBalance = seller.account.balance ?? 0
+      }
+    }
+
+    // Saldo de cashback
+    const cashback = await prisma.customerCashback.findUnique({
+      where: { userId },
+      select: { balance: true }
+    })
+    const cashbackBalance = cashback?.balance ?? 0
+
+    return NextResponse.json({
+      mydAccountBalance,
+      cashbackBalance,
+      totalBalance: mydAccountBalance + cashbackBalance
+    })
+  } catch (error) {
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
+  }
+}
+
+/**
  * POST /api/payment/myd-account
- * Paga um pedido usando o saldo da Conta MYD (cashback)
+ * Paga um pedido usando o saldo da Conta MYD (SellerAccount)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -42,12 +91,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Este pedido já foi pago' }, { status: 400 })
     }
 
-    // Buscar saldo de cashback do cliente
+    // Buscar SellerAccount do usuário (afiliado ou vendedor)
+    let sellerAccount: { id: string; balance: number } | null = null
+
+    const affiliate = await prisma.affiliate.findUnique({
+      where: { userId },
+      include: { account: { select: { id: true, balance: true } } }
+    })
+
+    if (affiliate?.account) {
+      sellerAccount = affiliate.account
+    } else {
+      const seller = await prisma.seller.findFirst({
+        where: { userId },
+        include: { account: { select: { id: true, balance: true } } }
+      })
+      if (seller?.account) {
+        sellerAccount = seller.account
+      }
+    }
+
+    // Buscar cashback do usuário
     const cashback = await prisma.customerCashback.findUnique({
       where: { userId }
     })
 
-    const saldoDisponivel = cashback?.balance ?? 0
+    const saldoMydAccount = sellerAccount?.balance ?? 0
+    const saldoCashback = cashback?.balance ?? 0
+    const saldoDisponivel = saldoMydAccount + saldoCashback
 
     // Calcular total real (incluindo pedidos agrupados se houver parentOrderId)
     let totalAPagar = order.total
@@ -73,32 +144,56 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const novoSaldo = saldoDisponivel - totalAPagar
+    // Calcular quanto debitar de cada fonte (usar Conta MYD primeiro, depois cashback)
+    const debitoMydAccount = Math.min(saldoMydAccount, totalAPagar)
+    const debitoCashback = totalAPagar - debitoMydAccount
 
-    // Executar em transação: debitar saldo + aprovar pedido(s)
+    // Executar em transação: debitar ambas as fontes + aprovar pedido(s)
     await prisma.$transaction(async (tx) => {
-      // Debitar cashback
-      await tx.customerCashback.update({
-        where: { userId },
-        data: {
-          balance: novoSaldo,
-          totalUsed: { increment: totalAPagar }
-        }
-      })
+      // Debitar SellerAccount (se houver saldo)
+      if (sellerAccount && debitoMydAccount > 0) {
+        const novoSaldoMyd = saldoMydAccount - debitoMydAccount
+        await tx.sellerAccount.update({
+          where: { id: sellerAccount.id },
+          data: { balance: novoSaldoMyd }
+        })
+        await tx.sellerAccountTransaction.create({
+          data: {
+            accountId: sellerAccount.id,
+            type: 'WITHDRAWAL',
+            amount: debitoMydAccount,
+            balanceBefore: saldoMydAccount,
+            balanceAfter: novoSaldoMyd,
+            description: `Pagamento do pedido #${orderId.slice(0, 8).toUpperCase()} via Conta MYD`,
+            orderId: orderId,
+            status: 'COMPLETED'
+          }
+        })
+      }
 
-      // Registrar transação de cashback
-      await tx.cashbackTransaction.create({
-        data: {
-          cashbackId: cashback!.id,
-          type: 'DEBIT',
-          amount: totalAPagar,
-          balanceBefore: saldoDisponivel,
-          balanceAfter: novoSaldo,
-          description: `Pagamento do pedido #${orderId.slice(0, 8).toUpperCase()} via Conta MYD`,
-          orderId: orderId,
-          status: 'USED'
-        }
-      })
+      // Debitar Cashback (se necessário)
+      if (cashback && debitoCashback > 0) {
+        const novoSaldoCashback = saldoCashback - debitoCashback
+        await tx.customerCashback.update({
+          where: { userId },
+          data: {
+            balance: novoSaldoCashback,
+            totalUsed: { increment: debitoCashback }
+          }
+        })
+        await tx.cashbackTransaction.create({
+          data: {
+            cashbackId: cashback.id,
+            type: 'DEBIT',
+            amount: debitoCashback,
+            balanceBefore: saldoCashback,
+            balanceAfter: novoSaldoCashback,
+            description: `Pagamento do pedido #${orderId.slice(0, 8).toUpperCase()} via Conta MYD`,
+            orderId: orderId,
+            status: 'USED'
+          }
+        })
+      }
 
       // Atualizar pedido(s) para PROCESSING
       await tx.order.updateMany({
@@ -112,13 +207,11 @@ export async function POST(request: NextRequest) {
       })
     })
 
-    console.log(`✅ Pedido ${orderId} pago via Conta MYD. Saldo debitado: R$ ${totalAPagar.toFixed(2)}`)
-
     return NextResponse.json({
       success: true,
       message: 'Pagamento realizado com sucesso!',
-      saldoAnterior: saldoDisponivel,
-      saldoAtual: novoSaldo,
+      saldoAtualMyd: saldoMydAccount - debitoMydAccount,
+      saldoAtualCashback: saldoCashback - debitoCashback,
       valorPago: totalAPagar
     })
 

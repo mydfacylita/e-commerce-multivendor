@@ -31,6 +31,7 @@ interface Product {
   shipFromCountry?: string | null  // País de origem do envio
   description?: string | null  // Descrição para modo lista
   hasVariants?: boolean  // Indica se o produto tem variantes (cores/modelos)
+  cashbackRate?: number | null  // % de cashback deste produto
 }
 
 interface ProductCardProps {
@@ -110,6 +111,11 @@ export default function ProductCard({ product, layout = 'vertical' }: ProductCar
             {discount > 0 && (
               <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
                 🔥 -{discount}%
+              </div>
+            )}
+            {product.cashbackRate != null && product.cashbackRate > 0 && (
+              <div className="absolute bottom-2 left-2 bg-green-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow">
+                💰 {product.cashbackRate}% cashback
               </div>
             )}
           </div>
@@ -210,6 +216,11 @@ export default function ProductCard({ product, layout = 'vertical' }: ProductCar
               </div>
             )}
           </div>
+          {product.cashbackRate != null && product.cashbackRate > 0 && (
+            <div className="absolute bottom-2 left-2 bg-green-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow pointer-events-none">
+              💰 {product.cashbackRate}% cashback
+            </div>
+          )}
         </div>
       </Link>
       

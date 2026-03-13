@@ -255,6 +255,7 @@ model Product {
   sizes                    String?              @db.LongText
   sizeType                 String?
   sizeCategory             String?
+  cashbackRate             Float?               @default(0)
   acceptsCreditCard        Boolean?
   aliquotaCofins           Float?               @map("aliquota_cofins")
   aliquotaIcms             Float?               @map("aliquota_icms")
@@ -441,6 +442,7 @@ model Order {
   icmsTax                    Float?
   deliveredAt                DateTime?
   deliveredBy                String?
+  cashbackProcessed          Boolean         @default(false)
   receiverName               String?
   receiverDocument           String?
   deliveryNotes              String?         @db.Text

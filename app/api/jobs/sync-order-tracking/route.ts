@@ -92,13 +92,19 @@ export async function POST(req: NextRequest) {
 
         if (isDelivered) {
           delivered++
-          console.log(`📦 [TRACKING] Pedido ${order.id} marcado como DELIVERED (${order.trackingCode})`)
 
           // Processar comissão de afiliado automaticamente
           try {
             await processAffiliateCommission(order.id)
           } catch (affiliateError) {
             console.error(`⚠️  [TRACKING] Erro ao processar comissão do pedido ${order.id}:`, affiliateError)
+          }
+
+          // Créditar cashback por produto ao comprador
+          try {
+            await processCashbackOnDelivery(order.id)
+          } catch (cashbackError) {
+            console.error(`⚠️  [TRACKING] Erro ao processar cashback do pedido ${order.id}:`, cashbackError)
           }
         }
       } catch (error: any) {
@@ -135,4 +141,84 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/**
+ * Credita cashback por produto ao comprador quando o pedido é entregue.
+ * Só credita se o produto tem cashbackRate > 0 e o pedido ainda não foi processado.
+ */
+async function processCashbackOnDelivery(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      userId: true,
+      cashbackProcessed: true,
+      items: {
+        select: {
+          quantity: true,
+          price: true,
+          product: { select: { id: true, cashbackRate: true, name: true } }
+        }
+      }
+    }
+  })
+
+  if (!order || !order.userId || order.cashbackProcessed) return
+
+  const userId = order.userId
+
+  // Calcular total de cashback a creditar
+  let totalCashback = 0
+  const descriptions: string[] = []
+
+  for (const item of order.items) {
+    const rate = item.product?.cashbackRate ?? 0
+    if (rate > 0) {
+      const valor = (item.price * item.quantity * rate) / 100
+      totalCashback += valor
+      descriptions.push(`${item.product!.name} (${rate}%)`)
+    }
+  }
+
+  if (totalCashback <= 0) {
+    // Marca como processado mesmo sem cashback para não reprocessar
+    await prisma.order.update({ where: { id: orderId }, data: { cashbackProcessed: true } })
+    return
+  }
+
+  // Buscar ou criar CustomerCashback
+  let cashback = await prisma.customerCashback.findUnique({ where: { userId } })
+  if (!cashback) {
+    cashback = await prisma.customerCashback.create({
+      data: { userId, balance: 0, pendingBalance: 0, totalEarned: 0, totalUsed: 0 }
+    })
+  }
+
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + (cashback.expirationDays || 90))
+
+  await prisma.$transaction([
+    prisma.customerCashback.update({
+      where: { userId },
+      data: {
+        balance: { increment: totalCashback },
+        totalEarned: { increment: totalCashback }
+      }
+    }),
+    prisma.cashbackTransaction.create({
+      data: {
+        cashbackId: cashback.id,
+        type: 'CREDIT',
+        amount: totalCashback,
+        balanceBefore: cashback.balance,
+        balanceAfter: cashback.balance + totalCashback,
+        description: `Cashback pedido #${orderId.slice(0, 8).toUpperCase()}: ${descriptions.join(', ')}`,
+        orderId,
+        status: 'AVAILABLE',
+        expiresAt
+      }
+    }),
+    prisma.order.update({ where: { id: orderId }, data: { cashbackProcessed: true } })
+  ])
 }

@@ -194,6 +194,21 @@ export default function ProductDetailClient({
             </span>
           )}
         </div>
+
+        {/* Badge de Cashback */}
+        {product.cashbackRate != null && product.cashbackRate > 0 && (
+          <div className="mb-4 inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2">
+            <span className="text-xl">💰</span>
+            <div>
+              <p className="text-green-800 font-bold text-sm">
+                Ganhe {product.cashbackRate}% de cashback nesta compra
+              </p>
+              <p className="text-green-700 text-xs">
+                = <strong>R$ {((currentPrice * product.cashbackRate) / 100).toFixed(2)}</strong> creditados na Conta MYD após a entrega
+              </p>
+            </div>
+          </div>
+        )}
         <div className="mb-6">
           <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
             currentStock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'

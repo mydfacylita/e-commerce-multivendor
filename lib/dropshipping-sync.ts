@@ -178,7 +178,7 @@ export async function syncDropshippingProducts(
     }
 
     if (updatedFields.categoryId !== undefined) {
-      syncData.categoryId = updatedFields.categoryId
+      syncData.category = { connect: { id: updatedFields.categoryId } }
     }
 
     if (updatedFields.dropshippingCommission !== undefined) {

@@ -78,6 +78,48 @@
   animation: slide-up 0.4s ease-out forwards;
 }
 
+/* =========================================
+   PWA / Mobile App Experience
+   ========================================= */
+
+/* Remove tap flash on all interactive elements */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Allow text selection on inputs/textareas but nowhere else */
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Smooth scrolling on iOS */
+html {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Bottom nav safe area spacing (iOS home indicator) */
+.bottom-nav-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevent horizontal overflow on mobile */
+body {
+  overflow-x: hidden;
+}
+
+/* Cards e botões: touch target mínimo 44px (WCAG) */
+@media (max-width: 767px) {
+  button, a {
+    min-height: 44px;
+  }
+  /* Exceção: inline links dentro de texto */
+  p a, span a, li a {
+    min-height: unset;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

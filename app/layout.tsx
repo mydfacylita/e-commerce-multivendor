@@ -1,5 +1,5 @@
 import './globals.css'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import Script from 'next/script'
 import { Suspense } from 'react'
@@ -18,6 +18,7 @@ import GoogleAnalytics from '@/components/GoogleAnalytics'
 import GoogleAds from '@/components/GoogleAds'
 import FacebookPixel from '@/components/FacebookPixel'
 import OrganizationSchema, { WebsiteSchema, LocalBusinessSchema } from '@/components/StructuredData'
+import BottomNav from '@/components/BottomNav'
 import { prisma } from '@/lib/prisma'
 // NOTA: Jobs de background agora são iniciados via instrumentation.ts (Next.js 14)
 // Não usar mais: import '@/lib/init'
@@ -26,6 +27,13 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 const inter = Inter({ subsets: ['latin'] })
+
+export const viewport: Viewport = {
+  themeColor: '#2C4A9E',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+}
 
 // Buscar GA ID do banco de dados
 async function getGoogleAnalyticsId(): Promise<string | null> {
@@ -76,7 +84,13 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
-    apple: '/favicon.svg',
+    apple: '/icone_mydshop.png',
+  },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'MYDSHOP',
+    statusBarStyle: 'default',
   },
   openGraph: {
     type: 'website',
@@ -120,6 +134,7 @@ export default async function RootLayout({
   if (isDeveloperPage) {
     return (
       <html lang="pt-BR" className={inter.className}>
+        <head><meta charSet="utf-8" /></head>
         <body className="bg-gray-950 text-white antialiased">
           <Providers>{children}</Providers>
         </body>
@@ -131,6 +146,7 @@ export default async function RootLayout({
   if (isAdminPage) {
     return (
       <html lang="pt-BR" className={inter.className}>
+        <head><meta charSet="utf-8" /></head>
         <body className="antialiased">
           <Providers>{children}</Providers>
         </body>
@@ -145,6 +161,7 @@ export default async function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
+        <meta charSet="utf-8" />
         {/* GA e Facebook Pixel são carregados pelos componentes client-side
             GoogleAnalytics e FacebookPixel, que verificam se é rota admin/vendedor
             antes de inicializar — evitando conversões falsas no painel */}
@@ -169,9 +186,10 @@ export default async function RootLayout({
             </Suspense>
             <div className="flex flex-col min-h-screen">
               <Navbar />
-              <main className="flex-grow">{children}</main>
+              <main className="flex-grow pb-16 md:pb-0">{children}</main>
               <Footer />
             </div>
+            <BottomNav />
             <AIChatWidget />
           </NavigationProvider>
         </Providers>

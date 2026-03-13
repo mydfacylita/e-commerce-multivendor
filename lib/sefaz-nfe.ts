@@ -11,6 +11,7 @@ import * as forge from 'node-forge'
 import { SignedXml } from 'xml-crypto'
 import * as crypto from 'crypto'
 import { create } from 'xmlbuilder2'
+import { parseStringPromise } from 'xml2js'
 
 // Tipos
 interface SefazConfig {
@@ -769,6 +770,14 @@ function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
   
   console.log(`💰 Totais calculados: BC=${totalBC.toFixed(2)}, ICMS=${totalICMS.toFixed(2)}, PIS=${totalPIS.toFixed(2)}, COFINS=${totalCOFINS.toFixed(2)}`)
   
+  // Sanitizar campos obrigatórios (schema SEFAZ exige apenas dígitos em CNPJ/CPF/CEP)
+  const cnpjEmit = (invoice.emitenteCnpj || '').replace(/\D/g, '')
+  const cpfDest  = (invoice.destinatarioCpf || '').replace(/\D/g, '')
+  const cnpjDest = (invoice.destinatarioCnpj || '').replace(/\D/g, '')
+  const cepEmit  = (invoice.emitenteCEP || '').replace(/\D/g, '')
+  const cepDest  = (invoice.destinatarioCEP || '').replace(/\D/g, '')
+  const ieEmit   = (invoice.emitenteIE || '').replace(/[^0-9A-Za-z]/g, '')
+
   // Monta XML manualmente (bibliotecas xml viriam aqui)
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
@@ -795,7 +804,7 @@ function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
       <verProc>1.0</verProc>
     </ide>
     <emit>
-      <CNPJ>${invoice.emitenteCnpj}</CNPJ>
+      <CNPJ>${cnpjEmit}</CNPJ>
       <xNome>${invoice.emitenteNome}</xNome>
       <enderEmit>
         <xLgr>${invoice.emitenteLogradouro}</xLgr>
@@ -804,13 +813,13 @@ function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
         <cMun>${invoice.emitenteMunicipioCod}</cMun>
         <xMun>${invoice.emitenteMunicipio}</xMun>
         <UF>${(invoice.emitenteUF || 'MA').toUpperCase()}</UF>
-        <CEP>${invoice.emitenteCEP}</CEP>
+        <CEP>${cepEmit}</CEP>
       </enderEmit>
-      <IE>${invoice.emitenteIE}</IE>
+      <IE>${ieEmit}</IE>
       <CRT>${invoice.emitenteCRT}</CRT>
     </emit>
     <dest>
-      ${invoice.destinatarioCpf ? `<CPF>${invoice.destinatarioCpf}</CPF>` : `<CNPJ>${invoice.destinatarioCnpj}</CNPJ>`}
+      ${cpfDest ? `<CPF>${cpfDest}</CPF>` : `<CNPJ>${cnpjDest}</CNPJ>`}
       <xNome>${invoice.destinatarioNome}</xNome>
       <enderDest>
         <xLgr>${invoice.destinatarioLogradouro}</xLgr>
@@ -819,7 +828,7 @@ function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
         <cMun>${invoice.destinatarioMunicipioCod}</cMun>
         <xMun>${invoice.destinatarioMunicipio}</xMun>
         <UF>${(invoice.destinatarioUF || 'MA').toUpperCase()}</UF>
-        <CEP>${invoice.destinatarioCEP}</CEP>
+        <CEP>${cepDest}</CEP>
       </enderDest>
       <indIEDest>9</indIEDest>
     </dest>
@@ -852,7 +861,6 @@ function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
     </transp>
     <pag>
       <detPag>
-        <indPag>0</indPag>
         <tPag>01</tPag>
         <vPag>${invoice.valorTotal.toFixed(2)}</vPag>
       </detPag>
@@ -864,6 +872,311 @@ function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
 </NFe>`
 
   return xml
+}
+
+/**
+ * Retorna a URL do webservice SEFAZ conforme UF e ambiente
+ */
+function getWebserviceUrl(uf: string, ambiente: string): string {
+  const prod: Record<string, string> = {
+    AM: 'https://nfe.sefaz.am.gov.br/services2/services/NfeAutorizacao4',
+    BA: 'https://nfe.sefaz.ba.gov.br/webservices/NFeAutorizacao4/NFeAutorizacao4.asmx',
+    CE: 'https://nfeh.sefaz.ce.gov.br/nfe4/services/NFeAutorizacao4',
+    GO: 'https://nfe.sefaz.go.gov.br/nfe/services/NFeAutorizacao4',
+    MG: 'https://nfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4',
+    MS: 'https://nfe.sefaz.ms.gov.br/ws/NFeAutorizacao4',
+    MT: 'https://nfe.sefaz.mt.gov.br/nfews/v2/services/NfeAutorizacao4',
+    PE: 'https://nfe.sefaz.pe.gov.br/nfe-service/services/NFeAutorizacao4',
+    PR: 'https://nfe.fazenda.pr.gov.br/nfe/NFeAutorizacao4',
+    RS: 'https://nfe.sefazrs.rs.gov.br/webservices/NfeAutorizacao4/NfeAutorizacao4.asmx',
+    SP: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    // UFs que usam SVC-SP (não usam SVRS-RS — retornam cStat 114 da SVRS)
+    MA: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    PA: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    AL: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    PI: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+  }
+  const hom: Record<string, string> = {
+    AM: 'https://nfe-homologacao.sefaz.am.gov.br/services2/services/NfeAutorizacao4',
+    CE: 'https://nfeh.sefaz.ce.gov.br/nfe4/services/NFeAutorizacao4',
+    GO: 'https://homolog.sefaz.go.gov.br/nfe/services/NFeAutorizacao4',
+    MG: 'https://hnfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4',
+    MS: 'https://homologacao.nfe.sefaz.ms.gov.br/ws/NFeAutorizacao4',
+    MT: 'https://homologacao.sefaz.mt.gov.br/nfews/v2/services/NfeAutorizacao4',
+    PE: 'https://nfehomolog.sefaz.pe.gov.br/nfe-service/services/NFeAutorizacao4',
+    PR: 'https://homologacao.nfe.fazenda.pr.gov.br/nfe/NFeAutorizacao4',
+    RS: 'https://nfe-homologacao.sefazrs.rs.gov.br/webservices/NfeAutorizacao4/NfeAutorizacao4.asmx',
+    SP: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    // UFs que usam SVC-SP em homologação
+    MA: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    PA: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    AL: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    PI: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+  }
+  // SVRS – usado por AC, AP, CE, DF, ES, PB, RJ, RN, RO, RR, SC, SE, TO e demais não mapeados
+  const svrs = {
+    prod: 'https://nfe.svrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx',
+    hom:  'https://nfe-homologacao.svrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx',
+  }
+  const isProducao = ambiente === 'producao'
+  return isProducao ? (prod[uf] || svrs.prod) : (hom[uf] || svrs.hom)
+}
+
+/**
+ * Consulta resultado de lote assíncrono pelo número do recibo (nRec)
+ * Usado quando SVC-SP retorna cStat 103/104/105
+ */
+async function consultarRecibo(
+  nRec: string,
+  autorizacaoUrl: string,
+  certPem: string,
+  keyPem: string,
+  uf: string
+): Promise<{ success: boolean; protocolo?: string; cStat?: string; xMotivo?: string; error?: string }> {
+  // Derivar URL de consulta de recibo a partir da URL de autorização
+  const retUrl = autorizacaoUrl
+    .replace(/NFeAutorizacao4\.asmx/i, 'NFeRetAutorizacao4.asmx')
+    .replace(/nfeautorizacao4\.asmx/i, 'nfeRetAutorizacao4.asmx')
+    .replace(/NfeAutorizacao4/i, 'NFeRetAutorizacao4')
+
+  const ambiente = autorizacaoUrl.includes('homolog') ? 'homologacao' : 'producao'
+  const tpAmb = ambiente === 'producao' ? '1' : '2'
+  const cUF = getCodigoUF(uf)
+  const wsdlNs = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRetAutorizacao4'
+
+  const dadosXml = `<consReciNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><tpAmb>${tpAmb}</tpAmb><nRec>${nRec}</nRec></consReciNFe>`
+  const soapXml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">`,
+    `<soap:Header><nfeCabecMsg xmlns="${wsdlNs}"><cUF>${cUF}</cUF><versaoDados>4.00</versaoDados></nfeCabecMsg></soap:Header>`,
+    `<soap:Body><nfeDadosMsg xmlns="${wsdlNs}">${dadosXml}</nfeDadosMsg></soap:Body>`,
+    '</soap:Envelope>',
+  ].join('')
+
+  console.log(`   🔍 Consultando recibo ${nRec} em: ${retUrl}`)
+
+  return new Promise(async (resolve) => {
+    const https = await import('https')
+    const urlObj = new URL(retUrl)
+    const opts: any = {
+      hostname: urlObj.hostname, port: 443, path: urlObj.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': `application/soap+xml;charset=utf-8;action="${wsdlNs}/nfeRetAutorizacaoLote"`,
+        'Content-Length': Buffer.byteLength(soapXml, 'utf8'),
+      },
+      key: keyPem, cert: certPem, rejectUnauthorized: false, timeout: 20000,
+    }
+    const req = https.request(opts, (res: any) => {
+      let data = ''
+      res.on('data', (c: Buffer) => { data += c.toString('utf8') })
+      res.on('end', async () => {
+        try {
+          const parsed = await parseStringPromise(data, {
+            explicitArray: false,
+            tagNameProcessors: [(n: string) => n.replace(/^[^:]+:/, '')],
+          })
+          const body = parsed?.Envelope?.Body || {}
+          let retNode: any = {}
+          for (const k of Object.keys(body)) {
+            if (body[k]?.retConsReciNFe) { retNode = body[k].retConsReciNFe; break }
+          }
+          if (!retNode?.cStat) retNode = body?.retConsReciNFe || {}
+          const cStat = retNode?.cStat || ''
+          const xMotivo = retNode?.xMotivo || ''
+          const infProt = retNode?.retNFe?.protNFe?.infProt || {}
+          const cStatProt = infProt?.cStat || ''
+          const nProt = infProt?.nProt || ''
+          console.log(`   📋 Recibo consulta: cStat=${cStat} ${xMotivo} | NF-e cStat=${cStatProt} nProt=${nProt}`)
+          if (cStatProt === '100' || cStatProt === '150') {
+            resolve({ success: true, protocolo: nProt, cStat: cStatProt, xMotivo: infProt?.xMotivo || 'Autorizado' })
+          } else if (cStatProt) {
+            resolve({ success: false, error: `NF-e rejeitada - cStat: ${cStatProt} - ${infProt?.xMotivo || xMotivo}` })
+          } else if (cStat === '105') {
+            resolve({ success: false, error: `Lote ainda em processamento (cStat 105). Consulte mais tarde.` })
+          } else {
+            resolve({ success: false, error: `Consulta recibo - cStat: ${cStat} - ${xMotivo}` })
+          }
+        } catch (e: any) {
+          resolve({ success: false, error: `Erro parse recibo: ${e.message}` })
+        }
+      })
+    })
+    req.on('error', (e: Error) => resolve({ success: false, error: `Erro TCP recibo: ${e.message}` }))
+    req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout consulta recibo' }) })
+    req.write(soapXml, 'utf8')
+    req.end()
+  })
+}
+
+/**
+ * Envia XML assinado para o SEFAZ via SOAP 1.2 (com mTLS usando certificado A1)
+ */
+async function enviarParaSEFAZ(
+  xmlAssinado: string,
+  chaveAcesso: string,
+  config: any
+): Promise<{ success: boolean; protocolo?: string; cStat?: string; xMotivo?: string; error?: string }> {
+  return new Promise(async (resolve) => {
+    try {
+      const ambiente = config.sefazAmbiente || config.ambiente || 'homologacao'
+      const uf = (config.sefazEstado || config.emitenteEstado || 'MA').toUpperCase()
+      console.log(`🌐 SEFAZ - UF: ${uf}, Ambiente: ${ambiente}`)
+
+      const urlStr = getWebserviceUrl(uf, ambiente)
+      console.log(`   URL: ${urlStr}`)
+
+      const pfxBuffer = readFileSync(config.certificadoArquivo)
+
+      // Extrair cert/key via node-forge (evita incompatibilidade OpenSSL 3.x com PKCS12 legado)
+      let certPem: string
+      let keyPem: string
+      try {
+        const pfxBase64 = pfxBuffer.toString('base64')
+        const p12Asn1 = forge.asn1.fromDer(forge.util.decode64(pfxBase64))
+        const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, config.certificadoSenha || '')
+        const bags = p12.getBags({ bagType: forge.pki.oids.certBag })
+        const certBag = bags[forge.pki.oids.certBag]?.[0]
+        const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })
+        const keyBag = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag]?.[0]
+        if (!certBag?.cert || !keyBag?.key) throw new Error('Cert/key não encontrados no PFX')
+        certPem = forge.pki.certificateToPem(certBag.cert)
+        keyPem = forge.pki.privateKeyToPem(keyBag.key)
+        console.log('✅ Certificado extraído via node-forge (compatível com OpenSSL 3.x)')
+      } catch (forgeErr: any) {
+        console.error('❌ Erro ao extrair certificado com forge:', forgeErr.message)
+        throw new Error(`Erro ao carregar certificado: ${forgeErr.message}`)
+      }
+
+      const idLote = Date.now().toString()
+      // Remover declaração XML (<?xml...?>) do xmlAssinado —
+      // ela não pode aparecer dentro de um elemento XML (causa HTTP 400 na SVRS/ASP.NET)
+      const xmlAssinadoSemDecl = xmlAssinado.replace(/^<\?xml[^?]*\?>\s*/i, '')
+      const enviNFeXml = `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>0</indSinc>${xmlAssinadoSemDecl}</enviNFe>`
+
+      const cUF = getCodigoUF(uf)
+      const wsdlNs = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4'
+      const soapXml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        `<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">`,
+        '<soap:Header>',
+        `<nfeCabecMsg xmlns="${wsdlNs}"><cUF>${cUF}</cUF><versaoDados>4.00</versaoDados></nfeCabecMsg>`,
+        '</soap:Header>',
+        '<soap:Body>',
+        `<nfeDadosMsg xmlns="${wsdlNs}">${enviNFeXml}</nfeDadosMsg>`,
+        '</soap:Body>',
+        '</soap:Envelope>',
+      ].join('')
+
+      const urlObj = new URL(urlStr)
+      const https = await import('https')
+
+      console.log(`   SOAP size: ${Buffer.byteLength(soapXml, 'utf8')} bytes | xmlAssinado starts: ${xmlAssinadoSemDecl.substring(0, 60)}`)
+
+      const options: any = {
+        hostname: urlObj.hostname,
+        port: 443,
+        path: urlObj.pathname + urlObj.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/soap+xml;charset=utf-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote"',
+          'Accept': 'application/soap+xml',
+          'Connection': 'keep-alive',
+          'Content-Length': Buffer.byteLength(soapXml, 'utf8'),
+        },
+        pfx: undefined,
+        passphrase: undefined,
+        key: keyPem,
+        cert: certPem,
+        rejectUnauthorized: false,
+        timeout: 30000,
+      }
+
+      const req = https.request(options, (res: any) => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => { data += chunk.toString('utf8') })
+        res.on('end', async () => {
+          try {
+            console.log('📨 Resposta SEFAZ HTTP:', res.statusCode)
+            console.log('   Preview:', data.substring(0, 400))
+
+            const parsed = await parseStringPromise(data, {
+              explicitArray: false,
+              tagNameProcessors: [(name: string) => name.replace(/^[^:]+:/, '')],
+              ignoreAttrs: false,
+            })
+
+            // Estrutura SVRS: Envelope > Body > nfeResultMsg > retEnviNFe
+            // xml2js com xmlns default pode criar chave com namespace completo
+            const envelope = parsed['Envelope'] || parsed
+            const body = envelope?.['Body'] || envelope
+
+            // Buscar retEnviNFe independente do nome do wrapper (nfeResultMsg ou nfeAutorizacaoLoteResult)
+            let retEnviNFe: any = {}
+            const bodyKeys = Object.keys(body || {})
+            for (const key of bodyKeys) {
+              const node = body[key]
+              if (node?.['retEnviNFe']) { retEnviNFe = node['retEnviNFe']; break }
+              if (node?._?.retEnviNFe) { retEnviNFe = node._.retEnviNFe; break }
+            }
+            // fallback direto
+            if (!retEnviNFe?.cStat) retEnviNFe = body?.['retEnviNFe'] || retEnviNFe
+
+            const cStat = retEnviNFe?.cStat || ''
+            const xMotivo = retEnviNFe?.xMotivo || ''
+            const infProt = retEnviNFe?.protNFe?.infProt || {}
+            const cStatProt = infProt?.cStat || ''
+            const nProt = infProt?.nProt || ''
+
+            console.log(`   cStat lote: ${cStat} - ${xMotivo}`)
+            console.log(`   cStat NF-e: ${cStatProt} - ${nProt}`)
+            console.log(`   body keys: ${bodyKeys.join(', ')}`)
+            console.log(`   retEnviNFe raw: ${JSON.stringify(retEnviNFe).substring(0, 200)}`)
+
+            if (cStatProt === '100' || cStatProt === '150') {
+              resolve({ success: true, protocolo: nProt, cStat: cStatProt, xMotivo: infProt?.xMotivo || 'Autorizado o uso da NF-e' })
+            } else if (cStatProt) {
+              resolve({ success: false, error: `NF-e rejeitada - cStat: ${cStatProt} - ${infProt?.xMotivo || xMotivo}` })
+            } else if (cStat === '103' || cStat === '104' || cStat === '105') {
+              // Lote recebido/em processamento (modo assíncrono — SVC-SP)
+              // Consultar recibo após breve aguardo
+              const nRec = retEnviNFe?.infRec?.nRec || retEnviNFe?.nRec || ''
+              console.log(`   📋 Lote assíncrono recebido — nRec: ${nRec}, aguardando processamento...`)
+              if (!nRec) {
+                resolve({ success: false, error: `Lote aceito (cStat ${cStat}) mas sem número de recibo para consulta` })
+                return
+              }
+              // Aguardar 3s e consultar recibo
+              await new Promise(r => setTimeout(r, 3000))
+              const recResult = await consultarRecibo(nRec, urlStr, certPem, keyPem, uf)
+              resolve(recResult)
+            } else {
+              resolve({ success: false, error: `Erro SEFAZ - cStat: ${cStat} - ${xMotivo || 'Sem resposta válida'}` })
+            }
+          } catch (parseError: any) {
+            console.error('❌ Erro ao parsear resposta SEFAZ:', parseError.message)
+            resolve({ success: false, error: `Erro ao parsear resposta: ${parseError.message}` })
+          }
+        })
+      })
+
+      req.on('error', (error: Error) => {
+        console.error('❌ Erro de conexão SEFAZ:', error.message)
+        resolve({ success: false, error: `Erro de conexão: ${error.message}` })
+      })
+
+      req.on('timeout', () => {
+        req.destroy()
+        resolve({ success: false, error: 'Timeout na conexão com SEFAZ (30s)' })
+      })
+
+      req.write(soapXml, 'utf8')
+      req.end()
+    } catch (error: any) {
+      console.error('❌ Erro ao preparar envio SEFAZ:', error.message)
+      resolve({ success: false, error: error.message })
+    }
+  })
 }
 
 /**
@@ -1001,36 +1314,19 @@ export async function emitirNFeSefaz(invoiceId: string): Promise<SefazResult> {
       console.log(`\n🔄 Tentativa ${tentativas}/${maxTentativas} de envio para SEFAZ...`)
       
       try {
-        // TODO: Implementar envio SOAP real para SEFAZ
-        // const resultado = await enviarParaSEFAZ(xmlAssinado, config)
-        
-        // Validar XML antes de marcar como emitido
-        await validarXMLNFe(xmlAssinado)
-        
-        console.log('📝 Iniciando salvamento no banco...')
-        console.log('   Invoice ID:', invoiceId)
-        console.log('   Chave:', chaveAcesso, '(length:', chaveAcesso?.length, ')')
-        console.log('   Número:', numeroNota)
-        console.log('   XML length:', xmlAssinado?.length)
-        
-        // Verificar se chave e número foram gerados
-        if (!chaveAcesso || chaveAcesso.length !== 44) {
-          throw new Error(`Chave de acesso inválida: ${chaveAcesso}`)
+        console.log('📡 Enviando XML para SEFAZ...')
+
+        // Enviar para SEFAZ via SOAP com mTLS
+        const resultado = await enviarParaSEFAZ(xmlAssinado, chaveAcesso, config)
+
+        if (!resultado.success) {
+          throw new Error(resultado.error || 'Erro desconhecido no SEFAZ')
         }
-        
-        if (!numeroNota || numeroNota < 1) {
-          throw new Error(`Número da nota inválido: ${numeroNota}`)
-        }
-        
-        if (!xmlAssinado || xmlAssinado.length < 100) {
-          throw new Error('XML assinado está vazio ou muito pequeno')
-        }
-        
-        // Atualizar nota com chave e protocolo
-        const protocolo = 'SIMULATED-' + Date.now()
-        
-        console.log('💾 Executando prisma.invoice.update...')
-        
+
+        const protocolo = resultado.protocolo!
+
+        console.log('💾 Salvando autorização no banco...')
+
         const updated = await prisma.invoice.update({
           where: { id: invoiceId },
           data: {
@@ -1044,25 +1340,14 @@ export async function emitirNFeSefaz(invoiceId: string): Promise<SefazResult> {
           }
         })
 
-        console.log('✅ Prisma update executado!')
-        console.log('   Saved accessKey:', updated.accessKey)
-        console.log('   Saved invoiceNumber:', updated.invoiceNumber)
-        console.log('   Saved status:', updated.status)
-        console.log('   XML saved:', updated.xmlAssinado ? 'SIM' : 'NÃO')
-
-        // Validar se realmente salvou
-        if (!updated.accessKey || !updated.invoiceNumber || !updated.xmlAssinado) {
-          throw new Error('Falha ao salvar dados da nota no banco de dados')
-        }
-
-        console.log('✅ Nota fiscal emitida com sucesso!')
+        console.log('✅ NF-e autorizada pela SEFAZ!')
         console.log('   Número:', updated.invoiceNumber)
         console.log('   Chave:', updated.accessKey)
         console.log('   Protocolo:', updated.protocol)
-        
+
         return {
           success: true,
-          chaveAcesso: updated.accessKey,
+          chaveAcesso: updated.accessKey ?? undefined,
           numeroNota: updated.invoiceNumber!,
           protocolo: updated.protocol!
         }

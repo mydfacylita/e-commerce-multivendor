@@ -218,7 +218,7 @@ export default function Navbar() {
   return (
     <>
       {/* Barra de Benefícios */}
-      <div className="bg-primary-500 text-white text-sm py-2">
+      <div className="hidden md:block bg-primary-500 text-white text-sm py-2">
         <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <FiTruck className="text-lg" />

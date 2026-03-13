@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Inicia o fluxo OAuth do Facebook/Instagram
  * GET /api/social/meta/auth

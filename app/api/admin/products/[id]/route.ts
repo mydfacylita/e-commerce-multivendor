@@ -484,6 +484,8 @@ export async function PUT(
         acceptsCreditCard: data.acceptsCreditCard,
         maxInstallments: data.maxInstallments,
         installmentsFreeInterest: data.installmentsFreeInterest,
+        // Cashback por produto
+        cashbackRate: data.cashbackRate !== undefined ? (data.cashbackRate ? parseFloat(data.cashbackRate) : null) : undefined,
         // 🔒 STATUS DE APROVAÇÃO
         // Se for SELLER editando produto PRÓPRIO (não dropshipping), volta para PENDING
         // Produtos dropshipping não precisam de aprovação pois o conteúdo já foi aprovado pelo admin

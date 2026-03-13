@@ -42,6 +42,8 @@ export default function CheckoutPagamentoPage() {
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [publicKey, setPublicKey] = useState<string | null>(null)
   const [mydBalance, setMydBalance] = useState<number>(0)
+  const [mydAccountBalance, setMydAccountBalance] = useState<number>(0)
+  const [mydCashbackBalance, setMydCashbackBalance] = useState<number>(0)
   const [mydBalanceLoading, setMydBalanceLoading] = useState(false)
   
   // Regras de parcelamento
@@ -81,13 +83,19 @@ export default function CheckoutPagamentoPage() {
   const loadMydBalance = async () => {
     setMydBalanceLoading(true)
     try {
-      const response = await fetch('/api/cashback')
+      const response = await fetch('/api/payment/myd-account')
       if (response.ok) {
         const data = await response.json()
-        setMydBalance(data.balance ?? 0)
+        setMydAccountBalance(data.mydAccountBalance ?? 0)
+        setMydCashbackBalance(data.cashbackBalance ?? 0)
+        setMydBalance((data.mydAccountBalance ?? 0) + (data.cashbackBalance ?? 0))
+      } else {
+        setMydBalance(0)
+        setMydAccountBalance(0)
+        setMydCashbackBalance(0)
       }
     } catch (error) {
-      console.error('Erro ao carregar saldo MYD:', error)
+      setMydBalance(0)
     } finally {
       setMydBalanceLoading(false)
     }
@@ -400,7 +408,9 @@ export default function CheckoutPagamentoPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setMydBalance(data.saldoAtual)
+          setMydAccountBalance(data.saldoAtualMyd ?? 0)
+          setMydCashbackBalance(data.saldoAtualCashback ?? 0)
+          setMydBalance((data.saldoAtualMyd ?? 0) + (data.saldoAtualCashback ?? 0))
         toast.success('Pagamento realizado com sucesso! 🎉')
         if (order?.total) {
           trackPurchaseConversion(orderId, order.total)
@@ -662,17 +672,32 @@ export default function CheckoutPagamentoPage() {
                   <h3 className="text-xl font-bold mb-2">Conta MYD</h3>
                   <p className="text-gray-500 mb-6 text-sm">Use seu saldo MYD para pagar este pedido</p>
 
-                  <div className={`inline-block rounded-2xl px-8 py-5 mb-6 ${
+                  {/* Breakdown dos saldos */}
+                  <div className={`inline-block rounded-2xl px-8 py-5 mb-4 w-full max-w-xs text-left ${
                     mydBalance >= (order?.total ?? 0)
                       ? 'bg-green-50 border-2 border-green-300'
                       : 'bg-red-50 border-2 border-red-200'
                   }`}>
-                    <p className="text-xs text-gray-500 mb-1">Saldo disponível</p>
-                    <p className={`text-3xl font-bold ${
-                      mydBalance >= (order?.total ?? 0) ? 'text-green-700' : 'text-red-600'
-                    }`}>
-                      {mydBalanceLoading ? '...' : `R$ ${mydBalance.toFixed(2)}`}
-                    </p>
+                    {mydBalanceLoading ? (
+                      <p className="text-center text-gray-400">Carregando saldo...</p>
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs text-gray-500">Conta MYD</span>
+                          <span className="text-sm font-semibold text-gray-700">R$ {mydAccountBalance.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-xs text-gray-500">Cashback</span>
+                          <span className="text-sm font-semibold text-gray-700">R$ {mydCashbackBalance.toFixed(2)}</span>
+                        </div>
+                        <div className="border-t border-gray-200 pt-2 flex justify-between items-center">
+                          <span className="text-xs font-bold text-gray-600">Total disponível</span>
+                          <span className={`text-2xl font-bold ${
+                            mydBalance >= (order?.total ?? 0) ? 'text-green-700' : 'text-red-600'
+                          }`}>R$ {mydBalance.toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {mydBalance < (order?.total ?? 0) ? (
