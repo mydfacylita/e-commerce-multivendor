@@ -301,6 +301,7 @@ model Product {
   socialPosts              SocialPost[]
   wishlists                Wishlist[]
   affiliateKits            AffiliateKitProduct[]
+  promoProducts            PromoProduct[]
 
   @@index([categoryId])
   @@index([sellerId])
@@ -2319,6 +2320,55 @@ model ShopifyInstallation {
   @@index([userId])
   @@index([isActive])
   @@map("shopify_installation")
+}
+
+// ============================================================
+// PÁGINA DE OFERTAS / PROMOÇÕES
+// ============================================================
+
+model PromoPage {
+  id            String         @id @default(cuid())
+  title         String         // Ex: "Black Friday", "Dia das Mães"
+  slug          String         @unique // Ex: "black-friday"
+  description   String?        @db.Text
+  // Banner faixa
+  bannerEnabled   Boolean        @default(true)
+  bannerText      String?        // "🔥 Black Friday - até 70% OFF"
+  bannerBgColor   String         @default("#dc2626") // cor de fundo
+  bannerTextColor String         @default("#ffffff")
+  bannerLink      String?        // link opcional do banner
+  bannerImageUrl  String?        // imagem do banner (substitui cor+texto se preenchida)
+  // Página
+  isActive      Boolean        @default(false)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  // Cupom vinculado (opcional)
+  couponCode    String?
+  discountBadge String?        // Ex: "até 50% OFF"
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  products      PromoProduct[]
+
+  @@index([isActive])
+  @@index([slug])
+  @@map("promo_page")
+}
+
+model PromoProduct {
+  id           String    @id @default(cuid())
+  promoPageId  String
+  productId    String
+  position     Int       @default(0)
+  customPrice  Float?    // preço promocional override
+  badgeText    String?   // Ex: "OFERTA RELÂMPAGO"
+  createdAt    DateTime  @default(now())
+  promoPage    PromoPage @relation(fields: [promoPageId], references: [id], onDelete: Cascade)
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([promoPageId, productId])
+  @@index([promoPageId])
+  @@index([productId])
+  @@map("promo_product")
 }
 
 model ShopifyOrderSync {

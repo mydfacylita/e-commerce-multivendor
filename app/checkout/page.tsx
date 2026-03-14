@@ -179,8 +179,9 @@ export default function CheckoutPage() {
       let grupoId: string
       let grupoNome: string
       
-      // Usar isInternationalSupplier para classificação visual/fluxo
-      const isInternational = item.isInternationalSupplier || item.itemType === 'DROP'
+      // Internacional = fornecedor AliExpress/importado E produto vem de fora do BR
+      // Se shipFromCountry = BR (estoque local AliExpress), trata como nacional
+      const isInternational = (item.isInternationalSupplier || item.itemType === 'DROP') && item.shipFromCountry !== 'BR'
       
       if (isInternational) {
         grupoId = 'INTERNACIONAL'

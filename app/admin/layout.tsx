@@ -310,6 +310,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span>Cupons</span>
                 </Link>
                 )}
+                <Link
+                  href="/admin/ofertas"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname.startsWith('/admin/ofertas') ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiGift className="text-base" />
+                  <span>Ofertas Exclusivas</span>
+                </Link>
                 {can('vendas.marketing') && (
                 <Link
                   href="/admin/marketing"

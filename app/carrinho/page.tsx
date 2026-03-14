@@ -88,11 +88,11 @@ export default function CarrinhoPage() {
       let grupoTipo: 'internacional' | 'adm' | 'seller'
       let cepOrigem: string | null = null
       
-      // Usar isInternationalSupplier para classificação (não isImported que é só para impostos)
-      const isInternational = item.isInternationalSupplier || item.itemType === 'DROP'
+      // Internacional = fornecedor AliExpress/importado E produto vem de fora do BR
+      // Se shipFromCountry = BR (estoque local AliExpress), trata como nacional
+      const isInternational = (item.isInternationalSupplier || item.itemType === 'DROP') && item.shipFromCountry !== 'BR'
       
       if (isInternational) {
-        // Produtos de fornecedor internacional (AliExpress) - mesmo com estoque BR
         grupoId = 'INTERNACIONAL'
         grupoNome = 'Produtos Importados'
         grupoTipo = 'internacional'
@@ -119,9 +119,9 @@ export default function CarrinhoPage() {
   }, [items])
   
   // Separar itens nacionais (ADM + SELLER) e internacionais para compatibilidade
-  // Usar isInternationalSupplier para a classificação visual/fluxo
-  const itensNacionais = useMemo(() => items.filter(item => !item.isInternationalSupplier && item.itemType !== 'DROP'), [items])
-  const itensInternacionais = useMemo(() => items.filter(item => item.isInternationalSupplier || item.itemType === 'DROP'), [items])
+  // Nacional = próprio, seller, OU AliExpress com estoque no BR (shipFromCountry = BR)
+  const itensNacionais = useMemo(() => items.filter(item => !((item.isInternationalSupplier || item.itemType === 'DROP') && item.shipFromCountry !== 'BR')), [items])
+  const itensInternacionais = useMemo(() => items.filter(item => (item.isInternationalSupplier || item.itemType === 'DROP') && item.shipFromCountry !== 'BR'), [items])
 
   // Selecionar automaticamente ao carregar
   useEffect(() => {

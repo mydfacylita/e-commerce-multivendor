@@ -45,12 +45,17 @@ const STATE_CODES: Record<string, string> = {
 }
 
 // Função para buscar frete do AliExpress para produtos dropshipping
+// Tenta até MAX_RETRIES vezes antes de desistir
 async function getAliExpressShipping(
   product: any, 
   cep: string, 
   quantity: number,
-  auth: any
+  auth: any,
+  attempt = 1
 ): Promise<{ success: boolean; options: any[]; error?: string }> {
+  const MAX_RETRIES = 3
+  const RETRY_DELAY_MS = 1500
+
   try {
     // Precisamos do SKU ID do produto
     // O supplierSku armazena o productId do AliExpress
@@ -76,7 +81,7 @@ async function getAliExpressShipping(
     }
     productParams.sign = generateAliExpressSign(productParams, auth.appSecret)
 
-    const productRes = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(productParams).toString()}`)
+    const productRes = await fetch(`https://api-sg.aliexpress.com/sync?${new URLSearchParams(productParams).toString()}`, { signal: AbortSignal.timeout(10000) })
     const productData = await safeJson(productRes, 'ds.product.get')
 
     let skuId = ''
@@ -90,7 +95,12 @@ async function getAliExpressShipping(
     }
 
     if (!skuId) {
-      return { success: false, options: [], error: 'SKU não encontrado' }
+      console.error(`[Frete Internacional] SKU não encontrado (tentativa ${attempt}/${MAX_RETRIES})`)
+      if (attempt < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt))
+        return getAliExpressShipping(product, cep, quantity, auth, attempt + 1)
+      }
+      return { success: false, options: [], error: 'SKU não encontrado no AliExpress' }
     }
 
     // Buscar info do CEP para obter estado (com fallback para SP se ViaCEP estiver fora)
@@ -159,8 +169,13 @@ async function getAliExpressShipping(
 
     const freightResult = freightData.aliexpress_ds_freight_query_response?.result
     if (!freightResult?.success) {
-      console.error('[Frete Internacional] Erro:', freightResult?.msg || 'Erro desconhecido')
-      return { success: false, options: [], error: freightResult?.msg || 'Erro ao consultar frete' }
+      const errMsg = freightResult?.msg || 'Erro ao consultar frete'
+      console.error(`[Frete Internacional] Erro (tentativa ${attempt}/${MAX_RETRIES}):`, errMsg)
+      if (attempt < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt))
+        return getAliExpressShipping(product, cep, quantity, auth, attempt + 1)
+      }
+      return { success: false, options: [], error: errMsg }
     }
 
     const deliveryOptions = freightResult.delivery_options?.delivery_option_d_t_o || []
@@ -182,7 +197,11 @@ async function getAliExpressShipping(
     return { success: true, options }
 
   } catch (error: any) {
-    console.error('[AliExpress Frete] Erro:', error)
+    console.error(`[AliExpress Frete] Erro (tentativa ${attempt}/${MAX_RETRIES}):`, error.message)
+    if (attempt < MAX_RETRIES) {
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt))
+      return getAliExpressShipping(product, cep, quantity, auth, attempt + 1)
+    }
     return { success: false, options: [], error: error.message }
   }
 }
@@ -395,17 +414,20 @@ export async function POST(req: NextRequest) {
 
             console.log('✅ [Frete DROP] Opções encontradas:', aliShipping.options.length)
 
+            const shipFromCountry = dropshippingProduct.shipFromCountry || 'CN'
+            const isFromBrazil = shipFromCountry === 'BR'
+
             // Mapear nomes para não expor plataforma
             const mapShippingName = (name: string): string => {
               const nameLower = name.toLowerCase()
               if (nameLower.includes('express') || nameLower.includes('fast')) {
-                return 'Envio Expresso Internacional'
+                return 'Envio Expresso'
               } else if (nameLower.includes('standard') || nameLower.includes('selection')) {
-                return 'Envio Padrão Internacional'
+                return 'Envio Padrão'
               } else if (nameLower.includes('economy') || nameLower.includes('econom')) {
-                return 'Envio Econômico Internacional'
+                return 'Envio Econômico'
               } else if (nameLower.includes('priority')) {
-                return 'Envio Prioritário Internacional'
+                return 'Envio Prioritário'
               }
               return 'Logística MydShop Express'
             }
@@ -418,74 +440,33 @@ export async function POST(req: NextRequest) {
               shippingMethod: 'dropshipping',
               shippingService: mapShippingName(cheapest.name),
               shippingCarrier: dropshippingProduct.supplier?.name || 'Fornecedor Externo',
-              isInternational: true,
-              shipFrom: dropshippingProduct.shipFromCountry || 'CN',
+              isInternational: !isFromBrazil,
+              shipFrom: shipFromCountry,
               // Todas as opções disponíveis (sem expor nome da plataforma)
               allOptions: aliShipping.options.map((opt: any) => ({
                 name: mapShippingName(opt.name),
                 price: opt.price,
                 days: opt.days,
-                icon: '🌍',
+                icon: isFromBrazil ? '📦' : '🌍',
                 isFree: opt.isFree,
-                isInternational: true
+                isInternational: !isFromBrazil
               }))
             })
           } else {
-            console.log('⚠️ [Frete DROP] Sem opções da API, usando fallback...')
+            console.error('❌ [Frete DROP] API não retornou opções após todas as tentativas:', aliShipping.error)
+            return NextResponse.json(
+              { error: 'Não foi possível calcular o frete agora. Tente novamente em instantes.' },
+              { status: 503 }
+            )
           }
         }
-        
-        // ========================================
-        // 📦 FALLBACK PARA FRETE DE DROPSHIPPING
-        // ========================================
-        // Se é produto de dropshipping mas não conseguiu frete via API,
-        // usar estimativa baseada no peso e valor do produto
-        console.log('📦 [Frete DROP] Usando estimativa para produto dropshipping')
-        
-        const productPrice = dropshippingProduct.price || 50
-        const productWeight = dropshippingProduct.weight || 0.3
-        const quantity = dropshippingProduct.quantity || 1
-        const shipFrom = dropshippingProduct.shipFromCountry || 'CN'
-        
-        // Calcular frete estimado baseado na origem
-        let estimatedShipping = 0
-        let deliveryDays = ''
-        
-        if (shipFrom === 'BR') {
-          // Fornecedor nacional - frete mais barato e rápido
-          estimatedShipping = 15 + (productWeight * quantity * 5)
-          deliveryDays = '3-7 dias úteis'
-        } else {
-          // Fornecedor internacional
-          estimatedShipping = 12 + (productWeight * quantity * 8)
-          if (productPrice > 100) estimatedShipping += 5
-          if (productPrice > 200) estimatedShipping += 8
-          if (productPrice > 500) estimatedShipping += 15
-          deliveryDays = productPrice > 200 ? '15-30 dias úteis' : '20-45 dias úteis'
-        }
-        
-        // Frete grátis se produto > R$ 150 (promoção comum do AliExpress)
-        const isFreeShipping = productPrice >= 150
-        
-        return NextResponse.json({
-          shippingCost: isFreeShipping ? 0 : Math.round(estimatedShipping * 100) / 100,
-          deliveryDays,
-          isFree: isFreeShipping,
-          message: isFreeShipping ? 'Frete Grátis' : undefined,
-          shippingMethod: 'dropshipping',
-          shippingService: shipFrom === 'BR' ? 'Envio Nacional' : 'Logística MydShop Express',
-          shippingCarrier: dropshippingProduct.supplier?.name || 'Fornecedor Externo',
-          isInternational: shipFrom !== 'BR',
-          shipFrom,
-          allOptions: [{
-            name: shipFrom === 'BR' ? 'Envio Nacional' : 'Logística MydShop Express',
-            price: isFreeShipping ? 0 : Math.round(estimatedShipping * 100) / 100,
-            days: deliveryDays,
-            icon: shipFrom === 'BR' ? '📦' : '🌍',
-            isFree: isFreeShipping,
-            isInternational: shipFrom !== 'BR'
-          }]
-        })
+
+        // Sem credenciais do AliExpress configuradas
+        console.error('❌ [Frete DROP] Credenciais AliExpress não configuradas')
+        return NextResponse.json(
+          { error: 'Serviço de frete temporariamente indisponível. Tente novamente.' },
+          { status: 503 }
+        )
       }
 
       // Usar serviço de empacotamento inteligente

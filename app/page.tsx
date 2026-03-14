@@ -6,6 +6,7 @@ import CategoryGrid from '@/components/CategoryGrid'
 import InfiniteHomeSections from '@/components/InfiniteHomeSections'
 import { serializeProducts } from '@/lib/serialize'
 import CouponPromoModal from '@/components/CouponPromoModal'
+import PromoBanner from '@/components/PromoBanner'
 
 export const metadata: Metadata = {
   title: 'MYDSHOP - Marketplace Online | Compre com os Melhores Preços',
@@ -138,6 +139,8 @@ export default async function HomePage() {
           <CategoryGrid categories={categories} />
         </div>
       </section>
+
+      <PromoBanner />
 
       {/* Produtos em Destaque */}
       <section className="py-16 px-4 w-full bg-gray-50">
