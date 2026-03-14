@@ -426,8 +426,8 @@ export async function PUT(
         margin: data.margin,
         stock: data.stock,
         warehouseCode: data.warehouseCode ?? undefined,
-        categoryId: data.categoryId,
-        supplierId: data.supplierId,
+        category: data.categoryId ? { connect: { id: data.categoryId } } : undefined,
+        supplier: data.supplierId ? { connect: { id: data.supplierId } } : { disconnect: true },
         supplierSku: data.supplierSku,
         supplierUrl: data.supplierUrl,
         images: typeof data.images === 'string' ? data.images : JSON.stringify(data.images),
@@ -484,8 +484,8 @@ export async function PUT(
         acceptsCreditCard: data.acceptsCreditCard,
         maxInstallments: data.maxInstallments,
         installmentsFreeInterest: data.installmentsFreeInterest,
-        // Cashback por produto
-        cashbackRate: data.cashbackRate !== undefined ? (data.cashbackRate ? parseFloat(data.cashbackRate) : null) : undefined,
+        // Cashback por produto (campo adicionado em migration posterior)
+        // cashbackRate: data.cashbackRate !== undefined ? (data.cashbackRate ? parseFloat(data.cashbackRate) : null) : undefined,
         // 🔒 STATUS DE APROVAÇÃO
         // Se for SELLER editando produto PRÓPRIO (não dropshipping), volta para PENDING
         // Produtos dropshipping não precisam de aprovação pois o conteúdo já foi aprovado pelo admin

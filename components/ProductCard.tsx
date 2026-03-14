@@ -29,6 +29,7 @@ interface Product {
   sellerCep?: string | null  // CEP do vendedor
   itemType?: 'ADM' | 'DROP' | 'SELLER'  // Tipo do item para roteamento
   shipFromCountry?: string | null  // País de origem do envio
+  supplierCountryCode?: string | null  // Código do país do fornecedor
   description?: string | null  // Descrição para modo lista
   hasVariants?: boolean  // Indica se o produto tem variantes (cores/modelos)
   cashbackRate?: number | null  // % de cashback deste produto
@@ -219,6 +220,11 @@ export default function ProductCard({ product, layout = 'vertical' }: ProductCar
           {product.cashbackRate != null && product.cashbackRate > 0 && (
             <div className="absolute bottom-2 left-2 bg-green-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow pointer-events-none">
               💰 {product.cashbackRate}% cashback
+            </div>
+          )}
+          {((product.shipFromCountry && product.shipFromCountry !== 'BR') || (product.supplierCountryCode && product.supplierCountryCode !== 'BR')) && (
+            <div className="absolute bottom-2 right-2 bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow pointer-events-none">
+              Internacional
             </div>
           )}
         </div>
