@@ -7,6 +7,15 @@ import Link from 'next/link'
 import { FiTrash2, FiMinus, FiPlus, FiTag, FiTruck, FiMapPin, FiGlobe, FiHome } from 'react-icons/fi'
 import { toast } from 'react-hot-toast'
 
+// Converte deliveryDays (number | string) para número inteiro
+function parsePrazo(val: number | string | null | undefined): number | null {
+  if (val === null || val === undefined) return null
+  if (typeof val === 'number') return val > 0 ? val : null
+  const match = String(val).match(/(\d+)/)
+  const n = match ? parseInt(match[1]) : null
+  return n && n > 0 ? n : null
+}
+
 // Função para calcular data de entrega estimada
 function calcularDataEntrega(diasUteis: number): string {
   const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
@@ -316,19 +325,18 @@ export default function CarrinhoPage() {
           const maisBarata = data.shippingOptions[0]
           setFreteSelecionado(maisBarata.id)
           setFrete(maisBarata.price)
-          setPrazoEntrega(maisBarata.deliveryDays)
+          setPrazoEntrega(parsePrazo(maisBarata.deliveryDays))
           setFreteGratis(false)
           toast.success(`${data.shippingOptions.length} opções de frete encontradas!`)
         } else if (data.isFree) {
           setFreteGratis(true)
           setFrete(0)
-          setPrazoEntrega(data.deliveryDays || null)
+          setPrazoEntrega(parsePrazo(data.deliveryDays))
           setOpcoesFreteState([])
-          toast.success(data.message || 'Frete grátis!')
         } else {
           setFreteGratis(false)
           setFrete(data.shippingCost)
-          setPrazoEntrega(data.deliveryDays || null)
+          setPrazoEntrega(parsePrazo(data.deliveryDays))
           setOpcoesFreteState([])
           toast.success(`Frete: R$ ${formatarMoeda(data.shippingCost)} - ${data.deliveryDays} dias úteis`)
         }
@@ -387,12 +395,12 @@ export default function CarrinhoPage() {
           
           if (data.shippingOptions && data.shippingOptions.length > 0) {
             itemFrete = data.shippingOptions[0].price
-            itemPrazo = data.shippingOptions[0].deliveryDays
+            itemPrazo = parsePrazo(data.shippingOptions[0].deliveryDays) || 0
           } else if (!data.isFree) {
             itemFrete = data.shippingCost || 0
-            itemPrazo = data.deliveryDays || 0
+            itemPrazo = parsePrazo(data.deliveryDays) || 0
           } else {
-            itemPrazo = data.deliveryDays || 0
+            itemPrazo = parsePrazo(data.deliveryDays) || 0
           }
           
           novosFretes.set(item.id, { frete: itemFrete, prazo: itemPrazo })
