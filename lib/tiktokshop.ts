@@ -86,7 +86,8 @@ async function callTokenEndpoint(
 
   const sign = generateSignature(path, params, appSecret)
 
-  const url = new URL(`${TIKTOK_API_BASE}${path}`)
+  // Ensure the path is resolved correctly even if it is missing a leading '/'.
+  const url = new URL(path, TIKTOK_API_BASE)
   url.searchParams.append('app_key', appKey)
   url.searchParams.append('timestamp', timestamp.toString())
   url.searchParams.append('sign', sign)
@@ -143,7 +144,8 @@ async function callRefreshEndpoint(
 
   const sign = generateSignature(path, params, appSecret)
 
-  const url = new URL(`${TIKTOK_API_BASE}${path}`)
+  // Ensure the path is resolved correctly even if it is missing a leading '/'.
+  const url = new URL(path, TIKTOK_API_BASE)
   url.searchParams.append('app_key', appKey)
   url.searchParams.append('timestamp', timestamp.toString())
   url.searchParams.append('sign', sign)
