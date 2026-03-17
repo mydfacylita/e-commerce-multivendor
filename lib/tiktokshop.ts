@@ -1,8 +1,9 @@
 import crypto from 'crypto'
 
 // Configurações do TikTok Shop API
-const TIKTOK_API_BASE = 'https://open-api.tiktokglobalshop.com'
-const TIKTOK_AUTH_URL = 'https://services.tiktokshop.com/open/authorize'
+// Permitimos sobrescrever via ENV para suportar sandbox (ex: https://sandbox-open-api.tiktokglobalshop.com)
+const TIKTOK_API_BASE = process.env.TIKTOK_SHOP_API_BASE || 'https://open-api.tiktokglobalshop.com'
+const TIKTOK_AUTH_URL = process.env.TIKTOK_SHOP_AUTH_URL || 'https://services.tiktokshop.com/open/authorize'
 
 interface TikTokConfig {
   appKey: string
@@ -96,16 +97,34 @@ async function callTokenEndpoint(
   }
 
   const url = new URL(path, TIKTOK_API_BASE)
+  const requestUrl = url.toString()
+  const requestBody = JSON.stringify(body)
 
-  const response = await fetch(url.toString(), {
+  console.debug('[TikTokShop] token request', { url: requestUrl })
+
+  const response = await fetch(requestUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: requestBody,
   })
 
-  return response.json()
+  const responseText = await response.text()
+  let json: TikTokApiResponse
+  try {
+    json = JSON.parse(responseText)
+  } catch {
+    json = { code: -1, message: 'Invalid JSON response', data: responseText }
+  }
+
+  console.debug('[TikTokShop] token response', {
+    url: requestUrl,
+    status: response.status,
+    body: json,
+  })
+
+  return json
 }
 
 export async function getAccessToken(
@@ -159,15 +178,34 @@ async function callRefreshEndpoint(
 
   const url = new URL(path, TIKTOK_API_BASE)
 
-  const response = await fetch(url.toString(), {
+  const requestUrl = url.toString()
+  const requestBody = JSON.stringify(body)
+
+  console.debug('[TikTokShop] refresh token request', { url: requestUrl })
+
+  const response = await fetch(requestUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body),
+    body: requestBody,
   })
 
-  return response.json()
+  const responseText = await response.text()
+  let json: TikTokApiResponse
+  try {
+    json = JSON.parse(responseText)
+  } catch {
+    json = { code: -1, message: 'Invalid JSON response', data: responseText }
+  }
+
+  console.debug('[TikTokShop] refresh token response', {
+    url: requestUrl,
+    status: response.status,
+    body: json,
+  })
+
+  return json
 }
 
 export async function refreshAccessToken(
