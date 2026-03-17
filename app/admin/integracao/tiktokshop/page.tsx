@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FiVideo, FiShoppingBag, FiRefreshCw, FiSettings, FiExternalLink, FiCheck, FiX } from 'react-icons/fi';
 import { SiTiktok } from 'react-icons/si';
 import Link from 'next/link';
@@ -16,6 +17,9 @@ interface TikTokAuthData {
 }
 
 export default function TikTokShopIntegrationPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [isLoading, setIsLoading] = useState(false);
   const [authData, setAuthData] = useState<TikTokAuthData | null>(null);
   const [error, setError] = useState('');
@@ -29,9 +33,21 @@ export default function TikTokShopIntegrationPage() {
     fetchAuthStatus();
   }, []);
 
+  useEffect(() => {
+    // Depois da autorização, o TikTok redireciona com ?success=connected
+    // Forçar atualização do status e limpar query para não ficar preso no valor.
+    if (searchParams.get('success') === 'connected') {
+      fetchAuthStatus();
+      setSuccess('Conectado com sucesso!');
+      router.replace('/admin/integracao/tiktokshop');
+    }
+  }, [searchParams, router]);
+
   const fetchAuthStatus = async () => {
     try {
-      const response = await fetch('/api/admin/marketplaces/tiktokshop/auth');
+      const response = await fetch('/api/admin/marketplaces/tiktokshop/auth', {
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         setAuthData(data);
@@ -49,7 +65,9 @@ export default function TikTokShopIntegrationPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/admin/marketplaces/tiktokshop/stats');
+      const response = await fetch('/api/admin/marketplaces/tiktokshop/stats', {
+        cache: 'no-store',
+      });
       if (response.ok) {
         const data = await response.json();
         setStats(data);
