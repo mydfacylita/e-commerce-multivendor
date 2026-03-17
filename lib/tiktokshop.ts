@@ -69,75 +69,112 @@ export function getAuthorizationUrl(appKey: string, state?: string): string {
 /**
  * Troca o código de autorização por access_token
  */
-export async function getAccessToken(
+async function callTokenEndpoint(
   appKey: string,
   appSecret: string,
-  authCode: string
+  authCode: string,
+  path: string
 ): Promise<TikTokApiResponse> {
-  const path = '/api/v2/token/get'
   const timestamp = Math.floor(Date.now() / 1000)
-  
+
   const params: Record<string, string> = {
     app_key: appKey,
     timestamp: timestamp.toString(),
     grant_type: 'authorized_code',
     auth_code: authCode,
   }
-  
+
   const sign = generateSignature(path, params, appSecret)
-  
+
   const url = new URL(`${TIKTOK_API_BASE}${path}`)
   url.searchParams.append('app_key', appKey)
   url.searchParams.append('timestamp', timestamp.toString())
   url.searchParams.append('sign', sign)
   url.searchParams.append('grant_type', 'authorized_code')
   url.searchParams.append('auth_code', authCode)
-  
+
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
     },
   })
-  
+
   return response.json()
+}
+
+export async function getAccessToken(
+  appKey: string,
+  appSecret: string,
+  authCode: string
+): Promise<TikTokApiResponse> {
+  // Some TikTok environments expect the path with or without the leading slash.
+  // If the first attempt returns an "Invalid path" error, try the alternative.
+  const paths = ['/api/v2/token/get', 'api/v2/token/get']
+
+  for (const path of paths) {
+    const result = await callTokenEndpoint(appKey, appSecret, authCode, path)
+    if (result.code !== 36009009) {
+      return result
+    }
+  }
+
+  // Fallback: return the last result so the caller can handle the error.
+  return await callTokenEndpoint(appKey, appSecret, authCode, paths[0])
 }
 
 /**
  * Renova o access_token usando refresh_token
  */
-export async function refreshAccessToken(
+async function callRefreshEndpoint(
   appKey: string,
   appSecret: string,
-  refreshToken: string
+  refreshToken: string,
+  path: string
 ): Promise<TikTokApiResponse> {
-  const path = '/api/v2/token/refresh'
   const timestamp = Math.floor(Date.now() / 1000)
-  
+
   const params: Record<string, string> = {
     app_key: appKey,
     timestamp: timestamp.toString(),
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
   }
-  
+
   const sign = generateSignature(path, params, appSecret)
-  
+
   const url = new URL(`${TIKTOK_API_BASE}${path}`)
   url.searchParams.append('app_key', appKey)
   url.searchParams.append('timestamp', timestamp.toString())
   url.searchParams.append('sign', sign)
   url.searchParams.append('grant_type', 'refresh_token')
   url.searchParams.append('refresh_token', refreshToken)
-  
+
   const response = await fetch(url.toString(), {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
     },
   })
-  
+
   return response.json()
+}
+
+export async function refreshAccessToken(
+  appKey: string,
+  appSecret: string,
+  refreshToken: string
+): Promise<TikTokApiResponse> {
+  const paths = ['/api/v2/token/refresh', 'api/v2/token/refresh']
+
+  for (const path of paths) {
+    const result = await callRefreshEndpoint(appKey, appSecret, refreshToken, path)
+    if (result.code !== 36009009) {
+      return result
+    }
+  }
+
+  return await callRefreshEndpoint(appKey, appSecret, refreshToken, paths[0])
 }
 
 /**
