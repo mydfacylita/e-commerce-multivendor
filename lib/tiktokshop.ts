@@ -86,19 +86,23 @@ async function callTokenEndpoint(
 
   const sign = generateSignature(path, params, appSecret)
 
-  // Ensure the path is resolved correctly even if it is missing a leading '/'.
+  // For POST request, send params in body
+  const body = {
+    app_key: appKey,
+    timestamp: timestamp.toString(),
+    grant_type: 'authorized_code',
+    auth_code: authCode,
+    sign: sign,
+  }
+
   const url = new URL(path, TIKTOK_API_BASE)
-  url.searchParams.append('app_key', appKey)
-  url.searchParams.append('timestamp', timestamp.toString())
-  url.searchParams.append('sign', sign)
-  url.searchParams.append('grant_type', 'authorized_code')
-  url.searchParams.append('auth_code', authCode)
 
   const response = await fetch(url.toString(), {
-    method: 'GET',
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify(body),
   })
 
   return response.json()
@@ -144,19 +148,23 @@ async function callRefreshEndpoint(
 
   const sign = generateSignature(path, params, appSecret)
 
-  // Ensure the path is resolved correctly even if it is missing a leading '/'.
+  // For POST request, send params in body
+  const body = {
+    app_key: appKey,
+    timestamp: timestamp.toString(),
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    sign: sign,
+  }
+
   const url = new URL(path, TIKTOK_API_BASE)
-  url.searchParams.append('app_key', appKey)
-  url.searchParams.append('timestamp', timestamp.toString())
-  url.searchParams.append('sign', sign)
-  url.searchParams.append('grant_type', 'refresh_token')
-  url.searchParams.append('refresh_token', refreshToken)
 
   const response = await fetch(url.toString(), {
-    method: 'GET',
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
+    body: JSON.stringify(body),
   })
 
   return response.json()
