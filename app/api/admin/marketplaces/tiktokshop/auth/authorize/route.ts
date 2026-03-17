@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Gerar URL de autorização
-    const authUrl = getAuthorizationUrl(user.tiktokShopAuth.appKey, state);
+    const authUrl = await getAuthorizationUrl(user.tiktokShopAuth.appKey, state);
 
     return NextResponse.json({ 
       authUrl,

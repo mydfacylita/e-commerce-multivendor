@@ -1,9 +1,50 @@
 import crypto from 'crypto'
+import { prisma } from '@/lib/prisma'
 
-// Configurações do TikTok Shop API
-// Permitimos sobrescrever via ENV para suportar sandbox (ex: https://sandbox-open-api.tiktokglobalshop.com)
-const TIKTOK_API_BASE = process.env.TIKTOK_SHOP_API_BASE || 'https://open-api.tiktokglobalshop.com'
-const TIKTOK_AUTH_URL = process.env.TIKTOK_SHOP_AUTH_URL || 'https://services.tiktokshop.com/open/authorize'
+// URLs padrão do TikTok Shop API
+const DEFAULT_TIKTOK_API_BASE = 'https://open-api.tiktokglobalshop.com'
+const DEFAULT_TIKTOK_AUTH_URL = 'https://services.tiktokshop.com/open/authorize'
+
+// Cache para configuração (TTL: 5 minutos)
+let cachedConfig: { apiBase: string; authUrl: string; timestamp: number } | null = null
+const CONFIG_CACHE_TTL = 5 * 60 * 1000
+
+async function getTikTokConfig() {
+  // Verificar cache
+  if (cachedConfig && Date.now() - cachedConfig.timestamp < CONFIG_CACHE_TTL) {
+    return { apiBase: cachedConfig.apiBase, authUrl: cachedConfig.authUrl }
+  }
+
+  try {
+    // Buscar do SystemConfig
+    const configs = await prisma.systemConfig.findMany({
+      where: {
+        key: { in: ['tiktokshop.api_base', 'tiktokshop.auth_url'] }
+      }
+    })
+
+    const configMap: Record<string, string> = {}
+    configs.forEach((c: any) => {
+      configMap[c.key] = c.value
+    })
+
+    const apiBase = configMap['tiktokshop.api_base'] || DEFAULT_TIKTOK_API_BASE
+    const authUrl = configMap['tiktokshop.auth_url'] || DEFAULT_TIKTOK_AUTH_URL
+
+    // Atualizar cache
+    cachedConfig = { apiBase, authUrl, timestamp: Date.now() }
+    
+    return { apiBase, authUrl }
+  } catch (error) {
+    console.warn('Erro ao buscar config TikTok do banco, usando defaults:', error)
+    return { apiBase: DEFAULT_TIKTOK_API_BASE, authUrl: DEFAULT_TIKTOK_AUTH_URL }
+  }
+}
+
+// Exportar função para limpar cache quando necessário
+export function invalidateTikTokConfigCache() {
+  cachedConfig = null
+}
 
 interface TikTokConfig {
   appKey: string
@@ -58,13 +99,14 @@ export function generateSignature(
 /**
  * Gera URL de autorização OAuth para TikTok Shop
  */
-export function getAuthorizationUrl(appKey: string, state?: string): string {
+export async function getAuthorizationUrl(appKey: string, state?: string): Promise<string> {
+  const { authUrl } = await getTikTokConfig()
   const params = new URLSearchParams({
     app_key: appKey,
     state: state || crypto.randomBytes(16).toString('hex'),
   })
   
-  return `${TIKTOK_AUTH_URL}?${params.toString()}`
+  return `${authUrl}?${params.toString()}`
 }
 
 /**
@@ -76,6 +118,7 @@ async function callTokenEndpoint(
   authCode: string,
   path: string
 ): Promise<TikTokApiResponse> {
+  const { apiBase } = await getTikTokConfig()
   const timestamp = Math.floor(Date.now() / 1000)
 
   const params: Record<string, string> = {
@@ -96,7 +139,7 @@ async function callTokenEndpoint(
     sign: sign,
   }
 
-  const url = new URL(path, TIKTOK_API_BASE)
+  const url = new URL(path, apiBase)
   const requestUrl = url.toString()
   const requestBody = JSON.stringify(body)
 
@@ -156,6 +199,7 @@ async function callRefreshEndpoint(
   refreshToken: string,
   path: string
 ): Promise<TikTokApiResponse> {
+  const { apiBase } = await getTikTokConfig()
   const timestamp = Math.floor(Date.now() / 1000)
 
   const params: Record<string, string> = {
@@ -176,7 +220,7 @@ async function callRefreshEndpoint(
     sign: sign,
   }
 
-  const url = new URL(path, TIKTOK_API_BASE)
+  const url = new URL(path, apiBase)
 
   const requestUrl = url.toString()
   const requestBody = JSON.stringify(body)
@@ -235,6 +279,7 @@ export async function makeApiRequest(
   body?: Record<string, any>,
   shopCipher?: string
 ): Promise<TikTokApiResponse> {
+  const { apiBase } = await getTikTokConfig()
   const timestamp = Math.floor(Date.now() / 1000)
   
   const params: Record<string, string> = {
@@ -250,7 +295,7 @@ export async function makeApiRequest(
   const normalizedPath = path.startsWith('/') ? path : `/${path}`
   const sign = generateSignature(normalizedPath, params, config.appSecret, bodyString)
   
-  const url = new URL(normalizedPath, TIKTOK_API_BASE)
+  const url = new URL(normalizedPath, apiBase)
   url.searchParams.append('app_key', config.appKey)
   url.searchParams.append('timestamp', timestamp.toString())
   url.searchParams.append('sign', sign)
