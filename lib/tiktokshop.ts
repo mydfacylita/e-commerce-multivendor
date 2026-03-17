@@ -201,9 +201,10 @@ export async function makeApiRequest(
   }
   
   const bodyString = body ? JSON.stringify(body) : undefined
-  const sign = generateSignature(path, params, config.appSecret, bodyString)
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  const sign = generateSignature(normalizedPath, params, config.appSecret, bodyString)
   
-  const url = new URL(`${TIKTOK_API_BASE}${path}`)
+  const url = new URL(normalizedPath, TIKTOK_API_BASE)
   url.searchParams.append('app_key', config.appKey)
   url.searchParams.append('timestamp', timestamp.toString())
   url.searchParams.append('sign', sign)
