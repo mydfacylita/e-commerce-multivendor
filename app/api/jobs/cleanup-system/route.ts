@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyCronOrAdmin } from '@/lib/cron-auth'
 
 /**
  * Job: Limpeza Automática do Sistema
@@ -16,11 +17,9 @@ import { prisma } from '@/lib/prisma'
  * 7. 🔐 LGPD: Purga AuditLog antigo (> 1 ano — prazo de retenção)
  */
 export async function POST(req: NextRequest) {
-  // 🔐 CRON Secret
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production'
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  const auth = await verifyCronOrAdmin(req)
+  if (!auth.ok) {
+    return auth.response
   }
 
   try {

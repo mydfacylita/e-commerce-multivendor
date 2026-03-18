@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -9,8 +11,27 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+async function verifyAdminSession(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return { ok: false, response: NextResponse.json({ error: 'Não autorizado' }, { status: 401 }) }
+  }
+
+  const isAdmin = session.user.role === 'ADMIN'
+  const isStaff = session.user.isAdminStaff === true
+
+  if (!isAdmin && !isStaff) {
+    return { ok: false, response: NextResponse.json({ error: 'Acesso negado' }, { status: 403 }) }
+  }
+
+  return { ok: true }
+}
+
 // GET: Status atual das automações
 export async function GET(req: NextRequest) {
+  const auth = await verifyAdminSession(req)
+  if (!auth.ok) return auth.response
+
   try {
     const config = await prisma.systemConfig.findMany({
       where: {
@@ -48,6 +69,9 @@ export async function GET(req: NextRequest) {
 
 // POST: Ativar/desativar automação
 export async function POST(req: NextRequest) {
+  const auth = await verifyAdminSession(req)
+  if (!auth.ok) return auth.response
+
   try {
     const { job, enabled, intervalMinutes } = await req.json()
 

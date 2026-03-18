@@ -175,12 +175,13 @@ export async function getAccessToken(
   appSecret: string,
   authCode: string
 ): Promise<TikTokApiResponse> {
-  // TikTok Shop OAuth endpoint with versioning
-  const paths = ['/auth/2.0/token', '/oauth/token']
+  // TikTok Shop OAuth token endpoints - trying all known variations
+  const paths = ['/oauth/token', '/auth/2.0/token', '/api/v2/token/get', 'oauth/token']
 
   for (const path of paths) {
     const result = await callTokenEndpoint(appKey, appSecret, authCode, path)
-    if (result.code !== 36009009) {
+    // 404 and 36009009 are both invalid path errors, continue to next
+    if (result.code !== 36009009 && result.code !== -1) {
       return result
     }
   }
@@ -256,11 +257,12 @@ export async function refreshAccessToken(
   appSecret: string,
   refreshToken: string
 ): Promise<TikTokApiResponse> {
-  const paths = ['/auth/2.0/token', '/oauth/token']
+  const paths = ['/oauth/token', '/auth/2.0/token', '/api/v2/token/refresh', 'oauth/token']
 
   for (const path of paths) {
     const result = await callRefreshEndpoint(appKey, appSecret, refreshToken, path)
-    if (result.code !== 36009009) {
+    // 404 and 36009009 are both invalid path errors, continue to next
+    if (result.code !== 36009009 && result.code !== -1) {
       return result
     }
   }

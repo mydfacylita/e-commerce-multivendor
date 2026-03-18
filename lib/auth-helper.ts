@@ -19,6 +19,7 @@ export interface AuthResult {
     email: string;
     role: string;
     name?: string;
+    isAdminStaff?: boolean;
   };
   error?: string;
   response?: NextResponse;
@@ -65,6 +66,7 @@ export async function authenticateRequest(
   let userEmail: string | null = null;
   let userRole: string | null = null;
   let userName: string | null = null;
+  let userIsAdminStaff = false;
 
   const authHeader = request.headers.get('authorization');
   
@@ -94,6 +96,7 @@ export async function authenticateRequest(
       userEmail = session.user.email || null;
       userRole = session.user.role;
       userName = session.user.name || null;
+      userIsAdminStaff = session.user.isAdminStaff ?? false;
     }
   }
 
@@ -128,7 +131,8 @@ export async function authenticateRequest(
       id: userId,
       email: userEmail || '',
       role: userRole || 'CUSTOMER',
-      name: userName || undefined
+      name: userName || undefined,
+      isAdminStaff: userIsAdminStaff || undefined
     } : undefined
   };
 }

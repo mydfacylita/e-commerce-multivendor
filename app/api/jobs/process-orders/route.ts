@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyCronOrAdmin } from '@/lib/cron-auth'
 
 /**
  * Job: Processamento Automático de Pedidos
@@ -13,11 +14,9 @@ import { prisma } from '@/lib/prisma'
  * 4. Auto-completar pedidos DELIVERED há mais de 7 dias
  */
 export async function POST(req: NextRequest) {
-  // 🔐 CRON Secret — impede execução não autorizada por terceiros
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production'
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  const auth = await verifyCronOrAdmin(req)
+  if (!auth.ok) {
+    return auth.response
   }
 
   try {

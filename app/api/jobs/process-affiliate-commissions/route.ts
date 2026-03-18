@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { processAffiliateCommission } from '@/lib/affiliate-commission'
+import { verifyCronOrAdmin } from '@/lib/cron-auth'
 
 /**
  * Job para processar comissões de afiliados pendentes
@@ -10,17 +11,11 @@ import { processAffiliateCommission } from '@/lib/affiliate-commission'
  * GET /api/jobs/process-affiliate-commissions
  */
 export async function GET(req: NextRequest) {
+  const auth = await verifyCronOrAdmin(req)
+  if (!auth.ok) {
+    return auth.response
+  }
   try {
-    const authHeader = req.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET || 'dev-secret-change-in-production'
-
-    // Verificar autorização (para cron jobs seguros)
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
-    }
 
     console.log('🔄 [JOB] Iniciando processamento de comissões pendentes...')
 
