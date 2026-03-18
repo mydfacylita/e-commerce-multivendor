@@ -175,9 +175,8 @@ export async function getAccessToken(
   appSecret: string,
   authCode: string
 ): Promise<TikTokApiResponse> {
-  // Some TikTok environments expect the path with or without the leading slash.
-  // If the first attempt returns an "Invalid path" error, try the alternative.
-  const paths = ['/api/v2/token/get', 'api/v2/token/get']
+  // TikTok Shop OAuth endpoint with versioning
+  const paths = ['/auth/2.0/token', '/oauth/token']
 
   for (const path of paths) {
     const result = await callTokenEndpoint(appKey, appSecret, authCode, path)
@@ -257,7 +256,7 @@ export async function refreshAccessToken(
   appSecret: string,
   refreshToken: string
 ): Promise<TikTokApiResponse> {
-  const paths = ['/api/v2/token/refresh', 'api/v2/token/refresh']
+  const paths = ['/auth/2.0/token', '/oauth/token']
 
   for (const path of paths) {
     const result = await callRefreshEndpoint(appKey, appSecret, refreshToken, path)
