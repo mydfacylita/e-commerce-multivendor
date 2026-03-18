@@ -87,6 +87,7 @@ export const ADMIN_PERMISSIONS: PermissionGroup[] = [
       { key: 'monitoramento.consistencia', label: 'Consistência' },
       { key: 'monitoramento.performance', label: 'Performance' },
       { key: 'monitoramento.logs', label: 'Logs API' },
+      { key: 'monitoramento.relatorios', label: 'Relatórios' },
     ],
   },
   {

@@ -588,7 +588,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
 
           {/* Monitoramento */}
-          {canAny(['monitoramento.vendas','monitoramento.analytics','monitoramento.ips','monitoramento.bots','monitoramento.mapa','monitoramento.antifraude','monitoramento.consistencia','monitoramento.performance','monitoramento.logs']) && (
+          {canAny(['monitoramento.vendas','monitoramento.analytics','monitoramento.ips','monitoramento.bots','monitoramento.mapa','monitoramento.antifraude','monitoramento.consistencia','monitoramento.performance','monitoramento.logs','monitoramento.relatorios']) && (
           <div>
             <button
               onClick={() => toggleSection('monitoramento')}
@@ -681,6 +681,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <FiActivity className="text-base" />
                   <span>Logs API</span>
+                </Link>
+                )}
+                {can('monitoramento.relatorios') && (
+                <Link
+                  href="/admin/relatorios"
+                  className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 text-sm ${pathname === '/admin/relatorios' ? 'bg-primary-50 text-primary-600' : 'text-gray-700'}`}
+                >
+                  <FiFileText className="text-base" />
+                  <span>Relatórios</span>
                 </Link>
                 )}
               </div>
