@@ -637,6 +637,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Nenhuma regra se aplicou, tentar consultar Correios
+    console.log('\n📋 === DIAGNÓSTICO DE FRETE ====')
+    console.log(`📍 CEP Destino: ${cleanCep}`)
+    console.log(`📦 Peso Total: ${totalWeight}kg`)
+    console.log(`📏 Dimensões: ${totalLength}x${totalWidth}x${totalHeight}cm`)
+    console.log(`💵 Valor do Carrinho: R$ ${cartValue}`)
+    
     const correiosConfig = await prisma.systemConfig.findFirst({
       where: { key: 'correios.enabled' }
     })
@@ -644,32 +650,68 @@ export async function POST(req: NextRequest) {
     const cepOrigemConfig = await prisma.systemConfig.findFirst({
       where: { key: 'correios.cepOrigem' }
     })
+    
+    const percentualConfig = await prisma.systemConfig.findFirst({
+      where: { key: 'correios.percentualExtra' }
+    })
 
-    if (correiosConfig?.value === 'true' && cepOrigemConfig?.value) {
+    console.log(`\n⚙️ Configuração Correios:`);
+    console.log(`   - Habilitado: ${correiosConfig?.value === 'true' ? '✅ SIM' : '❌ NÃO'}`);
+    console.log(`   - CEP Origem: ${cepOrigemConfig?.value || '❌ NÃO CONFIGURADO'}`);
+    console.log(`   - Percentual Extra: ${percentualConfig?.value || '0'}%`);
+
+    if (correiosConfig?.value !== 'true') {
+      console.log('\n⛔ FALLBACK: Correios desabilitado')
+    } else if (!cepOrigemConfig?.value) {
+      console.log('\n⛔ FALLBACK: CEP origem não configurado')
+    } else if (totalWeight <= 0) {
+      console.log('\n⛔ FALLBACK: Peso total inválido')
+    } else if (totalLength <= 0 || totalWidth <= 0 || totalHeight <= 0) {
+      console.log('\n⛔ FALLBACK: Dimensões inválidas')
+    } else {
       try {
-        console.log('📦 Consultando Correios para frete...')
+        console.log('\n🚀 Consultando Correios para frete...')
         
         // Fazer requisição interna para API dos Correios
-        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-        const correiosResponse = await fetch(`${baseUrl}/api/shipping/correios`, {
+        const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXTAUTH_URL_INTERNAL || 'http://localhost:3000'
+        const correiosUrl = `${baseUrl}/api/shipping/correios`
+        const correiosPayload = {
+          cepOrigem: cepOrigemConfig.value,
+          cepDestino: cleanCep,
+          peso: totalWeight,
+          comprimento: totalLength,
+          altura: totalHeight,
+          largura: totalWidth,
+          valor: cartValue
+        }
+        
+        console.log(`📤 Request para ${correiosUrl}:`, JSON.stringify(correiosPayload, null, 2))
+        
+        const correiosResponse = await fetch(correiosUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cepOrigem: cepOrigemConfig.value,
-            cepDestino: cleanCep,
-            peso: totalWeight,
-            comprimento: totalLength,
-            altura: totalHeight,
-            largura: totalWidth,
-            valor: cartValue
-          })
+          body: JSON.stringify(correiosPayload),
+          signal: AbortSignal.timeout(15000) // 15s timeout
         })
 
+        console.log(`📥 Response Status: ${correiosResponse.status}`)
+        
         if (correiosResponse.ok) {
           const correiosData = await safeJson(correiosResponse, 'correios-quote')
+          console.log(`📊 Dados Correios recebidos:`, JSON.stringify(correiosData, null, 2))
           
           // Pegar todos os resultados válidos sem erro
-          const resultadosValidos = correiosData.resultados?.filter((r: any) => !r.erro && r.valor > 0) || []
+          const todosResultados = correiosData.resultados || []
+          const resultadosValidos = todosResultados.filter((r: any) => !r.erro && r.valor > 0)
+          
+          console.log(`   - Total de resultados: ${todosResultados.length}`)
+          console.log(`   - Resultados válidos: ${resultadosValidos.length}`)
+          
+          if (todosResultados.length > 0) {
+            todosResultados.forEach((r: any, i: number) => {
+              console.log(`   [${i}] ${r.servico}: R$ ${r.valor} (${r.prazo}d) ${r.erro ? `⚠️ ERRO: ${r.erro}` : '✅'}`)
+            })
+          }
           
           if (resultadosValidos.length > 0) {
             // Ordenar por valor (mais barato primeiro)
@@ -677,8 +719,9 @@ export async function POST(req: NextRequest) {
             const maisBarato = resultadosValidos[0]
             
             // Mostrar todas as opções no log
+            console.log(`\n✅ SUCESSO! Usando frete dos Correios:`)
             resultadosValidos.forEach((r: any) => {
-              console.log(`✅ Correios: ${r.servico} - R$ ${r.valor} (${r.prazo} dias)`)
+              console.log(`   - ${r.servico}: R$ ${r.valor} (${r.prazo} dias)`)
             })
             
             // Mapear todas as opções para o cliente escolher
@@ -711,12 +754,22 @@ export async function POST(req: NextRequest) {
                 ruleName: promoInfo.ruleName
               } : null
             })
+          } else {
+            console.log('\n⚠️ FALLBACK: Nenhum resultado válido dos Correios')
           }
+        } else {
+          console.log(`\n⚠️ FALLBACK: HTTP ${correiosResponse.status} na API Correios`)
+          const errorBody = await correiosResponse.text()
+          console.log(`   Body: ${errorBody.slice(0, 500)}`)
         }
-      } catch (correiosError) {
-        console.error('Erro ao consultar Correios:', correiosError)
+      } catch (correiosError: any) {
+        console.error(`\n❌ FALLBACK: Erro ao consultar Correios: ${correiosError.message}`)
+        console.error(`   Stack: ${correiosError.stack?.split('\n')[0]}`)
       }
     }
+    
+    console.log('\n📍 Usando FRETE PADRÃO como fallback')
+    console.log('==================================\n')
 
     // Fallback: frete padrão
     let fallbackMessage = 'Frete padrão'
