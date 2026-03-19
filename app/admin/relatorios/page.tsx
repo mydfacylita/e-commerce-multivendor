@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FiDownload, FiList, FiGrid, FiFilter, FiX } from 'react-icons/fi'
+import { FiDownload, FiList, FiGrid, FiFilter, FiX, FiPrinter } from 'react-icons/fi'
 
 type StockSinteticoRow = {
   productId: string
@@ -131,6 +131,10 @@ export default function RelatoriosPage() {
     URL.revokeObjectURL(url)
   }
 
+  const handlePrint = () => {
+    window.print()
+  }
+
   const totalRows = mode === 'sintetico' ? sintetico.length : analitico.length
   const headerTitle = mode === 'sintetico' ? 'Relatório de Estoque (Sintético)' : 'Relatório de Estoque (Analítico)'
   const description =
@@ -139,14 +143,14 @@ export default function RelatoriosPage() {
       : 'Detalhamento completo por sub-SKU / variantes, com cor, tamanho e estoque.'
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 print-body relatorios-print">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{headerTitle}</h1>
           <p className="text-gray-600 mt-1">{description}</p>
         </div>
 
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center print:hidden">
           <button
             onClick={() => setMode('sintetico')}
             className={`px-4 py-2 rounded-lg font-medium transition ${
@@ -170,6 +174,12 @@ export default function RelatoriosPage() {
             <FiFilter /> Filtros
           </button>
           <button
+            onClick={handlePrint}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+          >
+            <FiPrinter /> Imprimir
+          </button>
+          <button
             onClick={exportCsv}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
             disabled={loading || totalRows === 0}
@@ -179,8 +189,22 @@ export default function RelatoriosPage() {
         </div>
       </div>
 
+      {/* Print header (only visible when printing) */}
+      <div className="hidden print:flex print-header items-center justify-between gap-4 border-b border-gray-200 pb-4 print:pb-6">
+        <div className="flex items-center gap-4">
+          <img src="/logo.png" alt="Logo" className="h-12 object-contain" />
+          <div className="space-y-1">
+            <div className="text-lg font-bold">{headerTitle}</div>
+            <div className="text-sm text-gray-600">
+              Gerado em {new Date().toLocaleString()} • Filtros: SKU "{searchSku || 'todos'}" • Estoque mínimo "{minStock || '0'}"
+            </div>
+          </div>
+        </div>
+        <div className="text-xs text-gray-500">mydshop.com.br</div>
+      </div>
+
       {showFilters && (
-        <div className="bg-white p-6 rounded-lg shadow space-y-4">
+        <div className="bg-white p-6 rounded-lg shadow space-y-4 print:hidden">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Buscar por SKU / Produto</label>
@@ -373,6 +397,55 @@ export default function RelatoriosPage() {
           </div>
         </>
       )}
+
+      <style jsx global>{`
+        @media print {
+          .relatorios-print {
+            -webkit-print-color-adjust: exact;
+          }
+
+          .relatorios-print .print-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 14px 18px;
+            border-bottom: 1px solid #ddd;
+            background: white;
+            z-index: 9999;
+          }
+
+          .relatorios-print .print-body {
+            margin-top: 90px;
+          }
+
+          .relatorios-print .print-hide {
+            display: none !important;
+          }
+
+          .relatorios-print table {
+            border-collapse: collapse;
+          }
+
+          .relatorios-print th,
+          .relatorios-print td {
+            border: 1px solid #e5e7eb;
+            padding: 6px 8px;
+          }
+
+          .relatorios-print thead {
+            background: #f9fafb;
+          }
+
+          .relatorios-print .print-table {
+            page-break-inside: avoid;
+          }
+
+          .relatorios-print tr {
+            page-break-inside: avoid;
+          }
+        }
+      `}</style>
     </div>
   )
 }
