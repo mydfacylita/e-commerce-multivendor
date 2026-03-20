@@ -755,46 +755,37 @@ export async function POST(req: NextRequest) {
               } : null
             })
           } else {
-            console.log('\n⚠️ FALLBACK: Nenhum resultado válido dos Correios')
+            console.log('\n⚠️ ERROR: Nenhum resultado válido dos Correios')
+            return NextResponse.json(
+              { error: 'Não foi possível calcular o frete para o endereço informado.' },
+              { status: 422 }
+            )
           }
         } else {
-          console.log(`\n⚠️ FALLBACK: HTTP ${correiosResponse.status} na API Correios`)
+          console.log(`\n⚠️ ERROR: HTTP ${correiosResponse.status} na API Correios`)
           const errorBody = await correiosResponse.text()
           console.log(`   Body: ${errorBody.slice(0, 500)}`)
+          return NextResponse.json(
+            { error: 'Não foi possível calcular o frete para o endereço informado.' },
+            { status: 502 }
+          )
         }
       } catch (correiosError: any) {
-        console.error(`\n❌ FALLBACK: Erro ao consultar Correios: ${correiosError.message}`)
+        console.error(`\n❌ ERROR: Erro ao consultar Correios: ${correiosError.message}`)
         console.error(`   Stack: ${correiosError.stack?.split('\n')[0]}`)
+        return NextResponse.json(
+          { error: 'Não foi possível calcular o frete no momento. Tente novamente mais tarde.' },
+          { status: 503 }
+        )
       }
     }
-    
-    console.log('\n📍 Usando FRETE PADRÃO como fallback')
-    console.log('==================================\n')
 
-    // Fallback: frete padrão
-    let fallbackMessage = 'Frete padrão'
-    if (promoInfo) {
-      const faltam = promoInfo.minValue - cartValue
-      fallbackMessage = `Frete padrão - 💡 Adicione mais R$ ${faltam.toFixed(2)} para frete especial!`
-    }
-    
-    return NextResponse.json({
-      shippingCost: 15.00,
-      deliveryDays: 10,
-      isFree: false,
-      message: fallbackMessage,
-      packaging: packagingResult?.packaging || null,
-      // Campos de transportadora
-      shippingMethod: 'propria',
-      shippingService: 'Padrão',
-      shippingCarrier: 'Entrega Própria',
-      // Info de promoção
-      promo: promoInfo ? {
-        minValue: promoInfo.minValue,
-        missing: parseFloat((promoInfo.minValue - cartValue).toFixed(2)),
-        ruleName: promoInfo.ruleName
-      } : null
-    })
+    // Se chegou até aqui, nenhuma estratégia gerou frete
+    console.log('\n❌ ERRO: Sem opções de frete disponíveis para o carrinho/cep informado')
+    return NextResponse.json(
+      { error: 'Entrega não disponível para o endereço informado. Entre em contato com a administração.' },
+      { status: 422 }
+    )
 
   } catch (error) {
     console.error('Erro ao calcular frete:', error)

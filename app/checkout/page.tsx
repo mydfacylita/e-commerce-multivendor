@@ -443,262 +443,165 @@ export default function CheckoutPage() {
   // Calcular frete quando CEP for preenchido
   const calcularFrete = async (cep: string) => {
     if (cep.length !== 8) return
-    
+
     setCalculandoFrete(true)
-    setFreteErro(null) // Limpar erro anterior
+    setFreteErro(null)
+
     try {
-      // Calcular peso real dos produtos (igual ao carrinho)
       const pesoTotal = await calcularPesoTotal()
       console.log('⚖️ [Checkout] Peso calculado:', pesoTotal, 'kg')
       console.log('📦 [Checkout] Grupos de envio:', gruposDeEnvio.length)
-      
-      // Calcular frete para cada grupo de envio
+
       const fretesCalculados: typeof fretesPorGrupo = []
       let freteTotal = 0
       let prazoMax = 0
       let todosGratis = true
-      
+
       for (let i = 0; i < gruposDeEnvio.length; i++) {
         const grupo = gruposDeEnvio[i]
-        
-        // Para grupos internacionais, calcular frete por ITEM (cada produto tem frete próprio)
-        if (grupo.id === 'INTERNACIONAL') {
-          let grupoFreteTotal = 0
-          let grupoPrazoMax = 0
-          let grupoPrazoDesc = ''
-          let grupoMethod = 'internacional'
-          let grupoService = 'Logística MydShop Express'
-          let grupoCarrier = 'Fornecedor Internacional'
-          
-          for (const item of grupo.itens) {
-            const response = await fetch('/api/shipping/quote', {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
-              },
-              body: JSON.stringify({
-                cep,
-                cartValue: item.price * item.quantity,
-                items: [{ id: item.productId || item.id, quantity: item.quantity }]
-              })
-            })
-            
-            if (response.ok) {
-              const data = await response.json()
-              let itemFrete = 0
-              let itemPrazo = 0
-              let itemPrazoDesc = ''
-              
-              if (data.shippingOptions && data.shippingOptions.length > 0) {
-                const maisBarata = data.shippingOptions[0]
-                itemFrete = maisBarata.price
-                // deliveryDays pode ser string (ex: "10 - 27 de Fev.") ou número
-                itemPrazoDesc = typeof maisBarata.deliveryDays === 'string' ? maisBarata.deliveryDays : (maisBarata.days || '')
-                // Extrair número de dias da string se necessário
-                const matchDias = String(maisBarata.deliveryDays || maisBarata.days || '').match(/(\d+)/)
-                itemPrazo = matchDias ? parseInt(matchDias[1]) : 10
-                // Capturar dados de transportadora do AliExpress
-                grupoMethod = maisBarata.method || 'internacional'
-                grupoService = maisBarata.name || maisBarata.service || 'Logística MydShop Express'
-                grupoCarrier = maisBarata.carrier || 'Fornecedor Internacional'
-              } else {
-                itemFrete = data.shippingCost || 0
-                itemPrazoDesc = typeof data.deliveryDays === 'string' ? data.deliveryDays : ''
-                const matchDias = String(data.deliveryDays || '').match(/(\d+)/)
-                itemPrazo = matchDias ? parseInt(matchDias[1]) : (typeof data.deliveryDays === 'number' ? data.deliveryDays : 10)
-                grupoMethod = data.shippingMethod || 'internacional'
-                grupoService = data.shippingService || 'Logística MydShop Express'
-                grupoCarrier = data.shippingCarrier || 'Fornecedor Internacional'
-              }
-              
-              grupoFreteTotal += itemFrete
-              grupoPrazoMax = Math.max(grupoPrazoMax, itemPrazo)
-              if (itemPrazoDesc && !grupoPrazoDesc) grupoPrazoDesc = itemPrazoDesc // Guardar primeira descrição
-              console.log(`🌍 [Internacional] ${item.name.substring(0, 30)}...: R$ ${itemFrete.toFixed(2)} | ${itemPrazoDesc || itemPrazo + ' dias'}`)
-            }
-          }
-          
-          // Definir opção de frete internacional
-          setOpcoesFreteState([{
-            id: 'frete_internacional',
-            name: grupoService,
-            price: grupoFreteTotal,
-            deliveryDays: grupoPrazoMax,
-            carrier: grupoCarrier,
-            method: grupoMethod,
-            service: grupoService
-          }])
-          setFreteSelecionado('frete_internacional')
-          setShippingMethod(grupoMethod)
-          setShippingService(grupoService)
-          setShippingCarrier(grupoCarrier)
-          
-          fretesCalculados.push({
-            grupoId: grupo.id,
-            grupoNome: `Envio ${i + 1} (Internacional)`,
-            frete: grupoFreteTotal,
-            prazo: grupoPrazoMax,
-            prazoDescricao: grupoPrazoDesc || `${grupoPrazoMax} dias`,
-            gratis: grupoFreteTotal === 0
-          })
-          
-          freteTotal += grupoFreteTotal
-          prazoMax = Math.max(prazoMax, grupoPrazoMax)
-          if (grupoFreteTotal > 0) todosGratis = false
-          
-          console.log(`📦 [Grupo ${i + 1}] ${grupo.nome}: R$ ${grupoFreteTotal.toFixed(2)} (${grupo.itens.length} itens) | Método: ${grupoMethod}`)
-          continue
+
+        const payload = {
+          cep,
+          cartValue: grupo.itens.reduce((sum, item) => sum + item.price * item.quantity, 0),
+          items: grupo.itens.map(item => ({ id: item.productId || item.id, quantity: item.quantity }))
         }
-        
-        // Para grupos nacionais (ADM, SELLER), calcular frete do grupo inteiro
+
         const response = await fetch('/api/shipping/quote', {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'x-api-key': 'myd_3514320b6b4b354d13513888d1300e41647a8fccf2213f46ecce72f25d3834d6'
           },
-          body: JSON.stringify({
-            cep,
-            cartValue: grupo.itens.reduce((sum, item) => sum + item.price * item.quantity, 0),
-            items: grupo.itens.map(item => ({
-              id: item.productId || item.id,
-              quantity: item.quantity
-            }))
-          })
+          body: JSON.stringify(payload)
         })
 
-        if (response.ok) {
-          const data = await response.json()
-          
-          let grupoFrete = 0
-          let grupoPrazo = 0
-          let grupoPrazoDesc = ''
-          let grupoGratis = false
-          let grupoMethod = 'propria'
-          let grupoService = ''
-          let grupoCarrier = ''
-          
-          if (data.shippingOptions && data.shippingOptions.length > 0) {
-            const maisBarata = data.shippingOptions[0]
-            grupoFrete = maisBarata.price
-            // Prazo pode vir como string ou número
-            grupoPrazoDesc = typeof maisBarata.deliveryDays === 'string' ? maisBarata.deliveryDays : (maisBarata.days || '')
-            const matchDias = String(maisBarata.deliveryDays || maisBarata.days || '').match(/(\d+)/)
-            grupoPrazo = matchDias ? parseInt(matchDias[1]) : (typeof maisBarata.deliveryDays === 'number' ? maisBarata.deliveryDays : 7)
-            
-            // Capturar dados da transportadora da opção selecionada
-            grupoMethod = maisBarata.method || data.shippingMethod || 'propria'
-            grupoService = maisBarata.service || data.shippingService || ''
-            grupoCarrier = maisBarata.carrier || data.shippingCarrier || ''
-            
-            // Popular opções de frete para exibir no checkout
-            if (data.shippingOptions.length > 0) {
-              const opcoes = data.shippingOptions.map((opt: any) => ({
-                id: opt.id || `frete_${opt.method}_${opt.service}`.toLowerCase().replace(/\s+/g, '_'),
-                name: opt.name || opt.service || 'Frete Padrão',
-                price: opt.price,
-                deliveryDays: typeof opt.deliveryDays === 'number' ? opt.deliveryDays : (parseInt(String(opt.deliveryDays).match(/\d+/)?.[0] || '7')),
-                carrier: opt.carrier || 'Transportadora',
-                method: opt.method || 'propria',
-                service: opt.service || ''
-              }))
-              setOpcoesFreteState(opcoes)
-              // Selecionar automaticamente a mais barata
-              setFreteSelecionado(opcoes[0].id)
-              setShippingMethod(opcoes[0].method)
-              setShippingService(opcoes[0].service)
-              setShippingCarrier(opcoes[0].carrier)
-            }
-          } else if (data.isFree) {
-            grupoGratis = true
-            grupoPrazoDesc = typeof data.deliveryDays === 'string' ? data.deliveryDays : ''
-            grupoPrazo = typeof data.deliveryDays === 'number' ? data.deliveryDays : 7
-            grupoMethod = data.shippingMethod || 'gratis'
-            grupoService = data.shippingService || 'Frete Grátis'
-            grupoCarrier = data.shippingCarrier || 'Grátis'
-            
-            // Definir opção de frete grátis
-            setOpcoesFreteState([{
-              id: 'frete_gratis',
-              name: 'Frete Grátis',
-              price: 0,
-              deliveryDays: grupoPrazo,
-              carrier: grupoCarrier,
-              method: grupoMethod,
-              service: grupoService
-            }])
-            setFreteSelecionado('frete_gratis')
-            setShippingMethod(grupoMethod)
-            setShippingService(grupoService)
-            setShippingCarrier(grupoCarrier)
-          } else {
-            grupoFrete = data.shippingCost || 0
-            grupoPrazoDesc = typeof data.deliveryDays === 'string' ? data.deliveryDays : ''
-            grupoPrazo = typeof data.deliveryDays === 'number' ? data.deliveryDays : 7
-            grupoMethod = data.shippingMethod || 'propria'
-            grupoService = data.shippingService || 'Padrão'
-            grupoCarrier = data.shippingCarrier || 'Entrega Própria'
-            
-            // Definir opção padrão
-            setOpcoesFreteState([{
-              id: 'frete_padrao',
-              name: grupoService,
-              price: grupoFrete,
-              deliveryDays: grupoPrazo,
-              carrier: grupoCarrier,
-              method: grupoMethod,
-              service: grupoService
-            }])
-            setFreteSelecionado('frete_padrao')
-            setShippingMethod(grupoMethod)
-            setShippingService(grupoService)
-            setShippingCarrier(grupoCarrier)
-          }
-          
-          fretesCalculados.push({
-            grupoId: grupo.id,
-            grupoNome: `Envio ${i + 1}`,
-            frete: grupoFrete,
-            prazo: grupoPrazo,
-            prazoDescricao: grupoPrazoDesc || `${grupoPrazo} dias úteis`,
-            gratis: grupoGratis
-          })
-          
-          freteTotal += grupoFrete
-          prazoMax = Math.max(prazoMax, grupoPrazo)
-          if (!grupoGratis) todosGratis = false
-          
-          console.log(`📦 [Grupo ${i + 1}] ${grupo.nome}: R$ ${grupoFrete.toFixed(2)} | ${grupoPrazoDesc || grupoPrazo + ' dias'} | Método: ${grupoMethod}`)
+        if (!response.ok) {
+          const errData = await response.json().catch(() => null)
+          throw new Error(errData?.error || errData?.message || 'Erro ao calcular frete')
         }
+
+        const data = await response.json()
+        if (data.error) {
+          throw new Error(data.error)
+        }
+
+        const options = [] as Array<{
+          id: string
+          name: string
+          price: number
+          deliveryDays: number
+          carrier: string
+          method: string
+          service: string
+          isFree?: boolean
+        }>
+
+        if (Array.isArray(data.shippingOptions) && data.shippingOptions.length > 0) {
+          for (const opt of data.shippingOptions) {
+            options.push({
+              id: opt.id || `frete_${opt.method || 'propria'}_${opt.service || 'padrão'}`.toLowerCase().replace(/\s+/g, '_'),
+              name: opt.name || opt.service || 'Frete',
+              price: Number(opt.price || 0),
+              deliveryDays: Number(opt.deliveryDays || opt.days || 7),
+              carrier: opt.carrier || 'Transportadora',
+              method: opt.method || 'propria',
+              service: opt.service || '',
+              isFree: !!opt.isFree || Number(opt.price || 0) === 0
+            })
+          }
+        } else if (Array.isArray(data.allOptions) && data.allOptions.length > 0) {
+          for (const opt of data.allOptions) {
+            options.push({
+              id: opt.id || `frete_${opt.method || 'internacional'}_${opt.name || 'padrão'}`.toLowerCase().replace(/\s+/g, '_'),
+              name: opt.name || 'Frete',
+              price: Number(opt.price || 0),
+              deliveryDays: Number(opt.days || opt.deliveryDays || 30),
+              carrier: opt.carrier || 'Fornecedor Internacional',
+              method: opt.method || 'internacional',
+              service: opt.service || '',
+              isFree: !!opt.isFree || Number(opt.price || 0) === 0
+            })
+          }
+        } else if (data.isFree || Number(data.shippingCost || 0) === 0) {
+          options.push({
+            id: 'frete_gratis',
+            name: data.shippingService || 'Frete Grátis',
+            price: 0,
+            deliveryDays: Number(data.deliveryDays || 0),
+            carrier: data.shippingCarrier || 'Grátis',
+            method: data.shippingMethod || 'gratis',
+            service: data.shippingService || 'Frete Grátis',
+            isFree: true
+          })
+        } else if (typeof data.shippingCost === 'number') {
+          options.push({
+            id: 'frete_padrao',
+            name: data.shippingService || 'Entrega Padrão',
+            price: data.shippingCost,
+            deliveryDays: Number(data.deliveryDays || 10),
+            carrier: data.shippingCarrier || 'Entrega Própria',
+            method: data.shippingMethod || 'propria',
+            service: data.shippingService || 'Padrão',
+            isFree: false
+          })
+        } else {
+          throw new Error('Não foi possível calcular o frete para o endereço informado')
+        }
+
+        options.sort((a, b) => a.price - b.price)
+        const chosen = options[0]
+
+        setOpcoesFreteState(options)
+        setFreteSelecionado(chosen.id)
+        setShippingMethod(chosen.method)
+        setShippingService(chosen.service)
+        setShippingCarrier(chosen.carrier)
+
+        fretesCalculados.push({
+          grupoId: grupo.id,
+          grupoNome: grupo.nome || `Envio ${i + 1}`,
+          frete: chosen.price,
+          prazo: Number(chosen.deliveryDays) || 0,
+          prazoDescricao: `${chosen.deliveryDays} dias`,
+          gratis: chosen.isFree || false
+        })
+
+        freteTotal += chosen.price
+        prazoMax = Math.max(prazoMax, Number(chosen.deliveryDays) || 0)
+        if (!chosen.isFree) todosGratis = false
+
+        console.log(`📦 [Grupo ${i + 1}] ${grupo.nome}: R$ ${chosen.price.toFixed(2)} | ${chosen.deliveryDays} | Método: ${chosen.method}`)
       }
-      
-      // Atualizar estados
+
+      if (fretesCalculados.length === 0) {
+        throw new Error('Não foi possível calcular o frete para este carrinho. Contate o suporte.')
+      }
+
       setFretesPorGrupo(fretesCalculados)
       setFrete(freteTotal)
       setPrazoEntrega(prazoMax > 0 ? prazoMax : 0)
-      // Pegar a descrição do prazo do primeiro grupo (geralmente o maior prazo é internacional)
       const descPrazoMaior = fretesCalculados.find(f => f.prazoDescricao && !f.prazoDescricao.includes('dias úteis'))?.prazoDescricao || ''
       setPrazoDescricaoGeral(descPrazoMaior)
       setFreteGratis(todosGratis && fretesCalculados.length > 0)
       setFreteCalculado(true)
-      
+
       console.log('📦 Frete total calculado:', {
         grupos: fretesCalculados.length,
         total: freteTotal,
-        prazoMax: prazoMax,
+        prazoMax,
         prazoDesc: descPrazoMaior
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao calcular frete:', error)
-      setFreteErro('Não foi possível calcular o frete. Entre em contato com a administração do marketplace.')
-      setOpcoesFreteState([]) // Limpar opções de frete
+      setFreteErro(error?.message || 'Não foi possível calcular o frete. Entre em contato com a administração do marketplace.')
+      setOpcoesFreteState([])
       setFreteSelecionado(null)
+      setFreteCalculado(false)
     } finally {
       setCalculandoFrete(false)
     }
   }
-  
+
   // Função para selecionar uma opção de frete
   const selecionarFrete = (opcaoId: string) => {
     const opcao = opcoesFreteState.find(o => o.id === opcaoId)
