@@ -184,7 +184,10 @@ export default function CheckoutPage() {
       const isInternational = (item.isInternationalSupplier || item.itemType === 'DROP') && item.shipFromCountry !== 'BR'
       
       if (isInternational) {
-        grupoId = 'INTERNACIONAL'
+        // Cada fornecedor internacional = envio separado
+        // Agrupa pelo sellerId (vendedor AliExpress); se não tiver, cada produto é um envio
+        const supplierId = item.sellerId || item.productId || item.id
+        grupoId = `INTERNACIONAL_${supplierId}`
         grupoNome = 'Internacional'
       } else if (item.sellerId && item.sellerCep) {
         grupoId = `SELLER_${item.sellerId}`
@@ -496,13 +499,16 @@ export default function CheckoutPage() {
           isFree?: boolean
         }>
 
+        // Helper para sanitizar dias (evita NaN)
+        const safeDays = (v: any, fallback: number) => { const n = Number(v); return isNaN(n) || n <= 0 ? fallback : n }
+
         if (Array.isArray(data.shippingOptions) && data.shippingOptions.length > 0) {
           for (const opt of data.shippingOptions) {
             options.push({
               id: opt.id || `frete_${opt.method || 'propria'}_${opt.service || 'padrão'}`.toLowerCase().replace(/\s+/g, '_'),
               name: opt.name || opt.service || 'Frete',
               price: Number(opt.price || 0),
-              deliveryDays: Number(opt.deliveryDays || opt.days || 7),
+              deliveryDays: safeDays(opt.deliveryDays ?? opt.days, 7),
               carrier: opt.carrier || 'Transportadora',
               method: opt.method || 'propria',
               service: opt.service || '',
@@ -515,7 +521,7 @@ export default function CheckoutPage() {
               id: opt.id || `frete_${opt.method || 'internacional'}_${opt.name || 'padrão'}`.toLowerCase().replace(/\s+/g, '_'),
               name: opt.name || 'Frete',
               price: Number(opt.price || 0),
-              deliveryDays: Number(opt.days || opt.deliveryDays || 30),
+              deliveryDays: safeDays(opt.days ?? opt.deliveryDays, 30),
               carrier: opt.carrier || 'Fornecedor Internacional',
               method: opt.method || 'internacional',
               service: opt.service || '',
@@ -527,7 +533,7 @@ export default function CheckoutPage() {
             id: 'frete_gratis',
             name: data.shippingService || 'Frete Grátis',
             price: 0,
-            deliveryDays: Number(data.deliveryDays || 0),
+            deliveryDays: safeDays(data.deliveryDays, 0),
             carrier: data.shippingCarrier || 'Grátis',
             method: data.shippingMethod || 'gratis',
             service: data.shippingService || 'Frete Grátis',
@@ -538,7 +544,7 @@ export default function CheckoutPage() {
             id: 'frete_padrao',
             name: data.shippingService || 'Entrega Padrão',
             price: data.shippingCost,
-            deliveryDays: Number(data.deliveryDays || 10),
+            deliveryDays: safeDays(data.deliveryDays, 10),
             carrier: data.shippingCarrier || 'Entrega Própria',
             method: data.shippingMethod || 'propria',
             service: data.shippingService || 'Padrão',
@@ -561,8 +567,8 @@ export default function CheckoutPage() {
           grupoId: grupo.id,
           grupoNome: grupo.nome || `Envio ${i + 1}`,
           frete: chosen.price,
-          prazo: Number(chosen.deliveryDays) || 0,
-          prazoDescricao: `${chosen.deliveryDays} dias`,
+          prazo: chosen.deliveryDays > 0 ? chosen.deliveryDays : 0,
+          prazoDescricao: chosen.deliveryDays > 0 ? `${chosen.deliveryDays} dias` : '',
           gratis: chosen.isFree || false
         })
 
@@ -1601,8 +1607,11 @@ export default function CheckoutPage() {
                   <span className="text-2xl">🎉</span>
                   <div>
                     <p className="font-bold text-lg">Frete Grátis!</p>
-                    {(prazoDescricaoGeral || prazoEntrega > 0) && (
-                      <p className="text-sm">{prazoDescricaoGeral ? `📦 Chegará ${prazoDescricaoGeral}` : `Entrega em até ${prazoEntrega} dias úteis`}</p>
+                    {prazoDescricaoGeral && prazoDescricaoGeral !== '0 dias' && (
+                      <p className="text-sm">📦 Chegará {prazoDescricaoGeral}</p>
+                    )}
+                    {!prazoDescricaoGeral && prazoEntrega > 0 && !isNaN(prazoEntrega) && (
+                      <p className="text-sm">Entrega em até {prazoEntrega} dias úteis</p>
                     )}
                   </div>
                 </div>
