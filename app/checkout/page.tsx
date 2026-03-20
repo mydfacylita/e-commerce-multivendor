@@ -240,7 +240,7 @@ export default function CheckoutPage() {
     id: string
     name: string
     price: number
-    deliveryDays: string | number
+    deliveryDays: string
     carrier: string
     method: string
     service: string
@@ -492,7 +492,7 @@ export default function CheckoutPage() {
           id: string
           name: string
           price: number
-          deliveryDays: number
+          deliveryDays: string
           carrier: string
           method: string
           service: string
@@ -500,12 +500,19 @@ export default function CheckoutPage() {
         }>
 
         if (Array.isArray(data.shippingOptions) && data.shippingOptions.length > 0) {
+          const formatDays = (v: any): string => {
+            if (v === null || v === undefined || v === '') return '';
+            if (typeof v === 'number') return v === 1 ? '1 dia útil' : `${v} dias úteis`;
+            const n = Number(v);
+            if (!isNaN(n) && String(v).trim() === String(n)) return n === 1 ? '1 dia útil' : `${n} dias úteis`;
+            return String(v);
+          };
           for (const opt of data.shippingOptions) {
             options.push({
               id: opt.id || `frete_${opt.method || 'propria'}_${opt.service || 'padrão'}`.toLowerCase().replace(/\s+/g, '_'),
               name: opt.name || opt.service || 'Frete',
               price: Number(opt.price || 0),
-              deliveryDays: opt.deliveryDays ?? opt.days ?? '',
+              deliveryDays: formatDays(opt.deliveryDays ?? opt.days),
               carrier: opt.carrier || 'Transportadora',
               method: opt.method || 'propria',
               service: opt.service || '',
@@ -513,12 +520,19 @@ export default function CheckoutPage() {
             })
           }
         } else if (Array.isArray(data.allOptions) && data.allOptions.length > 0) {
+          const formatDays = (v: any): string => {
+            if (v === null || v === undefined || v === '') return '';
+            if (typeof v === 'number') return v === 1 ? '1 dia útil' : `${v} dias úteis`;
+            const n = Number(v);
+            if (!isNaN(n) && String(v).trim() === String(n)) return n === 1 ? '1 dia útil' : `${n} dias úteis`;
+            return String(v);
+          };
           for (const opt of data.allOptions) {
             options.push({
               id: opt.id || `frete_${opt.method || 'internacional'}_${opt.name || 'padrão'}`.toLowerCase().replace(/\s+/g, '_'),
               name: opt.name || 'Frete',
               price: Number(opt.price || 0),
-              deliveryDays: opt.days ?? opt.deliveryDays ?? '',
+              deliveryDays: formatDays(opt.days ?? opt.deliveryDays),
               carrier: opt.carrier || 'Fornecedor Internacional',
               method: opt.method || 'internacional',
               service: opt.service || '',
@@ -537,11 +551,15 @@ export default function CheckoutPage() {
             isFree: true
           })
         } else if (data.shippingCost != null) {
+          const n = Number(data.deliveryDays);
+          const daysStr = !isNaN(n) && String(data.deliveryDays).trim() === String(n)
+            ? (n === 1 ? '1 dia útil' : `${n} dias úteis`)
+            : (data.deliveryDays ? String(data.deliveryDays) : '');
           options.push({
             id: 'frete_padrao',
             name: data.shippingService || 'Entrega Padrão',
             price: Number(data.shippingCost),
-            deliveryDays: data.deliveryDays ?? '',
+            deliveryDays: daysStr,
             carrier: data.shippingCarrier || 'Entrega Própria',
             method: data.shippingMethod || 'propria',
             service: data.shippingService || 'Padrão',
@@ -564,13 +582,12 @@ export default function CheckoutPage() {
           grupoId: grupo.id,
           grupoNome: grupo.nome || `Envio ${i + 1}`,
           frete: chosen.price,
-          prazo: typeof chosen.deliveryDays === 'number' && chosen.deliveryDays > 0 ? chosen.deliveryDays : 0,
-          prazoDescricao: chosen.deliveryDays ? String(chosen.deliveryDays) : '',
+          prazo: 0,
+          prazoDescricao: chosen.deliveryDays || '',
           gratis: chosen.isFree || false
         })
 
         freteTotal += chosen.price
-        prazoMax = Math.max(prazoMax, Number(chosen.deliveryDays) || 0)
         if (!chosen.isFree) todosGratis = false
 
         console.log(`📦 [Grupo ${i + 1}] ${grupo.nome}: R$ ${chosen.price.toFixed(2)} | ${chosen.deliveryDays} | Método: ${chosen.method}`)
@@ -582,8 +599,9 @@ export default function CheckoutPage() {
 
       setFretesPorGrupo(fretesCalculados)
       setFrete(freteTotal)
-      setPrazoEntrega(prazoMax > 0 ? prazoMax : 0)
-      const descPrazoMaior = fretesCalculados.find(f => f.prazoDescricao && !f.prazoDescricao.includes('dias úteis'))?.prazoDescricao || ''
+      setPrazoEntrega(0)
+      // prazoDescricao agora é sempre a string da API (ex: "3 dias úteis", "26-30 de Mar.")
+      const descPrazoMaior = fretesCalculados.find(f => f.prazoDescricao)?.prazoDescricao || ''
       setPrazoDescricaoGeral(descPrazoMaior)
       setFreteGratis(todosGratis && fretesCalculados.length > 0)
       setFreteCalculado(true)

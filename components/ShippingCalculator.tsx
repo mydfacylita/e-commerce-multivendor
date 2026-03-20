@@ -74,6 +74,15 @@ export default function ShippingCalculator({
 
       // Construir opções de frete
       const options: ShippingOption[] = [];
+
+      // Formata prazo: número vira 'X dias úteis', string passa como veio da API
+      const formatDays = (v: any): string => {
+        if (v === null || v === undefined || v === '') return '';
+        if (typeof v === 'number') return v === 1 ? '1 dia útil' : `${v} dias úteis`;
+        const n = Number(v);
+        if (!isNaN(n) && String(v).trim() === String(n)) return n === 1 ? '1 dia útil' : `${n} dias úteis`;
+        return String(v);
+      };
       
       // PRIORIDADE 1: Usar shippingOptions se disponível (Correios, MelhorEnvio, etc.)
       if (data.shippingOptions && Array.isArray(data.shippingOptions) && data.shippingOptions.length > 0) {
@@ -81,7 +90,7 @@ export default function ShippingCalculator({
           options.push({
             name: opt.name || opt.service || 'Envio',
             price: opt.price || 0,
-            days: opt.deliveryDays ?? opt.days ?? '',
+            days: formatDays(opt.deliveryDays ?? opt.days),
             icon: opt.name?.includes('SEDEX') ? "🚀" : opt.name?.includes('PAC') ? "📦" : "🚚",
             isFree: opt.price === 0
           });
@@ -93,7 +102,7 @@ export default function ShippingCalculator({
           options.push({
             name: opt.name || 'Logística MydShop Express',
             price: opt.price || 0,
-            days: opt.days ?? opt.deliveryDays ?? '',
+            days: formatDays(opt.days ?? opt.deliveryDays),
             icon: opt.isInternational ? "🚚" : "📦",
             isFree: opt.isFree
           });
@@ -103,7 +112,7 @@ export default function ShippingCalculator({
         options.push({
           name: data.shippingService || 'Logística MydShop Express',
           price: data.shippingCost || 0,
-          days: data.deliveryDays ?? '',
+          days: formatDays(data.deliveryDays),
           icon: "🚚",
           isFree: data.isFree
         });
@@ -111,7 +120,7 @@ export default function ShippingCalculator({
         options.push({
           name: data.shippingService || 'Frete Grátis',
           price: 0,
-          days: data.deliveryDays ? String(data.deliveryDays) : '',
+          days: formatDays(data.deliveryDays),
           icon: "🎉",
           isFree: true
         });
@@ -119,7 +128,7 @@ export default function ShippingCalculator({
         options.push({
           name: data.shippingService || 'Entrega Padrão',
           price: data.shippingCost || 0,
-          days: data.deliveryDays ? String(data.deliveryDays) : '',
+          days: formatDays(data.deliveryDays),
           icon: "📦"
         });
       }
