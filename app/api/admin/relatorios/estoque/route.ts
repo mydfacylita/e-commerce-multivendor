@@ -183,6 +183,17 @@ export async function GET(request: Request) {
       return sum + stock
     }, 0)
 
+    const prices = skus
+      .map((s: any) => (typeof s.price === 'number' ? s.price : Number(s.price) || null))
+      .filter((v: any): v is number => v !== null && v > 0)
+    const minPrice = prices.length > 0 ? Math.min(...prices) : undefined
+    const maxPrice = prices.length > 0 ? Math.max(...prices) : undefined
+    const totalValue = skus.reduce((sum: number, s: any) => {
+      const sk = typeof s.stock === 'number' ? s.stock : Number(s.stock) || 0
+      const pr = typeof s.price === 'number' ? s.price : Number(s.price) || 0
+      return sum + sk * pr
+    }, 0)
+
     return {
       productId: p.id,
       productName: p.name,
@@ -193,6 +204,9 @@ export async function GET(request: Request) {
       variantCount: skus.length,
       coresDisponiveis: Array.from(cores).sort(),
       tamanhosDisponiveis: Array.from(tamanhos).sort(),
+      minPrice,
+      maxPrice,
+      totalValue: totalValue > 0 ? totalValue : undefined,
       updatedAt: p.updatedAt.toISOString(),
     }
   }).filter(row => {
