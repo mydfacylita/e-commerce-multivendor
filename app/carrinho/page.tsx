@@ -321,7 +321,6 @@ export default function CarrinhoPage() {
         // Se tiver opções de frete, salvar
         if (data.shippingOptions && data.shippingOptions.length > 0) {
           setOpcoesFreteState(data.shippingOptions)
-          // Selecionar a primeira opção (mais barata) como padrão
           const maisBarata = data.shippingOptions[0]
           setFreteSelecionado(maisBarata.id)
           setFrete(maisBarata.price)
@@ -333,12 +332,14 @@ export default function CarrinhoPage() {
           setFrete(0)
           setPrazoEntrega(parsePrazo(data.deliveryDays))
           setOpcoesFreteState([])
-        } else {
+        } else if (data.shippingCost != null) {
           setFreteGratis(false)
           setFrete(data.shippingCost)
           setPrazoEntrega(parsePrazo(data.deliveryDays))
           setOpcoesFreteState([])
-          toast.success(`Frete: R$ ${formatarMoeda(data.shippingCost)} - ${data.deliveryDays} dias úteis`)
+          toast.success(`Frete: R$ ${formatarMoeda(data.shippingCost)} - ${data.deliveryDays}`)
+        } else {
+          toast.error('Não foi possível calcular o frete para este endereço. Entre em contato com a administração.')
         }
       } else {
         const errorData = await response.json().catch(() => ({}))
@@ -977,7 +978,7 @@ export default function CarrinhoPage() {
                       <div>
                         <span className="font-semibold text-gray-900">{opcao.name}</span>
                         <p className="text-xs text-gray-500">
-                          Entrega em até {opcao.deliveryDays} dias úteis
+                          {opcao.deliveryDays || 'Prazo a confirmar'}
                         </p>
                       </div>
                     </div>

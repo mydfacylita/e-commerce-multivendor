@@ -81,7 +81,7 @@ export default function ShippingCalculator({
           options.push({
             name: opt.name || opt.service || 'Envio',
             price: opt.price || 0,
-            days: typeof opt.deliveryDays === 'string' ? opt.deliveryDays : `${opt.deliveryDays || 7} dias úteis`,
+            days: opt.deliveryDays ?? opt.days ?? '',
             icon: opt.name?.includes('SEDEX') ? "🚀" : opt.name?.includes('PAC') ? "📦" : "🚚",
             isFree: opt.price === 0
           });
@@ -93,7 +93,7 @@ export default function ShippingCalculator({
           options.push({
             name: opt.name || 'Logística MydShop Express',
             price: opt.price || 0,
-            days: opt.days || '15-30 dias',
+            days: opt.days ?? opt.deliveryDays ?? '',
             icon: opt.isInternational ? "🚚" : "📦",
             isFree: opt.isFree
           });
@@ -103,7 +103,7 @@ export default function ShippingCalculator({
         options.push({
           name: data.shippingService || 'Logística MydShop Express',
           price: data.shippingCost || 0,
-          days: data.deliveryDays || '15-30 dias',
+          days: data.deliveryDays ?? '',
           icon: "🚚",
           isFree: data.isFree
         });
@@ -111,16 +111,15 @@ export default function ShippingCalculator({
         options.push({
           name: data.shippingService || 'Frete Grátis',
           price: 0,
-          days: `${data.deliveryDays || 7}`,
+          days: data.deliveryDays ? String(data.deliveryDays) : '',
           icon: "🎉",
           isFree: true
         });
       } else {
-        // Opção principal (fallback)
         options.push({
           name: data.shippingService || 'Entrega Padrão',
           price: data.shippingCost || 0,
-          days: `${data.deliveryDays || 7}-${(data.deliveryDays || 7) + 3}`,
+          days: data.deliveryDays ? String(data.deliveryDays) : '',
           icon: "📦"
         });
       }
@@ -189,14 +188,16 @@ export default function ShippingCalculator({
         <div className="mt-2 space-y-1">
           {result.map((option, idx) => (
             <div key={idx} className="flex justify-between text-sm">
-              <span>{option.icon} {option.name}</span>
+              <span className="text-sm">
+                {option.icon} {option.name}
+              </span>
               <span className="font-semibold">
                 {option.isFree ? (
                   <span className="text-green-600">Grátis</span>
                 ) : (
                   <>R$ {option.price.toFixed(2)}</>
                 )}
-                <span className="text-gray-500 font-normal ml-1">({option.days} dias)</span>
+                {option.days && <span className="text-gray-500 font-normal ml-1">({option.days})</span>}
               </span>
             </div>
           ))}
@@ -243,7 +244,7 @@ export default function ShippingCalculator({
                   <span className="text-xl">{option.icon}</span>
                   <div>
                     <p className="font-semibold">{option.name}</p>
-                    <p className="text-xs text-gray-500">{option.days} dias úteis</p>
+                    {option.days && <p className="text-xs text-gray-500">{option.days}</p>}
                   </div>
                 </div>
                 {option.isFree ? (

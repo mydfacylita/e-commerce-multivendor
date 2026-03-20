@@ -240,7 +240,7 @@ export default function CheckoutPage() {
     id: string
     name: string
     price: number
-    deliveryDays: number
+    deliveryDays: string | number
     carrier: string
     method: string
     service: string
@@ -499,16 +499,13 @@ export default function CheckoutPage() {
           isFree?: boolean
         }>
 
-        // Helper para sanitizar dias (evita NaN)
-        const safeDays = (v: any, fallback: number) => { const n = Number(v); return isNaN(n) || n <= 0 ? fallback : n }
-
         if (Array.isArray(data.shippingOptions) && data.shippingOptions.length > 0) {
           for (const opt of data.shippingOptions) {
             options.push({
               id: opt.id || `frete_${opt.method || 'propria'}_${opt.service || 'padrão'}`.toLowerCase().replace(/\s+/g, '_'),
               name: opt.name || opt.service || 'Frete',
               price: Number(opt.price || 0),
-              deliveryDays: safeDays(opt.deliveryDays ?? opt.days, 7),
+              deliveryDays: opt.deliveryDays ?? opt.days ?? '',
               carrier: opt.carrier || 'Transportadora',
               method: opt.method || 'propria',
               service: opt.service || '',
@@ -521,7 +518,7 @@ export default function CheckoutPage() {
               id: opt.id || `frete_${opt.method || 'internacional'}_${opt.name || 'padrão'}`.toLowerCase().replace(/\s+/g, '_'),
               name: opt.name || 'Frete',
               price: Number(opt.price || 0),
-              deliveryDays: safeDays(opt.days ?? opt.deliveryDays, 30),
+              deliveryDays: opt.days ?? opt.deliveryDays ?? '',
               carrier: opt.carrier || 'Fornecedor Internacional',
               method: opt.method || 'internacional',
               service: opt.service || '',
@@ -533,18 +530,18 @@ export default function CheckoutPage() {
             id: 'frete_gratis',
             name: data.shippingService || 'Frete Grátis',
             price: 0,
-            deliveryDays: safeDays(data.deliveryDays, 0),
+            deliveryDays: data.deliveryDays ?? '',
             carrier: data.shippingCarrier || 'Grátis',
             method: data.shippingMethod || 'gratis',
             service: data.shippingService || 'Frete Grátis',
             isFree: true
           })
-        } else if (typeof data.shippingCost === 'number') {
+        } else if (data.shippingCost != null) {
           options.push({
             id: 'frete_padrao',
             name: data.shippingService || 'Entrega Padrão',
-            price: data.shippingCost,
-            deliveryDays: safeDays(data.deliveryDays, 10),
+            price: Number(data.shippingCost),
+            deliveryDays: data.deliveryDays ?? '',
             carrier: data.shippingCarrier || 'Entrega Própria',
             method: data.shippingMethod || 'propria',
             service: data.shippingService || 'Padrão',
@@ -567,8 +564,8 @@ export default function CheckoutPage() {
           grupoId: grupo.id,
           grupoNome: grupo.nome || `Envio ${i + 1}`,
           frete: chosen.price,
-          prazo: chosen.deliveryDays > 0 ? chosen.deliveryDays : 0,
-          prazoDescricao: chosen.deliveryDays > 0 ? `${chosen.deliveryDays} dias` : '',
+          prazo: typeof chosen.deliveryDays === 'number' && chosen.deliveryDays > 0 ? chosen.deliveryDays : 0,
+          prazoDescricao: chosen.deliveryDays ? String(chosen.deliveryDays) : '',
           gratis: chosen.isFree || false
         })
 
@@ -614,7 +611,7 @@ export default function CheckoutPage() {
     if (opcao) {
       setFreteSelecionado(opcaoId)
       setFrete(opcao.price)
-      setPrazoEntrega(opcao.deliveryDays)
+      setPrazoEntrega(typeof opcao.deliveryDays === 'number' ? opcao.deliveryDays : 0)
       setShippingMethod(opcao.method)
       setShippingService(opcao.service)
       setShippingCarrier(opcao.carrier)
@@ -1573,10 +1570,7 @@ export default function CheckoutPage() {
                               <span className="font-bold text-gray-900 text-lg">{opcao.name}</span>
                             </div>
                             <p className="text-sm text-gray-600">
-                              📦 Entrega em até <strong>{opcao.deliveryDays} dias úteis</strong>
-                            </p>
-                            <p className="text-xs text-green-600">
-                              🗓️ Chegará {calcularDataEntrega(opcao.deliveryDays)}
+                              📦 {opcao.deliveryDays ? <strong>{opcao.deliveryDays}</strong> : 'Prazo a confirmar'}
                             </p>
                           </div>
                         </div>
