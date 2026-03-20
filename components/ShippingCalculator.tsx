@@ -67,7 +67,7 @@ export default function ShippingCalculator({
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || 'Erro ao calcular frete');
+        setError(data.message || 'Frete indisponível para este endereço. Entre em contato com a administração para maiores informações.');
         setResult(null);
         return;
       }
@@ -141,7 +141,7 @@ export default function ShippingCalculator({
       }
     } catch (err) {
       console.error('Erro ao calcular frete:', err);
-      setError('Erro ao calcular frete. Tente novamente.');
+      setError('Não foi possível calcular o frete. Entre em contato com a administração para maiores informações.');
       setResult(null);
     } finally {
       setLoading(false);

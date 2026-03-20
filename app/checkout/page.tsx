@@ -1609,12 +1609,23 @@ export default function CheckoutPage() {
               </div>
             )}
 
+            {freteErro && (
+              <div className="bg-red-50 border border-red-300 rounded-lg p-4 flex items-start gap-3">
+                <span className="text-2xl">🚫</span>
+                <div>
+                  <p className="font-bold text-red-700">Frete indisponível</p>
+                  <p className="text-sm text-red-600 mt-1">{freteErro}</p>
+                  <p className="text-sm text-red-600 mt-1">Entre em contato com a administração para mais informações.</p>
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={isLoading || !freteCalculado || calculandoFrete}
+              disabled={isLoading || !freteCalculado || calculandoFrete || !!freteErro}
               className="w-full bg-primary-600 text-white py-4 rounded-md hover:bg-primary-700 font-semibold text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Processando...' : calculandoFrete ? '⏳ Calculando frete...' : !freteCalculado ? '📦 Selecione um endereço para calcular o frete' : 'Continuar para Pagamento'}
+              {isLoading ? 'Processando...' : calculandoFrete ? '⏳ Calculando frete...' : freteErro ? '🚫 Frete indisponível — contate a administração' : !freteCalculado ? '📦 Selecione um endereço para calcular o frete' : 'Continuar para Pagamento'}
             </button>
           </form>
         ) : (
