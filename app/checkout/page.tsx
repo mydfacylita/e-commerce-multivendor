@@ -214,6 +214,7 @@ export default function CheckoutPage() {
   const [freteGratis, setFreteGratis] = useState(false)
   const [prazoEntrega, setPrazoEntrega] = useState(0)
   const [prazoDescricaoGeral, setPrazoDescricaoGeral] = useState('') // Ex: "02 - 06 de Fev."
+  const [freteErro, setFreteErro] = useState<string | null>(null)
   const [freteCalculado, setFreteCalculado] = useState(false)
   const [calculandoFrete, setCalculandoFrete] = useState(false)
   
@@ -444,6 +445,7 @@ export default function CheckoutPage() {
     if (cep.length !== 8) return
     
     setCalculandoFrete(true)
+    setFreteErro(null) // Limpar erro anterior
     try {
       // Calcular peso real dos produtos (igual ao carrinho)
       const pesoTotal = await calcularPesoTotal()
@@ -689,6 +691,9 @@ export default function CheckoutPage() {
       })
     } catch (error) {
       console.error('Erro ao calcular frete:', error)
+      setFreteErro('Não foi possível calcular o frete. Entre em contato com a administração do marketplace.')
+      setOpcoesFreteState([]) // Limpar opções de frete
+      setFreteSelecionado(null)
     } finally {
       setCalculandoFrete(false)
     }
@@ -997,6 +1002,26 @@ export default function CheckoutPage() {
     
     if (!freteCalculado || calculandoFrete) {
       toast.error('Aguarde o cálculo do frete antes de continuar')
+      return
+    }
+
+    // VALIDAÇÃO CRÍTICA: Verificar se o frete foi calculado com sucesso
+    // Se não há opções de frete válidas, significa que houve erro no cálculo
+    if (opcoesFreteState.length === 0) {
+      toast.error('Não foi possível calcular o frete para este endereço. Entre em contato com a administração do marketplace, provavelmente o produto não pode ser entregue no Brasil.')
+      return
+    }
+
+    // Verificar se há pelo menos uma opção de frete válida (não erro)
+    const temFreteValido = opcoesFreteState.some(opcao => opcao.price >= 0)
+    if (!temFreteValido) {
+      toast.error('Erro no cálculo do frete. Entre em contato com a administração do marketplace, provavelmente o produto não pode ser entregue no Brasil.')
+      return
+    }
+
+    // Verificar se o frete selecionado é válido
+    if (freteSelecionado && !opcoesFreteState.find(op => op.id === freteSelecionado)) {
+      toast.error('Opção de frete selecionada não é válida. Selecione uma opção de frete disponível.')
       return
     }
     
