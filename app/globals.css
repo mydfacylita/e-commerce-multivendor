@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Admin panel dark mode - sidebar nav links */
+.dark .admin-nav a,
+.dark .admin-nav > a {
+  color: rgb(209, 213, 219) !important;
+}
+.dark .admin-nav a:hover {
+  background-color: rgb(55, 65, 81) !important;
+  color: rgb(255, 255, 255) !important;
+}
+.dark .admin-nav div > button {
+  color: rgb(209, 213, 219) !important;
+}
+.dark .admin-nav div > button:hover {
+  background-color: rgb(55, 65, 81) !important;
+}
+.dark .admin-nav a.bg-primary-50 {
+  background-color: rgba(44, 74, 158, 0.25) !important;
+  color: var(--primary-300) !important;
+}
+
 /* Variáveis de cores dinâmicas - valores iniciais que serão sobrescritos pelo DynamicStyles */
 :root {
   /* Cores principais */

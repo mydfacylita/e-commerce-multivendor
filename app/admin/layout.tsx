@@ -49,6 +49,8 @@ import {
   FiHeart,
   FiTarget,
   FiCamera,
+  FiMoon,
+  FiSun,
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -59,6 +61,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Sistema de automação ativo
   const { isRunning: automationRunning, activeJobsCount } = useAutomationPolling()
   
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('admin-dark-mode')
+    if (saved === 'true') {
+      setIsDark(true)
+      document.documentElement.classList.add('dark')
+    }
+  }, [])
+
+  const toggleDark = () => {
+    const next = !isDark
+    setIsDark(next)
+    localStorage.setItem('admin-dark-mode', String(next))
+    document.documentElement.classList.toggle('dark', next)
+  }
+
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     catalogo: true,
     vendas: false,
@@ -125,12 +144,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      <aside className="w-64 bg-white shadow-md overflow-y-auto">
+    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+      <aside className="w-64 bg-white dark:bg-gray-800 shadow-md overflow-y-auto">
         <div className="p-6">
           <h2 className="text-2xl font-bold text-primary-600">Admin Panel</h2>
         </div>
-        <nav className="px-4 pb-6 space-y-1">
+        <nav className="px-4 pb-6 space-y-1 admin-nav">
           {can('dashboard') && (
             <Link
               href="/admin"
@@ -918,7 +937,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
 
           {/* Botão de Sair */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               onClick={async () => { await signOut({ redirect: false }); window.location.href = 'https://gerencial-sys.mydshop.com.br/admin/login' }}
               className="w-full flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-red-50 hover:text-red-600 text-gray-700"
@@ -931,18 +950,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
       <div className="flex-1 flex flex-col min-h-0">
         {/* Barra superior */}
-        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 flex-shrink-0 sticky top-0 z-30">
+        <header className="h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 flex-shrink-0 sticky top-0 z-30">
           <div className="flex items-center gap-2">
             <img src="/logo-animated.svg" alt="Logo" className="w-7 h-7 object-contain" />
             <span className="font-bold text-gray-800 text-sm tracking-wide">MYDShop</span>
           </div>
           <div className="relative flex items-center gap-3">
             <button
+              onClick={toggleDark}
+              title={isDark ? 'Modo claro' : 'Modo escuro'}
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+            >
+              {isDark ? <FiSun size={18} /> : <FiMoon size={18} />}
+            </button>
+            <button
               onClick={() => setOpenSections(prev => ({ ...prev, _userMenu: !prev._userMenu }))}
               className="flex items-center gap-3 hover:opacity-80 transition"
             >
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-800 leading-tight">
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-100 leading-tight">
                   {session?.user?.name || session?.user?.email || 'Administrador'}
                 </p>
                 <p className="text-xs text-gray-400 leading-tight">{session?.user?.isAdminStaff ? (staffCargo || 'Funcionário') : 'Admin'}</p>
@@ -955,7 +981,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {openSections._userMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setOpenSections(prev => ({ ...prev, _userMenu: false }))} />
-                <div className="absolute right-0 top-12 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[140px]">
+                <div className="absolute right-0 top-12 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg py-1 min-w-[140px]">
                   <button
                     onClick={async () => { await signOut({ redirect: false }); window.location.href = 'https://gerencial-sys.mydshop.com.br/admin/login' }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
@@ -968,7 +994,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           </div>
         </header>
-        <main className="flex-1 p-8 overflow-auto">{children}</main>
+        <main className="flex-1 p-8 overflow-auto dark:bg-gray-900">{children}</main>
+        <footer className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-8 py-3 flex items-center justify-between">
+          <span className="text-xs text-gray-400 dark:text-gray-500">MYDShop Admin &copy; {new Date().getFullYear()}</span>
+          <span className="text-xs text-gray-300 dark:text-gray-600">v{process.env.NEXT_PUBLIC_APP_VERSION || '1.0'}</span>
+        </footer>
       </div>
     </div>
   )

@@ -413,9 +413,21 @@ export default function ProductSelectionWrapper({
     availableColors = Array.from(uniqueColorMap.values())
   }
   
+  // Se só tem uma cor, auto-selecionar (mesmo comportamento do tamanho único)
+  const autoSelectedColor = !useMultiLevel && availableColors.length === 1 ? availableColors[0].name : null
+  const effectiveSelectedColor = selectedColor || autoSelectedColor
+
+  // Sincronizar galeria de imagens quando cor é auto-selecionada
+  useEffect(() => {
+    if (autoSelectedColor && !selectedColor && onColorChange) {
+      onColorChange(autoSelectedColor)
+    }
+  }, [autoSelectedColor]) // eslint-disable-line react-hooks/exhaustive-deps
+
   console.log('📦 availableSizes:', availableSizes)
   console.log('🎨 availableColors:', availableColors)
   console.log('🔄 effectiveSelectedSize:', effectiveSelectedSize)
+  console.log('🎨 effectiveSelectedColor:', effectiveSelectedColor)
   
   // ============================================
   // LÓGICA MULTI-NÍVEL (para produtos com 3+ propriedades)
@@ -506,23 +518,23 @@ export default function ProductSelectionWrapper({
   if (useMultiLevel && allMultiLevelSelected && multiLevelSelectedVariant) {
     currentStock = multiLevelStock
     effectiveSkuId = multiLevelSkuId
-  } else if (hasVariants && effectiveSelectedSize && selectedColor) {
+  } else if (hasVariants && effectiveSelectedSize && effectiveSelectedColor) {
     // Buscar variante por size + color
-    selectedVariant = variants.find(v => v.size === effectiveSelectedSize && v.color === selectedColor) || null
+    selectedVariant = variants.find(v => v.size === effectiveSelectedSize && v.color === effectiveSelectedColor) || null
     
     // Se não encontrou e só tem cor (size = "Único"), buscar apenas por cor
     if (!selectedVariant && effectiveSelectedSize === 'Único') {
-      selectedVariant = variants.find(v => v.color === selectedColor) || null
+      selectedVariant = variants.find(v => v.color === effectiveSelectedColor) || null
     }
     
     currentStock = selectedVariant?.stock || 0
     effectiveSkuId = selectedVariant?.skuId || null
     
-    console.log('🔍 Buscando variante:', { size: effectiveSelectedSize, color: selectedColor })
+    console.log('🔍 Buscando variante:', { size: effectiveSelectedSize, color: effectiveSelectedColor })
     console.log('✅ selectedVariant encontrado:', selectedVariant ? { skuId: selectedVariant.skuId, color: selectedVariant.color } : null)
-  } else if (hasVariants && selectedColor && !effectiveSelectedSize) {
+  } else if (hasVariants && effectiveSelectedColor && !effectiveSelectedSize) {
     // Produto só com cor, sem tamanho - buscar apenas por cor
-    selectedVariant = variants.find(v => v.color === selectedColor) || null
+    selectedVariant = variants.find(v => v.color === effectiveSelectedColor) || null
     currentStock = selectedVariant?.stock || 0
     effectiveSkuId = selectedVariant?.skuId || null
     console.log('🎨 Produto só com cor - selectedVariant:', selectedVariant ? { skuId: selectedVariant.skuId } : null)
@@ -588,7 +600,7 @@ export default function ProductSelectionWrapper({
   // Desabilita o botão se faltar seleção OU não tiver estoque OU quantidade > estoque
   // Para tamanho: só precisa selecionar se tiver mais de uma opção
   // Para cor: precisa selecionar se tiver cores disponíveis
-  const needsColorSelection = !useMultiLevel && hasVariants && availableColors.length > 0 && !selectedColor
+  const needsColorSelection = !useMultiLevel && hasVariants && availableColors.length > 0 && !effectiveSelectedColor
   const needsVariantButNotSelected = !useMultiLevel && hasVariants && !selectedVariant // Tem variantes mas nenhuma selecionada
   const needsMultiLevelSelection = useMultiLevel && !allMultiLevelSelected
   
@@ -781,7 +793,7 @@ export default function ProductSelectionWrapper({
                     key={color.name}
                     onClick={() => handleColorChange(color.name)}
                     className={`flex items-center gap-2 px-4 py-3 border-2 rounded-lg transition-all ${
-                      selectedColor === color.name
+                      effectiveSelectedColor === color.name
                         ? 'border-primary-600 bg-primary-50'
                         : 'border-gray-300 bg-white hover:border-primary-600'
                     }`}
@@ -794,7 +806,7 @@ export default function ProductSelectionWrapper({
                   </button>
                 ))}
               </div>
-              {!selectedColor && availableColors.length > 0 && (
+              {!effectiveSelectedColor && availableColors.length > 0 && (
                 <p className="text-sm text-red-500 mt-2">* Selecione uma cor</p>
               )}
               {effectiveSelectedSize && availableColors.length === 0 && (
@@ -859,13 +871,13 @@ export default function ProductSelectionWrapper({
             </button>
           </div>
           <span className="text-sm text-gray-500">
-            {hasVariants && selectedSize && selectedColor 
-              ? `${currentStock} disponível(is) para ${selectedSize} - ${selectedColor}`
-              : hasSizes && selectedSize && !hasVariants
-                ? `${currentStock} disponível(is) para ${selectedSize}`
-                : hasVariants && !selectedSize
+            {hasVariants && effectiveSelectedSize && effectiveSelectedColor 
+              ? `${currentStock} disponível(is) para ${effectiveSelectedSize} - ${effectiveSelectedColor}`
+              : hasSizes && effectiveSelectedSize && !hasVariants
+                ? `${currentStock} disponível(is) para ${effectiveSelectedSize}`
+                : hasVariants && !effectiveSelectedSize
                   ? 'Selecione tamanho e cor'
-                  : hasVariants && !selectedColor
+                  : hasVariants && !effectiveSelectedColor
                     ? 'Selecione uma cor'
                     : `${currentStock} disponível(is)`}
           </span>
@@ -888,7 +900,7 @@ export default function ProductSelectionWrapper({
         <AddToCartButton 
           product={product} 
           disabled={isDisabled}
-          selectedColor={useMultiLevel ? Object.values(multiSelections).join(' | ') : selectedColor}
+          selectedColor={useMultiLevel ? Object.values(multiSelections).join(' | ') : effectiveSelectedColor}
           selectedSize={useMultiLevel ? null : selectedSize}
           quantity={quantity}
           variantStock={currentStock}
