@@ -10,7 +10,12 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-const SHOPEE_API_BASE_URL = 'https://partner.shopeemobile.com';
+const SHOPEE_PROD_URL = 'https://partner.shopeemobile.com';
+const SHOPEE_SANDBOX_URL = 'https://partner.uat.shopeemobile.com';
+
+function shopeeBaseUrl(isSandbox: boolean) {
+  return isSandbox ? SHOPEE_SANDBOX_URL : SHOPEE_PROD_URL
+}
 
 // Função para gerar assinatura HMAC-SHA256 da Shopee
 function generateShopeeSignature(url: string, body: string, partnerId: number, partnerKey: string, timestamp: number): string {
@@ -26,10 +31,11 @@ async function shopeeRequest(
   partnerKey: string,
   accessToken?: string,
   shopId?: number,
-  body: any = {}
+  body: any = {},
+  isSandbox: boolean = false
 ) {
   const timestamp = Math.floor(Date.now() / 1000);
-  const url = `${SHOPEE_API_BASE_URL}${endpoint}`;
+  const url = `${shopeeBaseUrl(isSandbox)}${endpoint}`;
   
   const requestBody = JSON.stringify({
     partner_id: partnerId,
@@ -81,6 +87,7 @@ export async function GET(request: NextRequest) {
       isConnected: !isExpired,
       shopId: user.shopeeAuth.shopId,
       partnerId: user.shopeeAuth.partnerId,
+      isSandbox: user.shopeeAuth.isSandbox,
       merchantName: user.shopeeAuth.merchantName,
       region: user.shopeeAuth.region,
       expiresAt: user.shopeeAuth.expiresAt,
@@ -99,7 +106,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    const { partnerId, partnerKey } = await request.json();
+    const { partnerId, partnerKey, isSandbox } = await request.json();
 
     if (!partnerId || !partnerKey) {
       return NextResponse.json(
@@ -122,19 +129,21 @@ export async function POST(request: NextRequest) {
       update: {
         partnerId,
         partnerKey,
+        isSandbox: Boolean(isSandbox),
       },
       create: {
         userId: user.id,
         partnerId,
         partnerKey,
-        shopId: 0, // Será preenchido após autorização
+        isSandbox: Boolean(isSandbox),
+        shopId: 0,
         accessToken: '',
         refreshToken: '',
         expiresAt: new Date(),
       },
     });
 
-    return NextResponse.json({ success: true, partnerId: shopeeAuth.partnerId });
+    return NextResponse.json({ success: true, partnerId: shopeeAuth.partnerId, isSandbox: shopeeAuth.isSandbox });
   } catch (error) {
     console.error('Erro ao salvar credenciais Shopee:', error);
     return NextResponse.json({ error: 'Erro ao salvar credenciais' }, { status: 500 });

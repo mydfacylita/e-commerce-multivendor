@@ -558,6 +558,7 @@ model ShopeeAuth {
   userId       String   @unique
   partnerId    Int
   partnerKey   String
+  isSandbox    Boolean  @default(false)
   accessToken  String   @db.Text
   refreshToken String   @db.Text
   shopId       Int

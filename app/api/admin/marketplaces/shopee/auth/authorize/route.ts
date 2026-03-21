@@ -10,7 +10,12 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-const SHOPEE_API_BASE_URL = 'https://partner.shopeemobile.com';
+const SHOPEE_PROD_URL = 'https://partner.shopeemobile.com';
+const SHOPEE_SANDBOX_URL = 'https://partner.uat.shopeemobile.com';
+
+function shopeeBaseUrl(isSandbox: boolean) {
+  return isSandbox ? SHOPEE_SANDBOX_URL : SHOPEE_PROD_URL
+}
 
 // Helper para obter URL base - SEMPRE usa gerencial-sys para rotas admin
 function getBaseUrl(): string {
@@ -41,7 +46,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Configure as credenciais primeiro' }, { status: 400 });
     }
 
-    const { partnerId, partnerKey } = user.shopeeAuth;
+    const { partnerId, partnerKey, isSandbox } = user.shopeeAuth;
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/api/v2/shop/auth_partner';
     const baseUrl = getBaseUrl();
@@ -52,9 +57,9 @@ export async function GET(request: NextRequest) {
     const baseString = `${partnerId}${path}${timestamp}`;
     const sign = crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex');
 
-    const authUrl = `${SHOPEE_API_BASE_URL}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&redirect=${redirectUrl}`;
+    const authUrl = `${shopeeBaseUrl(isSandbox)}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&redirect=${redirectUrl}`;
 
-    return NextResponse.json({ authUrl });
+    return NextResponse.json({ authUrl, isSandbox });
   } catch (error) {
     console.error('Erro ao gerar URL de autorização:', error);
     return NextResponse.json({ error: 'Erro ao gerar URL de autorização' }, { status: 500 });
