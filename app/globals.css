@@ -2,7 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Admin panel dark mode - sidebar nav links */
+/* =========================================
+   ADMIN DARK MODE — GLOBAL
+   ========================================= */
+
+/* Nav links */
 .dark .admin-nav a,
 .dark .admin-nav > a {
   color: rgb(209, 213, 219) !important;
@@ -21,6 +25,132 @@
   background-color: rgba(44, 74, 158, 0.25) !important;
   color: var(--primary-300) !important;
 }
+
+/* Backgrounds — cards, painéis, modais */
+.dark .bg-white {
+  background-color: rgb(31, 41, 55) !important; /* gray-800 */
+}
+.dark .bg-gray-50 {
+  background-color: rgb(17, 24, 39) !important; /* gray-900 */
+}
+.dark .bg-gray-100 {
+  background-color: rgb(17, 24, 39) !important;
+}
+.dark .bg-gray-200 {
+  background-color: rgb(55, 65, 81) !important; /* gray-700 */
+}
+
+/* Textos */
+.dark .text-gray-900 { color: rgb(243, 244, 246) !important; }
+.dark .text-gray-800 { color: rgb(229, 231, 235) !important; }
+.dark .text-gray-700 { color: rgb(209, 213, 219) !important; }
+.dark .text-gray-600 { color: rgb(156, 163, 175) !important; }
+.dark .text-gray-500 { color: rgb(107, 114, 128) !important; }
+.dark .text-gray-400 { color: rgb(75, 85, 99) !important; }
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5 {
+  color: rgb(243, 244, 246);
+}
+.dark p:not([class*="text-"]) {
+  color: rgb(209, 213, 219);
+}
+.dark label {
+  color: rgb(209, 213, 219) !important;
+}
+.dark span:not([class*="text-white"]):not([class*="text-primary"]):not([class*="bg-"]):not([class*="badge"]) {
+  color: inherit;
+}
+
+/* Bordas */
+.dark .border-gray-200 { border-color: rgb(55, 65, 81) !important; }
+.dark .border-gray-300 { border-color: rgb(75, 85, 99) !important; }
+.dark .border-gray-100 { border-color: rgb(31, 41, 55) !important; }
+.dark [class*="divide-gray"] > * + * { border-color: rgb(55, 65, 81) !important; }
+
+/* Inputs, selects, textareas */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark select,
+.dark textarea {
+  background-color: rgb(17, 24, 39) !important;
+  border-color: rgb(75, 85, 99) !important;
+  color: rgb(243, 244, 246) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: rgb(107, 114, 128) !important;
+}
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: var(--primary-400) !important;
+  outline-color: var(--primary-400) !important;
+}
+
+/* Tabelas */
+.dark table { background-color: transparent !important; }
+.dark thead { background-color: rgb(17, 24, 39) !important; }
+.dark thead th { color: rgb(156, 163, 175) !important; border-color: rgb(55, 65, 81) !important; }
+.dark tbody tr { border-color: rgb(55, 65, 81) !important; }
+.dark tbody tr:hover { background-color: rgb(55, 65, 81) !important; }
+.dark tbody td { color: rgb(209, 213, 219) !important; border-color: rgb(55, 65, 81) !important; }
+.dark .bg-gray-50 td,
+.dark .bg-gray-50 th { background-color: rgb(17, 24, 39) !important; }
+
+/* Botões secundários / outline */
+.dark .border.border-gray-300:not([class*="bg-"]):not(input):not(select) {
+  border-color: rgb(75, 85, 99) !important;
+  color: rgb(209, 213, 219) !important;
+}
+.dark button.hover\:bg-gray-100:not([class*="bg-red"]):not([class*="bg-primary"]):not([class*="bg-blue"]):not([class*="bg-green"]) {
+  color: rgb(209, 213, 219) !important;
+}
+.dark button:not([class*="bg-"]):not([class*="text-white"]) {
+  color: rgb(209, 213, 219);
+}
+
+/* Badges / pills de status */
+.dark .bg-green-100 { background-color: rgba(6, 78, 59, 0.5) !important; }
+.dark .bg-red-100   { background-color: rgba(127, 29, 29, 0.5) !important; }
+.dark .bg-yellow-100 { background-color: rgba(120, 83, 9, 0.5) !important; }
+.dark .bg-blue-100  { background-color: rgba(30, 58, 138, 0.5) !important; }
+.dark .bg-purple-100 { background-color: rgba(76, 29, 149, 0.5) !important; }
+.dark .bg-orange-100 { background-color: rgba(124, 45, 18, 0.5) !important; }
+.dark .bg-indigo-100 { background-color: rgba(49, 46, 129, 0.5) !important; }
+.dark .bg-pink-100  { background-color: rgba(131, 24, 67, 0.5) !important; }
+.dark .text-green-800 { color: rgb(110, 231, 183) !important; }
+.dark .text-red-800   { color: rgb(252, 165, 165) !important; }
+.dark .text-yellow-800 { color: rgb(253, 230, 138) !important; }
+.dark .text-blue-800  { color: rgb(147, 197, 253) !important; }
+.dark .text-purple-800 { color: rgb(196, 181, 253) !important; }
+.dark .text-orange-800 { color: rgb(253, 186, 116) !important; }
+.dark .text-indigo-800 { color: rgb(165, 180, 252) !important; }
+.dark .text-pink-800  { color: rgb(249, 168, 212) !important; }
+.dark .text-green-700 { color: rgb(52, 211, 153) !important; }
+.dark .text-red-700   { color: rgb(248, 113, 113) !important; }
+.dark .text-red-600   { color: rgb(252, 129, 129) !important; }
+.dark .text-yellow-700 { color: rgb(251, 211, 141) !important; }
+.dark .text-blue-700  { color: rgb(96, 165, 250) !important; }
+.dark .text-blue-600  { color: rgb(96, 165, 250) !important; }
+.dark .text-purple-700 { color: rgb(167, 139, 250) !important; }
+
+/* Shadows */
+.dark .shadow, .dark .shadow-sm, .dark .shadow-md, .dark .shadow-lg {
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.4), 0 1px 2px -1px rgba(0,0,0,0.4) !important;
+}
+
+/* Hover states */
+.dark .hover\:bg-gray-50:hover { background-color: rgb(31, 41, 55) !important; }
+.dark .hover\:bg-gray-100:hover { background-color: rgb(55, 65, 81) !important; }
+.dark .hover\:bg-red-50:hover { background-color: rgba(127, 29, 29, 0.3) !important; }
+.dark .hover\:bg-primary-50:hover { background-color: rgba(44, 74, 158, 0.25) !important; }
+
+/* Ring / focus */
+.dark .ring-1, .dark .ring-2 { --tw-ring-color: rgba(75, 85, 99, 0.6) !important; }
+
+/* Scrollbar */
+.dark ::-webkit-scrollbar { width: 6px; height: 6px; }
+.dark ::-webkit-scrollbar-track { background: rgb(17, 24, 39); }
+.dark ::-webkit-scrollbar-thumb { background: rgb(75, 85, 99); border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgb(107, 114, 128); }
 
 /* Variáveis de cores dinâmicas - valores iniciais que serão sobrescritos pelo DynamicStyles */
 :root {
