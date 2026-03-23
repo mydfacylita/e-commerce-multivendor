@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
       partner_id: partnerId,
     });
 
-    const baseString = `${partnerId}${endpoint}${timestamp}${requestBody}`;
+    // Para endpoints de auth (token/get), a assinatura NÃO inclui o body: partner_id + path + timestamp
+    const baseString = `${partnerId}${endpoint}${timestamp}`;
     const sign = crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex');
 
     const fullUrl = `${url}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
