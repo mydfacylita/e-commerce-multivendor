@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
       partner_id: partnerId,
     })
 
-    const baseString = `${partnerId}${endpoint}${timestamp}${requestBody}`
+    // auth/token/get signature: partner_id + path + timestamp (NO body)
+    const baseString = `${partnerId}${endpoint}${timestamp}`
     const sign = crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex')
 
     const fullUrl = `${url}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`
@@ -82,19 +83,13 @@ export async function POST(request: NextRequest) {
     // Buscar informações da loja
     const shopInfoEndpoint = '/api/v2/shop/get_shop_info'
     const shopInfoTimestamp = Math.floor(Date.now() / 1000)
-    const shopInfoBody = JSON.stringify({
-      partner_id: partnerId,
-      shop_id: shopId,
-      timestamp: shopInfoTimestamp,
-      access_token: data.access_token,
-    })
-
-    const shopInfoBaseString = `${partnerId}${shopInfoEndpoint}${shopInfoTimestamp}${shopInfoBody}`
+    // Regular API call signature: partner_id + path + timestamp + access_token + shop_id
+    const shopInfoBaseString = `${partnerId}${shopInfoEndpoint}${shopInfoTimestamp}${data.access_token}${shopId}`
     const shopInfoSign = crypto.createHmac('sha256', partnerKey).update(shopInfoBaseString).digest('hex')
 
     const shopInfoResponse = await fetch(
-      `${SHOPEE_API_BASE_URL}${shopInfoEndpoint}?partner_id=${partnerId}&timestamp=${shopInfoTimestamp}&sign=${shopInfoSign}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: shopInfoBody }
+      `${SHOPEE_API_BASE_URL}${shopInfoEndpoint}?partner_id=${partnerId}&timestamp=${shopInfoTimestamp}&sign=${shopInfoSign}&access_token=${data.access_token}&shop_id=${shopId}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
     )
 
     const shopInfo = await shopInfoResponse.json()
@@ -103,15 +98,27 @@ export async function POST(request: NextRequest) {
 
     const expiresAt = new Date(Date.now() + data.expire_in * 1000)
 
-    await prisma.shopeeAuth.update({
+    await prisma.shopeeAuth.upsert({
       where: { userId: user.id },
-      data: {
+      update: {
         shopId,
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresAt,
         merchantName,
         region,
+      },
+      create: {
+        userId: user.id,
+        partnerId: adminUser.shopeeAuth.partnerId,
+        partnerKey: adminUser.shopeeAuth.partnerKey,
+        shopId,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt,
+        merchantName,
+        region,
+        isSandbox: adminUser.shopeeAuth.isSandbox ?? false,
       },
     })
 
