@@ -240,7 +240,9 @@ export async function GET(request: NextRequest) {
 
       for (const sku of apiSkus) {
         const skuId = String(sku.sku_id || sku.ae_sku_id || sku.id || '')
-        const price = parseFloat(sku.offer_sale_price) || parseFloat(sku.sku_price) || 0
+        // Arredondar para 2 casas decimais para evitar drift de câmbio (ex: 33.989999 → 33.99)
+        const rawPrice = parseFloat(sku.offer_sale_price) || parseFloat(sku.sku_price) || 0
+        const price = Math.round(rawPrice * 100) / 100
         const stock = parseInt(sku.sku_available_stock) || (sku.sku_stock === true ? 999 : 0)
         
         if (skuId) {
@@ -314,17 +316,18 @@ export async function GET(request: NextRequest) {
               if (api) {
                 selectedUpdatedCount++
                 
-                const oldCostPrice = Number(sku.costPrice) || 0
-                const newCostPrice = api.price
+                const oldCostPrice = Math.round((Number(sku.costPrice) || 0) * 100) / 100
+                const newCostPrice = api.price // já está arredondado para 2 casas
                 
                 // Margem do SKU - usar a do SKU, ou do produto, arredondada
                 let margin = Number(sku.margin) || productMargin
                 if (margin > 100) margin = 50
                 margin = Math.round(margin)
                 
-                // Recalcular customPrice se preço mudou
+                // Recalcular customPrice SOMENTE se o custo mudou significativamente (> R$0.10)
+                // Isso evita recalcular por variações de centavos de câmbio
                 let newCustomPrice = Number(sku.customPrice) || 0
-                if (newCostPrice !== oldCostPrice && newCostPrice > 0) {
+                if (Math.abs(newCostPrice - oldCostPrice) > 0.10 && newCostPrice > 0) {
                   newCustomPrice = Number((newCostPrice * (1 + margin / 100)).toFixed(2))
                   pricesRecalculated++
                   console.log(`[SYNC] SKU ${skuId}: custo R$ ${oldCostPrice.toFixed(2)} → R$ ${newCostPrice.toFixed(2)}, venda R$ ${sku.customPrice} → R$ ${newCustomPrice} (margem ${margin}%)`)
@@ -349,12 +352,48 @@ export async function GET(request: NextRequest) {
       }
 
       // ========== CALCULAR PREÇOS DO PRODUTO ==========
-      const previousCostPrice = Number(product.costPrice) || 0
-      const newCostPrice = minApiPrice !== Infinity ? minApiPrice : previousCostPrice
-      const newPrice = Number((newCostPrice * (1 + productMargin / 100)).toFixed(2))
+      const previousCostPrice = Math.round((Number(product.costPrice) || 0) * 100) / 100
       const totalStock = Object.values(apiData).reduce((sum: number, s: any) => sum + s.stock, 0)
 
-      const priceChanged = Math.abs(newCostPrice - previousCostPrice) > 0.01
+      // Calcular menor custo e menor preço de venda a partir dos selectedSkus ativos (respeitando margem por SKU)
+      let newCostPrice = minApiPrice !== Infinity ? minApiPrice : previousCostPrice
+      let newPrice = Number(product.price)
+      let priceChanged = false
+
+      if (updatedSelectedSkus) {
+        try {
+          const updatedSelected: any[] = JSON.parse(updatedSelectedSkus)
+          const activeSkus = updatedSelected.filter(s => s.enabled !== false)
+          const skusToUse = activeSkus.length > 0 ? activeSkus : updatedSelected
+
+          const customPrices = skusToUse
+            .map(s => Number(s.customPrice))
+            .filter(p => p > 0)
+          const costPrices = skusToUse
+            .map(s => Math.round((Number(s.costPrice) || 0) * 100) / 100)
+            .filter(p => p > 0)
+
+          if (customPrices.length > 0) {
+            const minCustomPrice = Number(Math.min(...customPrices).toFixed(2))
+            if (Math.abs(minCustomPrice - Number(product.price)) > 0.10) {
+              newPrice = minCustomPrice
+              priceChanged = true
+            }
+          }
+          if (costPrices.length > 0) {
+            newCostPrice = Number(Math.min(...costPrices).toFixed(2))
+          }
+        } catch { /* mantém valores calculados acima */ }
+      }
+
+      // Fallback: se não há selectedSkus, recalcular pelo menor preço da API + margem do produto
+      if (!updatedSelectedSkus && minApiPrice !== Infinity) {
+        const costMudou = Math.abs(newCostPrice - previousCostPrice) > 0.10
+        if (costMudou) {
+          newPrice = Number((newCostPrice * (1 + productMargin / 100)).toFixed(2))
+          priceChanged = true
+        }
+      }
 
       // ========== ENRIQUECER ATRIBUTOS SE AUSENTES ==========
       let updatedAttributes: string | undefined
@@ -428,7 +467,7 @@ export async function GET(request: NextRequest) {
         where: { id: product.id },
         data: {
           costPrice: newCostPrice,
-          price: newPrice,
+          ...(priceChanged ? { price: newPrice } : {}),
           stock: Math.min(product.stock || 999, totalStock),
           supplierStock: totalStock,
           lastSyncAt: new Date(),
