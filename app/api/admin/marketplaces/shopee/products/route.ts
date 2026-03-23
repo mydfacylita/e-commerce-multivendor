@@ -12,14 +12,13 @@ export const fetchCache = 'force-no-store';
 
 const SHOPEE_API_BASE_URL = 'https://partner.shopeemobile.com';
 
-// Função para gerar assinatura HMAC-SHA256 da Shopee
-function generateShopeeSignature(url: string, body: string, partnerId: number, partnerKey: string, timestamp: number): string {
-  const path = new URL(url).pathname;
-  const baseString = `${partnerId}${path}${timestamp}${body}`;
+// Assinatura para chamadas autenticadas v2: partner_id + path + timestamp + access_token + shop_id
+function generateShopeeSignature(endpoint: string, partnerId: number, partnerKey: string, timestamp: number, accessToken: string, shopId: number): string {
+  const baseString = `${partnerId}${endpoint}${timestamp}${accessToken}${shopId}`;
   return crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex');
 }
 
-// Função para fazer requisição à API da Shopee
+// Requisição autenticada Shopee v2
 async function shopeeRequest(
   endpoint: string,
   partnerId: number,
@@ -29,26 +28,13 @@ async function shopeeRequest(
   body: any = {}
 ) {
   const timestamp = Math.floor(Date.now() / 1000);
-  const url = `${SHOPEE_API_BASE_URL}${endpoint}`;
-  
-  const requestBody = JSON.stringify({
-    partner_id: partnerId,
-    timestamp,
-    access_token: accessToken,
-    shop_id: shopId,
-    ...body,
-  });
+  const sign = generateShopeeSignature(endpoint, partnerId, partnerKey, timestamp, accessToken, shopId);
+  const url = `${SHOPEE_API_BASE_URL}${endpoint}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${shopId}`;
 
-  const sign = generateShopeeSignature(url, requestBody, partnerId, partnerKey, timestamp);
-  
-  const fullUrl = `${url}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
-
-  const response = await fetch(fullUrl, {
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: requestBody,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
 
   return response.json();
@@ -77,16 +63,15 @@ async function refreshAccessTokenIfNeeded(userId: string) {
       shop_id: shopeeAuth.shopId,
     });
 
-    const baseString = `${shopeeAuth.partnerId}${endpoint}${timestamp}${requestBody}`;
+    // access_token/get é endpoint de auth: sign = partner_id + path + timestamp
+    const baseString = `${shopeeAuth.partnerId}${endpoint}${timestamp}`;
     const sign = crypto.createHmac('sha256', shopeeAuth.partnerKey).update(baseString).digest('hex');
 
     const fullUrl = `${url}?partner_id=${shopeeAuth.partnerId}&timestamp=${timestamp}&sign=${sign}`;
 
     const response = await fetch(fullUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: requestBody,
     });
 

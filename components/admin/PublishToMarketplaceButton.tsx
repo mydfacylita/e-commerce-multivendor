@@ -285,6 +285,11 @@ export default function PublishToMarketplaceButton({
         })
         return
       }
+      // Shopee e Amazon não precisam escolher categoria — vai direto para confirmar
+      if (selectedMarketplace !== 'mercadolivre') {
+        setCurrentStep(3)
+        return
+      }
       setCurrentStep(2)
     } else if (currentStep === 2) {
       if (!selectedCategory) {
@@ -1375,7 +1380,29 @@ export default function PublishToMarketplaceButton({
               {/* PASSO 3: Validação e Confirmação */}
               {currentStep === 3 && (
                 <div className="space-y-4">
-                  {validating ? (
+                  {/* Para Shopee: card de confirmação simples */}
+                  {selectedMarketplace === 'shopee' && (
+                    <div className="space-y-3">
+                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                        <h4 className="font-medium text-orange-800 flex items-center gap-2 mb-3">
+                          <FiCheckCircle />
+                          Pronto para publicar na Shopee
+                        </h4>
+                        <ul className="text-sm text-orange-700 space-y-1">
+                          <li>• Nome: <strong>{productName.substring(0, 60)}{productName.length > 60 ? '...' : ''}</strong></li>
+                          <li>• As imagens e descrição do produto serão enviadas automaticamente</li>
+                          <li>• Após publicar, o produto ficará como <strong>NORMAL</strong> na Shopee</li>
+                          <li>• Você poderá editar categoria e logística diretamente no painel da Shopee</li>
+                        </ul>
+                      </div>
+                      <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700">
+                        ℹ️ A categoria e métodos de envio poderão ser ajustados depois no Seller Centre da Shopee.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Para ML: fluxo de validação existente */}
+                  {selectedMarketplace === 'mercadolivre' && (validating ? (
                     <div className="text-center py-8">
                       <FiRefreshCw className="animate-spin mx-auto text-primary-600" size={32} />
                       <p className="mt-3 text-gray-600">Validando produto...</p>
@@ -1564,7 +1591,7 @@ export default function PublishToMarketplaceButton({
                         Tentar novamente
                       </button>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
             </div>

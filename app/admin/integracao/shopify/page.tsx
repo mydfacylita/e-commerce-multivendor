@@ -293,8 +293,30 @@ function LojasTab() {
     )
   }
 
+  const totalAtivas    = installations.filter(i => i.isActive).length
+  const totalInativas  = installations.filter(i => !i.isActive).length
+  const totalPedidos   = installations.reduce((s, i) => s + (i._count?.orderSyncs || 0), 0)
+  const totalProdutos  = installations.reduce((s, i) => s + (i._count?.productSyncs || 0), 0)
+
   return (
     <div className="space-y-4">
+      {/* Stats */}
+      {installations.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Lojas ativas',    value: totalAtivas,   color: 'text-green-700',  bg: 'bg-green-50  border-green-200'  },
+            { label: 'Lojas inativas',  value: totalInativas, color: 'text-gray-500',   bg: 'bg-gray-50   border-gray-200'   },
+            { label: 'Total pedidos',   value: totalPedidos,  color: 'text-blue-700',   bg: 'bg-blue-50   border-blue-200'   },
+            { label: 'Produtos sincr.', value: totalProdutos, color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
+          ].map(s => (
+            <div key={s.label} className={`border rounded-xl px-4 py-3 ${s.bg}`}>
+              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+              <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {message && (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm flex justify-between">
           <span>{message}</span>

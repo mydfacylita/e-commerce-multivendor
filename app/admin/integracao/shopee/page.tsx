@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function ShopeeIntegrationPage() {
   const router = useRouter();
@@ -273,6 +274,12 @@ export default function ShopeeIntegrationPage() {
               >
                 Renovar Autorização
               </button>
+              <Link
+                href="/admin/integracao/shopee/test"
+                className="bg-green-100 text-green-700 px-5 py-2.5 rounded-lg font-medium hover:bg-green-200"
+              >
+                🧪 Testar API
+              </Link>
               <button
                 onClick={handleDisconnect}
                 disabled={isLoading}

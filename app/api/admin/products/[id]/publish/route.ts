@@ -212,7 +212,9 @@ async function refreshShopeeToken(userId: string): Promise<string> {
   const endpoint = '/api/v2/auth/access_token/get'
   const timestamp = Math.floor(Date.now() / 1000)
   const body = JSON.stringify({ refresh_token: auth.refreshToken, partner_id: auth.partnerId, shop_id: auth.shopId })
-  const sign = await shopeeSign(endpoint, auth.partnerId, auth.partnerKey, timestamp, body)
+  // Endpoints de auth: sign = partner_id + path + timestamp (sem body)
+  const baseString = `${auth.partnerId}${endpoint}${timestamp}`
+  const sign = crypto.createHmac('sha256', auth.partnerKey).update(baseString).digest('hex')
 
   const res = await fetch(`${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
@@ -250,11 +252,11 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
 
     const endpoint = '/api/v2/product/add_item'
     const timestamp = Math.floor(Date.now() / 1000)
+    // Assinatura autenticada: partner_id + path + timestamp + access_token + shop_id
+    const baseString = `${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`
+    const sign = crypto.createHmac('sha256', auth.partnerKey).update(baseString).digest('hex')
+    // Body apenas com dados do produto (auth vai na query string)
     const bodyObj = {
-      partner_id: auth.partnerId,
-      timestamp,
-      access_token: accessToken,
-      shop_id: auth.shopId,
       original_price: product.price,
       description: (product.description || product.name).substring(0, 3000),
       weight: 0.5,
@@ -268,10 +270,9 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
       category_id: 0,
     }
     const bodyStr = JSON.stringify(bodyObj)
-    const sign = await shopeeSign(endpoint, auth.partnerId, auth.partnerKey, timestamp, bodyStr)
 
     const res = await fetch(
-      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`,
+      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr }
     )
     const data = await res.json()
