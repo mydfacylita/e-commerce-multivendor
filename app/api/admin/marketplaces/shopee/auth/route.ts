@@ -176,3 +176,48 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Erro ao desconectar' }, { status: 500 });
   }
 }
+
+// PATCH - Atualizar nome da loja buscando do get_shop_info
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: { shopeeAuth: true },
+    });
+
+    if (!user?.shopeeAuth?.accessToken) {
+      return NextResponse.json({ error: 'Shopee não conectada' }, { status: 400 });
+    }
+
+    const { partnerId, partnerKey, accessToken, shopId } = user.shopeeAuth;
+    const baseUrl = user.shopeeAuth.isSandbox ? SHOPEE_SANDBOX_URL : SHOPEE_PROD_URL;
+    const endpoint = '/api/v2/shop/get_shop_info';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const sign = crypto.createHmac('sha256', partnerKey)
+      .update(`${partnerId}${endpoint}${timestamp}${accessToken}${shopId}`)
+      .digest('hex');
+
+    const res = await fetch(
+      `${baseUrl}${endpoint}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${shopId}`,
+      { method: 'GET' }
+    );
+    const shopInfo = await res.json();
+    const merchantName = shopInfo?.response?.shop_name || null;
+    const region = shopInfo?.response?.region || user.shopeeAuth.region;
+
+    await prisma.shopeeAuth.update({
+      where: { userId: user.id },
+      data: { merchantName, region },
+    });
+
+    return NextResponse.json({ success: true, merchantName, region });
+  } catch (error) {
+    console.error('Erro ao atualizar info da loja:', error);
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+  }
+}

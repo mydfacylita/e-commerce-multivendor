@@ -263,6 +263,7 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
       item_name: product.name.substring(0, 120),
       item_status: 'NORMAL',
       normal_stock: product.stock,
+      seller_stock: [{ stock: product.stock }],
       dimension: { package_length: 20, package_width: 15, package_height: 10 },
       logistic_info: [{ logistic_id: 0, enabled: true }],
       image: { image_url_list: imageUrlList },

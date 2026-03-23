@@ -88,28 +88,13 @@ export async function POST(request: NextRequest) {
 
     // Buscar informações da loja
     const shopInfoEndpoint = '/api/v2/shop/get_shop_info';
-    const shopInfoUrl = `${SHOPEE_API_BASE_URL}${shopInfoEndpoint}`;
     const shopInfoTimestamp = Math.floor(Date.now() / 1000);
-    
-    const shopInfoBody = JSON.stringify({
-      partner_id: partnerId,
-      shop_id: shopId,
-      timestamp: shopInfoTimestamp,
-      access_token: data.access_token,
-    });
-
-    const shopInfoBaseString = `${partnerId}${shopInfoEndpoint}${shopInfoTimestamp}${shopInfoBody}`;
+    // Assinatura autenticada: partner_id + path + timestamp + access_token + shop_id
+    const shopInfoBaseString = `${partnerId}${shopInfoEndpoint}${shopInfoTimestamp}${data.access_token}${shopId}`;
     const shopInfoSign = crypto.createHmac('sha256', partnerKey).update(shopInfoBaseString).digest('hex');
-    
-    const shopInfoFullUrl = `${shopInfoUrl}?partner_id=${partnerId}&timestamp=${shopInfoTimestamp}&sign=${shopInfoSign}`;
+    const shopInfoFullUrl = `${SHOPEE_API_BASE_URL}${shopInfoEndpoint}?partner_id=${partnerId}&timestamp=${shopInfoTimestamp}&sign=${shopInfoSign}&access_token=${data.access_token}&shop_id=${shopId}`;
 
-    const shopInfoResponse = await fetch(shopInfoFullUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: shopInfoBody,
-    });
+    const shopInfoResponse = await fetch(shopInfoFullUrl, { method: 'GET' });
 
     const shopInfo = await shopInfoResponse.json();
     const merchantName = shopInfo?.response?.shop_name || null;

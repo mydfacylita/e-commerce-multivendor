@@ -277,7 +277,24 @@ export default function ShopeeIntegrationPage() {
           <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 rounded-lg p-4">
             <div>
               <p className="text-gray-500">Loja</p>
-              <p className="font-semibold">{authData.merchantName || 'N/A'}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold">{authData.merchantName || 'N/A'}</p>
+                {!authData.merchantName && (
+                  <button
+                    onClick={async () => {
+                      setIsLoading(true)
+                      try {
+                        await fetch('/api/admin/marketplaces/shopee/auth', { method: 'PATCH' })
+                        fetchAuthStatus()
+                      } finally { setIsLoading(false) }
+                    }}
+                    disabled={isLoading}
+                    className="text-xs text-orange-600 underline hover:text-orange-800 disabled:opacity-50"
+                  >
+                    Atualizar
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-gray-500">Shop ID</p>
