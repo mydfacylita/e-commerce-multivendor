@@ -12,6 +12,7 @@ export default function ShopeeCallbackPage() {
   useEffect(() => {
     const code = searchParams.get('code');
     const shopId = searchParams.get('shop_id');
+    const state = searchParams.get('state') || '';
     const error = searchParams.get('error');
 
     if (error) {
@@ -26,8 +27,40 @@ export default function ShopeeCallbackPage() {
       return;
     }
 
-    handleCallback(code, shopId);
+    // state=seller_<userId> → fluxo do vendedor
+    if (state.startsWith('seller_')) {
+      handleSellerCallback(code, shopId, state);
+    } else {
+      handleCallback(code, shopId);
+    }
   }, [searchParams]);
+
+  // Callback para vendedor: chama API com token JWT do vendedor via query + redireciona para mydshop.com.br
+  const handleSellerCallback = async (code: string, shopId: string, state: string) => {
+    try {
+      const response = await fetch('/api/admin/marketplaces/shopee/auth/seller-callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, shopId: parseInt(shopId), state }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao processar autorização do vendedor');
+      }
+
+      setStatus('success');
+      setMessage('Loja conectada com sucesso! Redirecionando...');
+
+      setTimeout(() => {
+        window.location.href = 'https://mydshop.com.br/vendedor/integracao/shopee';
+      }, 2000);
+    } catch (error: any) {
+      setStatus('error');
+      setMessage(error.message);
+    }
+  };
 
   const handleCallback = async (code: string, shopId: string) => {
     try {
@@ -46,7 +79,6 @@ export default function ShopeeCallbackPage() {
       setStatus('success');
       setMessage('Autorização concluída com sucesso!');
       
-      // Redireciona após 2 segundos
       setTimeout(() => {
         router.push('/admin/integracao/shopee');
       }, 2000);

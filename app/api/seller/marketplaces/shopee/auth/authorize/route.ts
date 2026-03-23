@@ -39,14 +39,19 @@ export async function GET(request: NextRequest) {
     const timestamp = Math.floor(Date.now() / 1000)
     const path = '/api/v2/shop/auth_partner'
 
-    const baseUrl = process.env.NEXTAUTH_URL || 'https://mydshop.com.br'
-    const redirectUri = `${baseUrl}/vendedor/integracao/shopee/callback`
+    // Encontrar o userId do vendedor para incluir no state
+    const sellerUser = await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } })
+    const state = `seller_${sellerUser?.id}`
+
+    // O redirect DEVE usar o domínio registrado no Shopee Console (gerencial-sys)
+    const adminDomain = process.env.ADMIN_URL || 'https://gerencial-sys.mydshop.com.br'
+    const redirectUri = `${adminDomain}/admin/integracao/shopee/callback`
     const redirectUrl = encodeURIComponent(redirectUri)
 
     const baseString = `${partnerId}${path}${timestamp}`
     const sign = crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex')
 
-    const authUrl = `${shopeeBaseUrl(isSandbox ?? false)}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&redirect=${redirectUrl}`
+    const authUrl = `${shopeeBaseUrl(isSandbox ?? false)}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&redirect=${redirectUrl}&state=${state}`
 
     return NextResponse.json({ authUrl, isSandbox: isSandbox ?? false })
   } catch (error) {
