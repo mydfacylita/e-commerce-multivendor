@@ -445,7 +445,7 @@ export default function ShopeeIntegrationPage() {
           </ul>
         </div>
       </div>
-      )}
+      </>)}
     </div>
   );
 }
