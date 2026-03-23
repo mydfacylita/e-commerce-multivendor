@@ -41,18 +41,18 @@ export async function GET(request: NextRequest) {
 
     // Encontrar o userId do vendedor para incluir no state
     const sellerUser = await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } })
-    const state = `seller_${sellerUser?.id}`
 
     // O redirect DEVE usar o domínio registrado no Shopee Console (gerencial-sys)
-    // Usamos uma rota de API pública para não depender de auth middleware de página
+    // O state é embutido na própria redirect URL pois a Shopee não devolve state separado
     const adminDomain = process.env.ADMIN_URL || 'https://gerencial-sys.mydshop.com.br'
-    const redirectUri = `${adminDomain}/api/shopee/seller-callback`
+    const state = `seller_${sellerUser?.id}`
+    const redirectUri = `${adminDomain}/api/shopee/seller-callback?state=${state}`
     const redirectUrl = encodeURIComponent(redirectUri)
 
     const baseString = `${partnerId}${path}${timestamp}`
     const sign = crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex')
 
-    const authUrl = `${shopeeBaseUrl(isSandbox ?? false)}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&redirect=${redirectUrl}&state=${state}`
+    const authUrl = `${shopeeBaseUrl(isSandbox ?? false)}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&redirect=${redirectUrl}`
 
     return NextResponse.json({ authUrl, isSandbox: isSandbox ?? false })
   } catch (error) {
