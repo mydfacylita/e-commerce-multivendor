@@ -4,8 +4,108 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+// ─── Aba Lojas Conectadas ──────────────────────────────────────────────────
+
+interface SellerConnection {
+  id: string
+  shopId: number
+  merchantName: string | null
+  region: string | null
+  expiresAt: string
+  isSandbox: boolean
+  createdAt: string
+  user: {
+    id: string
+    name: string
+    email: string
+    seller: { id: string; storeName: string; status: string } | null
+  }
+}
+
+function LojasConectadasTab() {
+  const [connections, setConnections] = useState<SellerConnection[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/admin/shopee/installations')
+      .then(r => r.json())
+      .then(d => setConnections(d.connections || []))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-16 text-gray-400">Carregando...</div>
+  }
+
+  const active   = connections.filter(c => new Date(c.expiresAt) > new Date()).length
+  const inactive = connections.length - active
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      {connections.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {[
+            { label: 'Total conectadas', value: connections.length, color: 'text-blue-700',  bg: 'bg-blue-50  border-blue-200'  },
+            { label: 'Token ativo',      value: active,             color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
+            { label: 'Token expirado',   value: inactive,           color: 'text-red-600',   bg: 'bg-red-50   border-red-200'   },
+          ].map(s => (
+            <div key={s.label} className={`border rounded-xl px-4 py-3 ${s.bg}`}>
+              <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+              <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {connections.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <p className="text-4xl mb-3">🛒</p>
+          <p className="font-medium">Nenhum vendedor conectou sua loja Shopee ainda</p>
+          <p className="text-sm mt-1">Quando um vendedor autorizar o app, aparecerá aqui</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {connections.map(c => {
+            const expired = new Date(c.expiresAt) < new Date()
+            return (
+              <div key={c.id} className="bg-white border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-800">
+                      {c.user.seller?.storeName || c.user.name || c.user.email}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${expired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {expired ? 'Token expirado' : 'Ativo'}
+                    </span>
+                    {c.isSandbox && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Sandbox</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">{c.user.email}</div>
+                  <div className="flex gap-4 mt-2 text-xs text-gray-600 flex-wrap">
+                    <span>Shop ID: <strong>{c.shopId}</strong></span>
+                    {c.merchantName && <span>Loja: <strong>{c.merchantName}</strong></span>}
+                    {c.region && <span>Região: <strong>{c.region}</strong></span>}
+                    <span>Expira: <strong>{new Date(c.expiresAt).toLocaleDateString('pt-BR')}</strong></span>
+                    <span>Conectado em: <strong>{new Date(c.createdAt).toLocaleDateString('pt-BR')}</strong></span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+
 export default function ShopeeIntegrationPage() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'conexao' | 'lojas'>('conexao');
   const [isLoading, setIsLoading] = useState(false);
   const [authData, setAuthData] = useState<any>(null);
   const [error, setError] = useState('');
@@ -120,6 +220,30 @@ export default function ShopeeIntegrationPage() {
         <h1 className="text-2xl font-bold text-gray-900">Integração com Shopee</h1>
         <p className="text-gray-500 text-sm mt-1">Configure suas credenciais de parceiro e autorize o acesso à loja.</p>
       </div>
+
+      {/* Tabs */}
+      <div className="flex border-b">
+        {[
+          { key: 'conexao', label: 'Minha Conexão' },
+          { key: 'lojas',   label: 'Lojas Conectadas' },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key as any)}
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === tab.key
+                ? 'border-orange-500 text-orange-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'lojas' && <LojasConectadasTab />}
+
+      {activeTab === 'conexao' && (<>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -321,6 +445,7 @@ export default function ShopeeIntegrationPage() {
           </ul>
         </div>
       </div>
+      )}
     </div>
   );
 }
