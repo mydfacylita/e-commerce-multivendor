@@ -44,8 +44,9 @@ export async function GET(request: NextRequest) {
     const state = `seller_${sellerUser?.id}`
 
     // O redirect DEVE usar o domínio registrado no Shopee Console (gerencial-sys)
+    // Usamos uma rota de API pública para não depender de auth middleware de página
     const adminDomain = process.env.ADMIN_URL || 'https://gerencial-sys.mydshop.com.br'
-    const redirectUri = `${adminDomain}/admin/integracao/shopee/callback`
+    const redirectUri = `${adminDomain}/api/shopee/seller-callback`
     const redirectUrl = encodeURIComponent(redirectUri)
 
     const baseString = `${partnerId}${path}${timestamp}`

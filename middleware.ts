@@ -125,6 +125,7 @@ const PUBLIC_API_ROUTES = [
   '/api/analytics/track-bot', // Chamada interna do middleware para logar bots aliados
   '/api/v1/', // Portal de desenvolvedores — validação feita nas próprias rotas via dev-auth
   '/api/app/config', // Configurações de aparência do app (público - apenas branding)
+  '/api/shopee/seller-callback', // Callback OAuth Shopee para vendedores (redirecionado pela Shopee, sem sessão)
 ]
 
 // 🚫 Rotas BLOQUEADAS em produção (debug, teste)

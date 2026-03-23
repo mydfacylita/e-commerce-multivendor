@@ -21,6 +21,10 @@ export default function VendedorShopeePage() {
 
   useEffect(() => {
     fetchStatus()
+    // Mostrar resultado após redirect da Shopee
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('connected') === '1') toast.success('Loja Shopee conectada com sucesso!')
+    if (params.get('error'))             toast.error(decodeURIComponent(params.get('error') || 'Erro ao conectar'))
   }, [])
 
   const fetchStatus = async () => {
