@@ -491,21 +491,30 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
           </div>
         )
 
-      case 'precos':
+      case 'precos': {
+        const hasImportedVariants = !!(formData.supplierName || formData.supplierId) && !!formData.selectedSkus
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold mb-4">💰 Preços e Custos</h3>
+
+            {hasImportedVariants && (
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+                <span className="mt-0.5">ℹ️</span>
+                <span>Produto com variações importadas. O <strong>Preço de Venda</strong> e o <strong>Custo</strong> são sincronizados automaticamente com o <strong>menor valor</strong> entre as variações ativas. Ajuste os preços na aba <button type="button" className="underline font-semibold" onClick={() => setActiveTab('variacoes')}>Variações</button>.</span>
+              </div>
+            )}
             
             <div className="grid md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Custo do Produto (R$)</label>
-                <input type="number" step="0.01" value={formData.costPrice} onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })} className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600" placeholder="0.00" />
-                <p className="text-xs text-gray-500 mt-1">Preço base do fornecedor</p>
+                <input type="number" step="0.01" value={formData.costPrice} onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })} className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600" placeholder="0.00" readOnly={hasImportedVariants} />
+                <p className="text-xs text-gray-500 mt-1">{hasImportedVariants ? 'Menor custo entre variações ativas' : 'Preço base do fornecedor'}</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">Preço de Venda (R$) *</label>
-                <input type="number" step="0.01" required value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} className="w-full px-4 py-3 border-2 border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 text-lg font-semibold" placeholder="0.00" />
+                <input type="number" step="0.01" required value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} className="w-full px-4 py-3 border-2 border-primary-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600 text-lg font-semibold" placeholder="0.00" readOnly={hasImportedVariants} />
+                {hasImportedVariants && <p className="text-xs text-blue-600 mt-1">Menor preço entre variações ativas</p>}
               </div>
 
               <div>
@@ -525,8 +534,9 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
 
               <div>
                 <label className="block text-sm font-medium mb-2">Estoque *</label>
-                <input type="number" required value={formData.stock} onChange={(e) => setFormData({ ...formData, stock: e.target.value })} className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600" placeholder="0" disabled={formData.sizeCategory !== ''} />
+                <input type="number" required value={formData.stock} onChange={(e) => setFormData({ ...formData, stock: e.target.value })} className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-600" placeholder="0" disabled={formData.sizeCategory !== '' || hasImportedVariants} />
                 {formData.sizeCategory && <p className="text-xs text-blue-600 mt-1">ℹ️ Estoque calculado automaticamente pela soma dos tamanhos</p>}
+                {hasImportedVariants && <p className="text-xs text-blue-600 mt-1">ℹ️ Estoque calculado automaticamente pela soma das variações ativas</p>}
               </div>
             </div>
 
@@ -552,6 +562,7 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
             </div>
           </div>
         )
+      }
 
       case 'dimensoes':
         return (
@@ -662,7 +673,21 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
             )}
 
             {formData.supplierName || formData.supplierId ? (
-              <ImportedProductVariantsManager productId={params.id} variantsJson={formData.variants} selectedSkus={(() => { try { if (!formData.selectedSkus) return []; return JSON.parse(formData.selectedSkus) } catch { return [] } })()} supplierName={formData.supplierName || 'AliExpress'} onVariantsChange={(selectedSkus) => { setFormData(prev => ({ ...prev, selectedSkus: JSON.stringify(selectedSkus) })) }} />
+              <ImportedProductVariantsManager productId={params.id} variantsJson={formData.variants} selectedSkus={(() => { try { if (!formData.selectedSkus) return []; return JSON.parse(formData.selectedSkus) } catch { return [] } })()} supplierName={formData.supplierName || 'AliExpress'} onVariantsChange={(selectedSkus) => {
+                // Sincronizar preço e custo do produto com o menor valor dos SKUs ativos
+                const activeSkus = selectedSkus.filter(s => s.enabled)
+                const skusToUse = activeSkus.length > 0 ? activeSkus : selectedSkus
+                const prices = skusToUse.map(s => s.customPrice).filter((p): p is number => typeof p === 'number' && p > 0)
+                const costs = skusToUse.map(s => s.costPrice).filter((p): p is number => typeof p === 'number' && p > 0)
+                const totalStock = activeSkus.reduce((sum, s) => sum + (s.customStock ?? 0), 0)
+                setFormData(prev => ({
+                  ...prev,
+                  selectedSkus: JSON.stringify(selectedSkus),
+                  ...(prices.length > 0 ? { price: Math.min(...prices).toFixed(2) } : {}),
+                  ...(costs.length > 0 ? { costPrice: Math.min(...costs).toFixed(2) } : {}),
+                  ...(totalStock > 0 ? { stock: totalStock.toString() } : {}),
+                }))
+              }} />
             ) : (
               <ProductVariantsManager sizeType={formData.sizeType} sizeCategory={formData.sizeCategory} colorType={formData.colorType} singleColor={formData.color} productImages={formData.images} variants={(() => { try { if (!formData.variants || formData.variants === '') return []; let parsed = formData.variants; while (typeof parsed === 'string') { parsed = JSON.parse(parsed) }; return Array.isArray(parsed) ? parsed : [] } catch (e) { return [] } })()} onVariantsChange={(variants) => { setFormData(prev => ({ ...prev, variants: JSON.stringify(variants) })) }} onSizeTypeChange={(type) => { setFormData(prev => ({ ...prev, sizeType: type })) }} onSizeCategoryChange={(category) => { setFormData(prev => ({ ...prev, sizeCategory: category })) }} onTotalStockChange={(totalStock) => { setFormData(prev => ({ ...prev, stock: totalStock.toString() })) }} basePrice={formData.price ? parseFloat(formData.price) : undefined} />
             )}

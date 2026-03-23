@@ -675,6 +675,100 @@ model CompanyBranch {
   @@map("company_branch")
 }
 
+// ==================== PDV - PONTO DE VENDA ====================
+
+model PdvCaixa {
+  id          String        @id @default(cuid()) @db.VarChar(36)
+  branchId    String?       @db.VarChar(36)
+  numero      Int
+  nome        String        @db.VarChar(100)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
+  sessoes     PdvSessao[]
+  vendas      PdvVenda[]
+
+  @@map("pdv_caixa")
+}
+
+model PdvSessao {
+  id              String      @id @default(cuid()) @db.VarChar(36)
+  caixaId         String      @db.VarChar(36)
+  operadorId      String      @db.VarChar(36)
+  operadorNome    String      @db.VarChar(255)
+  status          String      @default("ABERTA") @db.VarChar(20) // ABERTA, FECHADA
+  valorAbertura   Float       @default(0)
+  valorFechamento Float?
+  totalVendas     Float       @default(0)
+  totalDinheiro   Float       @default(0)
+  totalCartao     Float       @default(0)
+  totalPix        Float       @default(0)
+  totalOutros     Float       @default(0)
+  qtdVendas       Int         @default(0)
+  observacoes     String?     @db.Text
+  abertoEm        DateTime    @default(now())
+  fechadoEm       DateTime?
+  caixa           PdvCaixa    @relation(fields: [caixaId], references: [id])
+  vendas          PdvVenda[]
+
+  @@index([caixaId])
+  @@index([status])
+  @@map("pdv_sessao")
+}
+
+model PdvVenda {
+  id              String        @id @default(cuid()) @db.VarChar(36)
+  numero          Int           @default(0)
+  caixaId         String        @db.VarChar(36)
+  sessaoId        String        @db.VarChar(36)
+  operadorId      String        @db.VarChar(36)
+  operadorNome    String        @db.VarChar(255)
+  clienteNome     String?       @db.VarChar(255)
+  clienteCpf      String?       @db.VarChar(14)
+  clienteTelefone String?       @db.VarChar(20)
+  status          String        @default("CONCLUIDA") @db.VarChar(20) // CONCLUIDA, CANCELADA, PENDENTE
+  subtotal        Float
+  desconto        Float         @default(0)
+  acrescimo       Float         @default(0)
+  total           Float
+  formaPagamento  String        @db.VarChar(50) // DINHEIRO, CARTAO_CREDITO, CARTAO_DEBITO, PIX, MISTO, OUTROS
+  pagamentos      String?       @db.LongText // JSON array de pagamentos no caso de MISTO
+  troco           Float         @default(0)
+  observacoes     String?       @db.Text
+  canceladoEm     DateTime?
+  canceladoPor    String?       @db.VarChar(255)
+  motivoCancelamento String?    @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now()) @updatedAt
+  caixa           PdvCaixa      @relation(fields: [caixaId], references: [id])
+  sessao          PdvSessao     @relation(fields: [sessaoId], references: [id])
+  itens           PdvVendaItem[]
+
+  @@index([createdAt])
+  @@index([caixaId])
+  @@index([sessaoId])
+  @@index([status])
+  @@map("pdv_venda")
+}
+
+model PdvVendaItem {
+  id          String    @id @default(cuid()) @db.VarChar(36)
+  vendaId     String    @db.VarChar(36)
+  productId   String?   @db.VarChar(36)
+  codigo      String?   @db.VarChar(100)
+  nome        String    @db.VarChar(255)
+  quantidade  Float
+  precoUnit   Float
+  desconto    Float     @default(0)
+  total       Float
+  venda       PdvVenda  @relation(fields: [vendaId], references: [id])
+
+  @@index([vendaId])
+  @@map("pdv_venda_item")
+}
+
+// ==================== FIM PDV ====================
+
 model MercadoLivreCredentials {
   id           String   @id @default(cuid())
   clientId     String

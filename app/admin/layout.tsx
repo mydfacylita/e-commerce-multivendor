@@ -51,6 +51,7 @@ import {
   FiCamera,
   FiMoon,
   FiSun,
+  FiShoppingBag as FiPdv,
 } from 'react-icons/fi'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -167,6 +168,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <FiHeadphones className="text-lg" />
               <span>SAC</span>
+            </Link>
+          )}
+
+          {can('pdv') && (
+            <Link
+              href="/admin/pdv"
+              className={`flex items-center space-x-3 px-4 py-2 rounded-md hover:bg-primary-50 hover:text-primary-600 ${pathname?.startsWith('/admin/pdv') ? 'bg-primary-50 text-primary-600' : 'text-gray-900'}`}
+            >
+              <FiPdv className="text-lg" />
+              <span>PDV</span>
             </Link>
           )}
 
