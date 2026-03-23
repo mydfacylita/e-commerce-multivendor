@@ -190,12 +190,44 @@ export async function PATCH(request: NextRequest) {
       include: { shopeeAuth: true },
     });
 
-    if (!user?.shopeeAuth?.accessToken) {
+    if (!user?.shopeeAuth?.refreshToken) {
       return NextResponse.json({ error: 'Shopee não conectada' }, { status: 400 });
     }
 
-    const { partnerId, partnerKey, accessToken, shopId } = user.shopeeAuth;
-    const baseUrl = user.shopeeAuth.isSandbox ? SHOPEE_SANDBOX_URL : SHOPEE_PROD_URL;
+    const { partnerId, partnerKey, shopId, isSandbox } = user.shopeeAuth;
+    const baseUrl = isSandbox ? SHOPEE_SANDBOX_URL : SHOPEE_PROD_URL;
+
+    // Renovar token primeiro para garantir que está válido
+    const refreshEndpoint = '/api/v2/auth/access_token/get';
+    const refreshTimestamp = Math.floor(Date.now() / 1000);
+    const refreshSign = crypto.createHmac('sha256', partnerKey)
+      .update(`${partnerId}${refreshEndpoint}${refreshTimestamp}`)
+      .digest('hex');
+
+    const refreshRes = await fetch(
+      `${baseUrl}${refreshEndpoint}?partner_id=${partnerId}&timestamp=${refreshTimestamp}&sign=${refreshSign}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: user.shopeeAuth.refreshToken, partner_id: partnerId, shop_id: shopId }),
+      }
+    );
+    const refreshData = await refreshRes.json();
+
+    let accessToken = user.shopeeAuth.accessToken;
+    if (refreshData.access_token) {
+      accessToken = refreshData.access_token;
+      await prisma.shopeeAuth.update({
+        where: { userId: user.id },
+        data: {
+          accessToken: refreshData.access_token,
+          refreshToken: refreshData.refresh_token || user.shopeeAuth.refreshToken,
+          expiresAt: new Date(Date.now() + refreshData.expire_in * 1000),
+        },
+      });
+    }
+
+    // Buscar info da loja
     const endpoint = '/api/v2/shop/get_shop_info';
     const timestamp = Math.floor(Date.now() / 1000);
     const sign = crypto.createHmac('sha256', partnerKey)
@@ -210,12 +242,14 @@ export async function PATCH(request: NextRequest) {
     const merchantName = shopInfo?.response?.shop_name || null;
     const region = shopInfo?.response?.region || user.shopeeAuth.region;
 
-    await prisma.shopeeAuth.update({
-      where: { userId: user.id },
-      data: { merchantName, region },
-    });
+    if (merchantName) {
+      await prisma.shopeeAuth.update({
+        where: { userId: user.id },
+        data: { merchantName, region },
+      });
+    }
 
-    return NextResponse.json({ success: true, merchantName, region });
+    return NextResponse.json({ success: true, merchantName, region, shopInfoRaw: shopInfo?.response });
   } catch (error) {
     console.error('Erro ao atualizar info da loja:', error);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });

@@ -232,6 +232,43 @@ async function refreshShopeeToken(userId: string): Promise<string> {
   return auth.accessToken
 }
 
+// Busca o ID de uma categoria válida na Shopee, tentando casar com o nome da categoria do produto
+async function getShopeeCategory(auth: any, accessToken: string, productCategoryName?: string | null): Promise<number> {
+  try {
+    const endpoint = '/api/v2/product/get_category'
+    const timestamp = Math.floor(Date.now() / 1000)
+    const sign = crypto.createHmac('sha256', auth.partnerKey)
+      .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
+      .digest('hex')
+
+    const res = await fetch(
+      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&language=pt-BR`,
+      { method: 'GET' }
+    )
+    const data = await res.json()
+    const categories: any[] = data?.response?.category_list || []
+
+    // Pegar apenas categorias folha (sem filhos)
+    const leafCategories = categories.filter((c: any) => !c.has_children)
+    if (leafCategories.length === 0) return 0
+
+    // Tentar casar pelo nome
+    if (productCategoryName) {
+      const norm = productCategoryName.toLowerCase()
+      const match = leafCategories.find((c: any) =>
+        c.display_category_name?.toLowerCase().includes(norm) ||
+        norm.includes(c.display_category_name?.toLowerCase())
+      )
+      if (match) return match.category_id
+    }
+
+    // Fallback: primeira categoria folha disponível
+    return leafCategories[0].category_id
+  } catch {
+    return 0
+  }
+}
+
 async function publishToShopee(product: any): Promise<{ success: boolean; itemId?: string; message: string; details?: any }> {
   try {
     // Buscar admin com Shopee conectada
@@ -255,6 +292,13 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
     // Assinatura autenticada: partner_id + path + timestamp + access_token + shop_id
     const baseString = `${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`
     const sign = crypto.createHmac('sha256', auth.partnerKey).update(baseString).digest('hex')
+
+    // Buscar categoria válida na Shopee
+    const categoryId = await getShopeeCategory(auth, accessToken, product.category?.name)
+    if (!categoryId) {
+      return { success: false, message: 'Não foi possível encontrar uma categoria válida na Shopee para este produto.' }
+    }
+
     // Body apenas com dados do produto (auth vai na query string)
     const bodyObj = {
       original_price: product.price,
@@ -268,7 +312,7 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
       logistic_info: [{ logistic_id: 0, enabled: true }],
       image: { image_url_list: imageUrlList },
       brand: { brand_id: 0, original_brand_name: product.brand || '' },
-      category_id: 0,
+      category_id: categoryId,
     }
     const bodyStr = JSON.stringify(bodyObj)
 
