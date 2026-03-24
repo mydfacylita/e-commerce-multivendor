@@ -648,7 +648,7 @@ export default function PublishToMarketplaceButton({
                 attribute_id: attr.id,
                 attribute_value_list: attr.values.length > 0
                   ? [{ value_id: Number(shopeeAttrValues[attr.id]) }]
-                  : [{ original_value: String(shopeeAttrValues[attr.id]).substring(0, 256) }]
+                  : [{ original_value_name: String(shopeeAttrValues[attr.id]).substring(0, 256) }]
               })),
           } : undefined,
         }),

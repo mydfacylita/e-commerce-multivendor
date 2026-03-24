@@ -343,7 +343,7 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
       } else if (isTextField(attr.input_type)) {
         // Campo texto: valor do fieldMap ou nome do produto como fallback
         const textValue = value || (product.model || product.name || '').substring(0, 100)
-        result.push({ attribute_id: attrId, attribute_value_list: [{ original_value: textValue.substring(0, 256) }] })
+        result.push({ attribute_id: attrId, attribute_value_list: [{ original_value_name: textValue.substring(0, 256) }] })
       }
     }
 
@@ -560,40 +560,52 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
         const rawAttrs = await fetchRawCategoryAttributes(auth, accessToken, categoryId)
         console.log('[Shopee] retry - total attrs brutos da categoria:', rawAttrs.length)
 
-        // Se api_suspended, não temos como descobrir os value_ids corretos
-        // Retornar erro claro em vez de enviar dados inválidos
-        if (rawAttrs.length === 0) {
-          const apiErrorMsg = 'get_attributes retornou api_suspended: o endpoint não está habilitado para este APP. ' +
-            'Acesse open.shopee.com → Console → Gerenciamento de Apps → Permissões de API e habilite product/get_attributes. ' +
-            `Atributos obrigatórios que precisam ser configurados: ${missing.map(m => `${m.name} (id:${m.id})`).join(', ')}`
-          return { success: false, message: `Erro Shopee: ${data.message}`, details: { missing_attrs: missing, fix: apiErrorMsg } }
+        // get_attributes suspenso: tentar enviar original_value para todos os attrs ausentes
+        // Funciona para TEXT_FIELD (Model Name etc). Para COMBO_BOX a Shopee retorna erro mas ao menos tentamos.
+        console.log('[Shopee] retry - get_attributes suspenso, tentando original_value para attrs ausentes')
+
+        // Mapeamento de nomes de atributo para valores inteligentes baseados no produto
+        function guessAttrValue(attrName: string): string {
+          const n = attrName.toLowerCase()
+          if (n.includes('model')) return (product.model || product.name || '').substring(0, 100)
+          if (n.includes('brand') || n.includes('marca')) return (product.brand || 'Other').substring(0, 50)
+          if (n.includes('color') || n.includes('cor')) return product.color || 'Other'
+          if (n.includes('connection') || n.includes('conexão') || n.includes('connectivity')) {
+            const txt = (product.name + ' ' + (product.description || '')).toLowerCase()
+            if (txt.includes('bluetooth')) return 'Bluetooth'
+            if (txt.includes('usb-c') || txt.includes('usb c')) return 'USB-C'
+            if (txt.includes('usb')) return 'USB'
+            if (txt.includes('wireless') || txt.includes('sem fio')) return 'Wireless'
+            if (txt.includes('wifi') || txt.includes('wi-fi')) return 'WiFi'
+            return 'Bluetooth'
+          }
+          if (n.includes('item type') || n.includes('tipo')) return product.category?.name || product.name.substring(0, 50)
+          if (n.includes('material')) return 'Other'
+          if (n.includes('origin') || n.includes('origem')) return 'CN'
+          return product.name.substring(0, 100)
         }
 
         const currentIds = new Set((bodyObj.attribute_list || []).map((a: any) => a.attribute_id))
         const extraAttrs: any[] = []
 
         for (const miss of missing) {
+          const textVal = guessAttrValue(miss.name)
+          console.log(`[Shopee] retry - attr ${miss.name} (${miss.id}): tentando original_value="${textVal}"`)
           if (currentIds.has(miss.id)) {
-            // Já está na lista mas pode ter value_id 0 — corrigir
             bodyObj.attribute_list = (bodyObj.attribute_list || []).map((a: any) => {
               if (a.attribute_id !== miss.id) return a
-              const valList: any[] = rawAttrs.find((ra: any) => ra.attribute_id === miss.id)?.attribute_value_list || []
-              const nonZero = valList.find((v: any) => v.value_id && v.value_id !== 0)
-              if (nonZero) return { attribute_id: miss.id, attribute_value_list: [{ value_id: nonZero.value_id }] }
-              return { attribute_id: miss.id, attribute_value_list: [{ original_value: (product.model || product.name || '').substring(0, 100) }] }
+              return { attribute_id: miss.id, attribute_value_list: [{ original_value_name: textVal }] }
             })
             continue
           }
+          // Se rawAttrs disponíveis (get_attributes funcionou), tentar value_id antes
           const attrDef = rawAttrs.find((a: any) => a.attribute_id === miss.id)
           const valList: any[] = attrDef?.attribute_value_list || []
           const nonZero = valList.find((v: any) => v.value_id && v.value_id !== 0)
           if (nonZero) {
             extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{ value_id: nonZero.value_id }] })
           } else {
-            const textVal = miss.name.toLowerCase().includes('model')
-              ? (product.model || product.name || '').substring(0, 100)
-              : product.name.substring(0, 100)
-            extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{ original_value: textVal }] })
+            extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{ original_value_name: textVal }] })
           }
         }
 
