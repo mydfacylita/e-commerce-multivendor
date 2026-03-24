@@ -252,9 +252,10 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
       { method: 'GET' }
     )
     const data = await res.json()
-    // Shopee may use 'attributes' or 'attribute_list' depending on API version
-    const attrList: any[] = data?.response?.attributes || data?.response?.attribute_list || []
+    // Shopee may use 'attributes', 'attribute_list' or 'attribute_info_list' depending on API version
+    const attrList: any[] = data?.response?.attributes || data?.response?.attribute_list || data?.response?.attribute_info_list || []
     console.log('[Shopee] get_attributes para categoria', categoryId, '-> total:', attrList.length, 'error:', data?.error || 'ok')
+    if (data?.error && data.error !== '') console.log('[Shopee] get_attributes resposta completa:', JSON.stringify(data))
     if (attrList.length > 0) console.log('[Shopee] exemplo atributo[0]:', JSON.stringify(attrList[0]))
 
     // Parsear specs/attributes do produto
@@ -537,7 +538,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
       bodyObj.attribute_list = attributeList
     }
     const bodyStr = JSON.stringify(bodyObj)
-    console.log('[Shopee] add_item body:', bodyStr)
+    console.log('[Shopee] add_item body (attrs count):', attributeList.length)
 
     const res = await fetch(
       `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
@@ -546,7 +547,70 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
     const data = await res.json()
     console.log('[Shopee] add_item resposta:', JSON.stringify(data))
 
-    if (data.error) {
+    // === RETRY: se mandatory attributes faltando, buscar valores e tentar novamente ===
+    if (
+      (data.error === 'product.error_busi' || data.error) &&
+      data.debug_message?.includes('Attribute is mandatory')
+    ) {
+      const missing = parseMandatoryAttributeErrors(data.debug_message)
+      console.log('[Shopee] retry - atributos obrigatórios faltando:', missing)
+
+      if (missing.length > 0) {
+        // Buscar atributos crus da categoria para encontrar os valores corretos
+        const rawAttrs = await fetchRawCategoryAttributes(auth, accessToken, categoryId)
+        console.log('[Shopee] retry - total attrs brutos da categoria:', rawAttrs.length)
+
+        const currentIds = new Set((bodyObj.attribute_list || []).map((a: any) => a.attribute_id))
+        const extraAttrs: any[] = []
+
+        for (const miss of missing) {
+          if (currentIds.has(miss.id)) {
+            // Já está na lista mas pode ter value_id 0 — corrigir
+            bodyObj.attribute_list = (bodyObj.attribute_list || []).map((a: any) => {
+              if (a.attribute_id !== miss.id) return a
+              const valList: any[] = rawAttrs.find((ra: any) => ra.attribute_id === miss.id)?.attribute_value_list || []
+              const nonZero = valList.find((v: any) => v.value_id && v.value_id !== 0)
+              if (nonZero) return { attribute_id: miss.id, attribute_value_list: [{ value_id: nonZero.value_id }] }
+              return { attribute_id: miss.id, attribute_value_list: [{ original_value: (product.model || product.name || '').substring(0, 100) }] }
+            })
+            continue
+          }
+          const attrDef = rawAttrs.find((a: any) => a.attribute_id === miss.id)
+          const valList: any[] = attrDef?.attribute_value_list || []
+          const nonZero = valList.find((v: any) => v.value_id && v.value_id !== 0)
+          if (nonZero) {
+            extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{ value_id: nonZero.value_id }] })
+          } else {
+            const textVal = miss.name.toLowerCase().includes('model')
+              ? (product.model || product.name || '').substring(0, 100)
+              : product.name.substring(0, 100)
+            extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{ original_value: textVal }] })
+          }
+        }
+
+        bodyObj.attribute_list = [...(bodyObj.attribute_list || []), ...extraAttrs]
+        console.log('[Shopee] retry add_item - attribute_list final:', JSON.stringify(bodyObj.attribute_list))
+
+        const retryTs = Math.floor(Date.now() / 1000)
+        const retrySign = crypto.createHmac('sha256', auth.partnerKey)
+          .update(`${auth.partnerId}${endpoint}${retryTs}${accessToken}${auth.shopId}`)
+          .digest('hex')
+        const retryRes = await fetch(
+          `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${retryTs}&sign=${retrySign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) }
+        )
+        const retryData = await retryRes.json()
+        console.log('[Shopee] retry add_item resposta:', JSON.stringify(retryData))
+
+        if (retryData.error && retryData.error !== '') {
+          return { success: false, message: `Erro Shopee: ${retryData.message || retryData.error}`, details: retryData }
+        }
+        const retryItemId = retryData.response?.item_id?.toString()
+        return { success: true, itemId: retryItemId, message: 'Publicado com sucesso na Shopee' }
+      }
+    }
+
+    if (data.error && data.error !== '') {
       return { success: false, message: `Erro Shopee: ${data.message || data.error}`, details: data }
     }
 
@@ -554,6 +618,38 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
     return { success: true, itemId, message: 'Publicado com sucesso na Shopee' }
   } catch (error: any) {
     return { success: false, message: `Erro ao publicar na Shopee: ${error.message}` }
+  }
+}
+
+// Parseia atributos obrigatórios faltando da debug_message da Shopee
+function parseMandatoryAttributeErrors(debugMessage: string): Array<{ id: number; name: string }> {
+  const regex = /Attribute is mandatory: id: (\d+), name: ([^\]}"\\]+)/g
+  const results: Array<{ id: number; name: string }> = []
+  let match
+  while ((match = regex.exec(debugMessage)) !== null) {
+    results.push({ id: parseInt(match[1]), name: match[2].trim() })
+  }
+  return results
+}
+
+// Busca os atributos brutos de uma categoria (com attribute_value_list completo)
+async function fetchRawCategoryAttributes(auth: any, accessToken: string, categoryId: number): Promise<any[]> {
+  try {
+    const endpoint = '/api/v2/product/get_attributes'
+    const timestamp = Math.floor(Date.now() / 1000)
+    const sign = crypto.createHmac('sha256', auth.partnerKey)
+      .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
+      .digest('hex')
+    const res = await fetch(
+      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}`,
+      { method: 'GET' }
+    )
+    const data = await res.json()
+    console.log('[Shopee] fetchRawCategoryAttributes error:', data?.error || 'ok')
+    return data?.response?.attributes || data?.response?.attribute_list || data?.response?.attribute_info_list || []
+  } catch (e: any) {
+    console.log('[Shopee] fetchRawCategoryAttributes erro:', e.message)
+    return []
   }
 }
 
