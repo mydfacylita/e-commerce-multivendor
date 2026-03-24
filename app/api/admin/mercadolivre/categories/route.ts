@@ -5,6 +5,43 @@ import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+async function getValidMLToken(): Promise<string | null> {
+  const integration = await prisma.mercadoLivreAuth.findFirst({ orderBy: { createdAt: 'desc' } })
+  if (!integration?.accessToken) return null
+
+  const now = new Date()
+  if (!integration.expiresAt || now < integration.expiresAt) return integration.accessToken
+
+  // Token expirado — renovar
+  console.log('[ML] Token expirado, renovando...')
+  const credentials = await (prisma as any).mercadoLivreCredentials.findFirst()
+  if (!credentials || !integration.refreshToken) return null
+
+  const res = await fetch('https://api.mercadolibre.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+      refresh_token: integration.refreshToken,
+    }),
+  })
+  if (!res.ok) {
+    console.error('[ML] Erro ao renovar token:', await res.text())
+    return null
+  }
+  const data = await res.json()
+  const newExpiresAt = new Date()
+  newExpiresAt.setSeconds(newExpiresAt.getSeconds() + data.expires_in)
+  await prisma.mercadoLivreAuth.update({
+    where: { id: integration.id },
+    data: { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt: newExpiresAt },
+  })
+  console.log('[ML] Token renovado com sucesso')
+  return data.access_token
+}
+
 // GET - Buscar categorias do ML (por predição ou ID)
 export async function GET(request: NextRequest) {
   try {
@@ -18,17 +55,15 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('categoryId') // Para buscar atributos de uma categoria
     const parentId = searchParams.get('parentId') // Para buscar subcategorias
 
-    // Buscar configuração do ML - usar mercadoLivreAuth
-    const integration = await prisma.mercadoLivreAuth.findFirst({
-      orderBy: { createdAt: 'desc' }
-    })
-
-    if (!integration?.accessToken) {
+    const accessToken = await getValidMLToken()
+    if (!accessToken) {
       return NextResponse.json(
-        { error: 'Mercado Livre não conectado. Vá em Configurações > Integrações para conectar.' },
+        { error: 'Mercado Livre não conectado ou token expirado. Vá em Configurações > Integrações para reconectar.' },
         { status: 400 }
       )
     }
+    // alias para não alterar referências abaixo
+    const integration = { accessToken }
 
     // Se tem query, faz predição de categoria baseada no título/nome do produto
     if (query) {
