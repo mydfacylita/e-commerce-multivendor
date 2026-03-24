@@ -8,6 +8,12 @@ interface PublishToMarketplaceButtonProps {
   productId: string
   productName?: string
   productGtin?: string
+  productBrand?: string
+  productModel?: string
+  productWeight?: number
+  productPkgLength?: number
+  productPkgWidth?: number
+  productPkgHeight?: number
   existingListings: Array<{
     marketplace: string
     status: string
@@ -88,6 +94,12 @@ export default function PublishToMarketplaceButton({
   productId,
   productName = '',
   productGtin = '',
+  productBrand = '',
+  productModel = '',
+  productWeight,
+  productPkgLength,
+  productPkgWidth,
+  productPkgHeight,
   existingListings 
 }: PublishToMarketplaceButtonProps) {
   const [showModal, setShowModal] = useState(false)
@@ -127,7 +139,16 @@ export default function PublishToMarketplaceButton({
   const [loadingLogistics, setLoadingLogistics] = useState(false)
 
   // ========== SHOPEE FORM DATA ==========
-  const [shopeeFormData, setShopeeFormData] = useState({ categoryId: 0, categoryName: '', itemName: productName, brand: '', weight: '', pkgLength: '', pkgWidth: '', pkgHeight: '' })
+  const [shopeeFormData, setShopeeFormData] = useState({
+    categoryId: 0,
+    categoryName: '',
+    itemName: productName.substring(0, 120),
+    brand: productBrand,
+    weight: productWeight ? String(productWeight) : '',
+    pkgLength: productPkgLength ? String(productPkgLength) : '',
+    pkgWidth: productPkgWidth ? String(productPkgWidth) : '',
+    pkgHeight: productPkgHeight ? String(productPkgHeight) : '',
+  })
   const [shopeeAttributes, setShopeeAttributes] = useState<any[]>([])
   const [shopeeAttrValues, setShopeeAttrValues] = useState<Record<number, string | number>>({})
   const [shopeeCategoryQuery, setShopeeCategoryQuery] = useState('')
@@ -160,7 +181,16 @@ export default function PublishToMarketplaceButton({
     setCatalogQuery('')
     setShopeeChannels([])
     setSelectedChannelIds([])
-    setShopeeFormData({ categoryId: 0, categoryName: '', itemName: productName, brand: '', weight: '', pkgLength: '', pkgWidth: '', pkgHeight: '' })
+    setShopeeFormData({
+      categoryId: 0,
+      categoryName: '',
+      itemName: productName.substring(0, 120),
+      brand: productBrand,
+      weight: productWeight ? String(productWeight) : '',
+      pkgLength: productPkgLength ? String(productPkgLength) : '',
+      pkgWidth: productPkgWidth ? String(productPkgWidth) : '',
+      pkgHeight: productPkgHeight ? String(productPkgHeight) : '',
+    })
     setShopeeAttributes([])
     setShopeeAttrValues({})
     setShopeeCategoryQuery('')
@@ -178,7 +208,29 @@ export default function PublishToMarketplaceButton({
     try {
       const res = await fetch(`/api/admin/marketplaces/shopee/attributes?categoryId=${cat.id}`)
       const data = await res.json()
-      if (data.attributes) setShopeeAttributes(data.attributes)
+      if (data.attributes) {
+        setShopeeAttributes(data.attributes)
+        // Pre-fill attribute values from product data based on attribute name
+        const prefill: Record<number, string | number> = {}
+        for (const attr of data.attributes) {
+          const name = attr.name.toLowerCase()
+          if (name.includes('brand') || name.includes('marca')) {
+            if (productBrand) {
+              const match = attr.values.find((v: any) => v.name.toLowerCase() === productBrand.toLowerCase())
+              if (match) prefill[attr.id] = match.id
+              else if (attr.values.length === 0) prefill[attr.id] = productBrand
+            }
+          } else if (name.includes('model')) {
+            const modelVal = productModel || productName
+            if (modelVal) {
+              const match = attr.values.find((v: any) => v.name.toLowerCase() === modelVal.toLowerCase())
+              if (match) prefill[attr.id] = match.id
+              else if (attr.values.length === 0) prefill[attr.id] = modelVal.substring(0, 100)
+            }
+          }
+        }
+        if (Object.keys(prefill).length > 0) setShopeeAttrValues(prefill)
+      }
     } catch (e) {
       console.error('Erro ao carregar atributos Shopee:', e)
     } finally {
@@ -1464,11 +1516,10 @@ export default function PublishToMarketplaceButton({
                           Peso (kg) <span className="text-red-500">*</span>
                         </label>
                         <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
+                          type="text"
+                          inputMode="decimal"
                           value={shopeeFormData.weight}
-                          onChange={e => setShopeeFormData(prev => ({ ...prev, weight: e.target.value }))}
+                          onChange={e => setShopeeFormData(prev => ({ ...prev, weight: e.target.value.replace(',', '.') }))}
                           className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400"
                           placeholder="Ex: 0.5"
                         />
@@ -1480,10 +1531,10 @@ export default function PublishToMarketplaceButton({
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <input
-                            type="number"
-                            min="1"
+                            type="text"
+                            inputMode="decimal"
                             value={shopeeFormData.pkgLength}
-                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgLength: e.target.value }))}
+                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgLength: e.target.value.replace(',', '.') }))}
                             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                             placeholder="Comp."
                           />
@@ -1491,10 +1542,10 @@ export default function PublishToMarketplaceButton({
                         </div>
                         <div>
                           <input
-                            type="number"
-                            min="1"
+                            type="text"
+                            inputMode="decimal"
                             value={shopeeFormData.pkgWidth}
-                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgWidth: e.target.value }))}
+                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgWidth: e.target.value.replace(',', '.') }))}
                             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                             placeholder="Larg."
                           />
@@ -1502,10 +1553,10 @@ export default function PublishToMarketplaceButton({
                         </div>
                         <div>
                           <input
-                            type="number"
-                            min="1"
+                            type="text"
+                            inputMode="decimal"
                             value={shopeeFormData.pkgHeight}
-                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgHeight: e.target.value }))}
+                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgHeight: e.target.value.replace(',', '.') }))}
                             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
                             placeholder="Alt."
                           />

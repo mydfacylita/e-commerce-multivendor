@@ -37,6 +37,11 @@ interface Product {
   brand: string | null
   model: string | null
   mpn: string | null
+  weight: number | null
+  weightWithPackage: number | null
+  lengthWithPackage: number | null
+  widthWithPackage: number | null
+  heightWithPackage: number | null
   color: string | null
   specifications: string | null
   attributes: string | null
@@ -438,6 +443,12 @@ export default function ProductsListWithSelection({ products, categories, review
                       productId={product.id}
                       productName={product.name}
                       productGtin={product.gtin || ''}
+                      productBrand={product.brand || ''}
+                      productModel={product.model || ''}
+                      productWeight={product.weightWithPackage || product.weight || undefined}
+                      productPkgLength={product.lengthWithPackage || undefined}
+                      productPkgWidth={product.widthWithPackage || undefined}
+                      productPkgHeight={product.heightWithPackage || undefined}
                       existingListings={product.marketplaceListings}
                     />
                   </div>
