@@ -283,22 +283,27 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
 
     const auth = adminUser.shopeeAuth
     const accessToken = await refreshShopeeToken(adminUser.id)
+    console.log('[Shopee] accessToken renovado, shopId:', auth.shopId)
 
     const images: string[] = JSON.parse(product.images || '[]')
     const imageUrlList = images.slice(0, 9)
+    console.log('[Shopee] imagens do produto:', imageUrlList)
 
     if (imageUrlList.length === 0) {
       return { success: false, message: 'O produto não possui imagens. Adicione pelo menos uma imagem antes de publicar.' }
     }
 
     // Upload das imagens via Shopee media space
-    // Busca a imagem no nosso servidor e envia como binário (mais confiável que upload_by_url)
     const uploadedImageIds: string[] = []
     for (const imgUrl of imageUrlList) {
       try {
-        // Baixar a imagem
+        console.log('[Shopee] baixando imagem:', imgUrl)
         const imgFetch = await fetch(imgUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })
-        if (!imgFetch.ok) continue
+        console.log('[Shopee] status download:', imgFetch.status, imgFetch.headers.get('content-type'))
+        if (!imgFetch.ok) {
+          console.log('[Shopee] falha ao baixar imagem, status:', imgFetch.status)
+          continue
+        }
         const imgBuffer = await imgFetch.arrayBuffer()
         const contentType = imgFetch.headers.get('content-type') || 'image/jpeg'
         const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
@@ -317,30 +322,36 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
           { method: 'POST', body: formData }
         )
         const upData = await upRes.json()
+        console.log('[Shopee] upload resposta:', JSON.stringify(upData))
         const imageId = upData?.response?.image_id || upData?.response?.image_info?.image_id
-        if (imageId) uploadedImageIds.push(imageId)
-      } catch {
-        // ignora imagens que falharam no upload
+        if (imageId) {
+          console.log('[Shopee] image_id obtido:', imageId)
+          uploadedImageIds.push(imageId)
+        } else {
+          console.log('[Shopee] sem image_id na resposta:', JSON.stringify(upData))
+        }
+      } catch (e: any) {
+        console.log('[Shopee] erro no upload da imagem:', e.message)
       }
     }
 
     if (uploadedImageIds.length === 0) {
       return { success: false, message: 'Nenhuma imagem do produto pôde ser enviada para a Shopee. Verifique se as URLs das imagens são acessíveis.' }
     }
+    console.log('[Shopee] total imagens enviadas:', uploadedImageIds.length)
 
     const endpoint = '/api/v2/product/add_item'
     const timestamp = Math.floor(Date.now() / 1000)
-    // Assinatura autenticada: partner_id + path + timestamp + access_token + shop_id
     const baseString = `${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`
     const sign = crypto.createHmac('sha256', auth.partnerKey).update(baseString).digest('hex')
 
     // Buscar categoria válida na Shopee
     const categoryId = await getShopeeCategory(auth, accessToken, product.category?.name)
+    console.log('[Shopee] categoryId:', categoryId, 'categoria produto:', product.category?.name)
     if (!categoryId) {
       return { success: false, message: 'Não foi possível encontrar uma categoria válida na Shopee para este produto.' }
     }
 
-    // Body apenas com dados do produto (auth vai na query string)
     const bodyObj = {
       original_price: product.price,
       description: (product.description || product.name).substring(0, 3000),
@@ -356,12 +367,14 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
       category_id: categoryId,
     }
     const bodyStr = JSON.stringify(bodyObj)
+    console.log('[Shopee] add_item body:', bodyStr)
 
     const res = await fetch(
       `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr }
     )
     const data = await res.json()
+    console.log('[Shopee] add_item resposta:', JSON.stringify(data))
 
     if (data.error) {
       return { success: false, message: `Erro Shopee: ${data.message || data.error}`, details: data }
