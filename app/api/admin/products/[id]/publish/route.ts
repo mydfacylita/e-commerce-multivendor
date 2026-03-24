@@ -259,10 +259,28 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
     if (attrList.length > 0) console.log('[Shopee] exemplo atributo[0]:', JSON.stringify(attrList[0]))
 
     // Parsear specs/attributes do produto
+    // attributes pode ser array [{nome,valor}] (AliExpress) ou objeto {key:value}
+    const parseProductAttrs = (raw: string | null | undefined): Record<string, string> => {
+      if (!raw) return {}
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          const out: Record<string, string> = {}
+          for (const item of parsed) {
+            const key = (item.nome || item.name || item.key || '').replace(/^\d+\.\s*/, '').trim()
+            const val = String(item.valor || item.value || item.val || '')
+            if (key) out[key.toLowerCase()] = val
+          }
+          return out
+        }
+        if (typeof parsed === 'object' && parsed !== null) return parsed
+      } catch {}
+      return {}
+    }
     let specs: Record<string, string> = {}
-    try { Object.assign(specs, JSON.parse(product.specifications || '{}')) } catch {}
-    try { Object.assign(specs, JSON.parse(product.attributes || '{}')) } catch {}
-    try { Object.assign(specs, JSON.parse(product.technicalSpecs || '{}')) } catch {}
+    Object.assign(specs, parseProductAttrs(product.specifications))
+    Object.assign(specs, parseProductAttrs(product.attributes))
+    Object.assign(specs, parseProductAttrs(product.technicalSpecs))
     const specsLower: Record<string, string> = {}
     for (const [k, v] of Object.entries(specs)) specsLower[k.toLowerCase()] = String(v)
 
@@ -339,11 +357,17 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
         // 3º: último recurso — primeiro valor da lista (garante que atributos obrigatórios sejam enviados)
         if (!match) match = attr.attribute_value_list[0]
 
-        result.push({ attribute_id: attrId, attribute_value_list: [{ value_id: match.value_id }] })
+        result.push({ attribute_id: attrId, attribute_value_list: [{
+          value_id: match.value_id,
+          original_value_name: match.display_value_name || match.value_name || ''
+        }] })
       } else if (isTextField(attr.input_type)) {
         // Campo texto: valor do fieldMap ou nome do produto como fallback
         const textValue = value || (product.model || product.name || '').substring(0, 100)
-        result.push({ attribute_id: attrId, attribute_value_list: [{ original_value_name: textValue.substring(0, 256) }] })
+        result.push({ attribute_id: attrId, attribute_value_list: [{
+          value_id: 0,
+          original_value_name: textValue.substring(0, 256)
+        }] })
       }
     }
 
@@ -517,26 +541,29 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
     const brandName = formData?.brand?.trim() || product.brand || 'Sem marca'
 
     const bodyObj: any = {
-      original_price: product.price,
-      description: (product.description || product.name).substring(0, 3000),
-      weight: weightKg,
-      item_name: itemName,
-      item_status: 'NORMAL',
-      normal_stock: product.stock,
-      seller_stock: [{ stock: product.stock }],
-      item_sku: (product.supplierSku || product.gtin || '').substring(0, 100),
-      gtin: product.gtin ? product.gtin.substring(0, 14) : undefined,
-      dimension: { package_length: Math.round(pkgLength), package_width: Math.round(pkgWidth), package_height: Math.round(pkgHeight) },
-      logistic_info: logisticChannels.length > 0
-        ? logisticChannels.map(id => ({ logistic_id: id, enabled: true }))
-        : [{ logistic_id: 0, enabled: true }],
-      image: { image_id_list: uploadedImageIds },
-      brand: { brand_id: 0, original_brand_name: brandName.substring(0, 50) },
       category_id: categoryId,
+      item_name: itemName,
+      description: (product.description || product.name).substring(0, 3000),
+      item_status: 'NORMAL',
+      condition: 'NEW',
+      original_price: product.price,
+      weight: Number(weightKg),
+      dimension: {
+        package_length: Math.round(Number(pkgLength)),
+        package_width: Math.round(Number(pkgWidth)),
+        package_height: Math.round(Number(pkgHeight)),
+      },
+      seller_stock: [{ stock: Number(product.stock) || 0 }],
+      image: { image_id_list: uploadedImageIds },
+      logistic_info: logisticChannels.length > 0
+        ? logisticChannels.map((id: number) => ({ logistic_id: id, enabled: true }))
+        : [{ logistic_id: 80101, enabled: true }],
+      brand: { brand_id: 0, original_brand_name: brandName.substring(0, 50) },
+      item_sku: (product.supplierSku || product.gtin || '').substring(0, 100),
     }
-    if (attributeList.length > 0) {
-      bodyObj.attribute_list = attributeList
-    }
+    if (product.gtin) bodyObj.gtin = product.gtin.substring(0, 14)
+    if (attributeList.length > 0) bodyObj.attribute_list = attributeList
+    console.log('[Shopee] add_item bodyObj:', JSON.stringify(bodyObj))
     const bodyStr = JSON.stringify(bodyObj)
     console.log('[Shopee] add_item body (attrs count):', attributeList.length)
 
@@ -564,14 +591,51 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
         // Funciona para TEXT_FIELD (Model Name etc). Para COMBO_BOX a Shopee retorna erro mas ao menos tentamos.
         console.log('[Shopee] retry - get_attributes suspenso, tentando original_value para attrs ausentes')
 
+        // Parsear specs reais do produto (array AliExpress ou objeto)
+        const parseAttrsForGuess = (raw: string | null | undefined): Record<string, string> => {
+          if (!raw) return {}
+          try {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) {
+              const out: Record<string, string> = {}
+              for (const item of parsed) {
+                const key = (item.nome || item.name || item.key || '').replace(/^\d+\.\s*/, '').trim().toLowerCase()
+                const val = String(item.valor || item.value || item.val || '')
+                if (key) out[key] = val
+              }
+              return out
+            }
+            if (typeof parsed === 'object' && parsed !== null) {
+              const out: Record<string, string> = {}
+              for (const [k, v] of Object.entries(parsed)) out[k.toLowerCase()] = String(v)
+              return out
+            }
+          } catch {}
+          return {}
+        }
+        const productSpecs: Record<string, string> = {
+          ...parseAttrsForGuess(product.specifications),
+          ...parseAttrsForGuess(product.attributes),
+          ...parseAttrsForGuess(product.technicalSpecs),
+        }
+        console.log('[Shopee] guessAttrValue - specs do produto:', JSON.stringify(productSpecs))
+
         // Mapeamento de nomes de atributo para valores inteligentes baseados no produto
         function guessAttrValue(attrName: string): string {
           const n = attrName.toLowerCase()
-          if (n.includes('model')) return (product.model || product.name || '').substring(0, 100)
-          if (n.includes('brand') || n.includes('marca')) return (product.brand || 'Other').substring(0, 50)
-          if (n.includes('color') || n.includes('cor')) return product.color || 'Other'
+          // 1º: procurar nas specs reais do produto
+          for (const [specKey, specVal] of Object.entries(productSpecs)) {
+            if (specVal && (specKey.includes(n) || n.includes(specKey))) return specVal.substring(0, 100)
+          }
+          // 2º: campos diretos do produto
+          if (n.includes('model')) return (product.model || productSpecs['modelo'] || productSpecs['model'] || product.name || '').substring(0, 100)
+          if (n.includes('brand') || n.includes('marca')) return (product.brand || productSpecs['marca'] || productSpecs['brand'] || 'Other').substring(0, 50)
+          if (n.includes('color') || n.includes('cor')) return product.color || productSpecs['cor'] || productSpecs['color'] || 'Other'
+          if (n.includes('material')) return productSpecs['material'] || productSpecs['materials'] || 'Other'
           if (n.includes('connection') || n.includes('conexão') || n.includes('connectivity')) {
-            const txt = (product.name + ' ' + (product.description || '')).toLowerCase()
+            const connSpec = productSpecs['conexão'] || productSpecs['connection'] || productSpecs['conectividade'] || ''
+            if (connSpec) return connSpec.substring(0, 100)
+            const txt = (product.name + ' ' + (product.description || '') + ' ' + connSpec).toLowerCase()
             if (txt.includes('bluetooth')) return 'Bluetooth'
             if (txt.includes('usb-c') || txt.includes('usb c')) return 'USB-C'
             if (txt.includes('usb')) return 'USB'
@@ -579,9 +643,9 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
             if (txt.includes('wifi') || txt.includes('wi-fi')) return 'WiFi'
             return 'Bluetooth'
           }
-          if (n.includes('item type') || n.includes('tipo')) return product.category?.name || product.name.substring(0, 50)
-          if (n.includes('material')) return 'Other'
-          if (n.includes('origin') || n.includes('origem')) return 'CN'
+          if (n.includes('item type') || n.includes('tipo')) return productSpecs['tipo'] || productSpecs['type'] || product.category?.name || product.name.substring(0, 50)
+          if (n.includes('origin') || n.includes('origem')) return productSpecs['origem'] || productSpecs['origin'] || 'CN'
+          if (n.includes('função') || n.includes('function') || n.includes('feature')) return productSpecs['função'] || productSpecs['function'] || productSpecs['features'] || product.name.substring(0, 100)
           return product.name.substring(0, 100)
         }
 
@@ -594,7 +658,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
           if (currentIds.has(miss.id)) {
             bodyObj.attribute_list = (bodyObj.attribute_list || []).map((a: any) => {
               if (a.attribute_id !== miss.id) return a
-              return { attribute_id: miss.id, attribute_value_list: [{ original_value_name: textVal }] }
+              return { attribute_id: miss.id, attribute_value_list: [{ value_id: 0, original_value_name: textVal }] }
             })
             continue
           }
@@ -603,9 +667,12 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
           const valList: any[] = attrDef?.attribute_value_list || []
           const nonZero = valList.find((v: any) => v.value_id && v.value_id !== 0)
           if (nonZero) {
-            extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{ value_id: nonZero.value_id }] })
+            extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{
+              value_id: nonZero.value_id,
+              original_value_name: nonZero.display_value_name || nonZero.value_name || textVal
+            }] })
           } else {
-            extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{ original_value_name: textVal }] })
+            extraAttrs.push({ attribute_id: miss.id, attribute_value_list: [{ value_id: 0, original_value_name: textVal }] })
           }
         }
 

@@ -647,8 +647,8 @@ export default function PublishToMarketplaceButton({
               .map(attr => ({
                 attribute_id: attr.id,
                 attribute_value_list: attr.values.length > 0
-                  ? [{ value_id: Number(shopeeAttrValues[attr.id]) }]
-                  : [{ original_value_name: String(shopeeAttrValues[attr.id]).substring(0, 256) }]
+                  ? [{ value_id: Number(shopeeAttrValues[attr.id]), original_value_name: String(attr.values.find((v: any) => String(v.value_id) === String(shopeeAttrValues[attr.id]))?.display_value_name || shopeeAttrValues[attr.id]).substring(0, 256) }]
+                  : [{ value_id: 0, original_value_name: String(shopeeAttrValues[attr.id]).substring(0, 256) }]
               })),
           } : undefined,
         }),
@@ -1423,9 +1423,8 @@ export default function PublishToMarketplaceButton({
                   )}
 
                   {!loadingShopeeAttrs && shopeeAttrError && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-xs font-semibold text-red-700 mb-1">⚠️ Atributos indisponíveis</p>
-                      <p className="text-xs text-red-600">{shopeeAttrError}</p>
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-xs font-semibold text-yellow-800">⚠️ Atributos da categoria serão preenchidos automaticamente com os dados do produto</p>
                     </div>
                   )}
 
