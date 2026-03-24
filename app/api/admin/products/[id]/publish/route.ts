@@ -305,15 +305,15 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
           console.log('[Shopee] falha ao baixar imagem, status:', imgFetch.status)
           continue
         }
-        const rawBytes = new Uint8Array(await imgFetch.arrayBuffer())
-        let uploadBytes: Uint8Array = rawBytes
+        const rawAB = await imgFetch.arrayBuffer()
+        let uploadAB: ArrayBuffer = rawAB
         let contentType = imgFetch.headers.get('content-type') || 'image/jpeg'
 
         // Shopee rejects WebP — convert to JPEG
         if (contentType.includes('webp') || (!contentType.includes('jpeg') && !contentType.includes('jpg') && !contentType.includes('png'))) {
           console.log('[Shopee] convertendo imagem de', contentType, 'para JPEG')
-          const jpegBuf = await sharp(Buffer.from(rawBytes)).jpeg({ quality: 90 }).toBuffer()
-          uploadBytes = new Uint8Array(jpegBuf.buffer, jpegBuf.byteOffset, jpegBuf.byteLength)
+          const jpegBuf = await sharp(Buffer.from(rawAB)).jpeg({ quality: 90 }).toBuffer()
+          uploadAB = jpegBuf.buffer.slice(jpegBuf.byteOffset, jpegBuf.byteOffset + jpegBuf.byteLength) as ArrayBuffer
           contentType = 'image/jpeg'
         }
         const ext = contentType.includes('png') ? 'png' : 'jpg'
@@ -325,8 +325,8 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
           .digest('hex')
 
         const formData = new FormData()
-        formData.append('image', new Blob([uploadBytes], { type: contentType }), `image.${ext}`)
-        console.log('[Shopee] enviando imagem como', contentType, 'tamanho:', uploadBytes.byteLength)
+        formData.append('image', new Blob([uploadAB], { type: contentType }), `image.${ext}`)
+        console.log('[Shopee] enviando imagem como', contentType, 'tamanho:', uploadAB.byteLength)
 
         const upRes = await fetch(
           `${SHOPEE_API_BASE}${upEndpoint}?partner_id=${auth.partnerId}&timestamp=${upTs}&sign=${upSign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
