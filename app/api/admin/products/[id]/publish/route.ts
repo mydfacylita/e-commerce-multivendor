@@ -305,14 +305,15 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
           console.log('[Shopee] falha ao baixar imagem, status:', imgFetch.status)
           continue
         }
-        const rawBuffer = Buffer.from(await imgFetch.arrayBuffer())
-        let uploadBuffer: Buffer = rawBuffer
+        const rawBytes = new Uint8Array(await imgFetch.arrayBuffer())
+        let uploadBytes: Uint8Array = rawBytes
         let contentType = imgFetch.headers.get('content-type') || 'image/jpeg'
 
         // Shopee rejects WebP — convert to JPEG
         if (contentType.includes('webp') || (!contentType.includes('jpeg') && !contentType.includes('jpg') && !contentType.includes('png'))) {
           console.log('[Shopee] convertendo imagem de', contentType, 'para JPEG')
-          uploadBuffer = await sharp(rawBuffer).jpeg({ quality: 90 }).toBuffer()
+          const jpegBuf = await sharp(Buffer.from(rawBytes)).jpeg({ quality: 90 }).toBuffer()
+          uploadBytes = new Uint8Array(jpegBuf.buffer, jpegBuf.byteOffset, jpegBuf.byteLength)
           contentType = 'image/jpeg'
         }
         const ext = contentType.includes('png') ? 'png' : 'jpg'
@@ -324,8 +325,8 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
           .digest('hex')
 
         const formData = new FormData()
-        formData.append('image', new Blob([uploadBuffer], { type: contentType }), `image.${ext}`)
-        console.log('[Shopee] enviando imagem como', contentType, 'tamanho:', uploadBuffer.byteLength)
+        formData.append('image', new Blob([uploadBytes], { type: contentType }), `image.${ext}`)
+        console.log('[Shopee] enviando imagem como', contentType, 'tamanho:', uploadBytes.byteLength)
 
         const upRes = await fetch(
           `${SHOPEE_API_BASE}${upEndpoint}?partner_id=${auth.partnerId}&timestamp=${upTs}&sign=${upSign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
