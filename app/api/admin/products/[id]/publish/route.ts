@@ -490,13 +490,19 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
       }
     }
 
-    // Atributos: usar do formulário se fornecidos, senão detectar automaticamente
+    // Atributos: SEMPRE detectar automaticamente, depois aplicar override do formulário
+    // Isso garante que atributos obrigatórios que o usuário não preencheu
+    // ainda sejam enviados com fallback automático
+    const autoAttrs = await getShopeeAttributes(auth, accessToken, categoryId, product)
     let attributeList: any[]
     if (formData?.attributes && Array.isArray(formData.attributes) && formData.attributes.length > 0) {
-      attributeList = formData.attributes
-      console.log('[Shopee] atributos do formulário:', attributeList.length)
+      console.log('[Shopee] atributos do formulário:', formData.attributes.length, '+ auto-completando restantes')
+      const userAttrIds = new Set(formData.attributes.map((a: any) => a.attribute_id))
+      const autoFill = autoAttrs.filter((a: any) => !userAttrIds.has(a.attribute_id))
+      attributeList = [...formData.attributes, ...autoFill]
+      console.log('[Shopee] total atributos merged:', attributeList.length)
     } else {
-      attributeList = await getShopeeAttributes(auth, accessToken, categoryId, product)
+      attributeList = autoAttrs
     }
 
     // Peso e dimensões: formulário > produto > fallback

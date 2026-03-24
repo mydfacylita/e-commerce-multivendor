@@ -64,14 +64,15 @@ export async function GET(request: NextRequest) {
     const attrList: any[] = data?.response?.attributes || data?.response?.attribute_list || []
 
     // Return structured attributes for the form
+    // is_mandatory can be boolean true OR number 1 depending on API version
     const attributes = attrList.map((attr: any) => ({
       id: attr.attribute_id,
       name: attr.display_attribute_name || attr.attribute_name || '',
-      isMandatory: attr.is_mandatory === true || attr.mandatory === true,
+      isMandatory: !!(attr.is_mandatory || attr.mandatory),
       inputType: attr.input_type || 'TEXT_FIELD',
       values: (attr.attribute_value_list || []).map((v: any) => ({
         id: v.value_id,
-        name: v.display_value_name || v.value_name || '',
+        name: v.display_value_name || v.value_name || String(v.value_id),
       })),
     }))
 

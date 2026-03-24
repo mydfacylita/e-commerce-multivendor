@@ -87,6 +87,7 @@ export async function DELETE(
 
     if (marketplace === 'shopee') {
       await deleteShopee(listing.listingId)
+      // Remove do banco independente do resultado Shopee (item pode já não existir lá)
       await prisma.marketplaceListing.delete({
         where: { productId_marketplace: { productId: params.id, marketplace } }
       })

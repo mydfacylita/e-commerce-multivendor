@@ -385,6 +385,19 @@ export default function PublishToMarketplaceButton({
           showInfoModal({ type: 'warning', title: 'Peso obrigatório', message: 'Informe o peso do produto em kg.' })
           return
         }
+        // Validar atributos obrigatórios
+        const missingAttrs = shopeeAttributes.filter(a =>
+          a.isMandatory && (shopeeAttrValues[a.id] === undefined || shopeeAttrValues[a.id] === '')
+        )
+        if (missingAttrs.length > 0) {
+          showInfoModal({
+            type: 'warning',
+            title: 'Atributos obrigatórios não preenchidos',
+            message: `Preencha os campos obrigatórios da categoria antes de continuar:`,
+            details: missingAttrs.map(a => `• ${a.name}`)
+          })
+          return
+        }
         setCurrentStep(3)
         loadShopeeLogistics()
         return
