@@ -447,15 +447,6 @@ export default function PublishToMarketplaceButton({
           showInfoModal({ type: 'warning', title: 'Peso obrigatório', message: 'Informe o peso do produto em kg.' })
           return
         }
-        // Bloquear se atributos falharam (api_suspended)
-        if (shopeeAttrError) {
-          showInfoModal({
-            type: 'warning',
-            title: 'Atributos da categoria indisponíveis',
-            message: shopeeAttrError
-          })
-          return
-        }
         // Validar atributos obrigatórios
         const missingAttrs = shopeeAttributes.filter(a =>
           a.isMandatory && (shopeeAttrValues[a.id] === undefined || shopeeAttrValues[a.id] === '')
