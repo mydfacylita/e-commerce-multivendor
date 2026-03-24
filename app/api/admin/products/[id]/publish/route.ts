@@ -247,11 +247,13 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
       .digest('hex')
 
     const res = await fetch(
-      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&language=pt-BR`,
+      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}`,
       { method: 'GET' }
     )
     const data = await res.json()
-    const attrList: any[] = data?.response?.attributes || []
+    // Shopee may use 'attributes' or 'attribute_list' depending on API version
+    const attrList: any[] = data?.response?.attributes || data?.response?.attribute_list || []
+    console.log('[Shopee] get_attributes para categoria', categoryId, '-> total:', attrList.length, 'error:', data?.error || 'ok')
 
     // Parsear specs/attributes do produto
     let specs: Record<string, string> = {}
@@ -315,14 +317,14 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
             attribute_id: attrId,
             attribute_value_list: [{ value_id: match.value_id }],
           })
-        } else if (attr.input_type === 'TEXT_FILED' || attr.input_type === 'COMBO_BOX') {
+        } else if (attr.input_type === 'TEXT_FIELD' || attr.input_type === 'TEXT_FILED' || attr.input_type === 'COMBO_BOX') {
           // Campo de texto livre - usar o valor diretamente
           result.push({
             attribute_id: attrId,
             attribute_value_list: [{ original_value: value.substring(0, 256) }],
           })
         }
-      } else if (attr.input_type === 'TEXT_FILED' || attr.input_type === 'TEXT_AREA' || !attr.input_type) {
+      } else if (attr.input_type === 'TEXT_FIELD' || attr.input_type === 'TEXT_FILED' || attr.input_type === 'TEXT_AREA' || !attr.input_type) {
         result.push({
           attribute_id: attrId,
           attribute_value_list: [{ original_value: value.substring(0, 256) }],
@@ -488,6 +490,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = []): P
       normal_stock: product.stock,
       seller_stock: [{ stock: product.stock }],
       item_sku: (product.supplierSku || product.gtin || '').substring(0, 100),
+      gtin: product.gtin ? product.gtin.substring(0, 14) : undefined,
       dimension: { package_length: Math.round(pkgLength), package_width: Math.round(pkgWidth), package_height: Math.round(pkgHeight) },
       logistic_info: logisticChannels.length > 0
         ? logisticChannels.map(id => ({ logistic_id: id, enabled: true }))
