@@ -237,6 +237,107 @@ async function refreshShopeeToken(userId: string): Promise<string> {
   return auth.accessToken
 }
 
+// Busca atributos da categoria e tenta preenchê-los com os dados do produto
+async function getShopeeAttributes(auth: any, accessToken: string, categoryId: number, product: any): Promise<any[]> {
+  try {
+    const endpoint = '/api/v2/product/get_attributes'
+    const timestamp = Math.floor(Date.now() / 1000)
+    const sign = crypto.createHmac('sha256', auth.partnerKey)
+      .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
+      .digest('hex')
+
+    const res = await fetch(
+      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&language=pt-BR`,
+      { method: 'GET' }
+    )
+    const data = await res.json()
+    const attrList: any[] = data?.response?.attributes || []
+
+    // Parsear specs/attributes do produto
+    let specs: Record<string, string> = {}
+    try { Object.assign(specs, JSON.parse(product.specifications || '{}')) } catch {}
+    try { Object.assign(specs, JSON.parse(product.attributes || '{}')) } catch {}
+    try { Object.assign(specs, JSON.parse(product.technicalSpecs || '{}')) } catch {}
+    const specsLower: Record<string, string> = {}
+    for (const [k, v] of Object.entries(specs)) specsLower[k.toLowerCase()] = String(v)
+
+    // Mapeamento de campos do produto para palavras-chave de atributo
+    const fieldMap: Record<string, string> = {
+      brand: product.brand || '',
+      marca: product.brand || '',
+      model: product.model || '',
+      modelo: product.model || '',
+      color: product.color || '',
+      cor: product.color || '',
+      gtin: product.gtin || '',
+      ean: product.gtin || '',
+      weight: product.weight ? String(product.weight) : '',
+      peso: product.weight ? String(product.weight) : '',
+      country: product.shipFromCountry || product.supplierCountryCode || 'BR',
+      origem: product.shipFromCountry || product.supplierCountryCode || 'BR',
+      'país de origem': product.shipFromCountry || product.supplierCountryCode || 'BR',
+      voltagem: specsLower['voltagem'] || specsLower['tensão'] || specsLower['voltage'] || '',
+      voltage: specsLower['voltage'] || specsLower['voltagem'] || '',
+      garantia: specsLower['garantia'] || specsLower['warranty'] || '',
+      warranty: specsLower['warranty'] || specsLower['garantia'] || '',
+    }
+    // Juntar com specs parseadas
+    Object.assign(fieldMap, specsLower)
+
+    const result: any[] = []
+
+    for (const attr of attrList) {
+      const attrName: string = (attr.display_attribute_name || attr.attribute_name || '').toLowerCase()
+      const attrId: number = attr.attribute_id
+
+      // Tentar encontrar um valor compatível
+      let value: string | null = null
+
+      // Procurar por correspondência no mapa de campos
+      for (const [key, val] of Object.entries(fieldMap)) {
+        if (val && (attrName.includes(key) || key.includes(attrName))) {
+          value = val
+          break
+        }
+      }
+
+      if (!value) continue
+
+      // Se o atributo tem valores predefinidos, tentar casar
+      if (attr.attribute_value_list && attr.attribute_value_list.length > 0) {
+        const valueLower = value.toLowerCase()
+        const match = attr.attribute_value_list.find((v: any) => {
+          const vName = (v.display_value_name || v.value_name || '').toLowerCase()
+          return vName === valueLower || vName.includes(valueLower) || valueLower.includes(vName)
+        })
+        if (match) {
+          result.push({
+            attribute_id: attrId,
+            attribute_value_list: [{ value_id: match.value_id }],
+          })
+        } else if (attr.input_type === 'TEXT_FILED' || attr.input_type === 'COMBO_BOX') {
+          // Campo de texto livre - usar o valor diretamente
+          result.push({
+            attribute_id: attrId,
+            attribute_value_list: [{ original_value: value.substring(0, 256) }],
+          })
+        }
+      } else if (attr.input_type === 'TEXT_FILED' || attr.input_type === 'TEXT_AREA' || !attr.input_type) {
+        result.push({
+          attribute_id: attrId,
+          attribute_value_list: [{ original_value: value.substring(0, 256) }],
+        })
+      }
+    }
+
+    console.log('[Shopee] atributos preenchidos:', result.length, 'de', attrList.length)
+    return result
+  } catch (e: any) {
+    console.log('[Shopee] erro ao buscar atributos:', e.message)
+    return []
+  }
+}
+
 // Busca o ID de uma categoria válida na Shopee, tentando casar com o nome da categoria do produto
 async function getShopeeCategory(auth: any, accessToken: string, productCategoryName?: string | null): Promise<number> {
   try {
@@ -367,21 +468,35 @@ async function publishToShopee(product: any, logisticChannels: number[] = []): P
       return { success: false, message: 'Não foi possível encontrar uma categoria válida na Shopee para este produto.' }
     }
 
-    const bodyObj = {
+    // Buscar e mapear atributos da categoria
+    const attributeList = await getShopeeAttributes(auth, accessToken, categoryId, product)
+
+    // Peso: usar do produto se disponível, senão 0.5kg
+    const weightKg = product.weightWithPackage || product.weight || 0.5
+
+    // Dimensões: usar do produto se disponível (em cm), senão fallback
+    const pkgLength = product.lengthWithPackage || product.length || 20
+    const pkgWidth = product.widthWithPackage || product.width || 15
+    const pkgHeight = product.heightWithPackage || product.height || 10
+
+    const bodyObj: any = {
       original_price: product.price,
       description: (product.description || product.name).substring(0, 3000),
-      weight: 0.5,
+      weight: weightKg,
       item_name: product.name.substring(0, 120),
       item_status: 'NORMAL',
       normal_stock: product.stock,
       seller_stock: [{ stock: product.stock }],
-      dimension: { package_length: 20, package_width: 15, package_height: 10 },
+      dimension: { package_length: Math.round(pkgLength), package_width: Math.round(pkgWidth), package_height: Math.round(pkgHeight) },
       logistic_info: logisticChannels.length > 0
         ? logisticChannels.map(id => ({ logistic_id: id, enabled: true }))
         : [{ logistic_id: 0, enabled: true }],
       image: { image_id_list: uploadedImageIds },
-      brand: { brand_id: 0, original_brand_name: product.brand || '' },
+      brand: { brand_id: 0, original_brand_name: (product.brand || 'Sem marca').substring(0, 50) },
       category_id: categoryId,
+    }
+    if (attributeList.length > 0) {
+      bodyObj.attribute_list = attributeList
     }
     const bodyStr = JSON.stringify(bodyObj)
     console.log('[Shopee] add_item body:', bodyStr)
