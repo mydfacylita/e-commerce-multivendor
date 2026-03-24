@@ -52,6 +52,7 @@ export const POST = withAuth(
       const logisticChannels: number[] = Array.isArray(data.logisticChannels)
         ? data.logisticChannels.filter((id: any) => Number.isInteger(id))
         : []
+      const shopeeFormData = data.shopeeFormData && typeof data.shopeeFormData === 'object' ? data.shopeeFormData : null
 
       if (!marketplace || !['mercadolivre', 'shopee'].includes(marketplace)) {
         return NextResponse.json(
@@ -142,7 +143,7 @@ export const POST = withAuth(
     }
 
     if (marketplace === 'shopee') {
-      const shopeeResult = await publishToShopee(product, logisticChannels)
+      const shopeeResult = await publishToShopee(product, logisticChannels, shopeeFormData)
 
       if (!shopeeResult.success) {
         return NextResponse.json(
@@ -390,7 +391,7 @@ async function getShopeeCategory(auth: any, accessToken: string, productCategory
   }
 }
 
-async function publishToShopee(product: any, logisticChannels: number[] = []): Promise<{ success: boolean; itemId?: string; message: string; details?: any }> {
+async function publishToShopee(product: any, logisticChannels: number[] = [], formData: any = null): Promise<{ success: boolean; itemId?: string; message: string; details?: any }> {
   try {
     // Buscar admin com Shopee conectada
     const adminUser = await prisma.user.findFirst({
@@ -476,29 +477,43 @@ async function publishToShopee(product: any, logisticChannels: number[] = []): P
     const baseString = `${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`
     const sign = crypto.createHmac('sha256', auth.partnerKey).update(baseString).digest('hex')
 
-    // Buscar categoria válida na Shopee
-    const categoryId = await getShopeeCategory(auth, accessToken, product.category?.name)
-    console.log('[Shopee] categoryId:', categoryId, 'categoria produto:', product.category?.name)
-    if (!categoryId) {
-      return { success: false, message: 'Não foi possível encontrar uma categoria válida na Shopee para este produto.' }
+    // Categoria: usar do formulário se disponível, senão buscar automaticamente
+    let categoryId: number
+    if (formData?.categoryId) {
+      categoryId = Number(formData.categoryId)
+      console.log('[Shopee] categoryId do formulário:', categoryId)
+    } else {
+      categoryId = await getShopeeCategory(auth, accessToken, product.category?.name)
+      console.log('[Shopee] categoryId detectado automaticamente:', categoryId, 'categoria produto:', product.category?.name)
+      if (!categoryId) {
+        return { success: false, message: 'Não foi possível encontrar uma categoria válida na Shopee. Preencha o formulário de publicação.' }
+      }
     }
 
-    // Buscar e mapear atributos da categoria
-    const attributeList = await getShopeeAttributes(auth, accessToken, categoryId, product)
+    // Atributos: usar do formulário se fornecidos, senão detectar automaticamente
+    let attributeList: any[]
+    if (formData?.attributes && Array.isArray(formData.attributes) && formData.attributes.length > 0) {
+      attributeList = formData.attributes
+      console.log('[Shopee] atributos do formulário:', attributeList.length)
+    } else {
+      attributeList = await getShopeeAttributes(auth, accessToken, categoryId, product)
+    }
 
-    // Peso: usar do produto se disponível, senão 0.5kg
-    const weightKg = product.weightWithPackage || product.weight || 0.5
+    // Peso e dimensões: formulário > produto > fallback
+    const weightKg = formData?.weight || product.weightWithPackage || product.weight || 0.5
+    const pkgLength = formData?.pkgLength || product.lengthWithPackage || product.length || 20
+    const pkgWidth = formData?.pkgWidth || product.widthWithPackage || product.width || 15
+    const pkgHeight = formData?.pkgHeight || product.heightWithPackage || product.height || 10
 
-    // Dimensões: usar do produto se disponível (em cm), senão fallback
-    const pkgLength = product.lengthWithPackage || product.length || 20
-    const pkgWidth = product.widthWithPackage || product.width || 15
-    const pkgHeight = product.heightWithPackage || product.height || 10
+    // Nome e marca: formulário > produto
+    const itemName = formData?.itemName?.trim() ? formData.itemName.trim().substring(0, 120) : product.name.substring(0, 120)
+    const brandName = formData?.brand?.trim() || product.brand || 'Sem marca'
 
     const bodyObj: any = {
       original_price: product.price,
       description: (product.description || product.name).substring(0, 3000),
       weight: weightKg,
-      item_name: product.name.substring(0, 120),
+      item_name: itemName,
       item_status: 'NORMAL',
       normal_stock: product.stock,
       seller_stock: [{ stock: product.stock }],
@@ -509,7 +524,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = []): P
         ? logisticChannels.map(id => ({ logistic_id: id, enabled: true }))
         : [{ logistic_id: 0, enabled: true }],
       image: { image_id_list: uploadedImageIds },
-      brand: { brand_id: 0, original_brand_name: (product.brand || 'Sem marca').substring(0, 50) },
+      brand: { brand_id: 0, original_brand_name: brandName.substring(0, 50) },
       category_id: categoryId,
     }
     if (attributeList.length > 0) {

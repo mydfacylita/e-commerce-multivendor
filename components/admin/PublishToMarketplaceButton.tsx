@@ -126,6 +126,15 @@ export default function PublishToMarketplaceButton({
   const [selectedChannelIds, setSelectedChannelIds] = useState<number[]>([])
   const [loadingLogistics, setLoadingLogistics] = useState(false)
 
+  // ========== SHOPEE FORM DATA ==========
+  const [shopeeFormData, setShopeeFormData] = useState({ categoryId: 0, categoryName: '', itemName: productName, brand: '', weight: '', pkgLength: '', pkgWidth: '', pkgHeight: '' })
+  const [shopeeAttributes, setShopeeAttributes] = useState<any[]>([])
+  const [shopeeAttrValues, setShopeeAttrValues] = useState<Record<number, string | number>>({})
+  const [shopeeCategoryQuery, setShopeeCategoryQuery] = useState('')
+  const [shopeeCategoryResults, setShopeeCategoryResults] = useState<any[]>([])
+  const [loadingShopeeCats, setLoadingShopeeCats] = useState(false)
+  const [loadingShopeeAttrs, setLoadingShopeeAttrs] = useState(false)
+
   const showInfoModal = (config: Omit<InfoModal, 'isOpen'>) => {
     setModal({ ...config, isOpen: true })
   }
@@ -151,6 +160,30 @@ export default function PublishToMarketplaceButton({
     setCatalogQuery('')
     setShopeeChannels([])
     setSelectedChannelIds([])
+    setShopeeFormData({ categoryId: 0, categoryName: '', itemName: productName, brand: '', weight: '', pkgLength: '', pkgWidth: '', pkgHeight: '' })
+    setShopeeAttributes([])
+    setShopeeAttrValues({})
+    setShopeeCategoryQuery('')
+    setShopeeCategoryResults([])
+  }
+
+  // Selecionar categoria Shopee e carregar atributos
+  const selectShopeeCategory = async (cat: { id: number; name: string }) => {
+    setShopeeFormData(prev => ({ ...prev, categoryId: cat.id, categoryName: cat.name }))
+    setShopeeCategoryResults([])
+    setShopeeCategoryQuery('')
+    setLoadingShopeeAttrs(true)
+    setShopeeAttributes([])
+    setShopeeAttrValues({})
+    try {
+      const res = await fetch(`/api/admin/marketplaces/shopee/attributes?categoryId=${cat.id}`)
+      const data = await res.json()
+      if (data.attributes) setShopeeAttributes(data.attributes)
+    } catch (e) {
+      console.error('Erro ao carregar atributos Shopee:', e)
+    } finally {
+      setLoadingShopeeAttrs(false)
+    }
   }
 
   // Carregar canais logísticos da Shopee
@@ -300,6 +333,21 @@ export default function PublishToMarketplaceButton({
     }
   }
 
+  // Debounce busca de categorias Shopee
+  useEffect(() => {
+    if (shopeeCategoryQuery.length < 2) { setShopeeCategoryResults([]); return }
+    const timer = setTimeout(async () => {
+      setLoadingShopeeCats(true)
+      try {
+        const res = await fetch(`/api/admin/marketplaces/shopee/categories?query=${encodeURIComponent(shopeeCategoryQuery)}`)
+        const d = await res.json()
+        if (d.categories) setShopeeCategoryResults(d.categories)
+      } catch {}
+      finally { setLoadingShopeeCats(false) }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [shopeeCategoryQuery])
+
   // Avançar para o próximo passo
   const nextStep = async () => {
     if (currentStep === 1) {
@@ -311,10 +359,9 @@ export default function PublishToMarketplaceButton({
         })
         return
       }
-      // Shopee: vai para step 2 (seleção de logística)
+      // Shopee: vai para step 2 (formulário de dados)
       if (selectedMarketplace === 'shopee') {
         setCurrentStep(2)
-        loadShopeeLogistics()
         return
       }
       // Amazon e outros: pula para confirmar
@@ -324,17 +371,22 @@ export default function PublishToMarketplaceButton({
       }
       setCurrentStep(2)
     } else if (currentStep === 2) {
-      // Shopee: confirmar sem precisar de categoria
+      // Shopee: validar formulário e ir para logística
       if (selectedMarketplace === 'shopee') {
-        if (selectedChannelIds.length === 0) {
-          showInfoModal({
-            type: 'warning',
-            title: 'Selecione pelo menos um método de envio',
-            message: 'A Shopee exige que pelo menos um canal de entrega seja ativado para o produto.'
-          })
+        if (!shopeeFormData.categoryId) {
+          showInfoModal({ type: 'warning', title: 'Selecione uma Categoria', message: 'Escolha a categoria do produto na Shopee antes de continuar.' })
+          return
+        }
+        if (!shopeeFormData.itemName.trim()) {
+          showInfoModal({ type: 'warning', title: 'Nome obrigatório', message: 'Preencha o nome do produto.' })
+          return
+        }
+        if (!shopeeFormData.weight) {
+          showInfoModal({ type: 'warning', title: 'Peso obrigatório', message: 'Informe o peso do produto em kg.' })
           return
         }
         setCurrentStep(3)
+        loadShopeeLogistics()
         return
       }
       if (!selectedCategory) {
@@ -358,6 +410,17 @@ export default function PublishToMarketplaceButton({
       // Catálogo opcional ou não encontrado — avança normalmente
       setCurrentStep(3)
       validateProduct()
+    } else if (currentStep === 3 && selectedMarketplace === 'shopee') {
+      // Shopee passo 3: validar logística e ir para confirmar
+      if (selectedChannelIds.length === 0) {
+        showInfoModal({
+          type: 'warning',
+          title: 'Selecione pelo menos um método de envio',
+          message: 'A Shopee exige que pelo menos um canal de entrega seja ativado para o produto.'
+        })
+        return
+      }
+      setCurrentStep(4)
     }
   }
 
@@ -496,6 +559,23 @@ export default function PublishToMarketplaceButton({
           mlCategoryId: selectedCategory?.id,
           catalogProductId: selectedCatalogProduct?.id,
           logisticChannels: selectedChannelIds,
+          shopeeFormData: selectedMarketplace === 'shopee' ? {
+            categoryId: shopeeFormData.categoryId,
+            itemName: shopeeFormData.itemName.trim(),
+            brand: shopeeFormData.brand.trim(),
+            weight: parseFloat(shopeeFormData.weight) || undefined,
+            pkgLength: parseFloat(shopeeFormData.pkgLength) || undefined,
+            pkgWidth: parseFloat(shopeeFormData.pkgWidth) || undefined,
+            pkgHeight: parseFloat(shopeeFormData.pkgHeight) || undefined,
+            attributes: shopeeAttributes
+              .filter(attr => shopeeAttrValues[attr.id] !== undefined && shopeeAttrValues[attr.id] !== '')
+              .map(attr => ({
+                attribute_id: attr.id,
+                attribute_value_list: attr.values.length > 0
+                  ? [{ value_id: Number(shopeeAttrValues[attr.id]) }]
+                  : [{ original_value: String(shopeeAttrValues[attr.id]).substring(0, 256) }]
+              })),
+          } : undefined,
         }),
       })
 
@@ -1039,35 +1119,33 @@ export default function PublishToMarketplaceButton({
               </div>
               
               {/* Indicador de Passos */}
-              <div className="flex items-center justify-center space-x-2">
-                {[1, 2, 3].map((step) => (
-                  <div key={step} className="flex items-center">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                        currentStep >= step
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-gray-200 text-gray-500'
-                      }`}
-                    >
-                      {currentStep > step ? <FiCheck size={16} /> : step}
+              {(() => {
+                const totalSteps = selectedMarketplace === 'shopee' ? 4 : 3
+                const stepLabels = selectedMarketplace === 'shopee'
+                  ? ['Marketplace', 'Dados', 'Envio', 'Confirmar']
+                  : ['Marketplace', 'Categoria', 'Confirmar']
+                return (
+                  <>
+                    <div className="flex items-center justify-center space-x-2">
+                      {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step) => (
+                        <div key={step} className="flex items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${currentStep >= step ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                            {currentStep > step ? <FiCheck size={16} /> : step}
+                          </div>
+                          {step < totalSteps && (
+                            <div className={`w-10 h-1 mx-1 ${currentStep > step ? 'bg-primary-600' : 'bg-gray-200'}`} />
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    {step < 3 && (
-                      <div
-                        className={`w-12 h-1 mx-1 ${
-                          currentStep > step ? 'bg-primary-600' : 'bg-gray-200'
-                        }`}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-center text-xs text-gray-500 mt-2 space-x-8">
-                <span className={currentStep >= 1 ? 'text-primary-600 font-medium' : ''}>Marketplace</span>
-                <span className={currentStep >= 2 ? 'text-primary-600 font-medium' : ''}>
-                  {selectedMarketplace === 'shopee' ? 'Envio' : 'Categoria'}
-                </span>
-                <span className={currentStep >= 3 ? 'text-primary-600 font-medium' : ''}>Confirmar</span>
-              </div>
+                    <div className="flex justify-center text-xs text-gray-500 mt-2 gap-6">
+                      {stepLabels.map((label, i) => (
+                        <span key={i} className={currentStep >= i + 1 ? 'text-primary-600 font-medium' : ''}>{label}</span>
+                      ))}
+                    </div>
+                  </>
+                )
+              })()}
             </div>
             
             {/* Conteúdo do Modal */}
@@ -1204,8 +1282,230 @@ export default function PublishToMarketplaceButton({
                 </div>
               )}
 
-              {/* PASSO 2: Logística para Shopee */}
+              {/* PASSO 2: Formulário de dados para Shopee */}
               {currentStep === 2 && selectedMarketplace === 'shopee' && (
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">Dados para Publicação na Shopee</h3>
+                    <p className="text-sm text-gray-500">Preencha os dados antes de publicar. Isso evita erros de atributos obrigatórios.</p>
+                  </div>
+
+                  {/* Seleção de Categoria */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Categoria Shopee <span className="text-red-500">*</span></label>
+                    {shopeeFormData.categoryId > 0 ? (
+                      <div className="flex items-center justify-between p-3 bg-green-50 border border-green-300 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-green-800">{shopeeFormData.categoryName}</p>
+                          <p className="text-xs text-gray-500">ID: {shopeeFormData.categoryId}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShopeeFormData(prev => ({ ...prev, categoryId: 0, categoryName: '' }))
+                            setShopeeAttributes([])
+                            setShopeeAttrValues({})
+                          }}
+                          className="text-xs text-red-500 hover:underline"
+                        >Alterar</button>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="relative">
+                          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                          <input
+                            type="text"
+                            value={shopeeCategoryQuery}
+                            onChange={e => setShopeeCategoryQuery(e.target.value)}
+                            placeholder="Digite para buscar categoria..."
+                            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400"
+                          />
+                          {loadingShopeeCats && <FiRefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-orange-400" size={14} />}
+                        </div>
+                        {shopeeCategoryResults.length > 0 && (
+                          <div className="border rounded-md max-h-48 overflow-y-auto mt-1 shadow-sm">
+                            {shopeeCategoryResults.map((cat: any) => (
+                              <button
+                                key={cat.id}
+                                onClick={() => selectShopeeCategory(cat)}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-orange-50 border-b last:border-0 flex items-center justify-between"
+                              >
+                                <span>{cat.name}</span>
+                                <FiChevronRight className="text-gray-400" size={14} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Atributos da categoria */}
+                  {loadingShopeeAttrs && (
+                    <div className="text-center py-4">
+                      <FiRefreshCw className="animate-spin mx-auto text-orange-500" size={20} />
+                      <p className="text-xs text-gray-500 mt-1">Carregando atributos da categoria...</p>
+                    </div>
+                  )}
+
+                  {!loadingShopeeAttrs && shopeeAttributes.length > 0 && (
+                    <div className="space-y-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <h4 className="text-sm font-semibold text-orange-800">Atributos Obrigatórios da Categoria</h4>
+                      {shopeeAttributes.filter(a => a.isMandatory).map((attr: any) => (
+                        <div key={attr.id}>
+                          <label className="block text-sm font-medium mb-1">
+                            {attr.name} <span className="text-red-500">*</span>
+                          </label>
+                          {attr.values.length > 0 ? (
+                            <select
+                              value={shopeeAttrValues[attr.id] || ''}
+                              onChange={e => setShopeeAttrValues(prev => ({ ...prev, [attr.id]: e.target.value }))}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400"
+                            >
+                              <option value="">-- Selecione --</option>
+                              {attr.values.map((v: any) => (
+                                <option key={v.id} value={v.id}>{v.name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={shopeeAttrValues[attr.id] || ''}
+                              onChange={e => setShopeeAttrValues(prev => ({ ...prev, [attr.id]: e.target.value }))}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400"
+                              placeholder={`${attr.name}...`}
+                            />
+                          )}
+                        </div>
+                      ))}
+                      {shopeeAttributes.filter(a => !a.isMandatory).length > 0 && (
+                        <details className="pt-2">
+                          <summary className="text-xs text-gray-500 cursor-pointer select-none">
+                            Atributos opcionais ({shopeeAttributes.filter(a => !a.isMandatory).length})
+                          </summary>
+                          <div className="space-y-3 mt-2">
+                            {shopeeAttributes.filter(a => !a.isMandatory).map((attr: any) => (
+                              <div key={attr.id}>
+                                <label className="block text-sm font-medium mb-1">{attr.name}</label>
+                                {attr.values.length > 0 ? (
+                                  <select
+                                    value={shopeeAttrValues[attr.id] || ''}
+                                    onChange={e => setShopeeAttrValues(prev => ({ ...prev, [attr.id]: e.target.value }))}
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                  >
+                                    <option value="">-- Não informar --</option>
+                                    {attr.values.map((v: any) => (
+                                      <option key={v.id} value={v.id}>{v.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={shopeeAttrValues[attr.id] || ''}
+                                    onChange={e => setShopeeAttrValues(prev => ({ ...prev, [attr.id]: e.target.value }))}
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                    placeholder={`${attr.name}...`}
+                                  />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Dados do produto */}
+                  <div className="pt-3 border-t border-gray-200 space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-700">Dados do Produto</h4>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Nome do produto <span className="text-red-500">*</span>
+                        <span className="text-gray-400 font-normal ml-1">(até 120 caracteres)</span>
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={120}
+                        value={shopeeFormData.itemName}
+                        onChange={e => setShopeeFormData(prev => ({ ...prev, itemName: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400"
+                        placeholder="Nome do produto..."
+                      />
+                      <p className="text-xs text-gray-400 mt-0.5 text-right">{shopeeFormData.itemName.length}/120</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Marca</label>
+                      <input
+                        type="text"
+                        value={shopeeFormData.brand}
+                        onChange={e => setShopeeFormData(prev => ({ ...prev, brand: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400"
+                        placeholder="Ex: Samsung, Xiaomi, Sem marca..."
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          Peso (kg) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={shopeeFormData.weight}
+                          onChange={e => setShopeeFormData(prev => ({ ...prev, weight: e.target.value }))}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400"
+                          placeholder="Ex: 0.5"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Dimensões da embalagem (cm)</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <input
+                            type="number"
+                            min="1"
+                            value={shopeeFormData.pkgLength}
+                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgLength: e.target.value }))}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                            placeholder="Comp."
+                          />
+                          <p className="text-xs text-gray-400 mt-0.5 text-center">Comprimento</p>
+                        </div>
+                        <div>
+                          <input
+                            type="number"
+                            min="1"
+                            value={shopeeFormData.pkgWidth}
+                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgWidth: e.target.value }))}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                            placeholder="Larg."
+                          />
+                          <p className="text-xs text-gray-400 mt-0.5 text-center">Largura</p>
+                        </div>
+                        <div>
+                          <input
+                            type="number"
+                            min="1"
+                            value={shopeeFormData.pkgHeight}
+                            onChange={e => setShopeeFormData(prev => ({ ...prev, pkgHeight: e.target.value }))}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                            placeholder="Alt."
+                          />
+                          <p className="text-xs text-gray-400 mt-0.5 text-center">Altura</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PASSO 3: Logística para Shopee */}
+              {currentStep === 3 && selectedMarketplace === 'shopee' && (
                 <div className="space-y-4">
                   <div>
                     <h3 className="font-semibold text-lg mb-1">Métodos de Envio</h3>
@@ -1492,8 +1792,8 @@ export default function PublishToMarketplaceButton({
                 </div>
               )}
 
-              {/* PASSO 3: Validação e Confirmação */}
-              {currentStep === 3 && (
+              {/* PASSO 3 (ML/outros) / PASSO 4 (Shopee): Validação e Confirmação */}
+              {((currentStep === 3 && selectedMarketplace !== 'shopee') || (currentStep === 4 && selectedMarketplace === 'shopee')) && (
                 <div className="space-y-4">
                   {/* Para Shopee: card de confirmação simples */}
                   {selectedMarketplace === 'shopee' && (
@@ -1723,15 +2023,17 @@ export default function PublishToMarketplaceButton({
               </button>
               
               <div className="flex space-x-3">
-                {currentStep < 3 ? (
+                {(selectedMarketplace === 'shopee' ? currentStep < 4 : currentStep < 3) ? (
                   <button
                     onClick={nextStep}
                     disabled={
                       (currentStep === 1 && !selectedMarketplace) ||
-                      (currentStep === 2 && selectedMarketplace === 'shopee' && selectedChannelIds.length === 0) ||
+                      (currentStep === 2 && selectedMarketplace === 'shopee' && !shopeeFormData.categoryId) ||
+                      (currentStep === 3 && selectedMarketplace === 'shopee' && selectedChannelIds.length === 0) ||
                       (currentStep === 2 && selectedMarketplace === 'mercadolivre' && !selectedCategory) ||
                       loadingCategory ||
-                      loadingLogistics
+                      loadingLogistics ||
+                      loadingShopeeAttrs
                     }
                     className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
