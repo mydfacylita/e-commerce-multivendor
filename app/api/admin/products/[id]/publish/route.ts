@@ -255,7 +255,7 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
     // Shopee may use 'attributes', 'attribute_list' or 'attribute_info_list' depending on API version
     const attrList: any[] = data?.response?.attributes || data?.response?.attribute_list || data?.response?.attribute_info_list || []
     console.log('[Shopee] get_attributes para categoria', categoryId, '-> total:', attrList.length, 'error:', data?.error || 'ok')
-    if (data?.error && data.error !== '') console.log('[Shopee] get_attributes resposta completa:', JSON.stringify(data))
+    console.log('[Shopee] get_attributes resposta completa:', JSON.stringify(data))
     if (attrList.length > 0) console.log('[Shopee] exemplo atributo[0]:', JSON.stringify(attrList[0]))
 
     // Parsear specs/attributes do produto
@@ -560,6 +560,15 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
         const rawAttrs = await fetchRawCategoryAttributes(auth, accessToken, categoryId)
         console.log('[Shopee] retry - total attrs brutos da categoria:', rawAttrs.length)
 
+        // Se api_suspended, não temos como descobrir os value_ids corretos
+        // Retornar erro claro em vez de enviar dados inválidos
+        if (rawAttrs.length === 0) {
+          const apiErrorMsg = 'get_attributes retornou api_suspended: o endpoint não está habilitado para este APP. ' +
+            'Acesse open.shopee.com → Console → Gerenciamento de Apps → Permissões de API e habilite product/get_attributes. ' +
+            `Atributos obrigatórios que precisam ser configurados: ${missing.map(m => `${m.name} (id:${m.id})`).join(', ')}`
+          return { success: false, message: `Erro Shopee: ${data.message}`, details: { missing_attrs: missing, fix: apiErrorMsg } }
+        }
+
         const currentIds = new Set((bodyObj.attribute_list || []).map((a: any) => a.attribute_id))
         const extraAttrs: any[] = []
 
@@ -646,6 +655,7 @@ async function fetchRawCategoryAttributes(auth: any, accessToken: string, catego
     )
     const data = await res.json()
     console.log('[Shopee] fetchRawCategoryAttributes error:', data?.error || 'ok')
+    console.log('[Shopee] fetchRawCategoryAttributes resposta completa:', JSON.stringify(data))
     return data?.response?.attributes || data?.response?.attribute_list || data?.response?.attribute_info_list || []
   } catch (e: any) {
     console.log('[Shopee] fetchRawCategoryAttributes erro:', e.message)

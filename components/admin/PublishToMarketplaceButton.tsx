@@ -155,6 +155,7 @@ export default function PublishToMarketplaceButton({
   const [shopeeCategoryResults, setShopeeCategoryResults] = useState<any[]>([])
   const [loadingShopeeCats, setLoadingShopeeCats] = useState(false)
   const [loadingShopeeAttrs, setLoadingShopeeAttrs] = useState(false)
+  const [shopeeAttrError, setShopeeAttrError] = useState<string | null>(null)
 
   const showInfoModal = (config: Omit<InfoModal, 'isOpen'>) => {
     setModal({ ...config, isOpen: true })
@@ -205,9 +206,18 @@ export default function PublishToMarketplaceButton({
     setLoadingShopeeAttrs(true)
     setShopeeAttributes([])
     setShopeeAttrValues({})
+    setShopeeAttrError(null)
     try {
       const res = await fetch(`/api/admin/marketplaces/shopee/attributes?categoryId=${cat.id}`)
       const data = await res.json()
+      if (data.error) {
+        console.error('[Shopee] erro ao carregar atributos:', data.error)
+        if (String(data.error).toLowerCase().includes('api_suspended') || String(data.error).toLowerCase().includes('suspended')) {
+          setShopeeAttrError(`Endpoint get_attributes suspenso (api_suspended). Verifique as permissões do seu APP em open.shopee.com → Console → Gerenciamento de Apps → Permissões de API e certifique-se que o endpoint product/get_attributes está habilitado.`)
+        } else {
+          setShopeeAttrError(`Erro ao carregar atributos: ${data.error}`)
+        }
+      }
       if (data.attributes) {
         setShopeeAttributes(data.attributes)
         // Pre-fill attribute values from product data based on attribute name
@@ -435,6 +445,15 @@ export default function PublishToMarketplaceButton({
         }
         if (!shopeeFormData.weight) {
           showInfoModal({ type: 'warning', title: 'Peso obrigatório', message: 'Informe o peso do produto em kg.' })
+          return
+        }
+        // Bloquear se atributos falharam (api_suspended)
+        if (shopeeAttrError) {
+          showInfoModal({
+            type: 'warning',
+            title: 'Atributos da categoria indisponíveis',
+            message: shopeeAttrError
+          })
           return
         }
         // Validar atributos obrigatórios
@@ -1409,6 +1428,13 @@ export default function PublishToMarketplaceButton({
                     <div className="text-center py-4">
                       <FiRefreshCw className="animate-spin mx-auto text-orange-500" size={20} />
                       <p className="text-xs text-gray-500 mt-1">Carregando atributos da categoria...</p>
+                    </div>
+                  )}
+
+                  {!loadingShopeeAttrs && shopeeAttrError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-xs font-semibold text-red-700 mb-1">⚠️ Atributos indisponíveis</p>
+                      <p className="text-xs text-red-600">{shopeeAttrError}</p>
                     </div>
                   )}
 
