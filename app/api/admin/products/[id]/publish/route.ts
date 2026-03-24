@@ -291,18 +291,30 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
       return { success: false, message: 'O produto não possui imagens. Adicione pelo menos uma imagem antes de publicar.' }
     }
 
-    // Upload das imagens via Shopee media space (necessário para imagens externas)
+    // Upload das imagens via Shopee media space
+    // Busca a imagem no nosso servidor e envia como binário (mais confiável que upload_by_url)
     const uploadedImageIds: string[] = []
     for (const imgUrl of imageUrlList) {
       try {
-        const upEndpoint = '/api/v2/media_space/upload_image_by_url'
+        // Baixar a imagem
+        const imgFetch = await fetch(imgUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+        if (!imgFetch.ok) continue
+        const imgBuffer = await imgFetch.arrayBuffer()
+        const contentType = imgFetch.headers.get('content-type') || 'image/jpeg'
+        const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
+
+        const upEndpoint = '/api/v2/media_space/upload_image'
         const upTs = Math.floor(Date.now() / 1000)
         const upSign = crypto.createHmac('sha256', auth.partnerKey)
           .update(`${auth.partnerId}${upEndpoint}${upTs}${accessToken}${auth.shopId}`)
           .digest('hex')
+
+        const formData = new FormData()
+        formData.append('image', new Blob([imgBuffer], { type: contentType }), `image.${ext}`)
+
         const upRes = await fetch(
           `${SHOPEE_API_BASE}${upEndpoint}?partner_id=${auth.partnerId}&timestamp=${upTs}&sign=${upSign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: imgUrl }) }
+          { method: 'POST', body: formData }
         )
         const upData = await upRes.json()
         const imageId = upData?.response?.image_id || upData?.response?.image_info?.image_id
