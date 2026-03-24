@@ -263,12 +263,16 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
     const specsLower: Record<string, string> = {}
     for (const [k, v] of Object.entries(specs)) specsLower[k.toLowerCase()] = String(v)
 
+    // Keywords usados para busca no nome/descrição do produto
+    const productText = `${product.name || ''} ${product.category?.name || ''} ${product.description || ''}`.toLowerCase()
+
     // Mapeamento de campos do produto para palavras-chave de atributo
     const fieldMap: Record<string, string> = {
       brand: product.brand || '',
       marca: product.brand || '',
-      model: product.model || '',
-      modelo: product.model || '',
+      'model name': product.model || product.name?.substring(0, 100) || '',
+      model: product.model || product.name?.substring(0, 100) || '',
+      modelo: product.model || product.name?.substring(0, 100) || '',
       color: product.color || '',
       cor: product.color || '',
       gtin: product.gtin || '',
@@ -286,16 +290,39 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
     // Juntar com specs parseadas
     Object.assign(fieldMap, specsLower)
 
+    const isTextField = (inputType: string) =>
+      !inputType || inputType === 'TEXT_FIELD' || inputType === 'TEXT_FILED' || inputType === 'TEXT_AREA'
+
+    // Helper: tenta casar valor de texto com lista predefinida
+    function matchPredefined(valueList: any[], searchText: string): any | null {
+      const lower = searchText.toLowerCase()
+      return valueList.find((v: any) => {
+        const vName = (v.display_value_name || v.value_name || '').toLowerCase()
+        return vName === lower || vName.includes(lower) || lower.includes(vName)
+      }) || null
+    }
+
+    // Helper: para atributos obrigatórios com lista predefinida, tenta casar contra o texto do produto
+    function matchPredefinedFromProduct(valueList: any[]): any | null {
+      for (const v of valueList) {
+        const vName = (v.display_value_name || v.value_name || '').toLowerCase()
+        if (vName && productText.includes(vName)) return v
+      }
+      return null
+    }
+
     const result: any[] = []
+    const filled = new Set<number>()
 
     for (const attr of attrList) {
-      const attrName: string = (attr.display_attribute_name || attr.attribute_name || '').toLowerCase()
+      const attrNameRaw: string = attr.display_attribute_name || attr.attribute_name || ''
+      const attrName: string = attrNameRaw.toLowerCase()
       const attrId: number = attr.attribute_id
+      const isMandatory: boolean = attr.is_mandatory === true || attr.mandatory === true
+      const hasPredefined = attr.attribute_value_list && attr.attribute_value_list.length > 0
 
-      // Tentar encontrar um valor compatível
+      // Tentar encontrar valor via fieldMap
       let value: string | null = null
-
-      // Procurar por correspondência no mapa de campos
       for (const [key, val] of Object.entries(fieldMap)) {
         if (val && (attrName.includes(key) || key.includes(attrName))) {
           value = val
@@ -303,32 +330,35 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
         }
       }
 
-      if (!value) continue
+      if (hasPredefined) {
+        // Tentar casar pelo valor do fieldMap
+        let match = value ? matchPredefined(attr.attribute_value_list, value) : null
 
-      // Se o atributo tem valores predefinidos, tentar casar
-      if (attr.attribute_value_list && attr.attribute_value_list.length > 0) {
-        const valueLower = value.toLowerCase()
-        const match = attr.attribute_value_list.find((v: any) => {
-          const vName = (v.display_value_name || v.value_name || '').toLowerCase()
-          return vName === valueLower || vName.includes(valueLower) || valueLower.includes(vName)
-        })
-        if (match) {
-          result.push({
-            attribute_id: attrId,
-            attribute_value_list: [{ value_id: match.value_id }],
-          })
-        } else if (attr.input_type === 'TEXT_FIELD' || attr.input_type === 'TEXT_FILED' || attr.input_type === 'COMBO_BOX') {
-          // Campo de texto livre - usar o valor diretamente
-          result.push({
-            attribute_id: attrId,
-            attribute_value_list: [{ original_value: value.substring(0, 256) }],
-          })
+        // Se não casou e atributo é obrigatório, tentar casar pelo texto do produto
+        if (!match && isMandatory) {
+          match = matchPredefinedFromProduct(attr.attribute_value_list)
+          // Último recurso: usar o primeiro valor disponível
+          if (!match) match = attr.attribute_value_list[0]
         }
-      } else if (attr.input_type === 'TEXT_FIELD' || attr.input_type === 'TEXT_FILED' || attr.input_type === 'TEXT_AREA' || !attr.input_type) {
-        result.push({
-          attribute_id: attrId,
-          attribute_value_list: [{ original_value: value.substring(0, 256) }],
-        })
+
+        if (match) {
+          result.push({ attribute_id: attrId, attribute_value_list: [{ value_id: match.value_id }] })
+          filled.add(attrId)
+        } else if (value && (attr.input_type === 'COMBO_BOX')) {
+          result.push({ attribute_id: attrId, attribute_value_list: [{ original_value: value.substring(0, 256) }] })
+          filled.add(attrId)
+        }
+      } else if (isTextField(attr.input_type)) {
+        // Campo texto: usar valor do fieldMap ou, se obrigatório, fallback para nome do produto
+        const textValue = value || (isMandatory ? (product.model || product.name || '').substring(0, 100) : null)
+        if (textValue) {
+          result.push({ attribute_id: attrId, attribute_value_list: [{ original_value: textValue.substring(0, 256) }] })
+          filled.add(attrId)
+        }
+      }
+
+      if (isMandatory && !filled.has(attrId)) {
+        console.log('[Shopee] atributo obrigatório não preenchido:', attrId, attrNameRaw)
       }
     }
 
