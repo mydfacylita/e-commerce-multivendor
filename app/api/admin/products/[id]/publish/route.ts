@@ -287,6 +287,35 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
     const images: string[] = JSON.parse(product.images || '[]')
     const imageUrlList = images.slice(0, 9)
 
+    if (imageUrlList.length === 0) {
+      return { success: false, message: 'O produto não possui imagens. Adicione pelo menos uma imagem antes de publicar.' }
+    }
+
+    // Upload das imagens via Shopee media space (necessário para imagens externas)
+    const uploadedImageIds: string[] = []
+    for (const imgUrl of imageUrlList) {
+      try {
+        const upEndpoint = '/api/v2/media_space/upload_image_by_url'
+        const upTs = Math.floor(Date.now() / 1000)
+        const upSign = crypto.createHmac('sha256', auth.partnerKey)
+          .update(`${auth.partnerId}${upEndpoint}${upTs}${accessToken}${auth.shopId}`)
+          .digest('hex')
+        const upRes = await fetch(
+          `${SHOPEE_API_BASE}${upEndpoint}?partner_id=${auth.partnerId}&timestamp=${upTs}&sign=${upSign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: imgUrl }) }
+        )
+        const upData = await upRes.json()
+        const imageId = upData?.response?.image_id || upData?.response?.image_info?.image_id
+        if (imageId) uploadedImageIds.push(imageId)
+      } catch {
+        // ignora imagens que falharam no upload
+      }
+    }
+
+    if (uploadedImageIds.length === 0) {
+      return { success: false, message: 'Nenhuma imagem do produto pôde ser enviada para a Shopee. Verifique se as URLs das imagens são acessíveis.' }
+    }
+
     const endpoint = '/api/v2/product/add_item'
     const timestamp = Math.floor(Date.now() / 1000)
     // Assinatura autenticada: partner_id + path + timestamp + access_token + shop_id
@@ -310,7 +339,7 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
       seller_stock: [{ stock: product.stock }],
       dimension: { package_length: 20, package_width: 15, package_height: 10 },
       logistic_info: [{ logistic_id: 0, enabled: true }],
-      image: { image_url_list: imageUrlList },
+      image: { image_id_list: uploadedImageIds },
       brand: { brand_id: 0, original_brand_name: product.brand || '' },
       category_id: categoryId,
     }
