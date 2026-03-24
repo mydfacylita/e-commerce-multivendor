@@ -666,11 +666,13 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
 
         const currentIds = new Set((bodyObj.attribute_list || []).map((a: any) => a.attribute_id))
         const extraAttrs: any[] = []
+        const skippedMandatory: string[] = []
 
         for (const miss of missing) {
           const textVal = guessAttrValue(miss.name)
           if (textVal === null) {
             console.log(`[Shopee] retry - attr ${miss.name} (${miss.id}): campo regulatório sem valor válido, ignorando`)
+            skippedMandatory.push(miss.name)
             continue
           }
           console.log(`[Shopee] retry - attr ${miss.name} (${miss.id}): tentando original_value="${textVal}"`)
@@ -695,6 +697,12 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
           }
         }
 
+        // Se todos os atributos obrigatórios foram pulados, não tem sentido fazer o retry
+        if (skippedMandatory.length === missing.length) {
+          const friendlyMsg = buildMissingAttrMessage(skippedMandatory)
+          return { success: false, message: friendlyMsg, details: data }
+        }
+
         bodyObj.attribute_list = [...(bodyObj.attribute_list || []), ...extraAttrs]
         console.log('[Shopee] retry add_item - attribute_list final:', JSON.stringify(bodyObj.attribute_list))
 
@@ -710,6 +718,12 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
         console.log('[Shopee] retry add_item resposta:', JSON.stringify(retryData))
 
         if (retryData.error && retryData.error !== '') {
+          // Incluir campos que foram pulados na mensagem de erro
+          const stillMissing = parseMandatoryAttributeErrors(retryData.debug_message || '')
+          const allMissing = [...new Set([...skippedMandatory, ...stillMissing.map(m => m.name)])]
+          if (allMissing.length > 0) {
+            return { success: false, message: buildMissingAttrMessage(allMissing), details: retryData }
+          }
           return { success: false, message: `Erro Shopee: ${retryData.message || retryData.error}`, details: retryData }
         }
         const retryItemId = retryData.response?.item_id?.toString()
@@ -737,6 +751,23 @@ function parseMandatoryAttributeErrors(debugMessage: string): Array<{ id: number
     results.push({ id: parseInt(match[1]), name: match[2].trim() })
   }
   return results
+}
+
+// Constrói mensagem amigável para atributos obrigatórios não preenchidos
+function buildMissingAttrMessage(attrNames: string[]): string {
+  const translations: Record<string, string> = {
+    'registration id': 'Número de Registro ANATEL — adicione o código ANATEL nas especificações do produto (chave: "anatel")',
+    'model name': 'Modelo do produto — preencha o campo "Modelo" no cadastro do produto',
+    'manufacturer': 'Fabricante — preencha o campo "Marca/Fabricante" no cadastro do produto',
+    'brand': 'Marca — preencha o campo "Marca" no cadastro do produto',
+    'item type': 'Tipo de item — verifique a categoria do produto',
+  }
+  const lines = attrNames.map(name => {
+    const key = name.toLowerCase()
+    const found = Object.entries(translations).find(([k]) => key.includes(k))
+    return `• ${found ? found[1] : name}`
+  })
+  return `Atributos obrigatórios faltando para publicar na Shopee:\n${lines.join('\n')}`
 }
 
 // Busca os atributos brutos de uma categoria (com attribute_value_list completo)
