@@ -620,15 +620,30 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
         }
         console.log('[Shopee] guessAttrValue - specs do produto:', JSON.stringify(productSpecs))
 
+        // Atributos que exigem número regulatório específico — não auto-preencher com texto livre
+        const SKIP_IF_NO_VALID_VALUE = ['registration id', 'anatel', 'homolog', 'license number', 'número de registro', 'registro anatel']
+
         // Mapeamento de nomes de atributo para valores inteligentes baseados no produto
-        function guessAttrValue(attrName: string): string {
+        // Retorna null para atributos regulatórios sem valor válido (serão ignorados no retry)
+        function guessAttrValue(attrName: string): string | null {
           const n = attrName.toLowerCase()
-          // 1º: procurar nas specs reais do produto
+
+          // Atributos regulatórios: só enviar se tiver valor real nas specs
+          if (SKIP_IF_NO_VALID_VALUE.some(k => n.includes(k))) {
+            const regVal = productSpecs['anatel'] || productSpecs['registro anatel'] || productSpecs['homologação'] ||
+              productSpecs['homologacao'] || productSpecs['registration id'] || productSpecs['número de registro'] ||
+              productSpecs['registro'] || productSpecs['license'] || ''
+            console.log(`[Shopee] retry - "${attrName}" é campo regulatório, valor nas specs: "${regVal || 'NÃO ENCONTRADO - pulando'}"`)
+            return regVal ? regVal.substring(0, 50) : null
+          }
+
+          // 1º: procurar nas specs reais do produto (match exato de chave)
           for (const [specKey, specVal] of Object.entries(productSpecs)) {
-            if (specVal && (specKey.includes(n) || n.includes(specKey))) return specVal.substring(0, 100)
+            if (specVal && (specKey === n || specKey.includes(n) || n.includes(specKey))) return specVal.substring(0, 100)
           }
           // 2º: campos diretos do produto
-          if (n.includes('model')) return (product.model || productSpecs['modelo'] || productSpecs['model'] || product.name || '').substring(0, 100)
+          if (n.includes('model')) return (product.model || productSpecs['modelo'] || productSpecs['model'] || productSpecs['referência'] || product.name || '').substring(0, 100)
+          if (n.includes('manufacturer') || n.includes('fabricante')) return (product.brand || productSpecs['marca'] || productSpecs['brand'] || 'Other').substring(0, 50)
           if (n.includes('brand') || n.includes('marca')) return (product.brand || productSpecs['marca'] || productSpecs['brand'] || 'Other').substring(0, 50)
           if (n.includes('color') || n.includes('cor')) return product.color || productSpecs['cor'] || productSpecs['color'] || 'Other'
           if (n.includes('material')) return productSpecs['material'] || productSpecs['materials'] || 'Other'
@@ -654,6 +669,10 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
 
         for (const miss of missing) {
           const textVal = guessAttrValue(miss.name)
+          if (textVal === null) {
+            console.log(`[Shopee] retry - attr ${miss.name} (${miss.id}): campo regulatório sem valor válido, ignorando`)
+            continue
+          }
           console.log(`[Shopee] retry - attr ${miss.name} (${miss.id}): tentando original_value="${textVal}"`)
           if (currentIds.has(miss.id)) {
             bodyObj.attribute_list = (bodyObj.attribute_list || []).map((a: any) => {
