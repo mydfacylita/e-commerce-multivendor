@@ -487,6 +487,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = []): P
       item_status: 'NORMAL',
       normal_stock: product.stock,
       seller_stock: [{ stock: product.stock }],
+      item_sku: (product.supplierSku || product.gtin || '').substring(0, 100),
       dimension: { package_length: Math.round(pkgLength), package_width: Math.round(pkgWidth), package_height: Math.round(pkgHeight) },
       logistic_info: logisticChannels.length > 0
         ? logisticChannels.map(id => ({ logistic_id: id, enabled: true }))

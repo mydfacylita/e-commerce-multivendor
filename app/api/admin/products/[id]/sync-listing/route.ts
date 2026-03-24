@@ -1,11 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
+import crypto from 'crypto'
 
 // Force dynamic - disable all caching
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
+
+const SHOPEE_API_BASE = 'https://partner.shopeemobile.com'
+
+function shopeeSign(partnerId: number, path: string, timestamp: number, accessToken: string, shopId: number, partnerKey: string) {
+  return crypto.createHmac('sha256', partnerKey).update(`${partnerId}${path}${timestamp}${accessToken}${shopId}`).digest('hex')
+}
+
+async function getShopeeToken(auth: any, userId: string): Promise<string> {
+  if (!auth.expiresAt || new Date(auth.expiresAt) > new Date(Date.now() + 60_000)) return auth.accessToken
+  const endpoint = '/api/v2/auth/access_token/get'
+  const timestamp = Math.floor(Date.now() / 1000)
+  const sign = crypto.createHmac('sha256', auth.partnerKey).update(`${auth.partnerId}${endpoint}${timestamp}`).digest('hex')
+  const body = JSON.stringify({ shop_id: auth.shopId, refresh_token: auth.refreshToken, partner_id: auth.partnerId })
+  const res = await fetch(`${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
+  const data = await res.json()
+  if (data.access_token) {
+    await prisma.shopeeAuth.update({ where: { userId }, data: { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt: new Date(Date.now() + data.expire_in * 1000) } })
+    return data.access_token
+  }
+  return auth.accessToken
+}
 
 export async function POST(
   request: NextRequest,
@@ -70,6 +91,18 @@ export async function POST(
       })
     }
 
+    if (marketplace === 'shopee') {
+      const result = await syncShopee(listing)
+      if (!result.success) {
+        return NextResponse.json({ message: result.message }, { status: 400 })
+      }
+      await prisma.marketplaceListing.update({
+        where: { id: listing.id },
+        data: { price: result.price, stock: result.stock, status: result.status, lastSyncAt: new Date(), errorMessage: null }
+      })
+      return NextResponse.json({ message: 'Sincronização realizada com sucesso', data: result })
+    }
+
     return NextResponse.json(
       { message: 'Marketplace não suportado' },
       { status: 400 }
@@ -80,6 +113,33 @@ export async function POST(
       { message: 'Erro ao sincronizar', error: String(error) },
       { status: 500 }
     )
+  }
+}
+
+async function syncShopee(listing: any) {
+  try {
+    const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, include: { shopeeAuth: true } })
+    if (!adminUser?.shopeeAuth) return { success: false, message: 'Shopee não configurada', price: 0, stock: 0, status: 'active' }
+    const auth = adminUser.shopeeAuth
+    const accessToken = await getShopeeToken(auth, adminUser.id)
+    const itemId = parseInt(listing.listingId)
+    const endpoint = '/api/v2/product/get_item_base_info'
+    const timestamp = Math.floor(Date.now() / 1000)
+    const sign = shopeeSign(auth.partnerId, endpoint, timestamp, accessToken, auth.shopId, auth.partnerKey)
+    const res = await fetch(
+      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&item_id_list=${itemId}&need_complaint_policy=false`,
+      { method: 'GET' }
+    )
+    const data = await res.json()
+    if (data.error && data.error !== '') return { success: false, message: data.message || data.error, price: 0, stock: 0, status: 'active' }
+    const item = data?.response?.item_list?.[0]
+    if (!item) return { success: false, message: 'Produto não encontrado na Shopee', price: 0, stock: 0, status: 'active' }
+    const price = item.price_info?.[0]?.current_price ?? listing.price
+    const stock = item.stock_info_v2?.summary_info?.total_available_stock ?? listing.stock
+    const status = item.item_status === 'UNLIST' ? 'paused' : 'active'
+    return { success: true, price, stock, status, message: 'Sincronizado' }
+  } catch (e: any) {
+    return { success: false, message: e.message, price: 0, stock: 0, status: 'active' }
   }
 }
 
