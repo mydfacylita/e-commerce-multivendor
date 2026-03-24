@@ -120,6 +120,12 @@ export default function PublishToMarketplaceButton({
   const [validation, setValidation] = useState<ValidationResult | null>(null)
   const [validating, setValidating] = useState(false)
 
+  // ========== SHOPEE LOGISTICS ==========
+  interface ShopeeChannel { id: number; name: string; enabled: boolean; codEnabled: boolean; preferred: boolean; feeType: string }
+  const [shopeeChannels, setShopeeChannels] = useState<ShopeeChannel[]>([])
+  const [selectedChannelIds, setSelectedChannelIds] = useState<number[]>([])
+  const [loadingLogistics, setLoadingLogistics] = useState(false)
+
   const showInfoModal = (config: Omit<InfoModal, 'isOpen'>) => {
     setModal({ ...config, isOpen: true })
   }
@@ -143,6 +149,26 @@ export default function PublishToMarketplaceButton({
     setValidation(null)
     setCatalogSearched(false)
     setCatalogQuery('')
+    setShopeeChannels([])
+    setSelectedChannelIds([])
+  }
+
+  // Carregar canais logísticos da Shopee
+  const loadShopeeLogistics = async () => {
+    setLoadingLogistics(true)
+    try {
+      const res = await fetch('/api/admin/marketplaces/shopee/logistics')
+      const data = await res.json()
+      if (data.channels) {
+        setShopeeChannels(data.channels)
+        // Pré-selecionar os que já estão habilitados na Shopee
+        setSelectedChannelIds(data.channels.filter((c: any) => c.enabled).map((c: any) => c.id))
+      }
+    } catch (e) {
+      console.error('Erro ao carregar logística Shopee:', e)
+    } finally {
+      setLoadingLogistics(false)
+    }
   }
 
   // Buscar categorias por predição
@@ -285,13 +311,32 @@ export default function PublishToMarketplaceButton({
         })
         return
       }
-      // Shopee e Amazon não precisam escolher categoria — vai direto para confirmar
+      // Shopee: vai para step 2 (seleção de logística)
+      if (selectedMarketplace === 'shopee') {
+        setCurrentStep(2)
+        loadShopeeLogistics()
+        return
+      }
+      // Amazon e outros: pula para confirmar
       if (selectedMarketplace !== 'mercadolivre') {
         setCurrentStep(3)
         return
       }
       setCurrentStep(2)
     } else if (currentStep === 2) {
+      // Shopee: confirmar sem precisar de categoria
+      if (selectedMarketplace === 'shopee') {
+        if (selectedChannelIds.length === 0) {
+          showInfoModal({
+            type: 'warning',
+            title: 'Selecione pelo menos um método de envio',
+            message: 'A Shopee exige que pelo menos um canal de entrega seja ativado para o produto.'
+          })
+          return
+        }
+        setCurrentStep(3)
+        return
+      }
       if (!selectedCategory) {
         showInfoModal({
           type: 'warning',
@@ -449,7 +494,8 @@ export default function PublishToMarketplaceButton({
           marketplace: selectedMarketplace,
           // Passar a categoria e catálogo selecionados no modal
           mlCategoryId: selectedCategory?.id,
-          catalogProductId: selectedCatalogProduct?.id
+          catalogProductId: selectedCatalogProduct?.id,
+          logisticChannels: selectedChannelIds,
         }),
       })
 
@@ -1017,7 +1063,9 @@ export default function PublishToMarketplaceButton({
               </div>
               <div className="flex justify-center text-xs text-gray-500 mt-2 space-x-8">
                 <span className={currentStep >= 1 ? 'text-primary-600 font-medium' : ''}>Marketplace</span>
-                <span className={currentStep >= 2 ? 'text-primary-600 font-medium' : ''}>Categoria</span>
+                <span className={currentStep >= 2 ? 'text-primary-600 font-medium' : ''}>
+                  {selectedMarketplace === 'shopee' ? 'Envio' : 'Categoria'}
+                </span>
                 <span className={currentStep >= 3 ? 'text-primary-600 font-medium' : ''}>Confirmar</span>
               </div>
             </div>
@@ -1150,6 +1198,73 @@ export default function PublishToMarketplaceButton({
                       <p className="text-sm text-gray-700">
                         Vamos te ajudar a escolher a categoria correta e verificar se o produto 
                         precisa de vinculação com o catálogo do Mercado Livre antes de publicar.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PASSO 2: Logística para Shopee */}
+              {currentStep === 2 && selectedMarketplace === 'shopee' && (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">Métodos de Envio</h3>
+                    <p className="text-sm text-gray-500">Selecione quais canais de entrega deseja ativar para este produto na Shopee.</p>
+                  </div>
+
+                  {loadingLogistics && (
+                    <div className="text-center py-8">
+                      <FiRefreshCw className="animate-spin mx-auto text-orange-500" size={28} />
+                      <p className="mt-2 text-sm text-gray-500">Carregando opções de envio...</p>
+                    </div>
+                  )}
+
+                  {!loadingLogistics && shopeeChannels.length === 0 && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+                      <p className="font-medium">Nenhum canal encontrado.</p>
+                      <p className="mt-1">Verifique se sua conta Shopee possui métodos de envio configurados no Seller Centre.</p>
+                      <button onClick={loadShopeeLogistics} className="mt-2 text-orange-600 underline text-xs">Tentar novamente</button>
+                    </div>
+                  )}
+
+                  {!loadingLogistics && shopeeChannels.length > 0 && (
+                    <div className="space-y-2">
+                      {shopeeChannels.map(channel => (
+                        <label
+                          key={channel.id}
+                          className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                            selectedChannelIds.includes(channel.id)
+                              ? 'border-orange-400 bg-orange-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 accent-orange-500"
+                            checked={selectedChannelIds.includes(channel.id)}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                setSelectedChannelIds(prev => [...prev, channel.id])
+                              } else {
+                                setSelectedChannelIds(prev => prev.filter(id => id !== channel.id))
+                              }
+                            }}
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{channel.name}</p>
+                            <p className="text-xs text-gray-400">
+                              ID: {channel.id}
+                              {channel.codEnabled && ' • COD habilitado'}
+                              {channel.preferred && ' • Preferencial'}
+                            </p>
+                          </div>
+                          {selectedChannelIds.includes(channel.id) && (
+                            <FiCheckCircle className="text-orange-500 flex-shrink-0" size={18} />
+                          )}
+                        </label>
+                      ))}
+                      <p className="text-xs text-gray-400 pt-1">
+                        {selectedChannelIds.length} de {shopeeChannels.length} canal(is) selecionado(s)
                       </p>
                     </div>
                   )}
@@ -1613,8 +1728,10 @@ export default function PublishToMarketplaceButton({
                     onClick={nextStep}
                     disabled={
                       (currentStep === 1 && !selectedMarketplace) ||
-                      (currentStep === 2 && !selectedCategory) ||
-                      loadingCategory
+                      (currentStep === 2 && selectedMarketplace === 'shopee' && selectedChannelIds.length === 0) ||
+                      (currentStep === 2 && selectedMarketplace === 'mercadolivre' && !selectedCategory) ||
+                      loadingCategory ||
+                      loadingLogistics
                     }
                     className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >

@@ -48,6 +48,10 @@ export const POST = withAuth(
       // Novos parâmetros do modal inteligente
       const mlCategoryId = data.mlCategoryId ? sanitizeHtml(data.mlCategoryId) : null
       const catalogProductId = data.catalogProductId ? sanitizeHtml(data.catalogProductId) : null
+      // Canais logísticos selecionados no modal (Shopee)
+      const logisticChannels: number[] = Array.isArray(data.logisticChannels)
+        ? data.logisticChannels.filter((id: any) => Number.isInteger(id))
+        : []
 
       if (!marketplace || !['mercadolivre', 'shopee'].includes(marketplace)) {
         return NextResponse.json(
@@ -138,7 +142,7 @@ export const POST = withAuth(
     }
 
     if (marketplace === 'shopee') {
-      const shopeeResult = await publishToShopee(product)
+      const shopeeResult = await publishToShopee(product, logisticChannels)
 
       if (!shopeeResult.success) {
         return NextResponse.json(
@@ -270,7 +274,7 @@ async function getShopeeCategory(auth: any, accessToken: string, productCategory
   }
 }
 
-async function publishToShopee(product: any): Promise<{ success: boolean; itemId?: string; message: string; details?: any }> {
+async function publishToShopee(product: any, logisticChannels: number[] = []): Promise<{ success: boolean; itemId?: string; message: string; details?: any }> {
   try {
     // Buscar admin com Shopee conectada
     const adminUser = await prisma.user.findFirst({
@@ -372,7 +376,9 @@ async function publishToShopee(product: any): Promise<{ success: boolean; itemId
       normal_stock: product.stock,
       seller_stock: [{ stock: product.stock }],
       dimension: { package_length: 20, package_width: 15, package_height: 10 },
-      logistic_info: [{ logistic_id: 0, enabled: true }],
+      logistic_info: logisticChannels.length > 0
+        ? logisticChannels.map(id => ({ logistic_id: id, enabled: true }))
+        : [{ logistic_id: 0, enabled: true }],
       image: { image_id_list: uploadedImageIds },
       brand: { brand_id: 0, original_brand_name: product.brand || '' },
       category_id: categoryId,
