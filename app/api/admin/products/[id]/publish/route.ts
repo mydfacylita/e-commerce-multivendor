@@ -254,6 +254,7 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
     // Shopee may use 'attributes' or 'attribute_list' depending on API version
     const attrList: any[] = data?.response?.attributes || data?.response?.attribute_list || []
     console.log('[Shopee] get_attributes para categoria', categoryId, '-> total:', attrList.length, 'error:', data?.error || 'ok')
+    if (attrList.length > 0) console.log('[Shopee] exemplo atributo[0]:', JSON.stringify(attrList[0]))
 
     // Parsear specs/attributes do produto
     let specs: Record<string, string> = {}
@@ -312,13 +313,11 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
     }
 
     const result: any[] = []
-    const filled = new Set<number>()
 
     for (const attr of attrList) {
       const attrNameRaw: string = attr.display_attribute_name || attr.attribute_name || ''
       const attrName: string = attrNameRaw.toLowerCase()
       const attrId: number = attr.attribute_id
-      const isMandatory: boolean = attr.is_mandatory === true || attr.mandatory === true
       const hasPredefined = attr.attribute_value_list && attr.attribute_value_list.length > 0
 
       // Tentar encontrar valor via fieldMap
@@ -331,34 +330,18 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
       }
 
       if (hasPredefined) {
-        // Tentar casar pelo valor do fieldMap
+        // 1º: casar pelo fieldMap
         let match = value ? matchPredefined(attr.attribute_value_list, value) : null
+        // 2º: casar pelo texto do produto
+        if (!match) match = matchPredefinedFromProduct(attr.attribute_value_list)
+        // 3º: último recurso — primeiro valor da lista (garante que atributos obrigatórios sejam enviados)
+        if (!match) match = attr.attribute_value_list[0]
 
-        // Se não casou e atributo é obrigatório, tentar casar pelo texto do produto
-        if (!match && isMandatory) {
-          match = matchPredefinedFromProduct(attr.attribute_value_list)
-          // Último recurso: usar o primeiro valor disponível
-          if (!match) match = attr.attribute_value_list[0]
-        }
-
-        if (match) {
-          result.push({ attribute_id: attrId, attribute_value_list: [{ value_id: match.value_id }] })
-          filled.add(attrId)
-        } else if (value && (attr.input_type === 'COMBO_BOX')) {
-          result.push({ attribute_id: attrId, attribute_value_list: [{ original_value: value.substring(0, 256) }] })
-          filled.add(attrId)
-        }
+        result.push({ attribute_id: attrId, attribute_value_list: [{ value_id: match.value_id }] })
       } else if (isTextField(attr.input_type)) {
-        // Campo texto: usar valor do fieldMap ou, se obrigatório, fallback para nome do produto
-        const textValue = value || (isMandatory ? (product.model || product.name || '').substring(0, 100) : null)
-        if (textValue) {
-          result.push({ attribute_id: attrId, attribute_value_list: [{ original_value: textValue.substring(0, 256) }] })
-          filled.add(attrId)
-        }
-      }
-
-      if (isMandatory && !filled.has(attrId)) {
-        console.log('[Shopee] atributo obrigatório não preenchido:', attrId, attrNameRaw)
+        // Campo texto: valor do fieldMap ou nome do produto como fallback
+        const textValue = value || (product.model || product.name || '').substring(0, 100)
+        result.push({ attribute_id: attrId, attribute_value_list: [{ original_value: textValue.substring(0, 256) }] })
       }
     }
 

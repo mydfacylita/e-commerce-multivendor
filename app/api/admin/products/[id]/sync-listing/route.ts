@@ -123,22 +123,24 @@ async function syncShopee(listing: any) {
     const auth = adminUser.shopeeAuth
     const accessToken = await getShopeeToken(auth, adminUser.id)
     const itemId = parseInt(listing.listingId)
+    console.log('[Shopee Sync] listingId:', listing.listingId, 'itemId:', itemId)
     const endpoint = '/api/v2/product/get_item_base_info'
     const timestamp = Math.floor(Date.now() / 1000)
     const sign = shopeeSign(auth.partnerId, endpoint, timestamp, accessToken, auth.shopId, auth.partnerKey)
-    const res = await fetch(
-      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&item_id_list=${itemId}&need_complaint_policy=false`,
-      { method: 'GET' }
-    )
+    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&item_id_list=${itemId}&need_complaint_policy=false`
+    const res = await fetch(url, { method: 'GET' })
     const data = await res.json()
+    console.log('[Shopee Sync] resposta:', JSON.stringify(data))
     if (data.error && data.error !== '') return { success: false, message: data.message || data.error, price: 0, stock: 0, status: 'active' }
     const item = data?.response?.item_list?.[0]
     if (!item) return { success: false, message: 'Produto não encontrado na Shopee', price: 0, stock: 0, status: 'active' }
     const price = item.price_info?.[0]?.current_price ?? listing.price
     const stock = item.stock_info_v2?.summary_info?.total_available_stock ?? listing.stock
     const status = item.item_status === 'UNLIST' ? 'paused' : 'active'
+    console.log('[Shopee Sync] price:', price, 'stock:', stock, 'status:', status)
     return { success: true, price, stock, status, message: 'Sincronizado' }
   } catch (e: any) {
+    console.error('[Shopee Sync] erro:', e.message)
     return { success: false, message: e.message, price: 0, stock: 0, status: 'active' }
   }
 }

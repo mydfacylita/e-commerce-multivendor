@@ -109,22 +109,25 @@ export async function DELETE(
 async function deleteShopee(listingId: string): Promise<void> {
   try {
     const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, include: { shopeeAuth: true } })
-    if (!adminUser?.shopeeAuth) return
+    if (!adminUser?.shopeeAuth) { console.log('[Shopee Delete] sem auth'); return }
     const auth = adminUser.shopeeAuth
     const accessToken = await getShopeeToken(auth, adminUser.id)
     const itemId = parseInt(listingId)
-    // Shopee API v2 não possui endpoint de delete - fazemos unlist (desativar)
+    console.log('[Shopee Delete] unlist item_id:', itemId)
     const endpoint = '/api/v2/product/unlist'
     const timestamp = Math.floor(Date.now() / 1000)
     const sign = shopeeSign(auth.partnerId, endpoint, timestamp, accessToken, auth.shopId, auth.partnerKey)
     const body = JSON.stringify({ item_list: [{ item_id: itemId, unlist: true }] })
-    await fetch(
+    const res = await fetch(
       `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
     )
-    // Ignora erros do unlist - remove do banco de qualquer forma
-  } catch {
-    // Ignora erros - remove do banco de qualquer forma
+    const data = await res.json()
+    console.log('[Shopee Delete] unlist resposta:', JSON.stringify(data))
+    // Remove do banco independente do resultado (Shopee não tem endpoint de delete)
+  } catch (e: any) {
+    console.error('[Shopee Delete] erro:', e.message)
+    // Remove do banco independente do erro
   }
 }
 
