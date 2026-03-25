@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const ts = Math.floor(Date.now() / 1000)
     const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
     const BR_BASE = 'https://openplatform.shopee.com.br'
-    const url = `${BR_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id_list=[${categoryId}]&language=pt-BR`
+    const url = `${BR_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id_list=${categoryId}&language=pt-BR`
     console.log(`[Shopee attrs] GET ${url.replace(accessToken, 'TOKEN***')}`)
     const treeRes = await fetch(url, { method: 'GET' })
     const rawText = await treeRes.text()
