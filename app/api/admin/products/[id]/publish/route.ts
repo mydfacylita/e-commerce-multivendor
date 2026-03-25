@@ -718,6 +718,40 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
         console.log('[Shopee] retry add_item resposta:', JSON.stringify(retryData))
 
         if (retryData.error && retryData.error !== '') {
+          // Atributos tipo COMBO_BOX (dropdown de classificação) não aceitam valor personalizado.
+          // Detectar quais foram rejeitados e tentar novamente sem eles (retry2).
+          const cannotCustomize = parseCannotCustomizeErrors(retryData.message || '')
+          if (cannotCustomize.length > 0) {
+            console.log('[Shopee] retry2 - atributos dropdown rejeitados (não aceitam valor livre):', cannotCustomize)
+            bodyObj.attribute_list = (bodyObj.attribute_list || []).filter((a: any) => {
+              const attrDef = missing.find((m: any) => m.id === a.attribute_id)
+              if (!attrDef) return true
+              return !cannotCustomize.some((cn: string) =>
+                attrDef.name.toLowerCase().includes(cn.toLowerCase()) ||
+                cn.toLowerCase().includes(attrDef.name.toLowerCase())
+              )
+            })
+            console.log('[Shopee] retry2 attribute_list (sem dropdowns):', JSON.stringify(bodyObj.attribute_list))
+            const retry2Ts = Math.floor(Date.now() / 1000)
+            const retry2Sign = crypto.createHmac('sha256', auth.partnerKey)
+              .update(`${auth.partnerId}${endpoint}${retry2Ts}${accessToken}${auth.shopId}`)
+              .digest('hex')
+            const retry2Res = await fetch(
+              `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${retry2Ts}&sign=${retry2Sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
+              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) }
+            )
+            const retry2Data = await retry2Res.json()
+            console.log('[Shopee] retry2 add_item resposta:', JSON.stringify(retry2Data))
+            if (!retry2Data.error || retry2Data.error === '') {
+              return { success: true, itemId: retry2Data.response?.item_id?.toString(), message: 'Publicado com sucesso na Shopee' }
+            }
+            const stillMissing2 = parseMandatoryAttributeErrors(retry2Data.debug_message || '')
+            const allMissing2 = [...new Set([...skippedMandatory, ...stillMissing2.map((m: any) => m.name)])]
+            if (allMissing2.length > 0) {
+              return { success: false, message: buildMissingAttrMessage(allMissing2), details: retry2Data }
+            }
+            return { success: false, message: `Erro Shopee: ${retry2Data.message || retry2Data.error}`, details: retry2Data }
+          }
           // Incluir campos que foram pulados na mensagem de erro
           const stillMissing = parseMandatoryAttributeErrors(retryData.debug_message || '')
           const allMissing = [...new Set([...skippedMandatory, ...stillMissing.map(m => m.name)])]
@@ -740,6 +774,17 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
   } catch (error: any) {
     return { success: false, message: `Erro ao publicar na Shopee: ${error.message}` }
   }
+}
+
+// Parseia atributos dropdown que rejeitaram valor personalizado ("cannot be customized")
+function parseCannotCustomizeErrors(message: string): string[] {
+  const regex = /The value of attribute (.+?) cannot be customized/g
+  const results: string[] = []
+  let match
+  while ((match = regex.exec(message)) !== null) {
+    results.push(match[1].trim())
+  }
+  return results
 }
 
 // Parseia atributos obrigatórios faltando da debug_message da Shopee
