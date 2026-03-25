@@ -55,12 +55,33 @@ async function getAllShopeeCategories(auth: any, accessToken: string, forceRefre
 
   const raw: any[] = data?.response?.category_list || []
 
-  // Log warning para diagnóstico (não filtrar nada — os IDs no warning podem ser os corretos)
+  // Log estrutura real da API
+  console.log(`[Shopee categories] get_category → total raw: ${raw.length} | warning: ${data?.warning?.substring(0, 300) || '(nenhum)'}`)
+  // Log primeiras 5 categorias para ver a estrutura
+  console.log('[Shopee categories] Primeiras 5 categorias raw:', JSON.stringify(raw.slice(0, 5), null, 2))
+  // Log todas as folhas (has_children=false) que contêm "Air Fry" ou "100198" ou "100268" 
+  const interesting = raw.filter((c: any) => 
+    String(c.category_id) === '100198' || String(c.category_id) === '100268' ||
+    (c.display_category_name || '').toLowerCase().includes('air fr')
+  )
+  if (interesting.length > 0) console.log('[Shopee categories] Categorias de interesse (100198/100268/Air Fr):', JSON.stringify(interesting))
+
+  // O warning lista IDs desatualizados (ex: 100198) → filtrar para ficar só com os novos (ex: 100268)
+  const outdatedIds = new Set<number>()
   const warningStr: string = data?.warning || ''
-  if (warningStr) console.log('[Shopee categories] warning:', warningStr.substring(0, 500))
-  console.log(`[Shopee categories] get_category retornou ${raw.length} categorias`)
+  const warnRegex = /CategoryID\[(\d+)\]/g
+  let wm
+  while ((wm = warnRegex.exec(warningStr)) !== null) {
+    outdatedIds.add(parseInt(wm[1]))
+  }
+  if (outdatedIds.size > 0) console.log(`[Shopee categories] IDs desatualizados removidos (${outdatedIds.size}):`, [...outdatedIds].join(', '))
+  console.log(`[Shopee categories] get_category retornou ${raw.length} categorias, após filtro: ${raw.length - outdatedIds.size}`)
+  // Amostra da estrutura para diagnóstico
+  console.log('[Shopee categories] amostra 3 primeiras raw:', JSON.stringify(raw.slice(0, 3)))
+  console.log('[Shopee categories] amostra 3 últimas raw:', JSON.stringify(raw.slice(-3)))
 
   const categories = raw
+    .filter((c: any) => !outdatedIds.has(c.category_id))
     .map((c: any) => ({
       id: c.category_id as number,
       name: (c.display_category_name || c.category_name || '') as string,
