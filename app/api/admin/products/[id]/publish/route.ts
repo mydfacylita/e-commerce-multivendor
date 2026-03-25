@@ -718,39 +718,50 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
         console.log('[Shopee] retry add_item resposta:', JSON.stringify(retryData))
 
         if (retryData.error && retryData.error !== '') {
-          // Atributos tipo COMBO_BOX (dropdown de classificação) não aceitam valor personalizado.
-          // Detectar quais foram rejeitados e tentar novamente sem eles (retry2).
+          // Atributos COMBO_BOX rejeitaram valor personalizado — buscar value_id real via search_attribute_value_list
           const cannotCustomize = parseCannotCustomizeErrors(retryData.message || '')
           if (cannotCustomize.length > 0) {
-            console.log('[Shopee] retry2 - atributos dropdown rejeitados (não aceitam valor livre):', cannotCustomize)
-            bodyObj.attribute_list = (bodyObj.attribute_list || []).filter((a: any) => {
-              const attrDef = missing.find((m: any) => m.id === a.attribute_id)
-              if (!attrDef) return true
-              return !cannotCustomize.some((cn: string) =>
-                attrDef.name.toLowerCase().includes(cn.toLowerCase()) ||
-                cn.toLowerCase().includes(attrDef.name.toLowerCase())
+            console.log('[Shopee] retry2 - atributos COMBO_BOX rejeitados, buscando value_id via search_attribute_value_list:', cannotCustomize)
+            let fixedAny = false
+            for (const attrName of cannotCustomize) {
+              // Encontrar o attr na lista atual pelo nome
+              const matchedMiss = missing.find((m: any) => m.name.toLowerCase() === attrName.toLowerCase())
+              if (!matchedMiss) continue
+              const searchVal = guessAttrValue(matchedMiss.name) || product.name
+              const foundValue = await searchAttributeValues(auth, accessToken, categoryId, matchedMiss.id, searchVal)
+              if (foundValue) {
+                console.log(`[Shopee] retry2 - ${attrName}: value_id=${foundValue.value_id} ("${foundValue.display_value_name || foundValue.value_name}")`)
+                bodyObj.attribute_list = (bodyObj.attribute_list || []).map((a: any) =>
+                  a.attribute_id === matchedMiss.id
+                    ? { attribute_id: matchedMiss.id, attribute_value_list: [{ value_id: foundValue.value_id, original_value_name: foundValue.display_value_name || foundValue.value_name || '' }] }
+                    : a
+                )
+                fixedAny = true
+              } else {
+                console.log(`[Shopee] retry2 - ${attrName}: sem resultado no search_attribute_value_list, removendo da lista`)
+                bodyObj.attribute_list = (bodyObj.attribute_list || []).filter((a: any) => a.attribute_id !== matchedMiss.id)
+              }
+            }
+            if (fixedAny) {
+              console.log('[Shopee] retry2 attribute_list final:', JSON.stringify(bodyObj.attribute_list))
+              const retry2Ts = Math.floor(Date.now() / 1000)
+              const retry2Sign = crypto.createHmac('sha256', auth.partnerKey)
+                .update(`${auth.partnerId}${endpoint}${retry2Ts}${accessToken}${auth.shopId}`)
+                .digest('hex')
+              const retry2Res = await fetch(
+                `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${retry2Ts}&sign=${retry2Sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) }
               )
-            })
-            console.log('[Shopee] retry2 attribute_list (sem dropdowns):', JSON.stringify(bodyObj.attribute_list))
-            const retry2Ts = Math.floor(Date.now() / 1000)
-            const retry2Sign = crypto.createHmac('sha256', auth.partnerKey)
-              .update(`${auth.partnerId}${endpoint}${retry2Ts}${accessToken}${auth.shopId}`)
-              .digest('hex')
-            const retry2Res = await fetch(
-              `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${retry2Ts}&sign=${retry2Sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
-              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) }
-            )
-            const retry2Data = await retry2Res.json()
-            console.log('[Shopee] retry2 add_item resposta:', JSON.stringify(retry2Data))
-            if (!retry2Data.error || retry2Data.error === '') {
-              return { success: true, itemId: retry2Data.response?.item_id?.toString(), message: 'Publicado com sucesso na Shopee' }
+              const retry2Data = await retry2Res.json()
+              console.log('[Shopee] retry2 add_item resposta:', JSON.stringify(retry2Data))
+              if (!retry2Data.error || retry2Data.error === '') {
+                return { success: true, itemId: retry2Data.response?.item_id?.toString(), message: 'Publicado com sucesso na Shopee' }
+              }
+              const stillMissing2 = parseMandatoryAttributeErrors(retry2Data.debug_message || '')
+              const allMissing2 = [...new Set([...skippedMandatory, ...stillMissing2.map((m: any) => m.name)])]
+              if (allMissing2.length > 0) return { success: false, message: buildMissingAttrMessage(allMissing2), details: retry2Data }
+              return { success: false, message: `Erro Shopee: ${retry2Data.message || retry2Data.error}`, details: retry2Data }
             }
-            const stillMissing2 = parseMandatoryAttributeErrors(retry2Data.debug_message || '')
-            const allMissing2 = [...new Set([...skippedMandatory, ...stillMissing2.map((m: any) => m.name)])]
-            if (allMissing2.length > 0) {
-              return { success: false, message: buildMissingAttrMessage(allMissing2), details: retry2Data }
-            }
-            return { success: false, message: `Erro Shopee: ${retry2Data.message || retry2Data.error}`, details: retry2Data }
           }
           // Incluir campos que foram pulados na mensagem de erro
           const stillMissing = parseMandatoryAttributeErrors(retryData.debug_message || '')
@@ -773,6 +784,35 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
     return { success: true, itemId, message: 'Publicado com sucesso na Shopee' }
   } catch (error: any) {
     return { success: false, message: `Erro ao publicar na Shopee: ${error.message}` }
+  }
+}
+
+// Busca valores válidos de um atributo COMBO_BOX via search_attribute_value_list
+async function searchAttributeValues(
+  auth: any, accessToken: string, categoryId: number, attributeId: number, searchText: string
+): Promise<{ value_id: number; value_name: string; display_value_name: string } | null> {
+  try {
+    const endpoint = '/api/v2/product/search_attribute_value_list'
+    const timestamp = Math.floor(Date.now() / 1000)
+    const sign = crypto.createHmac('sha256', auth.partnerKey)
+      .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
+      .digest('hex')
+    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(searchText.substring(0, 50))}&language=pt-BR`
+    const res = await fetch(url, { method: 'GET' })
+    const data = await res.json()
+    console.log(`[Shopee] search_attribute_value_list attr=${attributeId} search="${searchText.substring(0, 30)}": error=${data.error || 'ok'} total=${data.response?.attribute_value_list?.length ?? 0}`)
+    const list: any[] = data?.response?.attribute_value_list || []
+    if (list.length === 0) return null
+    // Tentar casar pelo texto buscado
+    const lower = searchText.toLowerCase()
+    const match = list.find((v: any) => {
+      const vn = (v.display_value_name || v.value_name || '').toLowerCase()
+      return vn === lower || vn.includes(lower) || lower.includes(vn)
+    })
+    return match || list[0]
+  } catch (e: any) {
+    console.log('[Shopee] searchAttributeValues erro:', e.message)
+    return null
   }
 }
 
