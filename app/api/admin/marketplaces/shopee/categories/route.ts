@@ -140,6 +140,8 @@ export async function GET(request: NextRequest) {
     const parentId = parentIdParam !== null ? parseInt(parentIdParam) : 0
     const children = allCategories.filter(c => c.parentId === parentId)
 
+    console.log(`[Shopee categories] parentId=${parentId} → ${children.length} filhos: ${JSON.stringify(children.map(c => ({ id: c.id, name: c.name, hasChildren: c.hasChildren })))}`)
+
     return NextResponse.json({ categories: children })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
