@@ -297,8 +297,6 @@ export default function PublishToMarketplaceButton({
   // Selecionar categoria Shopee e carregar atributos
   const selectShopeeCategory = async (cat: { id: number; name: string }) => {
     setShopeeFormData(prev => ({ ...prev, categoryId: cat.id, categoryName: cat.name }))
-    setShopeeCategoryResults([])
-    setShopeeCategoryQuery('')
     setLoadingShopeeAttrs(true)
     setShopeeAttributes([])
     setShopeeAttrValues({})
@@ -490,21 +488,6 @@ export default function PublishToMarketplaceButton({
       setValidating(false)
     }
   }
-
-  // Debounce busca de categorias Shopee
-  useEffect(() => {
-    if (shopeeCategoryQuery.length < 2) { setShopeeCategoryResults([]); return }
-    const timer = setTimeout(async () => {
-      setLoadingShopeeCats(true)
-      try {
-        const res = await fetch(`/api/admin/marketplaces/shopee/categories?query=${encodeURIComponent(shopeeCategoryQuery)}`)
-        const d = await res.json()
-        if (d.categories) setShopeeCategoryResults(d.categories)
-      } catch {}
-      finally { setLoadingShopeeCats(false) }
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [shopeeCategoryQuery])
 
   // Avançar para o próximo passo
   const nextStep = async () => {
