@@ -31,12 +31,12 @@ async function refreshIfNeeded(auth: any, userId: string): Promise<string> {
 }
 
 // Cache do Shopee: armazena a lista completa de categorias por 10 minutos
-let categoryCache: { categories: any[]; timestamp: number } | null = null
+let categoryCache: { categories: any[]; rawList: any[]; timestamp: number } | null = null
 const CACHE_TTL = 10 * 60 * 1000 // 10 minutos
 
-async function getAllShopeeCategories(auth: any, accessToken: string, forceRefresh = false): Promise<any[]> {
+async function getAllShopeeCategories(auth: any, accessToken: string, forceRefresh = false): Promise<{ categories: any[]; rawList: any[] }> {
   if (!forceRefresh && categoryCache && Date.now() - categoryCache.timestamp < CACHE_TTL) {
-    return categoryCache.categories
+    return { categories: categoryCache.categories, rawList: categoryCache.rawList }
   }
 
   const endpoint = '/api/v2/product/get_category'
@@ -83,8 +83,8 @@ async function getAllShopeeCategories(auth: any, accessToken: string, forceRefre
       hasChildren: !!(c.has_children),
     }))
 
-  categoryCache = { categories, timestamp: Date.now() }
-  return categories
+  categoryCache = { categories, rawList: raw, timestamp: Date.now() }
+  return { categories, rawList: raw }
 }
 
 // GET /api/admin/marketplaces/shopee/categories
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
 
     // force=true na query string força refresh do cache
     const forceRefresh = searchParams.get('force') === 'true'
-    const allCategories = await getAllShopeeCategories(auth, accessToken, forceRefresh)
+    const { categories: allCategories, rawList } = await getAllShopeeCategories(auth, accessToken, forceRefresh)
 
     // Helper: build full path for a category
     const byId = new Map(allCategories.map(c => [c.id, c]))
@@ -140,7 +140,10 @@ export async function GET(request: NextRequest) {
     const parentId = parentIdParam !== null ? parseInt(parentIdParam) : 0
     const children = allCategories.filter(c => c.parentId === parentId)
 
-    console.log(`[Shopee categories] parentId=${parentId} → ${children.length} filhos: ${JSON.stringify(children.map(c => ({ id: c.id, name: c.name, hasChildren: c.hasChildren })))}`)
+    // Log com TODOS os campos raw da Shopee
+    const rawChildren = rawList.filter((c: any) => (c.parent_category_id || 0) === parentId)
+    console.log(`[Shopee categories] parentId=${parentId} → ${rawChildren.length} filhos COMPLETO:`)
+    console.log(JSON.stringify(rawChildren, null, 2))
 
     return NextResponse.json({ categories: children })
   } catch (e: any) {
