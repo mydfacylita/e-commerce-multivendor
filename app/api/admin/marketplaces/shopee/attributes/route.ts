@@ -30,20 +30,21 @@ async function refreshIfNeeded(auth: any, userId: string): Promise<string> {
   return auth.accessToken
 }
 
-// GET /api/admin/marketplaces/shopee/attributes?categoryId=100419&itemName=...&productId=...
+// POST /api/admin/marketplaces/shopee/attributes
+// Body: { category_id, locale, productId?, itemName? }
 // Returns attributes for a given Shopee category.
 // If productId is provided, tries to auto-map product specs to attribute values.
-// Tries: get_attribute_tree → get_recommend_attribute → get_attributes (usually suspended)
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-    const { searchParams } = new URL(request.url)
-    const categoryId = searchParams.get('categoryId')
-    const itemName = searchParams.get('itemName') || ''
-    const productId = searchParams.get('productId') || ''
-    if (!categoryId) return NextResponse.json({ error: 'categoryId obrigatório' }, { status: 400 })
+    const body = await request.json()
+    const categoryId = body.category_id ? String(body.category_id) : null
+    const itemName = body.itemName || ''
+    const productId = body.productId || ''
+    const locale = body.locale || 'pt-br'
+    if (!categoryId) return NextResponse.json({ error: 'category_id obrigatório' }, { status: 400 })
 
     const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, include: { shopeeAuth: true } })
     if (!adminUser?.shopeeAuth?.accessToken) return NextResponse.json({ error: 'Shopee não configurada' }, { status: 400 })
@@ -51,13 +52,13 @@ export async function GET(request: NextRequest) {
     const auth = adminUser.shopeeAuth
     const accessToken = await refreshIfNeeded(auth, adminUser.id)
 
-    console.log(`[Shopee attrs] ▶ category_id recebido: ${categoryId} | itemName: "${itemName.substring(0, 60)}" | productId: ${productId}`)
+    console.log(`[Shopee attrs] ▶ category_id: ${categoryId} | locale: ${locale} | itemName: "${itemName.substring(0, 60)}" | productId: ${productId}`)
 
-    // get_attribute_tree — Open Platform: GET com category_id + locale como query params
+    // get_attribute_tree — Open Platform: GET com category_id + language como query params
     const path = '/api/v2/product/get_attribute_tree'
     const ts = Math.floor(Date.now() / 1000)
     const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
-    const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&locale=pt-br`
+    const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&language=pt-BR`
     console.log(`[Shopee attrs] GET ${url.replace(accessToken, 'TOKEN***')}`)
     const treeRes = await fetch(url, { method: 'GET' })
     const rawText = await treeRes.text()
