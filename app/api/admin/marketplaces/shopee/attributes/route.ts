@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     // get_attribute_tree — testa 3 variações de language para descobrir qual a Shopee aceita
     const path = '/api/v2/product/get_attribute_tree'
-    const languagesToTry = ['pt_BR', 'pt-BR', 'en']
+    const languagesToTry = ['pt-BR', 'en']
     let treeData: any = null
     let raw: any[] = []
     let apiUsed = 'none'
@@ -61,22 +61,19 @@ export async function GET(request: NextRequest) {
     for (const lang of languagesToTry) {
       const ts = Math.floor(Date.now() / 1000)
       const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
-    const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_ids=${categoryId}&language=pt-BR`
+      const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_ids=${categoryId}&language=${lang}`
       console.log(`[Shopee attrs] GET get_attribute_tree | category_ids=${categoryId} language=${lang}`)
-      console.log(`[Shopee attrs] URL: ${url.replace(auth.partnerKey || '', '***').replace(accessToken, 'TOKEN***')}`)
+      console.log(`[Shopee attrs] URL: ${url.replace(accessToken, 'TOKEN***')}`)
       const treeRes = await fetch(url, { method: 'GET' })
       treeData = await treeRes.json()
-      console.log(`[Shopee attrs] Resposta (language=${lang}):`)
-      console.log(`  ├ error         : ${treeData.error || '(nenhum)'}`)
-      console.log(`  ├ message       : ${treeData.message || '(nenhum)'}`)
-      console.log(`  ├ warning       : ${treeData.warning || '(nenhum)'}`)
-      console.log(`  ├ request_id    : ${treeData.request_id || '(nenhum)'}`)
-      console.log(`  └ response_keys : ${Object.keys(treeData?.response || {}).join(', ') || '(vazio)'}`)
-      if (treeData?.response) {
-        console.log(`[Shopee attrs] response completo:`, JSON.stringify(treeData.response).substring(0, 3000))
-      }
+      // Log o JSON completo para ver a estrutura real da resposta
+      console.log(`[Shopee attrs] JSON completo (language=${lang}):`, JSON.stringify(treeData).substring(0, 3000))
       if (!treeData.error || treeData.error === '') {
-        raw = treeData?.response?.attribute_list || treeData?.response?.attributes || treeData?.response?.attribute_info_list || []
+        // Tentar todas as possíveis chaves da resposta
+        const resp = treeData?.response || treeData
+        raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || resp?.data || []
+        // Se response é array direto
+        if (!raw.length && Array.isArray(resp)) raw = resp
         if (raw.length > 0) { apiUsed = `get_attribute_tree(${lang})`; break }
       }
     }
