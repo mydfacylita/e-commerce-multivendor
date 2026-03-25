@@ -856,7 +856,8 @@ async function searchAttributeValues(
     const sign = crypto.createHmac('sha256', auth.partnerKey)
       .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
       .digest('hex')
-    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(searchText.substring(0, 50))}&language=pt-BR`
+    const BR_BASE = 'https://openplatform.shopee.com.br'
+    const url = `${BR_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(searchText.substring(0, 50))}&language=pt-BR`
     const res = await fetch(url, { method: 'GET' })
     const data = await res.json()
     console.log(`[Shopee] search_attribute_value_list attr=${attributeId} search="${searchText.substring(0, 30)}": error=${data.error || 'ok'} total=${data.response?.attribute_value_list?.length ?? 0}`)
@@ -917,19 +918,25 @@ function buildMissingAttrMessage(attrNames: string[]): string {
 // Busca os atributos brutos de uma categoria (com attribute_value_list completo)
 async function fetchRawCategoryAttributes(auth: any, accessToken: string, categoryId: number): Promise<any[]> {
   try {
-    const endpoint = '/api/v2/product/get_attributes'
+    const endpoint = '/api/v2/product/get_attribute_tree'
     const timestamp = Math.floor(Date.now() / 1000)
     const sign = crypto.createHmac('sha256', auth.partnerKey)
       .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
       .digest('hex')
+    const BR_BASE = 'https://openplatform.shopee.com.br'
     const res = await fetch(
-      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}`,
+      `${BR_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id_list=${categoryId}&language=pt-BR`,
       { method: 'GET' }
     )
     const data = await res.json()
-    console.log('[Shopee] fetchRawCategoryAttributes error:', data?.error || 'ok')
-    console.log('[Shopee] fetchRawCategoryAttributes resposta completa:', JSON.stringify(data))
-    return data?.response?.attributes || data?.response?.attribute_list || data?.response?.attribute_info_list || []
+    console.log('[Shopee] fetchRawCategoryAttributes error:', data?.error || data?.code || 'ok')
+    // Estrutura: { data: { list: [{ attribute_tree: [...] }] } }
+    const list: any[] = data?.data?.list || []
+    for (const item of list) {
+      const attrs = item?.attribute_tree || item?.attribute_list || []
+      if (attrs.length > 0) return attrs
+    }
+    return []
   } catch (e: any) {
     console.log('[Shopee] fetchRawCategoryAttributes erro:', e.message)
     return []
