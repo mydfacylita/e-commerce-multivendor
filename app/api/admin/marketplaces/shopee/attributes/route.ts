@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
     const auth = adminUser.shopeeAuth
     const accessToken = await refreshIfNeeded(auth, adminUser.id)
 
+    console.log(`[Shopee attrs] ▶ category_id recebido: ${categoryId} | itemName: "${itemName.substring(0, 60)}" | productId: ${productId}`)
+
     // get_attribute_tree com language=en
     const path = '/api/v2/product/get_attribute_tree'
     const variants = [

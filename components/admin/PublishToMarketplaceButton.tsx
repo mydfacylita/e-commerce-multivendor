@@ -268,6 +268,7 @@ export default function PublishToMarketplaceButton({
   // Actually select the leaf and fetch its attributes
   const selectShopeeLeafCategory = async (cat: any, path?: string) => {
     const catPath = path || cat.path || cat.name
+    console.log(`[Shopee] Categoria LEAF selecionada → id=${cat.id} | name="${cat.name}" | hasChildren=${cat.hasChildren} | path="${catPath}"`)
     setShopeeFormData(prev => ({ ...prev, categoryId: cat.id, categoryName: cat.name, categoryPath: catPath }))
     setShopeeCatFilter('')
     setShopeeCatSearchResults(null)
