@@ -68,7 +68,16 @@ export async function POST(request: NextRequest) {
 
     let raw: any[] = []
     let apiUsed = 'none'
-    if (!treeData.error || treeData.error === '') {
+    // Estrutura Shopee: { code: 0, data: { list: [{ attribute_tree: [...] }] } }
+    if (treeData?.data?.list?.length > 0) {
+      for (const item of treeData.data.list) {
+        const list = item?.attribute_tree || item?.attribute_list || item?.attributes || []
+        if (list.length > 0) { raw = list; break }
+      }
+      if (raw.length > 0) apiUsed = 'get_attribute_tree'
+    }
+    // Fallback: estrutura Open Platform legada: { response: { ... } }
+    if (!raw.length && (!treeData.error || treeData.error === '')) {
       const resp = treeData?.response || {}
       if (resp?.category_list?.length > 0) {
         for (const cat of resp.category_list) {
@@ -76,7 +85,7 @@ export async function POST(request: NextRequest) {
           if (list.length > 0) { raw = list; break }
         }
       }
-      if (!raw.length) raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || resp?.data || []
+      if (!raw.length) raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || []
       if (!raw.length && Array.isArray(resp)) raw = resp
       if (raw.length > 0) apiUsed = 'get_attribute_tree'
     }
