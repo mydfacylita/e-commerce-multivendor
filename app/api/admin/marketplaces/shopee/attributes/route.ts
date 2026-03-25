@@ -63,6 +63,8 @@ export async function GET(request: NextRequest) {
     let raw: any[] = []
     let apiUsed = 'none'
     const treeData = await makeShopeeReq('/api/v2/product/get_attribute_tree')
+    console.log(`[Shopee attrs] categoryId=${categoryId} | get_attribute_tree error="${treeData.error}" msg="${treeData.message}" response_keys=${Object.keys(treeData?.response || {}).join(',')}`)
+    console.log('[Shopee attrs] get_attribute_tree raw response:', JSON.stringify(treeData?.response).substring(0, 1000))
     if (!treeData.error || treeData.error === '') {
       raw = treeData?.response?.attribute_list || treeData?.response?.attributes || treeData?.response?.attribute_info_list || []
       if (raw.length > 0) apiUsed = 'get_attribute_tree'
@@ -71,6 +73,8 @@ export async function GET(request: NextRequest) {
     // Try 2: get_recommend_attribute (needs item_name)
     if (!raw.length && itemName) {
       const recData = await makeShopeeReq('/api/v2/product/get_recommend_attribute', `&item_name=${encodeURIComponent(itemName.substring(0, 100))}`)
+      console.log(`[Shopee attrs] get_recommend_attribute error="${recData.error}" msg="${recData.message}" response_keys=${Object.keys(recData?.response || {}).join(',')}`)
+      console.log('[Shopee attrs] get_recommend_attribute raw response:', JSON.stringify(recData?.response).substring(0, 1000))
       if (!recData.error || recData.error === '') {
         raw = recData?.response?.attribute_list || recData?.response?.attributes || []
         if (raw.length > 0) apiUsed = 'get_recommend_attribute'
@@ -80,11 +84,15 @@ export async function GET(request: NextRequest) {
     // Try 3: get_attributes (often suspended)
     if (!raw.length) {
       const attrData = await makeShopeeReq('/api/v2/product/get_attributes')
+      console.log(`[Shopee attrs] get_attributes error="${attrData.error}" msg="${attrData.message}" response_keys=${Object.keys(attrData?.response || {}).join(',')}`)
+      console.log('[Shopee attrs] get_attributes raw response:', JSON.stringify(attrData?.response).substring(0, 1000))
       if (!attrData.error || attrData.error === '') {
         raw = attrData?.response?.attributes || attrData?.response?.attribute_list || attrData?.response?.attribute_info_list || []
         if (raw.length > 0) apiUsed = 'get_attributes'
       }
     }
+    console.log(`[Shopee attrs] apiUsed=${apiUsed} | raw attributes encontrados: ${raw.length}`)
+    if (raw.length > 0) console.log('[Shopee attrs] Primeiro atributo raw:', JSON.stringify(raw[0]))
 
     const attributes = raw.map((attr: any) => ({
       id: attr.attribute_id,
@@ -206,6 +214,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    console.log(`[Shopee attrs] FINAL: ${attributes.length} atributos | prefill keys: ${Object.keys(prefill).join(',') || 'nenhum'} | suspended=${raw.length === 0}`)
+    if (attributes.length > 0) console.log('[Shopee attrs] Atributos mapeados:', JSON.stringify(attributes.map(a => ({ id: a.id, name: a.name, mandatory: a.isMandatory, values: a.values.length }))))
     return NextResponse.json({ attributes, apiUsed, suspended: raw.length === 0, prefill })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
