@@ -587,16 +587,41 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
     }
     if (product.gtin) bodyObj.gtin = product.gtin.substring(0, 14)
     if (attributeList.length > 0) bodyObj.attribute_list = attributeList
-    console.log('[Shopee] add_item bodyObj:', JSON.stringify(bodyObj))
     const bodyStr = JSON.stringify(bodyObj)
-    console.log('[Shopee] add_item body (attrs count):', attributeList.length)
+
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('[Shopee] 🚀 add_item ENVIANDO')
+    console.log(`  ├ category_id    : ${bodyObj.category_id}`)
+    console.log(`  ├ item_name      : ${bodyObj.item_name}`)
+    console.log(`  ├ original_price : R$ ${bodyObj.original_price}`)
+    console.log(`  ├ weight         : ${bodyObj.weight} kg`)
+    console.log(`  ├ dimensões      : ${bodyObj.dimension?.package_length}x${bodyObj.dimension?.package_width}x${bodyObj.dimension?.package_height} cm`)
+    console.log(`  ├ stock          : ${bodyObj.seller_stock?.[0]?.stock}`)
+    console.log(`  ├ brand          : ${bodyObj.brand?.original_brand_name}`)
+    console.log(`  ├ item_sku       : ${bodyObj.item_sku}`)
+    console.log(`  ├ gtin           : ${bodyObj.gtin || '(não informado)'}`)
+    console.log(`  ├ imagens        : ${bodyObj.image?.image_id_list?.length ?? 0} imagem(ns)`)
+    console.log(`  ├ logísticas     : ${(bodyObj.logistic_info || []).map((l: any) => `id=${l.logistic_id}(${l.enabled ? 'on' : 'off'})`).join(', ')}`)
+    console.log(`  └ atributos      : ${attributeList.length} atributo(s)${attributeList.length > 0 ? ' → ' + attributeList.map((a: any) => `[${a.attribute_id}]`).join(', ') : ''}`)
+    if (attributeList.length > 0) console.log('    atributos detalhe:', JSON.stringify(attributeList))
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
     const res = await fetch(
       `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr }
     )
     const data = await res.json()
-    console.log('[Shopee] add_item resposta:', JSON.stringify(data))
+
+    if (!data.error || data.error === '') {
+      console.log(`[Shopee] ✅ add_item SUCESSO → item_id=${data.response?.item_id}${data.warning ? ` | ⚠ warning: ${data.warning}` : ''}`)
+    } else {
+      console.log('\n[Shopee] ❌ add_item ERRO')
+      console.log(`  ├ error         : ${data.error}`)
+      console.log(`  ├ message       : ${data.message}`)
+      console.log(`  ├ warning       : ${data.warning || '(nenhum)'}`)
+      console.log(`  ├ request_id    : ${data.request_id}`)
+      console.log(`  └ debug_message : ${data.debug_message || '(vazio)'}`)
+    }
 
     // === RETRY: se mandatory attributes faltando, buscar valores e tentar novamente ===
     if (
@@ -604,16 +629,12 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
       data.debug_message?.includes('Attribute is mandatory')
     ) {
       const missing = parseMandatoryAttributeErrors(data.debug_message)
-      console.log('[Shopee] retry - atributos obrigatórios faltando:', missing)
+      console.log(`\n[Shopee] 🔁 RETRY — atributos obrigatórios faltando (${missing.length}):`, missing.map((m: any) => `${m.name}(id=${m.id})`).join(', '))
 
       if (missing.length > 0) {
         // Buscar atributos crus da categoria para encontrar os valores corretos
         const rawAttrs = await fetchRawCategoryAttributes(auth, accessToken, categoryId)
-        console.log('[Shopee] retry - total attrs brutos da categoria:', rawAttrs.length)
-
-        // get_attributes suspenso: tentar enviar original_value para todos os attrs ausentes
-        // Funciona para TEXT_FIELD (Model Name etc). Para COMBO_BOX a Shopee retorna erro mas ao menos tentamos.
-        console.log('[Shopee] retry - get_attributes suspenso, tentando original_value para attrs ausentes')
+        console.log(`[Shopee] retry - attrs brutos da categoria: ${rawAttrs.length} | estratégia: original_value para TEXT_FIELD, value_id para COMBO_BOX`)
 
         // Parsear specs reais do produto (array AliExpress ou objeto)
         const parseAttrsForGuess = (raw: string | null | undefined): Record<string, string> => {
@@ -642,7 +663,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
           ...parseAttrsForGuess(product.attributes),
           ...parseAttrsForGuess(product.technicalSpecs),
         }
-        console.log('[Shopee] guessAttrValue - specs do produto:', JSON.stringify(productSpecs))
+        console.log(`[Shopee] retry - specs do produto disponíveis (${Object.keys(productSpecs).length} chaves):`, Object.keys(productSpecs).join(', '))
 
         // Atributos que exigem número regulatório específico — não auto-preencher com texto livre
         const SKIP_IF_NO_VALID_VALUE = ['registration id', 'anatel', 'homolog', 'license number', 'número de registro', 'registro anatel']
@@ -728,7 +749,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
         }
 
         bodyObj.attribute_list = [...(bodyObj.attribute_list || []), ...extraAttrs]
-        console.log('[Shopee] retry add_item - attribute_list final:', JSON.stringify(bodyObj.attribute_list))
+        console.log(`[Shopee] retry - attribute_list final (${(bodyObj.attribute_list||[]).length} attrs):`, JSON.stringify(bodyObj.attribute_list))
 
         const retryTs = Math.floor(Date.now() / 1000)
         const retrySign = crypto.createHmac('sha256', auth.partnerKey)
@@ -739,13 +760,20 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) }
         )
         const retryData = await retryRes.json()
-        console.log('[Shopee] retry add_item resposta:', JSON.stringify(retryData))
+        if (!retryData.error || retryData.error === '') {
+          console.log(`[Shopee] ✅ retry SUCESSO → item_id=${retryData.response?.item_id}${retryData.warning ? ` | ⚠ warning: ${retryData.warning}` : ''}`)
+        } else {
+          console.log('[Shopee] ❌ retry ERRO')
+          console.log(`  ├ error         : ${retryData.error}`)
+          console.log(`  ├ message       : ${retryData.message}`)
+          console.log(`  └ debug_message : ${retryData.debug_message || '(vazio)'}`)
+        }
 
         if (retryData.error && retryData.error !== '') {
           // Atributos COMBO_BOX rejeitaram valor personalizado — buscar value_id real via search_attribute_value_list
           const cannotCustomize = parseCannotCustomizeErrors(retryData.message || '')
           if (cannotCustomize.length > 0) {
-            console.log('[Shopee] retry2 - atributos COMBO_BOX rejeitados, buscando value_id via search_attribute_value_list:', cannotCustomize)
+            console.log(`\n[Shopee] 🔁 RETRY2 — COMBO_BOX rejeitados, buscando value_id real (${cannotCustomize.length}):`, cannotCustomize.join(', '))
             let fixedAny = false
             for (const attrName of cannotCustomize) {
               // Encontrar o attr na lista atual pelo nome
@@ -767,7 +795,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
               }
             }
             if (fixedAny) {
-              console.log('[Shopee] retry2 attribute_list final:', JSON.stringify(bodyObj.attribute_list))
+              console.log(`[Shopee] retry2 - attribute_list final (${(bodyObj.attribute_list||[]).length} attrs):`, JSON.stringify(bodyObj.attribute_list))
               const retry2Ts = Math.floor(Date.now() / 1000)
               const retry2Sign = crypto.createHmac('sha256', auth.partnerKey)
                 .update(`${auth.partnerId}${endpoint}${retry2Ts}${accessToken}${auth.shopId}`)
@@ -777,7 +805,14 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
                 { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyObj) }
               )
               const retry2Data = await retry2Res.json()
-              console.log('[Shopee] retry2 add_item resposta:', JSON.stringify(retry2Data))
+              if (!retry2Data.error || retry2Data.error === '') {
+                console.log(`[Shopee] ✅ retry2 SUCESSO → item_id=${retry2Data.response?.item_id}${retry2Data.warning ? ` | ⚠ warning: ${retry2Data.warning}` : ''}`)
+              } else {
+                console.log('[Shopee] ❌ retry2 ERRO')
+                console.log(`  ├ error         : ${retry2Data.error}`)
+                console.log(`  ├ message       : ${retry2Data.message}`)
+                console.log(`  └ debug_message : ${retry2Data.debug_message || '(vazio)'}`)
+              }
               if (!retry2Data.error || retry2Data.error === '') {
                 return { success: true, itemId: retry2Data.response?.item_id?.toString(), message: 'Publicado com sucesso na Shopee' }
               }
