@@ -69,14 +69,13 @@ export async function GET(request: NextRequest) {
       const resp = treeData?.response || {}
       if (resp?.category_list?.length > 0) {
         for (const cat of resp.category_list) {
-            const list = cat?.attribute_list || cat?.attributes || []
-            if (list.length > 0) { raw = list; break }
-          }
+          const list = cat?.attribute_list || cat?.attributes || []
+          if (list.length > 0) { raw = list; break }
         }
-        if (!raw.length) raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || resp?.data || []
-        if (!raw.length && Array.isArray(resp)) raw = resp
-        if (raw.length > 0) apiUsed = 'get_attribute_tree'
       }
+      if (!raw.length) raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || resp?.data || []
+      if (!raw.length && Array.isArray(resp)) raw = resp
+      if (raw.length > 0) apiUsed = 'get_attribute_tree'
     }
 
     console.log(`[Shopee attrs] RESULTADO: apiUsed="${apiUsed}" | atributos: ${raw.length}`)
