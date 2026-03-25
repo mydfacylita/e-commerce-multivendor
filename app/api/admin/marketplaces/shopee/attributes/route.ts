@@ -69,10 +69,16 @@ export async function GET(request: NextRequest) {
       // Log o JSON completo para ver a estrutura real da resposta
       console.log(`[Shopee attrs] JSON completo (language=${lang}):`, JSON.stringify(treeData).substring(0, 3000))
       if (!treeData.error || treeData.error === '') {
-        // Tentar todas as possíveis chaves da resposta
         const resp = treeData?.response || treeData
-        raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || resp?.data || []
-        // Se response é array direto
+        // get_attribute_tree retorna response.category_list[{category_id, attribute_list}]
+        if (resp?.category_list?.length > 0) {
+          for (const cat of resp.category_list) {
+            const list = cat?.attribute_list || cat?.attributes || []
+            if (list.length > 0) { raw = list; break }
+          }
+        }
+        // Fallbacks para outras estruturas possíveis
+        if (!raw.length) raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || resp?.data || []
         if (!raw.length && Array.isArray(resp)) raw = resp
         if (raw.length > 0) { apiUsed = `get_attribute_tree(${lang})`; break }
       }
