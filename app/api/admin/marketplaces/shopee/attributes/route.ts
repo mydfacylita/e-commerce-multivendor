@@ -51,47 +51,24 @@ export async function GET(request: NextRequest) {
     const auth = adminUser.shopeeAuth
     const accessToken = await refreshIfNeeded(auth, adminUser.id)
 
-    const makeShopeeReq = async (path: string, extra: string = '') => {
-      const ts = Math.floor(Date.now() / 1000)
-      const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
-      const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&language=pt-BR${extra}`
-      const r = await fetch(url, { method: 'GET' })
-      return r.json()
-    }
+    // get_attribute_tree — parâmetro correto é category_ids (plural) e language=pt_BR
+    const ts = Math.floor(Date.now() / 1000)
+    const path = '/api/v2/product/get_attribute_tree'
+    const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
+    const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_ids=${categoryId}&language=pt_BR`
+    console.log(`[Shopee attrs] GET get_attribute_tree | category_ids=${categoryId}`)
+    const treeRes = await fetch(url, { method: 'GET' })
+    const treeData = await treeRes.json()
+    console.log(`[Shopee attrs] get_attribute_tree → error="${treeData.error}" msg="${treeData.message}" response_keys=${Object.keys(treeData?.response || {}).join(',')}`)
+    console.log('[Shopee attrs] get_attribute_tree raw response:', JSON.stringify(treeData?.response).substring(0, 2000))
 
-    // Try 1: get_attribute_tree
     let raw: any[] = []
     let apiUsed = 'none'
-    const treeData = await makeShopeeReq('/api/v2/product/get_attribute_tree')
-    console.log(`[Shopee attrs] categoryId=${categoryId} | get_attribute_tree error="${treeData.error}" msg="${treeData.message}" response_keys=${Object.keys(treeData?.response || {}).join(',')}`)
-    console.log('[Shopee attrs] get_attribute_tree raw response:', JSON.stringify(treeData?.response).substring(0, 1000))
     if (!treeData.error || treeData.error === '') {
       raw = treeData?.response?.attribute_list || treeData?.response?.attributes || treeData?.response?.attribute_info_list || []
       if (raw.length > 0) apiUsed = 'get_attribute_tree'
     }
-
-    // Try 2: get_recommend_attribute (needs item_name)
-    if (!raw.length && itemName) {
-      const recData = await makeShopeeReq('/api/v2/product/get_recommend_attribute', `&item_name=${encodeURIComponent(itemName.substring(0, 100))}`)
-      console.log(`[Shopee attrs] get_recommend_attribute error="${recData.error}" msg="${recData.message}" response_keys=${Object.keys(recData?.response || {}).join(',')}`)
-      console.log('[Shopee attrs] get_recommend_attribute raw response:', JSON.stringify(recData?.response).substring(0, 1000))
-      if (!recData.error || recData.error === '') {
-        raw = recData?.response?.attribute_list || recData?.response?.attributes || []
-        if (raw.length > 0) apiUsed = 'get_recommend_attribute'
-      }
-    }
-
-    // Try 3: get_attributes (often suspended)
-    if (!raw.length) {
-      const attrData = await makeShopeeReq('/api/v2/product/get_attributes')
-      console.log(`[Shopee attrs] get_attributes error="${attrData.error}" msg="${attrData.message}" response_keys=${Object.keys(attrData?.response || {}).join(',')}`)
-      console.log('[Shopee attrs] get_attributes raw response:', JSON.stringify(attrData?.response).substring(0, 1000))
-      if (!attrData.error || attrData.error === '') {
-        raw = attrData?.response?.attributes || attrData?.response?.attribute_list || attrData?.response?.attribute_info_list || []
-        if (raw.length > 0) apiUsed = 'get_attributes'
-      }
-    }
-    console.log(`[Shopee attrs] apiUsed=${apiUsed} | raw attributes encontrados: ${raw.length}`)
+    console.log(`[Shopee attrs] apiUsed=${apiUsed} | atributos encontrados: ${raw.length}`)
     if (raw.length > 0) console.log('[Shopee attrs] Primeiro atributo raw:', JSON.stringify(raw[0]))
 
     const attributes = raw.map((attr: any) => ({
