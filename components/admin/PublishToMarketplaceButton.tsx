@@ -155,11 +155,12 @@ export default function PublishToMarketplaceButton({
   // attr value options loaded via search_attribute_value_list per attribute
   const [shopeeAttrOptions, setShopeeAttrOptions] = useState<Record<number, any[]>>({})
   const [shopeeAttrSearching, setShopeeAttrSearching] = useState<Record<number, boolean>>({})
-  // Category tree browser
-  const [shopeeCatTree, setShopeeCatTree] = useState<any[]>([])  // full flat list
-  const [shopeeCatLoaded, setShopeeCatLoaded] = useState(false)
+  // Category tree browser — level-by-level
+  const [shopeeCatLevels, setShopeeCatLevels] = useState<any[][]>([])  // array of category arrays per level
+  const [shopeeCatNames, setShopeeCatNames] = useState<Record<number, string>>({}) // id → name for path display
   const [shopeeCatLoading, setShopeeCatLoading] = useState(false)
   const [shopeeCatFilter, setShopeeCatFilter] = useState('') // text search
+  const [shopeeCatSearchResults, setShopeeCatSearchResults] = useState<any[] | null>(null)
   const [shopeeBrowsePath, setShopeeBrowsePath] = useState<number[]>([]) // selected id at each level
   const [loadingShopeeAttrs, setLoadingShopeeAttrs] = useState(false)
   const [shopeeAttrError, setShopeeAttrError] = useState<string | null>(null)
@@ -197,83 +198,119 @@ export default function PublishToMarketplaceButton({
       brand: productBrand,
       weight: productWeight ? String(productWeight) : '',
       pkgLength: productPkgLength ? String(productPkgLength) : '',
-      pkgWidth: productPkgWidth ? String(productPkgHeight) : '',
+      pkgWidth: productPkgWidth ? String(productPkgWidth) : '',
       pkgHeight: productPkgHeight ? String(productPkgHeight) : '',
     })
     setShopeeAttributes([])
     setShopeeAttrValues({})
     setShopeeAttrOptions({})
     setShopeeCatFilter('')
+    setShopeeCatSearchResults(null)
     setShopeeBrowsePath([])
+    setShopeeCatLevels([])
+    setShopeeCatNames({})
   }
 
-  // Load full category tree from Shopee API (once per modal open)
-  const loadShopeeCategoryTree = async () => {
-    if (shopeeCatLoaded || shopeeCatLoading) return
+  // Load children of a parentId from the API (level-by-level)
+  const loadShopeeCatLevel = async (parentId: number, level: number) => {
     setShopeeCatLoading(true)
     try {
-      const res = await fetch('/api/admin/marketplaces/shopee/categories')
+      const res = await fetch(`/api/admin/marketplaces/shopee/categories?parentId=${parentId}`)
       const d = await res.json()
       if (d.categories) {
-        setShopeeCatTree(d.categories)
-        setShopeeCatLoaded(true)
+        setShopeeCatLevels(prev => {
+          const next = prev.slice(0, level)
+          next[level] = d.categories
+          return next
+        })
+        // Store names for path display
+        const names: Record<number, string> = {}
+        for (const c of d.categories) names[c.id] = c.name
+        setShopeeCatNames(prev => ({ ...prev, ...names }))
       }
     } catch {}
     finally { setShopeeCatLoading(false) }
   }
 
-  // Build full path string for a category using the flat tree
-  const shopeeCatPath = (id: number): string => {
-    const byId = new Map(shopeeCatTree.map((c: any) => [c.id, c]))
-    const parts: string[] = []
-    let cur: number | null = id
-    for (let i = 0; i < 6 && cur; i++) {
-      const c = byId.get(cur)
-      if (!c) break
-      parts.unshift(c.name)
-      cur = c.parentId || null
-    }
-    return parts.join(' > ')
+  // Search categories by text via API
+  const searchShopeeCategories = async (query: string) => {
+    if (query.length < 2) { setShopeeCatSearchResults(null); return }
+    setShopeeCatLoading(true)
+    try {
+      const res = await fetch(`/api/admin/marketplaces/shopee/categories?query=${encodeURIComponent(query)}`)
+      const d = await res.json()
+      setShopeeCatSearchResults(d.categories || [])
+    } catch {}
+    finally { setShopeeCatLoading(false) }
   }
 
-  // Children of a given parentId in the tree
-  const shopeeCatChildren = (parentId: number) =>
-    shopeeCatTree.filter((c: any) => c.parentId === parentId)
+  // Build path string from the current browsePath + names map
+  const shopeeBrowsePathStr = (): string => {
+    return shopeeBrowsePath.map(id => shopeeCatNames[id] || `#${id}`).join(' > ')
+  }
 
-  // Select a leaf category in the browser
-  const selectShopeeLeafCategory = async (cat: any) => {
-    const path = shopeeCatPath(cat.id)
-    setShopeeFormData(prev => ({ ...prev, categoryId: cat.id, categoryName: cat.name, categoryPath: path }))
+  // Select a category: if has children → load next level, if leaf → fetch attributes
+  const selectShopeeCategory = async (cat: any, level: number) => {
+    if (cat.hasChildren) {
+      // Not a leaf — load next level
+      const newPath = [...shopeeBrowsePath.slice(0, level), cat.id]
+      setShopeeBrowsePath(newPath)
+      setShopeeCatLevels(prev => prev.slice(0, level + 1)) // trim deeper levels
+      loadShopeeCatLevel(cat.id, level + 1)
+      return
+    }
+    // Leaf category — build path and fetch attributes
+    const pathParts = [...shopeeBrowsePath.slice(0, level).map(id => shopeeCatNames[id] || ''), cat.name]
+    const path = pathParts.filter(Boolean).join(' > ')
+    selectShopeeLeafCategory(cat, path)
+  }
+
+  // Actually select the leaf and fetch its attributes
+  const selectShopeeLeafCategory = async (cat: any, path?: string) => {
+    const catPath = path || cat.path || cat.name
+    setShopeeFormData(prev => ({ ...prev, categoryId: cat.id, categoryName: cat.name, categoryPath: catPath }))
     setShopeeCatFilter('')
+    setShopeeCatSearchResults(null)
     setShopeeBrowsePath([])
+    setShopeeCatLevels([])
     setLoadingShopeeAttrs(true)
     setShopeeAttributes([])
     setShopeeAttrValues({})
     setShopeeAttrOptions({})
     setShopeeAttrError(null)
     try {
-      const res = await fetch(`/api/admin/marketplaces/shopee/attributes?categoryId=${cat.id}&itemName=${encodeURIComponent(shopeeFormData.itemName.substring(0, 80))}`)
+      const res = await fetch(`/api/admin/marketplaces/shopee/attributes?categoryId=${cat.id}&itemName=${encodeURIComponent(shopeeFormData.itemName.substring(0, 80))}&productId=${encodeURIComponent(productId)}`)
       const data = await res.json()
       if (data.suspended || (data.attributes && data.attributes.length === 0)) {
         setShopeeAttrError('API de atributos não disponível — os atributos serão preenchidos automaticamente com os dados do produto.')
       }
       if (data.attributes && data.attributes.length > 0) {
         setShopeeAttributes(data.attributes)
-        // Prefill known fields
-        const prefill: Record<number, string | number> = {}
+        // Use server-side prefill from product specs auto-mapping
+        const prefillMap: Record<number, string | number> = {}
+        if (data.prefill && typeof data.prefill === 'object') {
+          for (const [attrIdStr, info] of Object.entries(data.prefill as Record<string, { value: string | number; matched: boolean; source: string }>)) {
+            const attrId = parseInt(attrIdStr)
+            if (!isNaN(attrId) && info.value !== undefined && info.value !== '') {
+              prefillMap[attrId] = info.value
+            }
+          }
+        }
+        // Fallback: client-side prefill for brand/model if server didn't match
         for (const attr of data.attributes) {
+          if (prefillMap[attr.id] !== undefined) continue
           const n = attr.name.toLowerCase()
           if ((n.includes('brand') || n.includes('marca')) && productBrand) {
             const match = attr.values.find((v: any) => v.name.toLowerCase().includes(productBrand.toLowerCase()))
-            if (match) prefill[attr.id] = match.value_id
+            if (match) prefillMap[attr.id] = match.value_id
           } else if (n.includes('model') && (productModel || productName)) {
             const val = productModel || productName
             const match = attr.values.find((v: any) => v.name.toLowerCase().includes(val.toLowerCase().substring(0, 10)))
-            if (match) prefill[attr.id] = match.value_id
-            else if (attr.values.length === 0) prefill[attr.id] = (productModel || productName).substring(0, 100)
+            if (match) prefillMap[attr.id] = match.value_id
+            else if (attr.values.length === 0) prefillMap[attr.id] = (productModel || productName).substring(0, 100)
           }
         }
-        if (Object.keys(prefill).length > 0) setShopeeAttrValues(prefill)
+        if (Object.keys(prefillMap).length > 0) setShopeeAttrValues(prefillMap)
       }
     } catch (e) {
       console.error('Erro ao carregar atributos Shopee:', e)
@@ -292,54 +329,6 @@ export default function PublishToMarketplaceButton({
       if (d.values) setShopeeAttrOptions(prev => ({ ...prev, [attrId]: d.values }))
     } catch {}
     finally { setShopeeAttrSearching(prev => ({ ...prev, [attrId]: false })) }
-  }
-
-  // Selecionar categoria Shopee e carregar atributos
-  const selectShopeeCategory = async (cat: { id: number; name: string }) => {
-    setShopeeFormData(prev => ({ ...prev, categoryId: cat.id, categoryName: cat.name }))
-    setLoadingShopeeAttrs(true)
-    setShopeeAttributes([])
-    setShopeeAttrValues({})
-    setShopeeAttrError(null)
-    try {
-      const res = await fetch(`/api/admin/marketplaces/shopee/attributes?categoryId=${cat.id}`)
-      const data = await res.json()
-      if (data.error) {
-        console.error('[Shopee] erro ao carregar atributos:', data.error)
-        if (String(data.error).toLowerCase().includes('api_suspended') || String(data.error).toLowerCase().includes('suspended')) {
-          setShopeeAttrError(`Endpoint get_attributes suspenso (api_suspended). Verifique as permissões do seu APP em open.shopee.com → Console → Gerenciamento de Apps → Permissões de API e certifique-se que o endpoint product/get_attributes está habilitado.`)
-        } else {
-          setShopeeAttrError(`Erro ao carregar atributos: ${data.error}`)
-        }
-      }
-      if (data.attributes) {
-        setShopeeAttributes(data.attributes)
-        // Pre-fill attribute values from product data based on attribute name
-        const prefill: Record<number, string | number> = {}
-        for (const attr of data.attributes) {
-          const name = attr.name.toLowerCase()
-          if (name.includes('brand') || name.includes('marca')) {
-            if (productBrand) {
-              const match = attr.values.find((v: any) => v.name.toLowerCase() === productBrand.toLowerCase())
-              if (match) prefill[attr.id] = match.id
-              else if (attr.values.length === 0) prefill[attr.id] = productBrand
-            }
-          } else if (name.includes('model')) {
-            const modelVal = productModel || productName
-            if (modelVal) {
-              const match = attr.values.find((v: any) => v.name.toLowerCase() === modelVal.toLowerCase())
-              if (match) prefill[attr.id] = match.id
-              else if (attr.values.length === 0) prefill[attr.id] = modelVal.substring(0, 100)
-            }
-          }
-        }
-        if (Object.keys(prefill).length > 0) setShopeeAttrValues(prefill)
-      }
-    } catch (e) {
-      console.error('Erro ao carregar atributos Shopee:', e)
-    } finally {
-      setLoadingShopeeAttrs(false)
-    }
   }
 
   // Carregar canais logísticos da Shopee
@@ -503,7 +492,7 @@ export default function PublishToMarketplaceButton({
       // Shopee: vai para step 2 (formulário de dados)
       if (selectedMarketplace === 'shopee') {
         setCurrentStep(2)
-        loadShopeeCategoryTree()
+        loadShopeeCatLevel(0, 0)
         return
       }
       // Amazon e outros: pula para confirmar
@@ -1460,7 +1449,10 @@ export default function PublishToMarketplaceButton({
                             setShopeeAttributes([])
                             setShopeeAttrValues({})
                             setShopeeBrowsePath([])
+                            setShopeeCatLevels([])
                             setShopeeCatFilter('')
+                            setShopeeCatSearchResults(null)
+                            loadShopeeCatLevel(0, 0)
                           }}
                           className="text-xs text-red-500 hover:underline"
                         >Alterar</button>
@@ -1473,7 +1465,15 @@ export default function PublishToMarketplaceButton({
                           <input
                             type="text"
                             value={shopeeCatFilter}
-                            onChange={e => { setShopeeCatFilter(e.target.value); setShopeeBrowsePath([]) }}
+                            onChange={e => {
+                              const val = e.target.value
+                              setShopeeCatFilter(val)
+                              if (val.length >= 2) {
+                                searchShopeeCategories(val)
+                              } else {
+                                setShopeeCatSearchResults(null)
+                              }
+                            }}
                             placeholder="Buscar categoria... (ex: smartwatch, carregador)"
                             className="flex-1 text-sm bg-transparent outline-none"
                             autoComplete="off"
@@ -1481,65 +1481,67 @@ export default function PublishToMarketplaceButton({
                           {shopeeCatLoading && <FiRefreshCw className="animate-spin text-orange-400 flex-shrink-0" size={13} />}
                         </div>
 
-                        {/* Resultados de busca */}
-                        {shopeeCatFilter.length >= 2 ? (
-                          <div className="max-h-52 overflow-y-auto">
-                            {(() => {
-                              const q = shopeeCatFilter.toLowerCase()
-                              const results = shopeeCatTree
-                                .filter((c: any) => !c.hasChildren)
-                                .map((c: any) => ({ ...c, path: shopeeCatPath(c.id) }))
-                                .filter((c: any) => c.path.toLowerCase().includes(q))
-                                .slice(0, 40)
-                              return results.length === 0
-                                ? <p className="text-sm text-gray-400 px-3 py-4 text-center">Nenhuma categoria encontrada para &quot;{shopeeCatFilter}&quot;</p>
-                                : results.map((cat: any) => (
-                                  <button key={cat.id} onClick={() => selectShopeeLeafCategory(cat)}
+                        {/* Resultados de busca OU browser hierárquico */}
+                        {shopeeCatLoading ? (
+                          <div className="flex items-center justify-center py-8 gap-2">
+                            <FiRefreshCw className="animate-spin text-orange-400" size={16} />
+                            <span className="text-sm text-gray-500">Carregando categorias da Shopee...</span>
+                          </div>
+                        ) : shopeeCatSearchResults !== null ? (
+                          <div className="max-h-64 overflow-y-auto">
+                            {shopeeCatSearchResults.length === 0
+                              ? <p className="text-sm text-gray-400 px-3 py-6 text-center">Nenhuma categoria encontrada para &quot;{shopeeCatFilter}&quot;</p>
+                              : shopeeCatSearchResults.map((cat: any) => (
+                                  <button key={cat.id} onClick={() => selectShopeeLeafCategory(cat, cat.path)}
                                     className="w-full px-3 py-2 text-left text-xs hover:bg-orange-50 border-b last:border-0 text-gray-700">
                                     {cat.path}
                                   </button>
                                 ))
-                            })()}
+                            }
                           </div>
-                        ) : shopeeCatLoading ? null : shopeeCatTree.length === 0 ? (
-                          <p className="text-sm text-gray-400 px-3 py-4 text-center">Carregando categorias...</p>
+                        ) : shopeeCatLevels.length === 0 ? (
+                          <p className="text-sm text-gray-400 px-3 py-6 text-center">Nenhuma categoria disponível</p>
                         ) : (
                           /* Browser de colunas hierárquicas — até 4 níveis igual ao Seller Centre */
-                          <div className="flex divide-x divide-gray-200 overflow-x-auto" style={{ height: '210px' }}>
-                            {[0, ...shopeeBrowsePath].map((parentId, level) => {
-                              const children = shopeeCatChildren(parentId)
-                              if (children.length === 0) return null
-                              const selectedId = shopeeBrowsePath[level]
-                              return (
-                                <div key={`col-${level}-${parentId}`} className="w-48 flex-shrink-0 overflow-y-auto">
-                                  {children.map((cat: any) => {
-                                    const isSelected = selectedId === cat.id
-                                    return (
-                                      <button
-                                        key={cat.id}
-                                        onClick={() => {
-                                          if (!cat.hasChildren) {
-                                            selectShopeeLeafCategory(cat)
-                                          } else {
-                                            // Selecionar nó intermediário e mostrar filhos
-                                            setShopeeBrowsePath(prev => [...prev.slice(0, level), cat.id])
+                          <div>
+                            <div className="flex divide-x divide-gray-200 overflow-x-auto" style={{ height: '240px' }}>
+                              {shopeeCatLevels.map((levelCats, level) => {
+                                if (!levelCats || levelCats.length === 0) return null
+                                const selectedId = shopeeBrowsePath[level]
+                                return (
+                                  <div key={`col-${level}`} className="min-w-[180px] flex-shrink-0 overflow-y-auto">
+                                    {levelCats.map((cat: any) => {
+                                      const isSelected = selectedId === cat.id
+                                      return (
+                                        <button
+                                          key={cat.id}
+                                          onClick={() => selectShopeeCategory(cat, level)}
+                                          className={`w-full px-3 py-2 text-left text-xs border-b flex items-center justify-between transition-colors ${
+                                            isSelected
+                                              ? 'bg-orange-50 text-orange-700 font-semibold'
+                                              : 'hover:bg-gray-50 text-gray-700'
+                                          }`}
+                                        >
+                                          <span className="flex-1 truncate pr-1">{cat.name}</span>
+                                          {cat.hasChildren
+                                            ? <FiChevronRight className="flex-shrink-0 text-gray-400" size={11} />
+                                            : <span className={`text-[10px] ${isSelected ? 'text-orange-500' : 'text-transparent'}`}>✓</span>
                                           }
-                                        }}
-                                        className={`w-full px-3 py-2 text-left text-xs border-b flex items-center justify-between transition-colors ${
-                                          isSelected ? 'bg-orange-50 text-orange-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'
-                                        }`}
-                                      >
-                                        <span className="flex-1 truncate pr-1">{cat.name}</span>
-                                        {cat.hasChildren
-                                          ? <FiChevronRight className="flex-shrink-0 text-gray-400" size={11} />
-                                          : isSelected && <span className="text-orange-500 text-[10px]">✓</span>
-                                        }
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {/* Caminho selecionado até agora */}
+                            {shopeeBrowsePath.length > 0 && (
+                              <div className="px-3 py-1.5 bg-gray-50 border-t text-xs text-gray-500 truncate">
+                                {shopeeBrowsePath.map((id, i) => (
+                                  <span key={id}>{i > 0 && ' > '}{shopeeCatNames[id] || `#${id}`}</span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

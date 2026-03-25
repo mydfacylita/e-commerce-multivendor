@@ -30,14 +30,65 @@ async function refreshIfNeeded(auth: any, userId: string): Promise<string> {
   return auth.accessToken
 }
 
-// GET /api/admin/marketplaces/shopee/categories?query=fritadeira
-// Returns leaf categories from Shopee, filtered by query if provided
+// Cache do Shopee: armazena a lista completa de categorias por 10 minutos
+let categoryCache: { categories: any[]; timestamp: number } | null = null
+const CACHE_TTL = 10 * 60 * 1000 // 10 minutos
+
+async function getAllShopeeCategories(auth: any, accessToken: string): Promise<any[]> {
+  if (categoryCache && Date.now() - categoryCache.timestamp < CACHE_TTL) {
+    return categoryCache.categories
+  }
+
+  const endpoint = '/api/v2/product/get_category'
+  const timestamp = Math.floor(Date.now() / 1000)
+  const sign = shopeeSign(auth.partnerId, endpoint, timestamp, accessToken, auth.shopId, auth.partnerKey)
+
+  const res = await fetch(
+    `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&language=pt-BR`,
+    { method: 'GET' }
+  )
+  const data = await res.json()
+
+  if (data.error && data.error !== '') {
+    throw new Error(data.message || data.error)
+  }
+
+  const raw: any[] = data?.response?.category_list || []
+
+  // Parse warning to exclude outdated category IDs
+  const outdatedIds = new Set<number>()
+  const warningStr: string = data?.warning || ''
+  const warnRegex = /CategoryID\[(\d+)\]/g
+  let wm
+  while ((wm = warnRegex.exec(warningStr)) !== null) {
+    outdatedIds.add(parseInt(wm[1]))
+  }
+
+  const categories = raw
+    .filter((c: any) => !outdatedIds.has(c.category_id))
+    .map((c: any) => ({
+      id: c.category_id as number,
+      name: (c.display_category_name || c.category_name || '') as string,
+      parentId: (c.parent_category_id || 0) as number,
+      hasChildren: !!(c.has_children),
+    }))
+
+  categoryCache = { categories, timestamp: Date.now() }
+  return categories
+}
+
+// GET /api/admin/marketplaces/shopee/categories
+// Params:
+//   ?parentId=0          → filhos diretos desse parent (0 = raiz)
+//   ?query=xxx           → busca texto nas categorias folha (retorna com path completo)
+//   (sem params)         → categorias raiz (parentId=0)
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
+    const parentIdParam = searchParams.get('parentId')
     const query = searchParams.get('query') || ''
 
     const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, include: { shopeeAuth: true } })
@@ -46,35 +97,38 @@ export async function GET(request: NextRequest) {
     const auth = adminUser.shopeeAuth
     const accessToken = await refreshIfNeeded(auth, adminUser.id)
 
-    const endpoint = '/api/v2/product/get_category'
-    const timestamp = Math.floor(Date.now() / 1000)
-    const sign = shopeeSign(auth.partnerId, endpoint, timestamp, accessToken, auth.shopId, auth.partnerKey)
+    const allCategories = await getAllShopeeCategories(auth, accessToken)
 
-    const res = await fetch(
-      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
-      { method: 'GET' }
-    )
-    const data = await res.json()
-
-    if (data.error && data.error !== '') {
-      return NextResponse.json({ error: data.message || data.error }, { status: 400 })
+    // Helper: build full path for a category
+    const byId = new Map(allCategories.map(c => [c.id, c]))
+    const fullPath = (id: number): string => {
+      const parts: string[] = []
+      let cur: number | null = id
+      for (let i = 0; i < 6 && cur; i++) {
+        const c = byId.get(cur)
+        if (!c) break
+        parts.unshift(c.name)
+        cur = c.parentId || null
+      }
+      return parts.join(' > ')
     }
 
-    const allCategories: any[] = data?.response?.category_list || []
-    const leafCategories = allCategories
-      .filter((c: any) => !c.has_children)
-      .map((c: any) => ({
-        id: c.category_id,
-        name: c.display_category_name || c.category_name,
-        hasChildren: false,
-      }))
+    // Text search: return matching leaf categories with full path
+    if (query && query.length >= 2) {
+      const q = query.toLowerCase()
+      const results = allCategories
+        .filter(c => !c.hasChildren)
+        .map(c => ({ ...c, path: fullPath(c.id) }))
+        .filter(c => c.path.toLowerCase().includes(q))
+        .slice(0, 40)
+      return NextResponse.json({ categories: results })
+    }
 
-    // Filter by query if provided
-    const filtered = query
-      ? leafCategories.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
-      : leafCategories
+    // Level-by-level: return immediate children of parentId
+    const parentId = parentIdParam !== null ? parseInt(parentIdParam) : 0
+    const children = allCategories.filter(c => c.parentId === parentId)
 
-    return NextResponse.json({ categories: filtered.slice(0, 50) })
+    return NextResponse.json({ categories: children })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

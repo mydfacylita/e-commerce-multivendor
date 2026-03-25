@@ -30,8 +30,10 @@ async function refreshIfNeeded(auth: any, userId: string): Promise<string> {
   return auth.accessToken
 }
 
-// GET /api/admin/marketplaces/shopee/attributes?categoryId=100419
-// Returns attributes for a given Shopee category
+// GET /api/admin/marketplaces/shopee/attributes?categoryId=100419&itemName=...&productId=...
+// Returns attributes for a given Shopee category.
+// If productId is provided, tries to auto-map product specs to attribute values.
+// Tries: get_attribute_tree → get_recommend_attribute → get_attributes (usually suspended)
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -39,6 +41,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const categoryId = searchParams.get('categoryId')
+    const itemName = searchParams.get('itemName') || ''
+    const productId = searchParams.get('productId') || ''
     if (!categoryId) return NextResponse.json({ error: 'categoryId obrigatório' }, { status: 400 })
 
     const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, include: { shopeeAuth: true } })
@@ -47,36 +51,162 @@ export async function GET(request: NextRequest) {
     const auth = adminUser.shopeeAuth
     const accessToken = await refreshIfNeeded(auth, adminUser.id)
 
-    const endpoint = '/api/v2/product/get_attributes'
-    const timestamp = Math.floor(Date.now() / 1000)
-    const sign = shopeeSign(auth.partnerId, endpoint, timestamp, accessToken, auth.shopId, auth.partnerKey)
-
-    const res = await fetch(
-      `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}`,
-      { method: 'GET' }
-    )
-    const data = await res.json()
-
-    if (data.error && data.error !== '') {
-      return NextResponse.json({ error: data.message || data.error }, { status: 400 })
+    const makeShopeeReq = async (path: string, extra: string = '') => {
+      const ts = Math.floor(Date.now() / 1000)
+      const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
+      const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&language=pt-BR${extra}`
+      const r = await fetch(url, { method: 'GET' })
+      return r.json()
     }
 
-    const attrList: any[] = data?.response?.attributes || data?.response?.attribute_list || []
+    // Try 1: get_attribute_tree
+    let raw: any[] = []
+    let apiUsed = 'none'
+    const treeData = await makeShopeeReq('/api/v2/product/get_attribute_tree')
+    if (!treeData.error || treeData.error === '') {
+      raw = treeData?.response?.attribute_list || treeData?.response?.attributes || treeData?.response?.attribute_info_list || []
+      if (raw.length > 0) apiUsed = 'get_attribute_tree'
+    }
 
-    // Return structured attributes for the form
-    // is_mandatory can be boolean true OR number 1 depending on API version
-    const attributes = attrList.map((attr: any) => ({
+    // Try 2: get_recommend_attribute (needs item_name)
+    if (!raw.length && itemName) {
+      const recData = await makeShopeeReq('/api/v2/product/get_recommend_attribute', `&item_name=${encodeURIComponent(itemName.substring(0, 100))}`)
+      if (!recData.error || recData.error === '') {
+        raw = recData?.response?.attribute_list || recData?.response?.attributes || []
+        if (raw.length > 0) apiUsed = 'get_recommend_attribute'
+      }
+    }
+
+    // Try 3: get_attributes (often suspended)
+    if (!raw.length) {
+      const attrData = await makeShopeeReq('/api/v2/product/get_attributes')
+      if (!attrData.error || attrData.error === '') {
+        raw = attrData?.response?.attributes || attrData?.response?.attribute_list || attrData?.response?.attribute_info_list || []
+        if (raw.length > 0) apiUsed = 'get_attributes'
+      }
+    }
+
+    const attributes = raw.map((attr: any) => ({
       id: attr.attribute_id,
       name: attr.display_attribute_name || attr.attribute_name || '',
       isMandatory: !!(attr.is_mandatory || attr.mandatory),
       inputType: attr.input_type || 'TEXT_FIELD',
+      // Include predefined value list if available (from get_attribute_tree they might be here)
       values: (attr.attribute_value_list || []).map((v: any) => ({
-        id: v.value_id,
+        value_id: v.value_id,
         name: v.display_value_name || v.value_name || String(v.value_id),
+        display_value_name: v.display_value_name || v.value_name || '',
       })),
     }))
 
-    return NextResponse.json({ attributes })
+    // Auto-map product specs to attributes if productId is provided
+    let prefill: Record<number, { value: string | number; matched: boolean; source: string }> = {}
+    if (productId && attributes.length > 0) {
+      try {
+        const product = await prisma.product.findUnique({
+          where: { id: productId },
+          include: { category: true, supplier: true },
+        })
+        if (product) {
+          // Parse product specs (AliExpress format [{nome,valor}] or object)
+          const parseSpecs = (raw: string | null | undefined): Record<string, string> => {
+            if (!raw) return {}
+            try {
+              const parsed = JSON.parse(raw)
+              if (Array.isArray(parsed)) {
+                const out: Record<string, string> = {}
+                for (const item of parsed) {
+                  const key = (item.nome || item.name || item.key || '').replace(/^\d+\.\s*/, '').trim()
+                  const val = String(item.valor || item.value || item.val || '')
+                  if (key) out[key.toLowerCase()] = val
+                }
+                return out
+              }
+              if (typeof parsed === 'object' && parsed !== null) {
+                const out: Record<string, string> = {}
+                for (const [k, v] of Object.entries(parsed)) out[k.toLowerCase()] = String(v)
+                return out
+              }
+            } catch {}
+            return {}
+          }
+
+          const specs: Record<string, string> = {
+            ...parseSpecs(product.specifications),
+            ...parseSpecs(product.attributes),
+            ...parseSpecs(product.technicalSpecs),
+          }
+
+          // Direct product fields map
+          const fieldMap: Record<string, string> = {
+            brand: product.brand || '', marca: product.brand || '',
+            model: product.model || product.name?.substring(0, 100) || '',
+            'model name': product.model || product.name?.substring(0, 100) || '',
+            modelo: product.model || product.name?.substring(0, 100) || '',
+            color: (product as any).color || '', cor: (product as any).color || '',
+            gtin: product.gtin || '', ean: product.gtin || '',
+            weight: product.weight ? String(product.weight) : '',
+            peso: product.weight ? String(product.weight) : '',
+            country: (product as any).shipFromCountry || 'BR',
+            origem: (product as any).shipFromCountry || 'BR',
+            'país de origem': (product as any).shipFromCountry || 'BR',
+            ...specs,
+          }
+
+          const productText = `${product.name || ''} ${product.category?.name || ''} ${product.description || ''}`.toLowerCase()
+
+          for (const attr of attributes) {
+            const attrName = attr.name.toLowerCase()
+            const attrId = attr.id
+
+            // Find matching value from fieldMap
+            let matchedValue: string | null = null
+            let matchSource = ''
+            for (const [key, val] of Object.entries(fieldMap)) {
+              if (val && (attrName.includes(key) || key.includes(attrName))) {
+                matchedValue = val
+                matchSource = key
+                break
+              }
+            }
+
+            if (attr.values && attr.values.length > 0) {
+              // Predefined values: try to match
+              let match: any = null
+              if (matchedValue) {
+                const lower = matchedValue.toLowerCase()
+                match = attr.values.find((v: any) =>
+                  (v.name || '').toLowerCase() === lower ||
+                  (v.name || '').toLowerCase().includes(lower) ||
+                  lower.includes((v.name || '').toLowerCase())
+                )
+              }
+              // Try matching from product text
+              if (!match) {
+                for (const v of attr.values) {
+                  const vn = (v.name || '').toLowerCase()
+                  if (vn && vn.length > 2 && productText.includes(vn)) {
+                    match = v
+                    matchSource = 'productText'
+                    break
+                  }
+                }
+              }
+              if (match) {
+                prefill[attrId] = { value: match.value_id, matched: true, source: matchSource || 'predefined' }
+              }
+            } else if (matchedValue) {
+              // Text field: use the matched value directly
+              prefill[attrId] = { value: matchedValue.substring(0, 256), matched: true, source: matchSource }
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error('[Shopee attributes] Erro ao mapear specs do produto:', e.message)
+      }
+    }
+
+    return NextResponse.json({ attributes, apiUsed, suspended: raw.length === 0, prefill })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

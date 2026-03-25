@@ -5,19 +5,31 @@
     "**/.git/subtree-cache/**": true,
     "**/node_modules/**": true,
     "**/.next/**": true,
+    "**/.angular/**": true,
     "**/.nuxt/**": true,
     "**/dist/**": true,
     "**/build/**": true,
     "**/.cache/**": true,
+    "**/coverage/**": true,
+    "**/out/**": true,
+    "**/tmp/**": true,
+    "**/*.tar.gz": true,
+    "**/*.zip": true,
     "**/prisma/migrations/**": true
   },
   
   "search.exclude": {
     "**/node_modules": true,
     "**/.next": true,
+    "**/.angular": true,
     "**/dist": true,
     "**/build": true,
     "**/.cache": true,
+    "**/coverage": true,
+    "**/out": true,
+    "**/tmp": true,
+    "**/*.tar.gz": true,
+    "**/*.zip": true,
     "**/package-lock.json": true,
     "**/*.sql": true,
     "**/prisma/migrations": true
@@ -27,7 +39,10 @@
     "**/.git": true,
     "**/.DS_Store": true,
     "**/Thumbs.db": true,
-    "**/.next": true
+    "**/.next": true,
+    "**/.angular": true,
+    "**/*.tar.gz": true,
+    "**/*.zip": true
   },
   
   // TypeScript - Reduzir validações
