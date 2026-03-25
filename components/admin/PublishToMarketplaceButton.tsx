@@ -283,7 +283,7 @@ export default function PublishToMarketplaceButton({
       const res = await fetch(`/api/admin/marketplaces/shopee/attributes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category_id: cat.id, locale: 'pt-br', productId, itemName: shopeeFormData.itemName.substring(0, 80) }),
+        body: JSON.stringify({ category_id: cat.id, locale: 'pt-br' }),
       })
       const data = await res.json()
       console.log('[Shopee] Resposta /attributes:', { categoryId: cat.id, apiUsed: data.apiUsed, suspended: data.suspended, totalAtributos: data.attributes?.length ?? 0, prefillKeys: Object.keys(data.prefill || {}), atributos: data.attributes })
