@@ -464,6 +464,22 @@ export async function GET(request: NextRequest) {
             updateData.shippedAt = new Date()
           }
 
+          // IMPORTANTE: atualizar itens PRIMEIRO, só depois marcar order como DELIVERED
+          // Isso evita que o order saia do filtro da query antes de os itens serem atualizados
+          const supplierStatusFinal = isDeliveredByLogistics ? 'BUYER_ACCEPT_GOODS'
+            : isDeliveredByTracking ? 'DELIVERED'
+            : statusResult.status
+
+          for (const item of order.items) {
+            await prisma.orderItem.update({
+              where: { id: item.id },
+              data: {
+                supplierStatus: supplierStatusFinal,
+                trackingCode: statusResult.trackingNumber || item.trackingCode
+              }
+            })
+          }
+
           await prisma.order.update({
             where: { id: order.id },
             data: updateData
@@ -477,20 +493,6 @@ export async function GET(request: NextRequest) {
             } catch (affiliateError) {
               console.error(`[SYNC-DROP-ORDERS] ⚠️  Erro ao processar comissão:`, affiliateError)
             }
-          }
-
-          // Atualizar OrderItems - salvar o status real do AliExpress
-          for (const item of order.items) {
-            await prisma.orderItem.update({
-              where: { id: item.id },
-              data: {
-                // logistics_status BUYER_ACCEPT_GOODS tem prioridade (comprador confirmou)
-                supplierStatus: isDeliveredByLogistics ? 'BUYER_ACCEPT_GOODS'
-                  : isDeliveredByTracking ? 'DELIVERED'
-                  : statusResult.status,
-                trackingCode: statusResult.trackingNumber || item.trackingCode
-              }
-            })
           }
 
           result.updated = true
