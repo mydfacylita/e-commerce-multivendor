@@ -379,8 +379,9 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
   }
 }
 
-// Busca o ID de uma categoria válida na Shopee, tentando casar com o nome da categoria do produto
-async function getShopeeCategory(auth: any, accessToken: string, productCategoryName?: string | null): Promise<number> {
+// Busca o ID de uma categoria válida na Shopee usando caminho completo (todos os níveis)
+// get_category sem parent_category_id retorna TODAS as categorias em lista plana com parent_category_id em cada item
+async function getShopeeCategory(auth: any, accessToken: string, productCategoryName?: string | null, productName?: string): Promise<number> {
   try {
     const endpoint = '/api/v2/product/get_category'
     const timestamp = Math.floor(Date.now() / 1000)
@@ -393,24 +394,47 @@ async function getShopeeCategory(auth: any, accessToken: string, productCategory
       { method: 'GET' }
     )
     const data = await res.json()
-    const categories: any[] = data?.response?.category_list || []
+    const all: any[] = data?.response?.category_list || []
+    console.log('[Shopee] get_category total categorias:', all.length)
+    if (!all.length) return 0
 
-    // Pegar apenas categorias folha (sem filhos)
-    const leafCategories = categories.filter((c: any) => !c.has_children)
-    if (leafCategories.length === 0) return 0
+    // Mapa id → categoria para percorrer ancestrais
+    const byId = new Map<number, any>()
+    for (const c of all) byId.set(c.category_id, c)
 
-    // Tentar casar pelo nome
-    if (productCategoryName) {
-      const norm = productCategoryName.toLowerCase()
-      const match = leafCategories.find((c: any) =>
-        c.display_category_name?.toLowerCase().includes(norm) ||
-        norm.includes(c.display_category_name?.toLowerCase())
-      )
-      if (match) return match.category_id
+    // Constrói o caminho completo de uma categoria (todos os ancestrais até a raiz)
+    // Ex: categoria "Smartwatches" retorna "celulares e dispositivos smartwatches"
+    const fullPath = (catId: number): string => {
+      const parts: string[] = []
+      let id: number | null = catId
+      for (let i = 0; i < 6 && id; i++) {
+        const c = byId.get(id)
+        if (!c) break
+        parts.unshift((c.display_category_name || '').toLowerCase())
+        id = c.parent_category_id || null
+      }
+      return parts.join(' ')
     }
 
-    // Fallback: primeira categoria folha disponível
-    return leafCategories[0].category_id
+    // Palavras-chave do produto para pontuar categorias
+    const searchText = `${productCategoryName || ''} ${productName || ''}`.toLowerCase()
+    const words = [...new Set(searchText.split(/\s+/).filter(w => w.length > 2))]
+
+    // Pontua uma categoria folha: conta quantas palavras-chave aparecem no caminho completo
+    const scoreLeaf = (cat: any): number => {
+      if (!words.length) return 0
+      const path = fullPath(cat.category_id)
+      return words.filter(w => path.includes(w)).length
+    }
+
+    // Apenas categorias folha (sem filhos) são válidas para publicar
+    const leaves = all.filter((c: any) => !c.has_children)
+    if (!leaves.length) return all[0]?.category_id || 0
+
+    const scored = leaves.map(c => ({ c, s: scoreLeaf(c) })).sort((a, b) => b.s - a.s)
+    console.log('[Shopee] top 3 categorias:', scored.slice(0, 3).map(x => `"${fullPath(x.c.category_id)}" score=${x.s}`).join(' | '))
+
+    return scored[0].c.category_id
   } catch {
     return 0
   }
@@ -508,7 +532,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
       categoryId = Number(formData.categoryId)
       console.log('[Shopee] categoryId do formulário:', categoryId)
     } else {
-      categoryId = await getShopeeCategory(auth, accessToken, product.category?.name)
+      categoryId = await getShopeeCategory(auth, accessToken, product.category?.name, product.name)
       console.log('[Shopee] categoryId detectado automaticamente:', categoryId, 'categoria produto:', product.category?.name)
       if (!categoryId) {
         return { success: false, message: 'Não foi possível encontrar uma categoria válida na Shopee. Preencha o formulário de publicação.' }
