@@ -55,16 +55,10 @@ async function getAllShopeeCategories(auth: any, accessToken: string, forceRefre
 
   const raw: any[] = data?.response?.category_list || []
 
-  // Log estrutura real da API
-  console.log(`[Shopee categories] get_category → total raw: ${raw.length} | warning: ${data?.warning?.substring(0, 300) || '(nenhum)'}`)
-  // Log primeiras 5 categorias para ver a estrutura
-  console.log('[Shopee categories] Primeiras 5 categorias raw:', JSON.stringify(raw.slice(0, 5), null, 2))
-  // Log todas as folhas (has_children=false) que contêm "Air Fry" ou "100198" ou "100268" 
-  const interesting = raw.filter((c: any) => 
-    String(c.category_id) === '100198' || String(c.category_id) === '100268' ||
-    (c.display_category_name || '').toLowerCase().includes('air fr')
-  )
-  if (interesting.length > 0) console.log('[Shopee categories] Categorias de interesse (100198/100268/Air Fr):', JSON.stringify(interesting))
+  // LOG COMPLETO SEM LIMITE
+  console.log('===== SHOPEE GET_CATEGORY RESPONSE COMPLETO =====')
+  console.log(JSON.stringify(data, null, 2))
+  console.log('===== FIM RESPONSE =====')
 
   // O warning lista IDs desatualizados (ex: 100198) → filtrar para ficar só com os novos (ex: 100268)
   const outdatedIds = new Set<number>()
