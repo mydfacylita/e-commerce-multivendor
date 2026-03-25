@@ -51,40 +51,41 @@ export async function GET(request: NextRequest) {
     const auth = adminUser.shopeeAuth
     const accessToken = await refreshIfNeeded(auth, adminUser.id)
 
-    // get_attribute_tree — testa 3 variações de language para descobrir qual a Shopee aceita
+    // get_attribute_tree com language=en
     const path = '/api/v2/product/get_attribute_tree'
-    const languagesToTry = ['pt-BR', 'en']
+    const variants = [
+      { base: 'https://partner.shopeemobile.com',   lang: 'en' },
+    ]
     let treeData: any = null
     let raw: any[] = []
     let apiUsed = 'none'
 
-    for (const lang of languagesToTry) {
+    for (const { base, lang } of variants) {
       const ts = Math.floor(Date.now() / 1000)
       const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
-      const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_ids=${categoryId}&language=${lang}`
-      console.log(`[Shopee attrs] GET get_attribute_tree | category_ids=${categoryId} language=${lang}`)
-      console.log(`[Shopee attrs] URL: ${url.replace(accessToken, 'TOKEN***')}`)
+      const langParam = lang ? `&language=${lang}` : ''
+      const url = `${base}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_ids=${categoryId}${langParam}`
+      const label = `base=${base.includes('shopee.com.br') ? 'BR' : 'global'} lang=${lang || '(sem)'}`
+      console.log(`[Shopee attrs] Tentando: ${label} | category_ids=${categoryId}`)
       const treeRes = await fetch(url, { method: 'GET' })
       treeData = await treeRes.json()
-      // Log o JSON completo para ver a estrutura real da resposta
-      console.log(`[Shopee attrs] JSON completo (language=${lang}):`, JSON.stringify(treeData).substring(0, 3000))
+      console.log(`[Shopee attrs] [${label}] → error="${treeData.error}" response_keys="${Object.keys(treeData?.response || {}).join(',') || 'VAZIO'}" JSON:`, JSON.stringify(treeData).substring(0, 1000))
+
       if (!treeData.error || treeData.error === '') {
-        const resp = treeData?.response || treeData
-        // get_attribute_tree retorna response.category_list[{category_id, attribute_list}]
+        const resp = treeData?.response || {}
         if (resp?.category_list?.length > 0) {
           for (const cat of resp.category_list) {
             const list = cat?.attribute_list || cat?.attributes || []
             if (list.length > 0) { raw = list; break }
           }
         }
-        // Fallbacks para outras estruturas possíveis
         if (!raw.length) raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || resp?.data || []
         if (!raw.length && Array.isArray(resp)) raw = resp
-        if (raw.length > 0) { apiUsed = `get_attribute_tree(${lang})`; break }
+        if (raw.length > 0) { apiUsed = label; break }
       }
     }
 
-    console.log(`[Shopee attrs] RESULTADO: apiUsed=${apiUsed} | atributos encontrados: ${raw.length}`)
+    console.log(`[Shopee attrs] RESULTADO: apiUsed="${apiUsed}" | atributos: ${raw.length}`)
     if (raw.length > 0) console.log('[Shopee attrs] Primeiro atributo raw:', JSON.stringify(raw[0]))
 
     const attributes = raw.map((attr: any) => ({
