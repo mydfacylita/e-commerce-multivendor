@@ -53,10 +53,11 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Shopee attrs] ▶ category_id recebido: ${categoryId} | itemName: "${itemName.substring(0, 60)}" | productId: ${productId}`)
 
-    // get_attribute_tree com language=en
+    // get_attribute_tree — URL Brasil: https://openplatform.shopee.com.br
     const path = '/api/v2/product/get_attribute_tree'
     const variants = [
-      { base: 'https://partner.shopeemobile.com',   lang: 'en' },
+      { base: 'https://openplatform.shopee.com.br', lang: 'pt-BR' },
+      { base: 'https://openplatform.shopee.com.br', lang: 'en' },
     ]
     let treeData: any = null
     let raw: any[] = []
