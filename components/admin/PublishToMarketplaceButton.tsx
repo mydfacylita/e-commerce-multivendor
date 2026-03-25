@@ -142,6 +142,7 @@ export default function PublishToMarketplaceButton({
   const [shopeeFormData, setShopeeFormData] = useState({
     categoryId: 0,
     categoryName: '',
+    categoryPath: '',
     itemName: productName.substring(0, 120),
     brand: productBrand,
     weight: productWeight ? String(productWeight) : '',
@@ -151,9 +152,15 @@ export default function PublishToMarketplaceButton({
   })
   const [shopeeAttributes, setShopeeAttributes] = useState<any[]>([])
   const [shopeeAttrValues, setShopeeAttrValues] = useState<Record<number, string | number>>({})
-  const [shopeeCategoryQuery, setShopeeCategoryQuery] = useState('')
-  const [shopeeCategoryResults, setShopeeCategoryResults] = useState<any[]>([])
-  const [loadingShopeeCats, setLoadingShopeeCats] = useState(false)
+  // attr value options loaded via search_attribute_value_list per attribute
+  const [shopeeAttrOptions, setShopeeAttrOptions] = useState<Record<number, any[]>>({})
+  const [shopeeAttrSearching, setShopeeAttrSearching] = useState<Record<number, boolean>>({})
+  // Category tree browser
+  const [shopeeCatTree, setShopeeCatTree] = useState<any[]>([])  // full flat list
+  const [shopeeCatLoaded, setShopeeCatLoaded] = useState(false)
+  const [shopeeCatLoading, setShopeeCatLoading] = useState(false)
+  const [shopeeCatFilter, setShopeeCatFilter] = useState('') // text search
+  const [shopeeBrowsePath, setShopeeBrowsePath] = useState<number[]>([]) // selected id at each level
   const [loadingShopeeAttrs, setLoadingShopeeAttrs] = useState(false)
   const [shopeeAttrError, setShopeeAttrError] = useState<string | null>(null)
 
@@ -185,17 +192,106 @@ export default function PublishToMarketplaceButton({
     setShopeeFormData({
       categoryId: 0,
       categoryName: '',
+      categoryPath: '',
       itemName: productName.substring(0, 120),
       brand: productBrand,
       weight: productWeight ? String(productWeight) : '',
       pkgLength: productPkgLength ? String(productPkgLength) : '',
-      pkgWidth: productPkgWidth ? String(productPkgWidth) : '',
+      pkgWidth: productPkgWidth ? String(productPkgHeight) : '',
       pkgHeight: productPkgHeight ? String(productPkgHeight) : '',
     })
     setShopeeAttributes([])
     setShopeeAttrValues({})
-    setShopeeCategoryQuery('')
-    setShopeeCategoryResults([])
+    setShopeeAttrOptions({})
+    setShopeeCatFilter('')
+    setShopeeBrowsePath([])
+  }
+
+  // Load full category tree from Shopee API (once per modal open)
+  const loadShopeeCategoryTree = async () => {
+    if (shopeeCatLoaded || shopeeCatLoading) return
+    setShopeeCatLoading(true)
+    try {
+      const res = await fetch('/api/admin/marketplaces/shopee/categories')
+      const d = await res.json()
+      if (d.categories) {
+        setShopeeCatTree(d.categories)
+        setShopeeCatLoaded(true)
+      }
+    } catch {}
+    finally { setShopeeCatLoading(false) }
+  }
+
+  // Build full path string for a category using the flat tree
+  const shopeeCatPath = (id: number): string => {
+    const byId = new Map(shopeeCatTree.map((c: any) => [c.id, c]))
+    const parts: string[] = []
+    let cur: number | null = id
+    for (let i = 0; i < 6 && cur; i++) {
+      const c = byId.get(cur)
+      if (!c) break
+      parts.unshift(c.name)
+      cur = c.parentId || null
+    }
+    return parts.join(' > ')
+  }
+
+  // Children of a given parentId in the tree
+  const shopeeCatChildren = (parentId: number) =>
+    shopeeCatTree.filter((c: any) => c.parentId === parentId)
+
+  // Select a leaf category in the browser
+  const selectShopeeLeafCategory = async (cat: any) => {
+    const path = shopeeCatPath(cat.id)
+    setShopeeFormData(prev => ({ ...prev, categoryId: cat.id, categoryName: cat.name, categoryPath: path }))
+    setShopeeCatFilter('')
+    setShopeeBrowsePath([])
+    setLoadingShopeeAttrs(true)
+    setShopeeAttributes([])
+    setShopeeAttrValues({})
+    setShopeeAttrOptions({})
+    setShopeeAttrError(null)
+    try {
+      const res = await fetch(`/api/admin/marketplaces/shopee/attributes?categoryId=${cat.id}&itemName=${encodeURIComponent(shopeeFormData.itemName.substring(0, 80))}`)
+      const data = await res.json()
+      if (data.suspended || (data.attributes && data.attributes.length === 0)) {
+        setShopeeAttrError('API de atributos não disponível — os atributos serão preenchidos automaticamente com os dados do produto.')
+      }
+      if (data.attributes && data.attributes.length > 0) {
+        setShopeeAttributes(data.attributes)
+        // Prefill known fields
+        const prefill: Record<number, string | number> = {}
+        for (const attr of data.attributes) {
+          const n = attr.name.toLowerCase()
+          if ((n.includes('brand') || n.includes('marca')) && productBrand) {
+            const match = attr.values.find((v: any) => v.name.toLowerCase().includes(productBrand.toLowerCase()))
+            if (match) prefill[attr.id] = match.value_id
+          } else if (n.includes('model') && (productModel || productName)) {
+            const val = productModel || productName
+            const match = attr.values.find((v: any) => v.name.toLowerCase().includes(val.toLowerCase().substring(0, 10)))
+            if (match) prefill[attr.id] = match.value_id
+            else if (attr.values.length === 0) prefill[attr.id] = (productModel || productName).substring(0, 100)
+          }
+        }
+        if (Object.keys(prefill).length > 0) setShopeeAttrValues(prefill)
+      }
+    } catch (e) {
+      console.error('Erro ao carregar atributos Shopee:', e)
+    } finally {
+      setLoadingShopeeAttrs(false)
+    }
+  }
+
+  // Search attribute values for a COMBO_BOX attribute via search_attribute_value_list
+  const searchShopeeAttrValues = async (attrId: number, keyword: string) => {
+    if (!shopeeFormData.categoryId || !keyword.trim()) return
+    setShopeeAttrSearching(prev => ({ ...prev, [attrId]: true }))
+    try {
+      const res = await fetch(`/api/admin/marketplaces/shopee/search-attribute-values?categoryId=${shopeeFormData.categoryId}&attributeId=${attrId}&keyword=${encodeURIComponent(keyword)}`)
+      const d = await res.json()
+      if (d.values) setShopeeAttrOptions(prev => ({ ...prev, [attrId]: d.values }))
+    } catch {}
+    finally { setShopeeAttrSearching(prev => ({ ...prev, [attrId]: false })) }
   }
 
   // Selecionar categoria Shopee e carregar atributos
@@ -424,6 +520,7 @@ export default function PublishToMarketplaceButton({
       // Shopee: vai para step 2 (formulário de dados)
       if (selectedMarketplace === 'shopee') {
         setCurrentStep(2)
+        loadShopeeCategoryTree()
         return
       }
       // Amazon e outros: pula para confirmar
@@ -1365,49 +1462,101 @@ export default function PublishToMarketplaceButton({
                     <p className="text-sm text-gray-500">Preencha os dados antes de publicar. Isso evita erros de atributos obrigatórios.</p>
                   </div>
 
-                  {/* Seleção de Categoria */}
+                  {/* Seleção de Categoria — Browser hierárquico de 4 níveis */}
                   <div>
                     <label className="block text-sm font-semibold mb-1">Categoria Shopee <span className="text-red-500">*</span></label>
                     {shopeeFormData.categoryId > 0 ? (
                       <div className="flex items-center justify-between p-3 bg-green-50 border border-green-300 rounded-lg">
                         <div>
-                          <p className="text-sm font-medium text-green-800">{shopeeFormData.categoryName}</p>
+                          <p className="text-sm font-medium text-green-800">{shopeeFormData.categoryPath || shopeeFormData.categoryName}</p>
                           <p className="text-xs text-gray-500">ID: {shopeeFormData.categoryId}</p>
                         </div>
                         <button
                           onClick={() => {
-                            setShopeeFormData(prev => ({ ...prev, categoryId: 0, categoryName: '' }))
+                            setShopeeFormData(prev => ({ ...prev, categoryId: 0, categoryName: '', categoryPath: '' }))
                             setShopeeAttributes([])
                             setShopeeAttrValues({})
+                            setShopeeBrowsePath([])
+                            setShopeeCatFilter('')
                           }}
                           className="text-xs text-red-500 hover:underline"
                         >Alterar</button>
                       </div>
                     ) : (
-                      <div>
-                        <div className="relative">
-                          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                      <div className="border border-gray-300 rounded-lg overflow-hidden">
+                        {/* Barra de busca */}
+                        <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+                          <FiSearch className="text-gray-400 flex-shrink-0" size={13} />
                           <input
                             type="text"
-                            value={shopeeCategoryQuery}
-                            onChange={e => setShopeeCategoryQuery(e.target.value)}
-                            placeholder="Digite para buscar categoria..."
-                            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400"
+                            value={shopeeCatFilter}
+                            onChange={e => { setShopeeCatFilter(e.target.value); setShopeeBrowsePath([]) }}
+                            placeholder="Buscar categoria... (ex: smartwatch, carregador)"
+                            className="flex-1 text-sm bg-transparent outline-none"
+                            autoComplete="off"
                           />
-                          {loadingShopeeCats && <FiRefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-orange-400" size={14} />}
+                          {shopeeCatLoading && <FiRefreshCw className="animate-spin text-orange-400 flex-shrink-0" size={13} />}
                         </div>
-                        {shopeeCategoryResults.length > 0 && (
-                          <div className="border rounded-md max-h-48 overflow-y-auto mt-1 shadow-sm">
-                            {shopeeCategoryResults.map((cat: any) => (
-                              <button
-                                key={cat.id}
-                                onClick={() => selectShopeeCategory(cat)}
-                                className="w-full px-4 py-2 text-left text-sm hover:bg-orange-50 border-b last:border-0 flex items-center justify-between"
-                              >
-                                <span>{cat.name}</span>
-                                <FiChevronRight className="text-gray-400" size={14} />
-                              </button>
-                            ))}
+
+                        {/* Resultados de busca */}
+                        {shopeeCatFilter.length >= 2 ? (
+                          <div className="max-h-52 overflow-y-auto">
+                            {(() => {
+                              const q = shopeeCatFilter.toLowerCase()
+                              const results = shopeeCatTree
+                                .filter((c: any) => !c.hasChildren)
+                                .map((c: any) => ({ ...c, path: shopeeCatPath(c.id) }))
+                                .filter((c: any) => c.path.toLowerCase().includes(q))
+                                .slice(0, 40)
+                              return results.length === 0
+                                ? <p className="text-sm text-gray-400 px-3 py-4 text-center">Nenhuma categoria encontrada para &quot;{shopeeCatFilter}&quot;</p>
+                                : results.map((cat: any) => (
+                                  <button key={cat.id} onClick={() => selectShopeeLeafCategory(cat)}
+                                    className="w-full px-3 py-2 text-left text-xs hover:bg-orange-50 border-b last:border-0 text-gray-700">
+                                    {cat.path}
+                                  </button>
+                                ))
+                            })()}
+                          </div>
+                        ) : shopeeCatLoading ? null : shopeeCatTree.length === 0 ? (
+                          <p className="text-sm text-gray-400 px-3 py-4 text-center">Carregando categorias...</p>
+                        ) : (
+                          /* Browser de colunas hierárquicas — até 4 níveis igual ao Seller Centre */
+                          <div className="flex divide-x divide-gray-200 overflow-x-auto" style={{ height: '210px' }}>
+                            {[0, ...shopeeBrowsePath].map((parentId, level) => {
+                              const children = shopeeCatChildren(parentId)
+                              if (children.length === 0) return null
+                              const selectedId = shopeeBrowsePath[level]
+                              return (
+                                <div key={`col-${level}-${parentId}`} className="w-48 flex-shrink-0 overflow-y-auto">
+                                  {children.map((cat: any) => {
+                                    const isSelected = selectedId === cat.id
+                                    return (
+                                      <button
+                                        key={cat.id}
+                                        onClick={() => {
+                                          if (!cat.hasChildren) {
+                                            selectShopeeLeafCategory(cat)
+                                          } else {
+                                            // Selecionar nó intermediário e mostrar filhos
+                                            setShopeeBrowsePath(prev => [...prev.slice(0, level), cat.id])
+                                          }
+                                        }}
+                                        className={`w-full px-3 py-2 text-left text-xs border-b flex items-center justify-between transition-colors ${
+                                          isSelected ? 'bg-orange-50 text-orange-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'
+                                        }`}
+                                      >
+                                        <span className="flex-1 truncate pr-1">{cat.name}</span>
+                                        {cat.hasChildren
+                                          ? <FiChevronRight className="flex-shrink-0 text-gray-400" size={11} />
+                                          : isSelected && <span className="text-orange-500 text-[10px]">✓</span>
+                                        }
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -1435,8 +1584,10 @@ export default function PublishToMarketplaceButton({
                         <div key={attr.id}>
                           <label className="block text-sm font-medium mb-1">
                             {attr.name} <span className="text-red-500">*</span>
+                            <span className="text-xs text-gray-400 font-normal ml-1">({attr.inputType})</span>
                           </label>
                           {attr.values.length > 0 ? (
+                            /* Predefined list — select */
                             <select
                               value={shopeeAttrValues[attr.id] || ''}
                               onChange={e => setShopeeAttrValues(prev => ({ ...prev, [attr.id]: e.target.value }))}
@@ -1444,10 +1595,49 @@ export default function PublishToMarketplaceButton({
                             >
                               <option value="">-- Selecione --</option>
                               {attr.values.map((v: any) => (
-                                <option key={v.id} value={v.id}>{v.name}</option>
+                                <option key={v.value_id} value={v.value_id}>{v.display_value_name || v.name}</option>
                               ))}
                             </select>
+                          ) : (attr.inputType === 'COMBO_BOX' || attr.inputType === 'DROP_DOWN') ? (
+                            /* COMBO_BOX sem valores pré-carregados — buscar via search_attribute_value_list */
+                            <div>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={typeof shopeeAttrValues[attr.id] === 'string' && !(shopeeAttrOptions[attr.id]?.find((v:any) => String(v.value_id) === String(shopeeAttrValues[attr.id]))) ? String(shopeeAttrValues[attr.id]) : ''}
+                                  onChange={e => {
+                                    setShopeeAttrValues(prev => ({ ...prev, [attr.id]: e.target.value }))
+                                    if (e.target.value.length >= 2) searchShopeeAttrValues(attr.id, e.target.value)
+                                  }}
+                                  className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400"
+                                  placeholder={`Buscar ${attr.name}...`}
+                                />
+                                {shopeeAttrSearching[attr.id] && <FiRefreshCw className="animate-spin text-orange-400 self-center" size={14} />}
+                              </div>
+                              {shopeeAttrOptions[attr.id]?.length > 0 && (
+                                <div className="border border-gray-200 rounded-md mt-1 max-h-40 overflow-y-auto shadow-sm">
+                                  {shopeeAttrOptions[attr.id].map((v: any) => (
+                                    <button key={v.value_id}
+                                      onClick={() => {
+                                        setShopeeAttrValues(prev => ({ ...prev, [attr.id]: v.value_id }))
+                                        setShopeeAttrOptions(prev => ({ ...prev, [attr.id]: [] }))
+                                      }}
+                                      className="w-full px-3 py-1.5 text-left text-xs hover:bg-orange-50 border-b last:border-0 flex items-center justify-between"
+                                    >
+                                      <span>{v.display_value_name || v.name}</span>
+                                      <span className="text-gray-400 text-[10px]">ID: {v.value_id}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {shopeeAttrValues[attr.id] && shopeeAttrOptions[attr.id]?.find((v:any) => String(v.value_id) === String(shopeeAttrValues[attr.id])) && (
+                                <p className="text-xs text-green-600 mt-0.5">
+                                  ✓ {shopeeAttrOptions[attr.id].find((v:any) => String(v.value_id) === String(shopeeAttrValues[attr.id]))?.display_value_name}
+                                </p>
+                              )}
+                            </div>
                           ) : (
+                            /* TEXT_FIELD */
                             <input
                               type="text"
                               value={shopeeAttrValues[attr.id] || ''}
