@@ -34,8 +34,8 @@ async function refreshIfNeeded(auth: any, userId: string): Promise<string> {
 let categoryCache: { categories: any[]; timestamp: number } | null = null
 const CACHE_TTL = 10 * 60 * 1000 // 10 minutos
 
-async function getAllShopeeCategories(auth: any, accessToken: string): Promise<any[]> {
-  if (categoryCache && Date.now() - categoryCache.timestamp < CACHE_TTL) {
+async function getAllShopeeCategories(auth: any, accessToken: string, forceRefresh = false): Promise<any[]> {
+  if (!forceRefresh && categoryCache && Date.now() - categoryCache.timestamp < CACHE_TTL) {
     return categoryCache.categories
   }
 
@@ -55,17 +55,12 @@ async function getAllShopeeCategories(auth: any, accessToken: string): Promise<a
 
   const raw: any[] = data?.response?.category_list || []
 
-  // Parse warning to exclude outdated category IDs
-  const outdatedIds = new Set<number>()
+  // Log warning para diagnóstico (não filtrar nada — os IDs no warning podem ser os corretos)
   const warningStr: string = data?.warning || ''
-  const warnRegex = /CategoryID\[(\d+)\]/g
-  let wm
-  while ((wm = warnRegex.exec(warningStr)) !== null) {
-    outdatedIds.add(parseInt(wm[1]))
-  }
+  if (warningStr) console.log('[Shopee categories] warning:', warningStr.substring(0, 500))
+  console.log(`[Shopee categories] get_category retornou ${raw.length} categorias`)
 
   const categories = raw
-    .filter((c: any) => !outdatedIds.has(c.category_id))
     .map((c: any) => ({
       id: c.category_id as number,
       name: (c.display_category_name || c.category_name || '') as string,
@@ -97,7 +92,9 @@ export async function GET(request: NextRequest) {
     const auth = adminUser.shopeeAuth
     const accessToken = await refreshIfNeeded(auth, adminUser.id)
 
-    const allCategories = await getAllShopeeCategories(auth, accessToken)
+    // force=true na query string força refresh do cache
+    const forceRefresh = searchParams.get('force') === 'true'
+    const allCategories = await getAllShopeeCategories(auth, accessToken, forceRefresh)
 
     // Helper: build full path for a category
     const byId = new Map(allCategories.map(c => [c.id, c]))
