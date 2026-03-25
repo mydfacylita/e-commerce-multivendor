@@ -53,38 +53,29 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Shopee attrs] ▶ category_id recebido: ${categoryId} | itemName: "${itemName.substring(0, 60)}" | productId: ${productId}`)
 
-    // get_attribute_tree — URL Brasil: https://openplatform.shopee.com.br
+    // get_attribute_tree — parâmetros: category_id (singular) + locale=pt-br
     const path = '/api/v2/product/get_attribute_tree'
-    const variants = [
-      { base: 'https://openplatform.shopee.com.br', lang: 'pt-BR' },
-      { base: 'https://openplatform.shopee.com.br', lang: 'en' },
-    ]
-    let treeData: any = null
+    const ts = Math.floor(Date.now() / 1000)
+    const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
+    const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&locale=pt-br`
+    console.log(`[Shopee attrs] GET ${url.replace(accessToken, 'TOKEN***')}`)
+    const treeRes = await fetch(url, { method: 'GET' })
+    const treeData = await treeRes.json()
+    console.log(`[Shopee attrs] JSON completo:`, JSON.stringify(treeData))
+
     let raw: any[] = []
     let apiUsed = 'none'
-
-    for (const { base, lang } of variants) {
-      const ts = Math.floor(Date.now() / 1000)
-      const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
-      const langParam = lang ? `&language=${lang}` : ''
-      const url = `${base}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_ids=${categoryId}${langParam}`
-      const label = `base=${base.includes('shopee.com.br') ? 'BR' : 'global'} lang=${lang || '(sem)'}`
-      console.log(`[Shopee attrs] Tentando: ${label} | category_ids=${categoryId}`)
-      const treeRes = await fetch(url, { method: 'GET' })
-      treeData = await treeRes.json()
-      console.log(`[Shopee attrs] [${label}] → error="${treeData.error}" response_keys="${Object.keys(treeData?.response || {}).join(',') || 'VAZIO'}" JSON:`, JSON.stringify(treeData).substring(0, 1000))
-
-      if (!treeData.error || treeData.error === '') {
-        const resp = treeData?.response || {}
-        if (resp?.category_list?.length > 0) {
-          for (const cat of resp.category_list) {
+    if (!treeData.error || treeData.error === '') {
+      const resp = treeData?.response || {}
+      if (resp?.category_list?.length > 0) {
+        for (const cat of resp.category_list) {
             const list = cat?.attribute_list || cat?.attributes || []
             if (list.length > 0) { raw = list; break }
           }
         }
         if (!raw.length) raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || resp?.data || []
         if (!raw.length && Array.isArray(resp)) raw = resp
-        if (raw.length > 0) { apiUsed = label; break }
+        if (raw.length > 0) apiUsed = 'get_attribute_tree'
       }
     }
 
