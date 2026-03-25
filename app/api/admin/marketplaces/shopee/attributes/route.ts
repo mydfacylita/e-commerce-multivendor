@@ -53,13 +53,14 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Shopee attrs] ▶ category_id recebido: ${categoryId} | itemName: "${itemName.substring(0, 60)}" | productId: ${productId}`)
 
-    // get_attribute_tree — parâmetros: category_id (singular) + locale=pt-br
+    // get_attribute_tree — POST com body JSON {category_id, locale}
     const path = '/api/v2/product/get_attribute_tree'
     const ts = Math.floor(Date.now() / 1000)
     const sign = shopeeSign(auth.partnerId, path, ts, accessToken, auth.shopId, auth.partnerKey)
-    const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&locale=pt-br`
-    console.log(`[Shopee attrs] GET ${url.replace(accessToken, 'TOKEN***')}`)
-    const treeRes = await fetch(url, { method: 'GET' })
+    const url = `${SHOPEE_API_BASE}${path}?partner_id=${auth.partnerId}&timestamp=${ts}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}`
+    const body = JSON.stringify({ category_id: Number(categoryId), locale: 'pt-br' })
+    console.log(`[Shopee attrs] POST ${url.replace(accessToken, 'TOKEN***')} body=${body}`)
+    const treeRes = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
     const treeData = await treeRes.json()
     console.log(`[Shopee attrs] JSON completo:`, JSON.stringify(treeData))
 
