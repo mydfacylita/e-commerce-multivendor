@@ -539,11 +539,42 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
       }
     }
 
-    // Atributos: apenas os do formulário se explicitamente preenchidos pelo usuário
-    // Não enviamos atributos automaticamente — gerenciados direto na página da Shopee
-    const attributeList: any[] = formData?.attributes && Array.isArray(formData.attributes) && formData.attributes.length > 0
+    // Atributos: usar os do formulário se disponíveis; caso contrário, auto-fill no servidor
+    let attributeList: any[] = formData?.attributes && Array.isArray(formData.attributes) && formData.attributes.length > 0
       ? formData.attributes
       : []
+    if (attributeList.length === 0) {
+      attributeList = await getShopeeAttributes(auth, accessToken, categoryId, product)
+      console.log('[Shopee] atributos via auto-fill (servidor):', attributeList.length, '→', attributeList.map((a: any) => `[${a.attribute_id}]`).join(', '))
+    }
+
+    // Canais logísticos: buscar no servidor e cruzar com os selecionados pelo usuário
+    let finalChannelIds: number[] = []
+    try {
+      const chanEndpoint = '/api/v2/logistics/get_channel_list'
+      const chanTs = Math.floor(Date.now() / 1000)
+      const chanSign = crypto.createHmac('sha256', auth.partnerKey)
+        .update(`${auth.partnerId}${chanEndpoint}${chanTs}${accessToken}${auth.shopId}`)
+        .digest('hex')
+      const chanRes = await fetch(
+        `${SHOPEE_API_BASE}${chanEndpoint}?partner_id=${auth.partnerId}&timestamp=${chanTs}&sign=${chanSign}&access_token=${accessToken}&shop_id=${auth.shopId}`,
+        { method: 'GET' }
+      )
+      const chanData = await chanRes.json()
+      const allChannels: any[] = chanData?.response?.logistics_channel_list || []
+      const enabledIds = new Set(allChannels.filter((c: any) => c.enabled).map((c: any) => c.logistics_channel_id as number))
+      console.log('[Shopee] canais habilitados no servidor:', [...enabledIds])
+      // Use só os que o usuário escolheu E estão habilitados; se nenhum passar, use todos os habilitados
+      if (logisticChannels.length > 0) {
+        finalChannelIds = logisticChannels.filter((id: number) => enabledIds.has(id))
+      }
+      if (finalChannelIds.length === 0) {
+        finalChannelIds = [...enabledIds]
+      }
+    } catch (e: any) {
+      console.log('[Shopee] erro ao buscar canais servidor:', e.message)
+      finalChannelIds = logisticChannels
+    }
 
     // Peso e dimensões: formulário > produto > fallback
     const weightKg = formData?.weight || product.weightWithPackage || product.weight || 0.5
@@ -570,9 +601,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
       },
       seller_stock: [{ stock: Number(product.stock) || 0 }],
       image: { image_id_list: uploadedImageIds },
-      logistic_info: logisticChannels.length > 0
-        ? logisticChannels.map((id: number) => ({ logistic_id: id, enabled: true }))
-        : [{ logistic_id: 80101, enabled: true }],
+      logistic_info: finalChannelIds.map((id: number) => ({ logistic_id: id, enabled: true })),
       brand: { brand_id: 0, original_brand_name: brandName.substring(0, 50) },
       item_sku: (product.supplierSku || product.gtin || '').substring(0, 100),
     }
@@ -592,7 +621,7 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
     console.log(`  ├ item_sku       : ${bodyObj.item_sku}`)
     console.log(`  ├ gtin           : ${bodyObj.gtin || '(não informado)'}`)
     console.log(`  ├ imagens        : ${bodyObj.image?.image_id_list?.length ?? 0} imagem(ns)`)
-    console.log(`  ├ logísticas     : ${(bodyObj.logistic_info || []).map((l: any) => `id=${l.logistic_id}(${l.enabled ? 'on' : 'off'})`).join(', ')}`)
+    console.log(`  ├ logísticas     : ${(bodyObj.logistic_info || []).map((l: any) => `id=${l.logistic_id}(${l.enabled ? 'on' : 'off'})`).join(', ')} [validados no servidor]`)
     console.log(`  └ atributos      : ${attributeList.length} atributo(s)${attributeList.length > 0 ? ' → ' + attributeList.map((a: any) => `[${a.attribute_id}]`).join(', ') : ''}`)
     if (attributeList.length > 0) console.log('    atributos detalhe:', JSON.stringify(attributeList))
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
