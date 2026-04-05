@@ -70,6 +70,9 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [productTypes, setProductTypes] = useState<ProductType[]>([])
   const [branches, setBranches] = useState<{id:string;code:string;name:string}[]>([])
+  const [listings, setListings] = useState<any[]>([])
+  const [listingPrices, setListingPrices] = useState<Record<string, string>>({})
+  const [isSavingPrices, setIsSavingPrices] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -158,6 +161,15 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
         setSuppliers(suppliersData?.suppliers || (Array.isArray(suppliersData) ? suppliersData : []))
         setProductTypes(Array.isArray(productTypesData) ? productTypesData : [])
         setBranches(Array.isArray(branchesData) ? branchesData.filter((b:any) => b.isActive) : [])
+
+        // Carrega anúncios de marketplace
+        const mktListings = Array.isArray(product.marketplaceListings) ? product.marketplaceListings : []
+        setListings(mktListings)
+        const initialPrices: Record<string, string> = {}
+        mktListings.forEach((l: any) => {
+          initialPrices[l.marketplace] = l.price != null ? l.price.toString() : ''
+        })
+        setListingPrices(initialPrices)
 
         let techSpecs: any = {}
         try {
@@ -361,6 +373,32 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
     }
   }
 
+  const saveListingPrices = async () => {
+    setIsSavingPrices(true)
+    const errors: string[] = []
+    for (const listing of listings) {
+      const newPrice = listingPrices[listing.marketplace]
+      if (!newPrice || isNaN(parseFloat(newPrice))) continue
+      try {
+        const res = await fetch(`/api/admin/products/${params.id}/update-listing-price`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketplace: listing.marketplace, price: parseFloat(newPrice) }),
+        })
+        const data = await res.json()
+        if (!res.ok) errors.push(`${listing.marketplace}: ${data.message}`)
+      } catch (e: any) {
+        errors.push(`${listing.marketplace}: ${e.message}`)
+      }
+    }
+    setIsSavingPrices(false)
+    if (errors.length > 0) {
+      toast.error('Erros: ' + errors.join(' | '))
+    } else {
+      toast.success('Preços dos marketplaces atualizados!')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -560,11 +598,70 @@ export default function EditarProdutoPage({ params }: { params: { id: string } }
                 )}
               </div>
             </div>
+
+            {/* Preços por Marketplace */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-medium text-blue-900 mb-3">🛒 Preços por Marketplace</h4>
+              {listings.length === 0 ? (
+                <p className="text-sm text-blue-700">Nenhum anúncio publicado ainda. Publique o produto em um marketplace para definir preços específicos.</p>
+              ) : (
+                <>
+                  <p className="text-xs text-blue-700 mb-4">Defina preços diferentes para cada marketplace. Ao salvar, o novo preço será enviado para a plataforma.</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-blue-200 text-blue-800">
+                          <th className="text-left py-2 pr-4 font-medium">Marketplace</th>
+                          <th className="text-left py-2 pr-4 font-medium">Status</th>
+                          <th className="text-left py-2 pr-4 font-medium">Preço de Venda (R$)</th>
+                          <th className="text-left py-2 font-medium">Margem</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {listings.map((listing) => {
+                          const mktLabel = listing.marketplace === 'mercadolivre' ? '🟡 Mercado Livre' : listing.marketplace === 'shopee' ? '🟠 Shopee' : listing.marketplace
+                          const statusLabel = listing.status === 'active' ? '✅ Ativo' : listing.status === 'paused' ? '⏸ Pausado' : listing.status
+                          const currentPrice = parseFloat(listingPrices[listing.marketplace] || '') || 0
+                          const cost = parseFloat(formData.costPrice) || 0
+                          const margin = cost > 0 && currentPrice > 0 ? (((currentPrice - cost) / cost) * 100).toFixed(1) : '—'
+                          return (
+                            <tr key={listing.marketplace} className="border-b border-blue-100">
+                              <td className="py-2 pr-4 font-medium">{mktLabel}</td>
+                              <td className="py-2 pr-4 text-xs">{statusLabel}</td>
+                              <td className="py-2 pr-4">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0.01"
+                                  value={listingPrices[listing.marketplace] ?? ''}
+                                  onChange={(e) => setListingPrices(prev => ({ ...prev, [listing.marketplace]: e.target.value }))}
+                                  className="w-32 px-3 py-1 border-2 border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                                  placeholder="0.00"
+                                />
+                              </td>
+                              <td className="py-2 font-semibold text-green-700">{margin !== '—' ? `${margin}%` : '—'}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={saveListingPrices}
+                      disabled={isSavingPrices}
+                      className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium text-sm"
+                    >
+                      {isSavingPrices ? '💾 Salvando...' : '💾 Salvar preços dos marketplaces'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )
       }
-
-      case 'dimensoes':
         return (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold mb-4">📦 Peso, Dimensões e Localização</h3>

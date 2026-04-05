@@ -26,6 +26,7 @@ export async function GET(
       include: {
         category: true,
         supplier: true,
+        marketplaceListings: true,
       },
     })
 
