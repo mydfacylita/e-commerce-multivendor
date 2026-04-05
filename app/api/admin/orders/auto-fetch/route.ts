@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import crypto from 'crypto'
 
 
 // Force dynamic - disable all caching
@@ -13,8 +14,7 @@ export async function POST(request: NextRequest) {
 
     const results = {
       mercadolivre: { imported: 0, errors: [] as string[] },
-      // shopee: { imported: 0, errors: [] },
-      // amazon: { imported: 0, errors: [] },
+      shopee: { imported: 0, errors: [] as string[] },
     }
 
     // Buscar pedidos do Mercado Livre
@@ -26,9 +26,14 @@ export async function POST(request: NextRequest) {
       results.mercadolivre.errors.push(error.message)
     }
 
-    // TODO: Adicionar outras plataformas aqui
-    // const shopeeResult = await fetchShopeeOrders()
-    // const amazonResult = await fetchAmazonOrders()
+    // Buscar pedidos da Shopee
+    try {
+      const shopeeResult = await fetchShopeeOrders()
+      results.shopee = shopeeResult
+    } catch (error: any) {
+      console.error('[Auto Fetch] Erro Shopee:', error)
+      results.shopee.errors.push(error.message)
+    }
 
     const totalImported = Object.values(results).reduce((sum, r) => sum + r.imported, 0)
 
@@ -542,6 +547,186 @@ async function fetchMercadoLivreOrders() {
 
       } catch (error) {
         console.error(`[Auto Fetch ML] Erro ao importar ${mlOrder.id}:`, error)
+      }
+    }
+
+  } catch (error: any) {
+    result.errors.push(error.message)
+  }
+
+  return result
+}
+
+// ─── Shopee helpers ─────────────────────────────────────────────────────────
+
+function shopeeSign(partnerId: number, endpoint: string, timestamp: number, accessToken: string, shopId: number, partnerKey: string): string {
+  const base = `${partnerId}${endpoint}${timestamp}${accessToken}${shopId}`
+  return crypto.createHmac('sha256', partnerKey).update(base).digest('hex')
+}
+
+async function shopeePost(endpoint: string, auth: any, body: any) {
+  const timestamp = Math.floor(Date.now() / 1000)
+  const sign = shopeeSign(auth.partnerId, endpoint, timestamp, auth.accessToken, auth.shopId, auth.partnerKey)
+  const url = `https://partner.shopeemobile.com${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${auth.accessToken}&shop_id=${auth.shopId}`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  return res.json()
+}
+
+async function shopeeRefreshIfNeeded(auth: any): Promise<any> {
+  if (!auth.expiresAt || auth.expiresAt > new Date(Date.now() + 60 * 60 * 1000)) return auth
+  if (!auth.refreshToken) return auth
+  try {
+    const timestamp = Math.floor(Date.now() / 1000)
+    const endpoint = '/api/v2/auth/access_token/get'
+    const sign = crypto.createHmac('sha256', auth.partnerKey)
+      .update(`${auth.partnerId}${endpoint}${timestamp}`).digest('hex')
+    const res = await fetch(
+      `https://partner.shopeemobile.com${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: auth.refreshToken, partner_id: auth.partnerId, shop_id: auth.shopId }) }
+    )
+    const data = await res.json()
+    if (data.access_token) {
+      const updated = await prisma.shopeeAuth.update({
+        where: { id: auth.id },
+        data: { accessToken: data.access_token, refreshToken: data.refresh_token || auth.refreshToken, expiresAt: new Date(Date.now() + data.expire_in * 1000) }
+      })
+      console.log('[Auto Fetch Shopee] Token renovado.')
+      return updated
+    }
+  } catch (e: any) {
+    console.error('[Auto Fetch Shopee] Erro ao renovar token:', e.message)
+  }
+  return auth
+}
+
+function mapShopeeStatus(status: string): 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' {
+  switch (status) {
+    case 'UNPAID': return 'PENDING'
+    case 'READY_TO_SHIP': return 'PROCESSING'
+    case 'PROCESSED': return 'PROCESSING'
+    case 'SHIPPED': return 'SHIPPED'
+    case 'IN_CANCEL': return 'CANCELLED'
+    case 'CANCELLED': return 'CANCELLED'
+    case 'COMPLETED': return 'DELIVERED'
+    default: return 'PENDING'
+  }
+}
+
+async function fetchShopeeOrders() {
+  const result = { imported: 0, errors: [] as string[] }
+
+  try {
+    let auth = await prisma.shopeeAuth.findFirst({ where: { accessToken: { not: null } } })
+    if (!auth) { result.errors.push('Shopee não conectada'); return result }
+
+    auth = await shopeeRefreshIfNeeded(auth)
+
+    // Buscar pedidos dos últimos 2 dias em múltiplos status
+    const timeFrom = Math.floor((Date.now() - 2 * 24 * 60 * 60 * 1000) / 1000)
+    const timeTo = Math.floor(Date.now() / 1000)
+    const statuses = ['UNPAID', 'READY_TO_SHIP', 'PROCESSED', 'SHIPPED', 'COMPLETED', 'IN_CANCEL', 'CANCELLED']
+
+    let allOrderSns: string[] = []
+    for (const status of statuses) {
+      const listData = await shopeePost('/api/v2/order/get_order_list', auth, {
+        time_range_field: 'create_time', time_from: timeFrom, time_to: timeTo,
+        page_size: 50, order_status: status,
+      })
+      const sns = listData.response?.order_list?.map((o: any) => o.order_sn) || []
+      allOrderSns = allOrderSns.concat(sns)
+    }
+
+    if (allOrderSns.length === 0) {
+      console.log('[Auto Fetch Shopee] Nenhum pedido encontrado.')
+      return result
+    }
+
+    console.log(`[Auto Fetch Shopee] ${allOrderSns.length} pedidos encontrados`)
+
+    // Buscar detalhes em lotes de 50
+    const chunks: string[][] = []
+    for (let i = 0; i < allOrderSns.length; i += 50) chunks.push(allOrderSns.slice(i, i + 50))
+
+    const allOrders: any[] = []
+    for (const chunk of chunks) {
+      const detail = await shopeePost('/api/v2/order/get_order_detail', auth, {
+        order_sn_list: chunk,
+        response_optional_fields: ['buyer_user_id', 'buyer_username', 'recipient_address', 'actual_shipping_fee', 'item_list'],
+      })
+      allOrders.push(...(detail.response?.order_list || []))
+    }
+
+    for (const shopeeOrder of allOrders) {
+      try {
+        const orderSn = shopeeOrder.order_sn
+        const status = mapShopeeStatus(shopeeOrder.order_status)
+
+        // Pedido já existe? Só atualiza status
+        const existing = await prisma.order.findFirst({ where: { marketplaceOrderId: orderSn } })
+        if (existing) {
+          if (existing.status !== status) {
+            await prisma.order.update({ where: { id: existing.id }, data: { status } })
+            console.log(`[Auto Fetch Shopee] ✅ ${orderSn} atualizado: ${existing.status} → ${status}`)
+          }
+          continue
+        }
+
+        // Pedido novo — montar dados
+        const address = shopeeOrder.recipient_address
+        const shippingAddress = JSON.stringify({
+          name: address?.name || '',
+          phone: address?.phone || '',
+          street: address?.full_address || '',
+          city: address?.city || '',
+          state: address?.state || '',
+          zipCode: address?.zipcode || '',
+          country: address?.region || 'BR',
+        })
+
+        const total = (shopeeOrder.item_list || []).reduce(
+          (sum: number, item: any) => sum + (item.model_discounted_price || item.model_original_price || 0) * (item.model_quantity || 1), 0
+        ) + (shopeeOrder.actual_shipping_fee || 0)
+
+        // Associar itens a produtos locais
+        const orderItems: any[] = []
+        for (const item of (shopeeOrder.item_list || [])) {
+          const listing = await prisma.marketplaceListing.findFirst({
+            where: { marketplace: { in: ['shopee', 'SHOPEE'] }, listingId: String(item.item_id) }
+          })
+          if (listing) {
+            orderItems.push({ productId: listing.productId, quantity: item.model_quantity || 1, price: item.model_discounted_price || item.model_original_price || 0 })
+          } else {
+            console.log(`[Auto Fetch Shopee] ⚠️ Produto sem listing local: ${item.item_name}`)
+          }
+        }
+
+        // Criar pedido (mesmo sem itens mapeados, para não perder o pedido)
+        await prisma.order.create({
+          data: {
+            buyerName: shopeeOrder.buyer_username || 'Cliente Shopee',
+            buyerEmail: `shopee_${shopeeOrder.buyer_user_id || 'unknown'}@marketplace.com`,
+            buyerPhone: address?.phone || null,
+            shippingAddress,
+            status,
+            total,
+            shippingCost: shopeeOrder.actual_shipping_fee || 0,
+            marketplaceName: 'Shopee',
+            marketplaceOrderId: orderSn,
+            ...(orderItems.length > 0 ? { items: { create: orderItems } } : {}),
+          }
+        })
+
+        result.imported++
+        console.log(`[Auto Fetch Shopee] ✅ ${orderSn} importado (${shopeeOrder.order_status})`)
+
+      } catch (err: any) {
+        if (err.code === 'P2002') {
+          console.log(`[Auto Fetch Shopee] ⏭️ Duplicata ignorada: ${shopeeOrder.order_sn}`)
+        } else {
+          console.error(`[Auto Fetch Shopee] Erro no pedido ${shopeeOrder.order_sn}:`, err.message)
+          result.errors.push(`${shopeeOrder.order_sn}: ${err.message}`)
+        }
       }
     }
 

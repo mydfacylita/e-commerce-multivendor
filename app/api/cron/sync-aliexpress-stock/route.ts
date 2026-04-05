@@ -45,6 +45,58 @@ function generateSign(params: Record<string, string>, appSecret: string): string
   return crypto.createHmac('sha256', appSecret).update(signString).digest('hex').toUpperCase()
 }
 
+// Renovar access token AliExpress usando refresh token
+async function refreshAliExpressToken(auth: {
+  id: string
+  appKey: string
+  appSecret: string
+  refreshToken: string
+}): Promise<string | null> {
+  try {
+    const timestamp = Date.now().toString()
+    const params: Record<string, string> = {
+      app_key: auth.appKey,
+      refresh_token: auth.refreshToken,
+      sign_method: 'sha256',
+      timestamp,
+    }
+    const sortedKeys = Object.keys(params).sort()
+    const signString = '/auth/token/refresh' + sortedKeys.map(k => `${k}${params[k]}`).join('')
+    const sign = crypto.createHmac('sha256', auth.appSecret)
+      .update(signString)
+      .digest('hex')
+      .toUpperCase()
+
+    const qs = sortedKeys.map(k => `${k}=${encodeURIComponent(params[k])}`).join('&') + `&sign=${sign}`
+    const url = `https://api-sg.aliexpress.com/rest/auth/token/refresh?${qs}`
+
+    const res = await fetch(url, { headers: { Accept: 'application/json' } })
+    const data = await res.json()
+
+    const tokenData = data.aliexpress_system_oauth_access_token_get_response || data
+    if (!tokenData.access_token) {
+      console.error('[SYNC] ❌ Falha ao renovar token AliExpress:', data)
+      return null
+    }
+
+    const expiresAt = new Date(Date.now() + parseInt(tokenData.expires_in || '0') * 1000)
+    await prisma.aliExpressAuth.update({
+      where: { id: auth.id },
+      data: {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || auth.refreshToken,
+        expiresAt,
+      },
+    })
+
+    console.log('[SYNC] ✅ Token AliExpress renovado com sucesso. Expira em:', expiresAt)
+    return tokenData.access_token
+  } catch (err: any) {
+    console.error('[SYNC] ❌ Erro ao renovar token AliExpress:', err.message)
+    return null
+  }
+}
+
 // Buscar produto na API do AliExpress — retorna resultado completo
 async function fetchAliExpressProduct(
   productId: string,
@@ -140,12 +192,39 @@ export async function GET(request: NextRequest) {
 
   try {
     // Buscar credenciais AliExpress
-    const auth = await prisma.aliExpressAuth.findFirst({
+    let auth = await prisma.aliExpressAuth.findFirst({
       where: { accessToken: { not: null } }
     })
 
     if (!auth?.accessToken) {
       return NextResponse.json({ error: 'Sem credenciais AliExpress' }, { status: 400 })
+    }
+
+    // Verificar se o token expirou ou expira nas próximas 2 horas e renovar automaticamente
+    const tokenExpired = auth.expiresAt && auth.expiresAt.getTime() < Date.now() + 2 * 60 * 60 * 1000
+    if (tokenExpired) {
+      console.log('[SYNC] ⚠️ Token AliExpress expirado ou prestes a expirar. Tentando renovar...')
+      if (auth.refreshToken) {
+        const newAccessToken = await refreshAliExpressToken({
+          id: auth.id,
+          appKey: auth.appKey,
+          appSecret: auth.appSecret,
+          refreshToken: auth.refreshToken,
+        })
+        if (newAccessToken) {
+          auth = { ...auth, accessToken: newAccessToken }
+        } else {
+          console.error('[SYNC] ❌ Não foi possível renovar o token. Reautorize a integração AliExpress.')
+          return NextResponse.json({
+            error: 'Token AliExpress expirado e não foi possível renovar automaticamente. Acesse /admin/integracao/aliexpress e reautorize.',
+          }, { status: 401 })
+        }
+      } else {
+        console.error('[SYNC] ❌ Token expirado e sem refresh token. Reautorize em /admin/integracao/aliexpress.')
+        return NextResponse.json({
+          error: 'Token AliExpress expirado e sem refresh token. Reautorize em /admin/integracao/aliexpress.',
+        }, { status: 401 })
+      }
     }
 
     // Paginação - buscar produtos em lotes
