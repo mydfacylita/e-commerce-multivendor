@@ -240,152 +240,147 @@ async function refreshShopeeToken(userId: string): Promise<string> {
 
 // Busca atributos da categoria e tenta preenchê-los com os dados do produto
 // Usa o mesmo endpoint que a rota /api/admin/marketplaces/shopee/attributes (que funciona)
-async function getShopeeAttributes(auth: any, accessToken: string, categoryId: number, product: any): Promise<any[]> {
-  try {
-    // Open Platform BR — único que realmente retorna atributos com value_list
-    const endpoint = '/api/v2/product/get_attribute_tree'
-    const timestamp = Math.floor(Date.now() / 1000)
-    const sign = crypto.createHmac('sha256', auth.partnerKey)
-      .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
-      .digest('hex')
-    const BR_BASE = 'https://openplatform.shopee.com.br'
-    const url = `${BR_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id_list=${categoryId}&language=pt-BR`
-
-    const res = await fetch(url, { method: 'GET' })
-    const rawText = await res.text()
-    let data: any = {}
-    try { data = JSON.parse(rawText) } catch { console.log('[Shopee attrs server] JSON inválido'); return [] }
-
-    // Estrutura: { data: { list: [{ attribute_tree: [...] }] } }
-    let attrList: any[] = []
-    if (data?.data?.list?.length > 0) {
-      for (const item of data.data.list) {
-        const list = item?.attribute_tree || item?.attribute_list || item?.attributes || []
-        if (list.length > 0) { attrList = list; break }
-      }
-    }
-    // Fallback: estrutura legada response.*
-    if (!attrList.length) {
-      const resp = data?.response || {}
-      attrList = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || []
-    }
-    console.log('[Shopee attrs server] get_attribute_tree categoria', categoryId, '-> total:', attrList.length, 'error:', data?.error || data?.code || 'ok')
-    if (attrList.length > 0) console.log('[Shopee attrs server] exemplo[0]:', JSON.stringify(attrList[0]))
-
-    // Parsear specs/attributes do produto
-    const parseProductAttrs = (raw: string | null | undefined): Record<string, string> => {
-      if (!raw) return {}
-      try {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          const out: Record<string, string> = {}
-          for (const item of parsed) {
-            const key = (item.nome || item.name || item.key || '').replace(/^\d+\.\s*/, '').trim()
-            const val = String(item.valor || item.value || item.val || '')
-            if (key) out[key.toLowerCase()] = val
-          }
-          return out
+// Processa uma lista de atributos da Shopee e preenche com dados do produto
+function processShopeeAttrList(attrList: any[], product: any): any[] {
+  const parseProductAttrs = (raw: string | null | undefined): Record<string, string> => {
+    if (!raw) return {}
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        const out: Record<string, string> = {}
+        for (const item of parsed) {
+          const key = (item.nome || item.name || item.key || '').replace(/^\d+\.\s*/, '').trim()
+          const val = String(item.valor || item.value || item.val || '')
+          if (key) out[key.toLowerCase()] = val
         }
-        if (typeof parsed === 'object' && parsed !== null) return parsed
-      } catch {}
-      return {}
-    }
-    const specs: Record<string, string> = {}
-    Object.assign(specs, parseProductAttrs(product.specifications))
-    Object.assign(specs, parseProductAttrs(product.attributes))
-    Object.assign(specs, parseProductAttrs(product.technicalSpecs))
-    const specsLower: Record<string, string> = {}
-    for (const [k, v] of Object.entries(specs)) specsLower[k.toLowerCase()] = String(v)
-
-    const productText = `${product.name || ''} ${product.category?.name || ''} ${product.description || ''}`.toLowerCase()
-
-    const fieldMap: Record<string, string> = {
-      brand: product.brand || '',
-      marca: product.brand || '',
-      'model name': product.model || product.name?.substring(0, 100) || '',
-      model: product.model || product.name?.substring(0, 100) || '',
-      modelo: product.model || product.name?.substring(0, 100) || '',
-      color: product.color || '',
-      cor: product.color || '',
-      gtin: product.gtin || '',
-      ean: product.gtin || '',
-      weight: product.weight ? String(product.weight) : '',
-      peso: product.weight ? String(product.weight) : '',
-      country: 'BR',
-      origem: 'BR',
-      'país de origem': 'BR',
-      voltagem: specsLower['voltagem'] || specsLower['voltage'] || '',
-      voltage: specsLower['voltage'] || specsLower['voltagem'] || '',
-      garantia: specsLower['garantia'] || specsLower['warranty'] || '',
-      warranty: specsLower['warranty'] || specsLower['garantia'] || '',
-      bluetooth: 'bluetooth',
-      'connection type': 'bluetooth',
-      'tipo de conexão': 'bluetooth',
-    }
-    Object.assign(fieldMap, specsLower)
-
-    const isTextField = (inputType: string) =>
-      !inputType || inputType === 'TEXT_FIELD' || inputType === 'TEXT_FILED' || inputType === 'TEXT_AREA'
-
-    function matchPredefined(valueList: any[], searchText: string): any | null {
-      const lower = searchText.toLowerCase()
-      return valueList.find((v: any) => {
-        const vName = (v.display_value_name || v.value_name || '').toLowerCase()
-        return vName === lower || vName.includes(lower) || lower.includes(vName)
-      }) || null
-    }
-
-    function matchPredefinedFromProduct(valueList: any[]): any | null {
-      for (const v of valueList) {
-        const vName = (v.display_value_name || v.value_name || '').toLowerCase()
-        if (vName && productText.includes(vName)) return v
+        return out
       }
-      return null
-    }
-
-    const result: any[] = []
-
-    for (const attr of attrList) {
-      const attrNameRaw: string = attr.display_attribute_name || attr.attribute_name || ''
-      const attrName: string = attrNameRaw.toLowerCase()
-      const attrId: number = attr.attribute_id
-      const hasPredefined = attr.attribute_value_list && attr.attribute_value_list.length > 0
-
-      let value: string | null = null
-      for (const [key, val] of Object.entries(fieldMap)) {
-        if (val && (attrName.includes(key) || key.includes(attrName))) {
-          value = val
-          break
-        }
-      }
-
-      if (hasPredefined) {
-        let match = value ? matchPredefined(attr.attribute_value_list, value) : null
-        if (!match) match = matchPredefinedFromProduct(attr.attribute_value_list)
-        // último recurso — primeiro da lista (garante que atributos obrigatórios sejam enviados)
-        if (!match) match = attr.attribute_value_list[0]
-
-        result.push({ attribute_id: attrId, attribute_value_list: [{
-          value_id: match.value_id,
-          original_value_name: match.display_value_name || match.value_name || ''
-        }] })
-      } else if (isTextField(attr.input_type)) {
-        const textValue = value || (product.model || product.name || '').substring(0, 100)
-        result.push({ attribute_id: attrId, attribute_value_list: [{
-          value_id: 0,
-          original_value_name: textValue.substring(0, 256)
-        }] })
-      }
-    }
-
-    console.log('[Shopee attrs server] atributos preenchidos:', result.length, 'de', attrList.length)
-    return result
-  } catch (e: any) {
-    console.log('[Shopee attrs server] erro:', e.message)
-    return []
+      if (typeof parsed === 'object' && parsed !== null) return parsed
+    } catch {}
+    return {}
   }
+  const specs: Record<string, string> = {}
+  Object.assign(specs, parseProductAttrs(product.specifications))
+  Object.assign(specs, parseProductAttrs(product.attributes))
+  Object.assign(specs, parseProductAttrs(product.technicalSpecs))
+  const specsLower: Record<string, string> = {}
+  for (const [k, v] of Object.entries(specs)) specsLower[k.toLowerCase()] = String(v)
+
+  const productText = `${product.name || ''} ${product.category?.name || ''} ${product.description || ''}`.toLowerCase()
+  const fieldMap: Record<string, string> = {
+    brand: product.brand || '', marca: product.brand || '',
+    'model name': product.model || product.name?.substring(0, 100) || '',
+    model: product.model || product.name?.substring(0, 100) || '',
+    modelo: product.model || product.name?.substring(0, 100) || '',
+    color: product.color || '', cor: product.color || '',
+    gtin: product.gtin || '', ean: product.gtin || '',
+    country: 'BR', origem: 'BR', 'país de origem': 'BR',
+    bluetooth: 'bluetooth', 'connection type': 'bluetooth', 'tipo de conexão': 'bluetooth',
+    ...specsLower
+  }
+
+  const isTextField = (t: string) => !t || t === 'TEXT_FIELD' || t === 'TEXT_FILED' || t === 'TEXT_AREA'
+  const matchPre = (list: any[], text: string) => {
+    const l = text.toLowerCase()
+    return list.find((v: any) => { const n = (v.display_value_name || v.value_name || '').toLowerCase(); return n === l || n.includes(l) || l.includes(n) }) || null
+  }
+  const matchProd = (list: any[]) => list.find((v: any) => { const n = (v.display_value_name || v.value_name || '').toLowerCase(); return n && productText.includes(n) }) || null
+
+  const result: any[] = []
+  for (const attr of attrList) {
+    const attrName = (attr.display_attribute_name || attr.attribute_name || '').toLowerCase()
+    const attrId: number = attr.attribute_id
+    const hasPre = attr.attribute_value_list?.length > 0
+    let value: string | null = null
+    for (const [key, val] of Object.entries(fieldMap)) {
+      if (val && (attrName.includes(key) || key.includes(attrName))) { value = val; break }
+    }
+    if (hasPre) {
+      const match = (value ? matchPre(attr.attribute_value_list, value) : null) || matchProd(attr.attribute_value_list) || attr.attribute_value_list[0]
+      result.push({ attribute_id: attrId, attribute_value_list: [{ value_id: match.value_id, original_value_name: match.display_value_name || match.value_name || '' }] })
+    } else if (isTextField(attr.input_type)) {
+      const textValue = value || (product.model || product.name || '').substring(0, 100)
+      result.push({ attribute_id: attrId, attribute_value_list: [{ value_id: 0, original_value_name: textValue.substring(0, 256) }] })
+    }
+  }
+  return result
 }
 
+async function getShopeeAttributes(auth: any, accessToken: string, categoryId: number, product: any): Promise<any[]> {
+  const sign = (ep: string, ts: number) => crypto.createHmac('sha256', auth.partnerKey).update(`${auth.partnerId}${ep}${ts}${accessToken}${auth.shopId}`).digest('hex')
+
+  // Tier 1: get_attributes no SHOPEE_API_BASE (endpoint oficial de parceiro)
+  try {
+    const ep1 = '/api/v2/product/get_attributes'
+    const ts1 = Math.floor(Date.now() / 1000)
+    const url1 = `${SHOPEE_API_BASE}${ep1}?partner_id=${auth.partnerId}&timestamp=${ts1}&sign=${sign(ep1, ts1)}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}`
+    const r1 = await fetch(url1, { method: 'GET' })
+    const raw1 = await r1.text()
+    let d1: any = {}
+    try { d1 = JSON.parse(raw1) } catch { console.log('[Shopee attrs T1] resposta não-JSON:', raw1.substring(0, 200)) }
+    const list1: any[] = d1?.response?.attribute_list || d1?.response?.attributes || d1?.response?.attribute_info_list || []
+    console.log(`[Shopee attrs T1] get_attributes categoria=${categoryId} total=${list1.length} error=${d1?.error || 'ok'} | raw(300)=${raw1.substring(0, 300)}`)
+    if (list1.length > 0) {
+      const result = processShopeeAttrList(list1, product)
+      console.log(`[Shopee attrs T1] preenchidos: ${result.length} de ${list1.length}`)
+      return result
+    }
+  } catch (e: any) { console.log('[Shopee attrs T1] erro:', e.message) }
+
+  // Tier 2: get_attribute_tree no openplatform.shopee.com.br
+  try {
+    const ep2 = '/api/v2/product/get_attribute_tree'
+    const ts2 = Math.floor(Date.now() / 1000)
+    const BR_BASE = 'https://openplatform.shopee.com.br'
+    const url2 = `${BR_BASE}${ep2}?partner_id=${auth.partnerId}&timestamp=${ts2}&sign=${sign(ep2, ts2)}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id_list=${categoryId}&language=pt-BR`
+    const r2 = await fetch(url2, { method: 'GET' })
+    const raw2 = await r2.text()
+    let d2: any = {}
+    try { d2 = JSON.parse(raw2) } catch { console.log('[Shopee attrs T2] resposta não-JSON:', raw2.substring(0, 200)) }
+    let list2: any[] = []
+    if (d2?.data?.list?.length > 0) {
+      for (const item of d2.data.list) {
+        const l = item?.attribute_tree || item?.attribute_list || item?.attributes || []
+        if (l.length > 0) { list2 = l; break }
+      }
+    }
+    if (!list2.length) { const r = d2?.response || {}; list2 = r?.attribute_list || r?.attributes || r?.attribute_info_list || [] }
+    console.log(`[Shopee attrs T2] get_attribute_tree total=${list2.length} | raw(300)=${raw2.substring(0, 300)}`)
+    if (list2.length > 0) {
+      const result = processShopeeAttrList(list2, product)
+      console.log(`[Shopee attrs T2] preenchidos: ${result.length} de ${list2.length}`)
+      return result
+    }
+  } catch (e: any) { console.log('[Shopee attrs T2] erro:', e.message) }
+
+  // Tier 3: search_attribute_value_list no SHOPEE_API_BASE para attrs obrigatórios conhecidos
+  console.log('[Shopee attrs T3] Ambas as APIs retornaram 0 — usando search_attribute_value_list via SHOPEE_API_BASE')
+  const productText = `${product.name || ''} ${product.description || ''}`.toLowerCase()
+  const isWireless = productText.includes('bluetooth') || productText.includes('wireless') || productText.includes('sem fio')
+  const result: any[] = []
+
+  // Connection Type (id 100408) — procura via search_attribute_value_list
+  try {
+    const connSearch = isWireless ? 'Bluetooth' : 'Wired'
+    const connMatch = await searchAttributeValues(auth, accessToken, categoryId, 100408, connSearch)
+    if (connMatch) {
+      result.push({ attribute_id: 100408, attribute_value_list: [{ value_id: connMatch.value_id, original_value_name: connMatch.display_value_name || connMatch.value_name }] })
+      console.log(`[Shopee attrs T3] Connection Type: value_id=${connMatch.value_id} name=${connMatch.display_value_name || connMatch.value_name}`)
+    }
+  } catch (e: any) { console.log('[Shopee attrs T3] erro Connection Type:', e.message) }
+
+  // Model Name (id 101040) — campo de texto
+  const modelName = (product.model || product.name || '').substring(0, 100)
+  if (modelName) {
+    result.push({ attribute_id: 101040, attribute_value_list: [{ value_id: 0, original_value_name: modelName }] })
+    console.log(`[Shopee attrs T3] Model Name: "${modelName}"`)
+  }
+
+  console.log(`[Shopee attrs T3] resultado final: ${result.length} atributo(s)`)
+  return result
+}
+
+// UNUSED — kept for reference
 // Busca o ID de uma categoria válida na Shopee usando caminho completo (todos os níveis)
 // get_category sem parent_category_id retorna TODAS as categorias em lista plana com parent_category_id em cada item
 async function getShopeeCategory(auth: any, accessToken: string, productCategoryName?: string | null, productName?: string): Promise<number> {
@@ -671,10 +666,12 @@ async function searchAttributeValues(
     const sign = crypto.createHmac('sha256', auth.partnerKey)
       .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
       .digest('hex')
-    const BR_BASE = 'https://openplatform.shopee.com.br'
-    const url = `${BR_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(searchText.substring(0, 50))}&language=pt-BR`
+    // FIX: usar SHOPEE_API_BASE (partner.shopeemobile.com), não openplatform.shopee.com.br que retorna HTML
+    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(searchText.substring(0, 50))}&language=pt-BR`
     const res = await fetch(url, { method: 'GET' })
-    const data = await res.json()
+    const rawText = await res.text()
+    let data: any = {}
+    try { data = JSON.parse(rawText) } catch { console.log(`[Shopee] search_attribute_value_list HTTP ${res.status} non-JSON:`, rawText.substring(0, 200)); return null }
     console.log(`[Shopee] search_attribute_value_list attr=${attributeId} search="${searchText.substring(0, 30)}": error=${data.error || 'ok'} total=${data.response?.attribute_value_list?.length ?? 0}`)
     const list: any[] = data?.response?.attribute_value_list || []
     if (list.length === 0) return null
