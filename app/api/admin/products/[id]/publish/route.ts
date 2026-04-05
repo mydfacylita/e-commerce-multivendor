@@ -363,36 +363,6 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
     } catch (e: any) { console.log('[Shopee attrs T2] erro:', e.message) }
   }
 
-  // Sempre: injetar atributos obrigatórios conhecidos que estejam faltando no resultado
-  const productText = `${product.name || ''} ${product.description || ''}`.toLowerCase()
-  const isWireless = productText.includes('bluetooth') || productText.includes('wireless') || productText.includes('sem fio') || productText.includes('tws')
-
-  // Connection Type (id 100408) — COMBO_BOX obrigatório para eletrônicos
-  // DEVE ter value_id real (não pode ser 0 para COMBO_BOX — Shopee rejeita com 'cannot be customized')
-  if (!result.find((a: any) => a.attribute_id === 100408)) {
-    try {
-      const connKeyword = isWireless ? 'Bluetooth' : 'Wired'
-      // value_name é o texto do VALOR que queremos buscar (ex: "Bluetooth")
-      const connMatch = await searchAttributeValues(auth, accessToken, categoryId, 100408, connKeyword)
-      if (connMatch && connMatch.value_id && connMatch.value_id !== 0) {
-        result.push({ attribute_id: 100408, attribute_value_list: [{ value_id: connMatch.value_id, original_value_name: connMatch.display_value_name || connMatch.value_name }] })
-        console.log(`[Shopee attrs inject] Connection Type: value_id=${connMatch.value_id} name="${connMatch.display_value_name || connMatch.value_name}"`)
-      } else {
-        // COMBO_BOX: não enviar com value_id:0 — Shopee rejeita. Omite e loga para investigação.
-        console.log(`[Shopee attrs inject] Connection Type: search retornou null ou value_id=0 — atributo OMITIDO (verificar search_attribute_value_list)`)
-      }
-    } catch (e: any) { console.log('[Shopee attrs inject] Connection Type erro:', e.message) }
-  }
-
-  // Model Name (id 101040) — campo de texto obrigatório
-  if (!result.find((a: any) => a.attribute_id === 101040)) {
-    const modelName = (product.model || product.name || '').substring(0, 100)
-    if (modelName) {
-      result.push({ attribute_id: 101040, attribute_value_list: [{ value_id: 0, original_value_name: modelName }] })
-      console.log(`[Shopee attrs inject] Model Name: "${modelName}"`)
-    }
-  }
-
   console.log(`[Shopee attrs] resultado final: ${result.length} atributo(s) → [${result.map((a: any) => a.attribute_id).join(', ')}]`)
   return result
 }
@@ -565,25 +535,6 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
     if (attributeList.length === 0) {
       attributeList = await getShopeeAttributes(auth, accessToken, categoryId, product)
       console.log('[Shopee] atributos via auto-fill (servidor):', attributeList.length, '→', attributeList.map((a: any) => `[${a.attribute_id}]`).join(', '))
-    }
-
-    // Sempre injetar atributos obrigatórios conhecidos que estejam faltando (mesmo quando user enviou attrs do modal)
-    const hasAttr = (id: number) => attributeList.some((a: any) => a.attribute_id === id)
-    // 101237 — Manufacturer (TEXT_FIELD obrigatório)
-    if (!hasAttr(101237)) {
-      const mfr = (product.brand || '').substring(0, 100)
-      if (mfr) {
-        attributeList.push({ attribute_id: 101237, attribute_value_list: [{ value_id: 0, original_value_name: mfr }] })
-        console.log(`[Shopee inject] Manufacturer (101237): "${mfr}"`)
-      }
-    }
-    // 101197 — Registration ID (TEXT_FIELD obrigatório) — usar GTIN ou nome do modelo
-    if (!hasAttr(101197)) {
-      const regId = (product.gtin || product.model || product.name || '').substring(0, 100)
-      if (regId) {
-        attributeList.push({ attribute_id: 101197, attribute_value_list: [{ value_id: 0, original_value_name: regId }] })
-        console.log(`[Shopee inject] Registration ID (101197): "${regId}"`)
-      }
     }
 
     // Canais logísticos: buscar no servidor e cruzar com os selecionados pelo usuário
