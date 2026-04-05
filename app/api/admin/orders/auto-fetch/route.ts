@@ -617,7 +617,7 @@ async function fetchShopeeOrders() {
   const result = { imported: 0, errors: [] as string[] }
 
   try {
-    let auth = await prisma.shopeeAuth.findFirst({ where: { accessToken: { not: null } } })
+    let auth = await prisma.shopeeAuth.findFirst({ where: { accessToken: { not: '' } } })
     if (!auth) { result.errors.push('Shopee não conectada'); return result }
 
     auth = await shopeeRefreshIfNeeded(auth)
