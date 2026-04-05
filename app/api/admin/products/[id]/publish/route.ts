@@ -308,75 +308,84 @@ function processShopeeAttrList(attrList: any[], product: any): any[] {
 
 async function getShopeeAttributes(auth: any, accessToken: string, categoryId: number, product: any): Promise<any[]> {
   const sign = (ep: string, ts: number) => crypto.createHmac('sha256', auth.partnerKey).update(`${auth.partnerId}${ep}${ts}${accessToken}${auth.shopId}`).digest('hex')
+  let result: any[] = []
 
   // Tier 1: get_attributes no SHOPEE_API_BASE (endpoint oficial de parceiro)
-  try {
-    const ep1 = '/api/v2/product/get_attributes'
-    const ts1 = Math.floor(Date.now() / 1000)
-    const url1 = `${SHOPEE_API_BASE}${ep1}?partner_id=${auth.partnerId}&timestamp=${ts1}&sign=${sign(ep1, ts1)}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}`
-    const r1 = await fetch(url1, { method: 'GET' })
-    const raw1 = await r1.text()
-    let d1: any = {}
-    try { d1 = JSON.parse(raw1) } catch { console.log('[Shopee attrs T1] resposta não-JSON:', raw1.substring(0, 200)) }
-    const list1: any[] = d1?.response?.attribute_list || d1?.response?.attributes || d1?.response?.attribute_info_list || []
-    console.log(`[Shopee attrs T1] get_attributes categoria=${categoryId} total=${list1.length} error=${d1?.error || 'ok'} | raw(300)=${raw1.substring(0, 300)}`)
-    if (list1.length > 0) {
-      const result = processShopeeAttrList(list1, product)
-      console.log(`[Shopee attrs T1] preenchidos: ${result.length} de ${list1.length}`)
-      return result
-    }
-  } catch (e: any) { console.log('[Shopee attrs T1] erro:', e.message) }
-
-  // Tier 2: get_attribute_tree no openplatform.shopee.com.br
-  try {
-    const ep2 = '/api/v2/product/get_attribute_tree'
-    const ts2 = Math.floor(Date.now() / 1000)
-    const BR_BASE = 'https://openplatform.shopee.com.br'
-    const url2 = `${BR_BASE}${ep2}?partner_id=${auth.partnerId}&timestamp=${ts2}&sign=${sign(ep2, ts2)}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id_list=${categoryId}&language=pt-BR`
-    const r2 = await fetch(url2, { method: 'GET' })
-    const raw2 = await r2.text()
-    let d2: any = {}
-    try { d2 = JSON.parse(raw2) } catch { console.log('[Shopee attrs T2] resposta não-JSON:', raw2.substring(0, 200)) }
-    let list2: any[] = []
-    if (d2?.data?.list?.length > 0) {
-      for (const item of d2.data.list) {
-        const l = item?.attribute_tree || item?.attribute_list || item?.attributes || []
-        if (l.length > 0) { list2 = l; break }
+  if (result.length === 0) {
+    try {
+      const ep1 = '/api/v2/product/get_attributes'
+      const ts1 = Math.floor(Date.now() / 1000)
+      const url1 = `${SHOPEE_API_BASE}${ep1}?partner_id=${auth.partnerId}&timestamp=${ts1}&sign=${sign(ep1, ts1)}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}`
+      const r1 = await fetch(url1, { method: 'GET' })
+      const raw1 = await r1.text()
+      let d1: any = {}
+      try { d1 = JSON.parse(raw1) } catch { console.log('[Shopee attrs T1] resposta não-JSON:', raw1.substring(0, 200)) }
+      const list1: any[] = d1?.response?.attribute_list || d1?.response?.attributes || d1?.response?.attribute_info_list || []
+      console.log(`[Shopee attrs T1] get_attributes categoria=${categoryId} total=${list1.length} error=${d1?.error || 'ok'}`)
+      if (list1.length > 0) {
+        result = processShopeeAttrList(list1, product)
+        console.log(`[Shopee attrs T1] preenchidos: ${result.length} de ${list1.length}`)
       }
-    }
-    if (!list2.length) { const r = d2?.response || {}; list2 = r?.attribute_list || r?.attributes || r?.attribute_info_list || [] }
-    console.log(`[Shopee attrs T2] get_attribute_tree total=${list2.length} | raw(300)=${raw2.substring(0, 300)}`)
-    if (list2.length > 0) {
-      const result = processShopeeAttrList(list2, product)
-      console.log(`[Shopee attrs T2] preenchidos: ${result.length} de ${list2.length}`)
-      return result
-    }
-  } catch (e: any) { console.log('[Shopee attrs T2] erro:', e.message) }
-
-  // Tier 3: search_attribute_value_list no SHOPEE_API_BASE para attrs obrigatórios conhecidos
-  console.log('[Shopee attrs T3] Ambas as APIs retornaram 0 — usando search_attribute_value_list via SHOPEE_API_BASE')
-  const productText = `${product.name || ''} ${product.description || ''}`.toLowerCase()
-  const isWireless = productText.includes('bluetooth') || productText.includes('wireless') || productText.includes('sem fio')
-  const result: any[] = []
-
-  // Connection Type (id 100408) — procura via search_attribute_value_list
-  try {
-    const connSearch = isWireless ? 'Bluetooth' : 'Wired'
-    const connMatch = await searchAttributeValues(auth, accessToken, categoryId, 100408, connSearch)
-    if (connMatch) {
-      result.push({ attribute_id: 100408, attribute_value_list: [{ value_id: connMatch.value_id, original_value_name: connMatch.display_value_name || connMatch.value_name }] })
-      console.log(`[Shopee attrs T3] Connection Type: value_id=${connMatch.value_id} name=${connMatch.display_value_name || connMatch.value_name}`)
-    }
-  } catch (e: any) { console.log('[Shopee attrs T3] erro Connection Type:', e.message) }
-
-  // Model Name (id 101040) — campo de texto
-  const modelName = (product.model || product.name || '').substring(0, 100)
-  if (modelName) {
-    result.push({ attribute_id: 101040, attribute_value_list: [{ value_id: 0, original_value_name: modelName }] })
-    console.log(`[Shopee attrs T3] Model Name: "${modelName}"`)
+    } catch (e: any) { console.log('[Shopee attrs T1] erro:', e.message) }
   }
 
-  console.log(`[Shopee attrs T3] resultado final: ${result.length} atributo(s)`)
+  // Tier 2: get_attribute_tree no openplatform.shopee.com.br
+  if (result.length === 0) {
+    try {
+      const ep2 = '/api/v2/product/get_attribute_tree'
+      const ts2 = Math.floor(Date.now() / 1000)
+      const BR_BASE = 'https://openplatform.shopee.com.br'
+      const url2 = `${BR_BASE}${ep2}?partner_id=${auth.partnerId}&timestamp=${ts2}&sign=${sign(ep2, ts2)}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id_list=${categoryId}&language=pt-BR`
+      const r2 = await fetch(url2, { method: 'GET' })
+      const raw2 = await r2.text()
+      let d2: any = {}
+      try { d2 = JSON.parse(raw2) } catch { console.log('[Shopee attrs T2] resposta não-JSON:', raw2.substring(0, 200)) }
+      let list2: any[] = []
+      if (d2?.data?.list?.length > 0) {
+        for (const item of d2.data.list) {
+          const l = item?.attribute_tree || item?.attribute_list || item?.attributes || []
+          if (l.length > 0) { list2 = l; break }
+        }
+      }
+      if (!list2.length) { const r = d2?.response || {}; list2 = r?.attribute_list || r?.attributes || r?.attribute_info_list || [] }
+      console.log(`[Shopee attrs T2] get_attribute_tree total=${list2.length}`)
+      if (list2.length > 0) {
+        result = processShopeeAttrList(list2, product)
+        console.log(`[Shopee attrs T2] preenchidos: ${result.length} de ${list2.length}`)
+      }
+    } catch (e: any) { console.log('[Shopee attrs T2] erro:', e.message) }
+  }
+
+  // Sempre: injetar atributos obrigatórios conhecidos que estejam faltando no resultado
+  const productText = `${product.name || ''} ${product.description || ''}`.toLowerCase()
+  const isWireless = productText.includes('bluetooth') || productText.includes('wireless') || productText.includes('sem fio') || productText.includes('tws')
+
+  // Connection Type (id 100408) — obrigatório para eletrônicos
+  if (!result.find((a: any) => a.attribute_id === 100408)) {
+    try {
+      const connSearch = isWireless ? 'Bluetooth' : 'Wired'
+      const connMatch = await searchAttributeValues(auth, accessToken, categoryId, 100408, connSearch)
+      if (connMatch) {
+        result.push({ attribute_id: 100408, attribute_value_list: [{ value_id: connMatch.value_id, original_value_name: connMatch.display_value_name || connMatch.value_name }] })
+        console.log(`[Shopee attrs inject] Connection Type: value_id=${connMatch.value_id} name="${connMatch.display_value_name || connMatch.value_name}"`)
+      } else {
+        // Fallback: valor fixo de Bluetooth (value_id 0 com nome) caso search retorne vazio
+        result.push({ attribute_id: 100408, attribute_value_list: [{ value_id: 0, original_value_name: connSearch }] })
+        console.log(`[Shopee attrs inject] Connection Type: fallback texto "${connSearch}"`)
+      }
+    } catch (e: any) { console.log('[Shopee attrs inject] Connection Type erro:', e.message) }
+  }
+
+  // Model Name (id 101040) — campo de texto obrigatório
+  if (!result.find((a: any) => a.attribute_id === 101040)) {
+    const modelName = (product.model || product.name || '').substring(0, 100)
+    if (modelName) {
+      result.push({ attribute_id: 101040, attribute_value_list: [{ value_id: 0, original_value_name: modelName }] })
+      console.log(`[Shopee attrs inject] Model Name: "${modelName}"`)
+    }
+  }
+
+  console.log(`[Shopee attrs] resultado final: ${result.length} atributo(s) → [${result.map((a: any) => a.attribute_id).join(', ')}]`)
   return result
 }
 
