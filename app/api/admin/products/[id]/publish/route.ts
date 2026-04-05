@@ -321,10 +321,14 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
       let d1: any = {}
       try { d1 = JSON.parse(raw1) } catch { console.log('[Shopee attrs T1] resposta não-JSON:', raw1.substring(0, 200)) }
       const list1: any[] = d1?.response?.attribute_list || d1?.response?.attributes || d1?.response?.attribute_info_list || []
-      console.log(`[Shopee attrs T1] get_attributes categoria=${categoryId} total=${list1.length} error=${d1?.error || 'ok'}`)
-      if (list1.length > 0) {
+      console.log(`[Shopee attrs T1] get_attributes categoria=${categoryId} total=${list1.length} error=${d1?.error || 'ok'} msg=${d1?.message || ''}`)
+      if (list1.length === 0) {
+        // Log completo para diagnóstico — ver campos reais da resposta Shopee
+        console.log('[Shopee attrs T1] RESPOSTA COMPLETA:', JSON.stringify(d1).substring(0, 3000))
+      } else {
         result = processShopeeAttrList(list1, product)
         console.log(`[Shopee attrs T1] preenchidos: ${result.length} de ${list1.length}`)
+        console.log('[Shopee attrs T1] atributos recebidos:', JSON.stringify(list1.map((a: any) => ({ id: a.attribute_id, name: a.display_attribute_name || a.attribute_name, type: a.input_type, values: (a.attribute_value_list || []).length }))))
       }
     } catch (e: any) { console.log('[Shopee attrs T1] erro:', e.message) }
   }
@@ -349,9 +353,12 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
       }
       if (!list2.length) { const r = d2?.response || {}; list2 = r?.attribute_list || r?.attributes || r?.attribute_info_list || [] }
       console.log(`[Shopee attrs T2] get_attribute_tree total=${list2.length}`)
-      if (list2.length > 0) {
+      if (list2.length === 0) {
+        console.log('[Shopee attrs T2] RESPOSTA COMPLETA:', JSON.stringify(d2).substring(0, 3000))
+      } else {
         result = processShopeeAttrList(list2, product)
         console.log(`[Shopee attrs T2] preenchidos: ${result.length} de ${list2.length}`)
+        console.log('[Shopee attrs T2] atributos recebidos:', JSON.stringify(list2.map((a: any) => ({ id: a.attribute_id, name: a.display_attribute_name || a.attribute_name, type: a.input_type, values: (a.attribute_value_list || []).length }))))
       }
     } catch (e: any) { console.log('[Shopee attrs T2] erro:', e.message) }
   }
@@ -365,8 +372,8 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
   if (!result.find((a: any) => a.attribute_id === 100408)) {
     try {
       const connKeyword = isWireless ? 'Bluetooth' : 'Wired'
-      // Passa o nome REAL do produto como item_name para a API filtrar valores relevantes
-      const connMatch = await searchAttributeValues(auth, accessToken, categoryId, 100408, product.name || '', connKeyword)
+      // value_name é o texto do VALOR que queremos buscar (ex: "Bluetooth")
+      const connMatch = await searchAttributeValues(auth, accessToken, categoryId, 100408, connKeyword)
       if (connMatch && connMatch.value_id && connMatch.value_id !== 0) {
         result.push({ attribute_id: 100408, attribute_value_list: [{ value_id: connMatch.value_id, original_value_name: connMatch.display_value_name || connMatch.value_name }] })
         console.log(`[Shopee attrs inject] Connection Type: value_id=${connMatch.value_id} name="${connMatch.display_value_name || connMatch.value_name}"`)
@@ -667,10 +674,9 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
 }
 
 // Busca valores válidos de um atributo COMBO_BOX via search_attribute_value_list
-// item_name deve ser o nome REAL do produto — a API usa isso para filtrar valores relevantes.
-// matchKeyword é o texto para casar no resultado (ex: 'bluetooth').
+// Parâmetros corretos: attribute_id + value_name (o texto do valor procurado) + cursor + limit
 async function searchAttributeValues(
-  auth: any, accessToken: string, categoryId: number, attributeId: number, itemName: string, matchKeyword?: string
+  auth: any, accessToken: string, categoryId: number, attributeId: number, valueName: string
 ): Promise<{ value_id: number; value_name: string; display_value_name: string } | null> {
   try {
     const endpoint = '/api/v2/product/search_attribute_value_list'
@@ -678,22 +684,23 @@ async function searchAttributeValues(
     const sign = crypto.createHmac('sha256', auth.partnerKey)
       .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
       .digest('hex')
-    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(itemName.substring(0, 100))}`
+    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&attribute_id=${attributeId}&value_name=${encodeURIComponent(valueName)}&cursor=0&limit=100`
     const res = await fetch(url, { method: 'GET' })
     const rawText = await res.text()
     let data: any = {}
     try { data = JSON.parse(rawText) } catch { console.log(`[Shopee] search_attribute_value_list HTTP ${res.status} non-JSON:`, rawText.substring(0, 200)); return null }
     const list: any[] = data?.response?.attribute_value_list || []
-    console.log(`[Shopee] search_attribute_value_list attr=${attributeId} item_name="${itemName.substring(0, 40)}": error=${data.error || 'ok'} total=${list.length} values=${list.map((v: any) => v.display_value_name || v.value_name).join(', ')}`)
-    if (list.length === 0) return null
-    if (matchKeyword) {
-      const lower = matchKeyword.toLowerCase()
-      const match = list.find((v: any) => {
-        const vn = (v.display_value_name || v.value_name || '').toLowerCase()
-        return vn === lower || vn.includes(lower) || lower.includes(vn)
-      })
-      if (match) return match
+    console.log(`[Shopee] search_attribute_value_list attr=${attributeId} value_name="${valueName}": error=${data.error || 'ok'} msg=${data.message || ''} total=${list.length} values=${list.map((v: any) => v.display_value_name || v.value_name).join(', ')}`)
+    if (list.length === 0) {
+      console.log('[Shopee] search_attribute_value_list RESPOSTA COMPLETA:', JSON.stringify(data).substring(0, 500))
+      return null
     }
+    const lower = valueName.toLowerCase()
+    const match = list.find((v: any) => {
+      const vn = (v.display_value_name || v.value_name || '').toLowerCase()
+      return vn === lower || vn.includes(lower) || lower.includes(vn)
+    })
+    if (match) return match
     return list[0]
   } catch (e: any) {
     console.log('[Shopee] searchAttributeValues erro:', e.message)

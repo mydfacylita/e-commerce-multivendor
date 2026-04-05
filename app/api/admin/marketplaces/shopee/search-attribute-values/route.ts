@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     const timestamp = Math.floor(Date.now() / 1000)
     const sign = shopeeSign(auth.partnerId, endpoint, timestamp, accessToken, auth.shopId, auth.partnerKey)
 
-    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(keyword.substring(0, 50))}&language=pt-BR`
+    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&attribute_id=${attributeId}&value_name=${encodeURIComponent(keyword.substring(0, 100))}&cursor=0&limit=100`
     const res = await fetch(url, { method: 'GET' })
     const data = await res.json()
 
