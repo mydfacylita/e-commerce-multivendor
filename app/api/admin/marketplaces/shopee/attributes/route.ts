@@ -90,20 +90,24 @@ export async function POST(request: NextRequest) {
       // Nome em pt-BR via multi_lang
       const ptName = attr.multi_lang?.find((m: any) => m.language === 'pt-BR')?.value || ''
       const inputTypeNum: number = attr.attribute_info?.input_type ?? 1
+      const inputTypeStr = inputTypeMap[inputTypeNum] || `TYPE_${inputTypeNum}`
+      const name = ptName || attr.name || attr.attribute_name || ''
+      const isMandatory = !!(attr.mandatory || attr.is_mandatory)
+      // Valores predefinidos com tradução pt-BR
+      // Campos retornados com nomes que o componente PublishToMarketplaceButton espera:
+      // id, name, isMandatory, inputType, values[].id, values[].name
       return {
+        id: attr.attribute_id,
         attribute_id: attr.attribute_id,
-        attribute_name: ptName || attr.name || attr.attribute_name || '',
-        display_attr_name: ptName || attr.name || '',
-        is_mandatory: !!(attr.mandatory || attr.is_mandatory),
-        input_type: inputTypeMap[inputTypeNum] || `TYPE_${inputTypeNum}`,
-        input_type_raw: inputTypeNum,
-        // Valores predefinidos com tradução pt-BR
+        name,
+        isMandatory,
+        inputType: inputTypeStr,
         values: (attr.attribute_value_list || []).map((v: any) => {
           const ptVal = v.multi_lang?.find((m: any) => m.language === 'pt-BR')?.value || ''
           return {
+            id: v.value_id,
             value_id: v.value_id,
             name: ptVal || v.name || String(v.value_id),
-            display_value_name: ptVal || v.name || '',
           }
         }),
       }
@@ -166,8 +170,8 @@ export async function POST(request: NextRequest) {
           const productText = `${product.name || ''} ${product.category?.name || ''} ${product.description || ''}`.toLowerCase()
 
           for (const attr of attributes) {
-            const attrName = (attr.attribute_name || '').toLowerCase()
-            const attrId = attr.attribute_id
+            const attrName = (attr.name || '').toLowerCase()
+            const attrId = attr.id
 
             // Find matching value from fieldMap
             let matchedValue: string | null = null
@@ -203,7 +207,7 @@ export async function POST(request: NextRequest) {
                 }
               }
               if (match) {
-                prefill[attrId] = { value: match.value_id, matched: true, source: matchSource || 'predefined' }
+                prefill[attrId] = { value: match.id, matched: true, source: matchSource || 'predefined' }
               }
             } else if (matchedValue) {
               // Text field: use the matched value directly
@@ -217,7 +221,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Shopee attrs] FINAL: ${attributes.length} atributos | prefill keys: ${Object.keys(prefill).join(',') || 'nenhum'} | suspended=${raw.length === 0}`)
-    if (attributes.length > 0) console.log('[Shopee attrs] Atributos mapeados:', JSON.stringify(attributes.map(a => ({ id: a.attribute_id, name: a.attribute_name, mandatory: a.is_mandatory, input_type: a.input_type, values: a.values.length }))))
+    if (attributes.length > 0) console.log('[Shopee attrs] Atributos mapeados:', JSON.stringify(attributes.map(a => ({ id: a.id, name: a.name, mandatory: a.isMandatory, inputType: a.inputType, values: a.values.length }))))
     return NextResponse.json({ attributes, apiUsed, suspended: raw.length === 0, prefill })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

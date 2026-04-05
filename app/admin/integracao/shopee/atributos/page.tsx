@@ -137,28 +137,28 @@ export default function ShopeeAtributosPage() {
                   </thead>
                   <tbody>
                     {attrs.map((a: Attribute) => (
-                      <tr key={a.attribute_id} className="hover:bg-orange-50">
+                      <tr key={a.attribute_id || (a as any).id} className="hover:bg-orange-50">
                         <td className="border px-3 py-2 font-mono">
                           <button
-                            onClick={() => setAttrId(String(a.attribute_id))}
+                            onClick={() => setAttrId(String(a.attribute_id || (a as any).id))}
                             className="text-orange-600 underline"
                             title="Usar neste campo de busca de valores"
                           >
-                            {a.attribute_id}
+                            {a.attribute_id || (a as any).id}
                           </button>
                         </td>
-                        <td className="border px-3 py-2">
-                          {a.display_attr_name || a.attribute_name}
+                        <td className="border px-3 py-2 font-medium">
+                          {(a as any).name || a.display_attr_name || a.attribute_name}
                         </td>
                         <td className="border px-3 py-2 font-mono text-xs">
-                          {a.input_type || a.attribute_type || '—'}
+                          {(a as any).inputType || a.input_type || a.attribute_type || '—'}
                         </td>
                         <td className="border px-3 py-2 text-center">
-                          {a.is_mandatory ? '✅' : '—'}
+                          {((a as any).isMandatory || a.is_mandatory) ? '✅' : '—'}
                         </td>
                         <td className="border px-3 py-2 text-xs text-gray-600">
                           {a.values && a.values.length > 0
-                            ? a.values.map(v => `${v.name} (${v.value_id})`).join(', ')
+                            ? a.values.map(v => `${v.name} (${(v as any).id || v.value_id})`).join(', ')
                             : '—'}
                         </td>
                       </tr>
