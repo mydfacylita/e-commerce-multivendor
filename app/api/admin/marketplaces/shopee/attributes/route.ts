@@ -69,43 +69,45 @@ export async function POST(request: NextRequest) {
 
     let raw: any[] = []
     let apiUsed = 'none'
-    // Estrutura Shopee: { code: 0, data: { list: [{ attribute_tree: [...] }] } }
-    if (treeData?.data?.list?.length > 0) {
-      for (const item of treeData.data.list) {
-        const list = item?.attribute_tree || item?.attribute_list || item?.attributes || []
-        if (list.length > 0) { raw = list; break }
+
+    // Estrutura real da API: { response: { list: [{ category_id, attribute_tree: [...] }] } }
+    const list = treeData?.response?.list
+    if (Array.isArray(list) && list.length > 0) {
+      for (const item of list) {
+        const attrs = item?.attribute_tree || item?.attribute_list || []
+        if (attrs.length > 0) { raw = attrs; break }
       }
-      if (raw.length > 0) apiUsed = 'get_attribute_tree'
-    }
-    // Fallback: estrutura Open Platform legada: { response: { ... } }
-    if (!raw.length && (!treeData.error || treeData.error === '')) {
-      const resp = treeData?.response || {}
-      if (resp?.category_list?.length > 0) {
-        for (const cat of resp.category_list) {
-          const list = cat?.attribute_list || cat?.attributes || []
-          if (list.length > 0) { raw = list; break }
-        }
-      }
-      if (!raw.length) raw = resp?.attribute_list || resp?.attributes || resp?.attribute_info_list || []
-      if (!raw.length && Array.isArray(resp)) raw = resp
       if (raw.length > 0) apiUsed = 'get_attribute_tree'
     }
 
     console.log(`[Shopee attrs] RESULTADO: apiUsed="${apiUsed}" | atributos: ${raw.length}`)
     if (raw.length > 0) console.log('[Shopee attrs] Primeiro atributo raw:', JSON.stringify(raw[0]))
 
-    const attributes = raw.map((attr: any) => ({
-      id: attr.attribute_id,
-      name: attr.display_attribute_name || attr.attribute_name || '',
-      isMandatory: !!(attr.is_mandatory || attr.mandatory),
-      inputType: attr.input_type || 'TEXT_FIELD',
-      // Include predefined value list if available (from get_attribute_tree they might be here)
-      values: (attr.attribute_value_list || []).map((v: any) => ({
-        value_id: v.value_id,
-        name: v.display_value_name || v.value_name || String(v.value_id),
-        display_value_name: v.display_value_name || v.value_name || '',
-      })),
-    }))
+    // input_type como número: 1=TEXT_FIELD 2=COMBO_BOX 3=MULTIPLE_SELECT 4=DATE 5=MULTIPLE_SELECT 6=NUMERIC 7=TEXT_FIELD_WITH_UNIT
+    const inputTypeMap: Record<number, string> = { 1: 'TEXT_FIELD', 2: 'COMBO_BOX', 3: 'MULTIPLE_SELECT', 4: 'DATE', 5: 'MULTIPLE_SELECT', 6: 'NUMERIC', 7: 'TEXT_FIELD_WITH_UNIT' }
+
+    const attributes = raw.map((attr: any) => {
+      // Nome em pt-BR via multi_lang
+      const ptName = attr.multi_lang?.find((m: any) => m.language === 'pt-BR')?.value || ''
+      const inputTypeNum: number = attr.attribute_info?.input_type ?? 1
+      return {
+        attribute_id: attr.attribute_id,
+        attribute_name: ptName || attr.name || attr.attribute_name || '',
+        display_attr_name: ptName || attr.name || '',
+        is_mandatory: !!(attr.mandatory || attr.is_mandatory),
+        input_type: inputTypeMap[inputTypeNum] || `TYPE_${inputTypeNum}`,
+        input_type_raw: inputTypeNum,
+        // Valores predefinidos com tradução pt-BR
+        values: (attr.attribute_value_list || []).map((v: any) => {
+          const ptVal = v.multi_lang?.find((m: any) => m.language === 'pt-BR')?.value || ''
+          return {
+            value_id: v.value_id,
+            name: ptVal || v.name || String(v.value_id),
+            display_value_name: ptVal || v.name || '',
+          }
+        }),
+      }
+    })
 
     // Auto-map product specs to attributes if productId is provided
     let prefill: Record<number, { value: string | number; matched: boolean; source: string }> = {}
@@ -164,8 +166,8 @@ export async function POST(request: NextRequest) {
           const productText = `${product.name || ''} ${product.category?.name || ''} ${product.description || ''}`.toLowerCase()
 
           for (const attr of attributes) {
-            const attrName = attr.name.toLowerCase()
-            const attrId = attr.id
+            const attrName = (attr.attribute_name || '').toLowerCase()
+            const attrId = attr.attribute_id
 
             // Find matching value from fieldMap
             let matchedValue: string | null = null
@@ -215,7 +217,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Shopee attrs] FINAL: ${attributes.length} atributos | prefill keys: ${Object.keys(prefill).join(',') || 'nenhum'} | suspended=${raw.length === 0}`)
-    if (attributes.length > 0) console.log('[Shopee attrs] Atributos mapeados:', JSON.stringify(attributes.map(a => ({ id: a.id, name: a.name, mandatory: a.isMandatory, values: a.values.length }))))
+    if (attributes.length > 0) console.log('[Shopee attrs] Atributos mapeados:', JSON.stringify(attributes.map(a => ({ id: a.attribute_id, name: a.attribute_name, mandatory: a.is_mandatory, input_type: a.input_type, values: a.values.length }))))
     return NextResponse.json({ attributes, apiUsed, suspended: raw.length === 0, prefill })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
