@@ -567,6 +567,25 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
       console.log('[Shopee] atributos via auto-fill (servidor):', attributeList.length, '→', attributeList.map((a: any) => `[${a.attribute_id}]`).join(', '))
     }
 
+    // Sempre injetar atributos obrigatórios conhecidos que estejam faltando (mesmo quando user enviou attrs do modal)
+    const hasAttr = (id: number) => attributeList.some((a: any) => a.attribute_id === id)
+    // 101237 — Manufacturer (TEXT_FIELD obrigatório)
+    if (!hasAttr(101237)) {
+      const mfr = (product.brand || '').substring(0, 100)
+      if (mfr) {
+        attributeList.push({ attribute_id: 101237, attribute_value_list: [{ value_id: 0, original_value_name: mfr }] })
+        console.log(`[Shopee inject] Manufacturer (101237): "${mfr}"`)
+      }
+    }
+    // 101197 — Registration ID (TEXT_FIELD obrigatório) — usar GTIN ou nome do modelo
+    if (!hasAttr(101197)) {
+      const regId = (product.gtin || product.model || product.name || '').substring(0, 100)
+      if (regId) {
+        attributeList.push({ attribute_id: 101197, attribute_value_list: [{ value_id: 0, original_value_name: regId }] })
+        console.log(`[Shopee inject] Registration ID (101197): "${regId}"`)
+      }
+    }
+
     // Canais logísticos: buscar no servidor e cruzar com os selecionados pelo usuário
     let finalChannelIds: number[] = []
     try {

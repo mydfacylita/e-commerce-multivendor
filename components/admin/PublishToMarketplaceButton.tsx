@@ -719,12 +719,15 @@ export default function PublishToMarketplaceButton({
             pkgHeight: parseFloat(shopeeFormData.pkgHeight) || undefined,
             attributes: shopeeAttributes
               .filter(attr => shopeeAttrValues[attr.id] !== undefined && shopeeAttrValues[attr.id] !== '')
-              .map(attr => ({
+              .map(attr => {
+                const foundVal = attr.values.find((v: any) => String(v.value_id) === String(shopeeAttrValues[attr.id]))
+                const displayName = foundVal?.display_value_name || foundVal?.name || ''
+                return {
                 attribute_id: attr.id,
                 attribute_value_list: attr.values.length > 0
-                  ? [{ value_id: Number(shopeeAttrValues[attr.id]), original_value_name: String(attr.values.find((v: any) => String(v.value_id) === String(shopeeAttrValues[attr.id]))?.display_value_name || shopeeAttrValues[attr.id]).substring(0, 256) }]
+                  ? [{ value_id: Number(shopeeAttrValues[attr.id]), original_value_name: (displayName || String(shopeeAttrValues[attr.id])).substring(0, 256) }]
                   : [{ value_id: 0, original_value_name: String(shopeeAttrValues[attr.id]).substring(0, 256) }]
-              })),
+              }}),
           } : undefined,
         }),
       })
