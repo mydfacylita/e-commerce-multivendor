@@ -360,18 +360,19 @@ async function getShopeeAttributes(auth: any, accessToken: string, categoryId: n
   const productText = `${product.name || ''} ${product.description || ''}`.toLowerCase()
   const isWireless = productText.includes('bluetooth') || productText.includes('wireless') || productText.includes('sem fio') || productText.includes('tws')
 
-  // Connection Type (id 100408) — obrigatório para eletrônicos
+  // Connection Type (id 100408) — COMBO_BOX obrigatório para eletrônicos
+  // DEVE ter value_id real (não pode ser 0 para COMBO_BOX — Shopee rejeita com 'cannot be customized')
   if (!result.find((a: any) => a.attribute_id === 100408)) {
     try {
-      const connSearch = isWireless ? 'Bluetooth' : 'Wired'
-      const connMatch = await searchAttributeValues(auth, accessToken, categoryId, 100408, connSearch)
-      if (connMatch) {
+      const connKeyword = isWireless ? 'Bluetooth' : 'Wired'
+      // Passa o nome REAL do produto como item_name para a API filtrar valores relevantes
+      const connMatch = await searchAttributeValues(auth, accessToken, categoryId, 100408, product.name || '', connKeyword)
+      if (connMatch && connMatch.value_id && connMatch.value_id !== 0) {
         result.push({ attribute_id: 100408, attribute_value_list: [{ value_id: connMatch.value_id, original_value_name: connMatch.display_value_name || connMatch.value_name }] })
         console.log(`[Shopee attrs inject] Connection Type: value_id=${connMatch.value_id} name="${connMatch.display_value_name || connMatch.value_name}"`)
       } else {
-        // Fallback: valor fixo de Bluetooth (value_id 0 com nome) caso search retorne vazio
-        result.push({ attribute_id: 100408, attribute_value_list: [{ value_id: 0, original_value_name: connSearch }] })
-        console.log(`[Shopee attrs inject] Connection Type: fallback texto "${connSearch}"`)
+        // COMBO_BOX: não enviar com value_id:0 — Shopee rejeita. Omite e loga para investigação.
+        console.log(`[Shopee attrs inject] Connection Type: search retornou null ou value_id=0 — atributo OMITIDO (verificar search_attribute_value_list)`)
       }
     } catch (e: any) { console.log('[Shopee attrs inject] Connection Type erro:', e.message) }
   }
@@ -666,8 +667,10 @@ async function publishToShopee(product: any, logisticChannels: number[] = [], fo
 }
 
 // Busca valores válidos de um atributo COMBO_BOX via search_attribute_value_list
+// item_name deve ser o nome REAL do produto — a API usa isso para filtrar valores relevantes.
+// matchKeyword é o texto para casar no resultado (ex: 'bluetooth').
 async function searchAttributeValues(
-  auth: any, accessToken: string, categoryId: number, attributeId: number, searchText: string
+  auth: any, accessToken: string, categoryId: number, attributeId: number, itemName: string, matchKeyword?: string
 ): Promise<{ value_id: number; value_name: string; display_value_name: string } | null> {
   try {
     const endpoint = '/api/v2/product/search_attribute_value_list'
@@ -675,22 +678,23 @@ async function searchAttributeValues(
     const sign = crypto.createHmac('sha256', auth.partnerKey)
       .update(`${auth.partnerId}${endpoint}${timestamp}${accessToken}${auth.shopId}`)
       .digest('hex')
-    // FIX: usar SHOPEE_API_BASE (partner.shopeemobile.com), não openplatform.shopee.com.br que retorna HTML
-    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(searchText.substring(0, 50))}&language=pt-BR`
+    const url = `${SHOPEE_API_BASE}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${accessToken}&shop_id=${auth.shopId}&category_id=${categoryId}&attribute_id=${attributeId}&item_name=${encodeURIComponent(itemName.substring(0, 100))}`
     const res = await fetch(url, { method: 'GET' })
     const rawText = await res.text()
     let data: any = {}
     try { data = JSON.parse(rawText) } catch { console.log(`[Shopee] search_attribute_value_list HTTP ${res.status} non-JSON:`, rawText.substring(0, 200)); return null }
-    console.log(`[Shopee] search_attribute_value_list attr=${attributeId} search="${searchText.substring(0, 30)}": error=${data.error || 'ok'} total=${data.response?.attribute_value_list?.length ?? 0}`)
     const list: any[] = data?.response?.attribute_value_list || []
+    console.log(`[Shopee] search_attribute_value_list attr=${attributeId} item_name="${itemName.substring(0, 40)}": error=${data.error || 'ok'} total=${list.length} values=${list.map((v: any) => v.display_value_name || v.value_name).join(', ')}`)
     if (list.length === 0) return null
-    // Tentar casar pelo texto buscado
-    const lower = searchText.toLowerCase()
-    const match = list.find((v: any) => {
-      const vn = (v.display_value_name || v.value_name || '').toLowerCase()
-      return vn === lower || vn.includes(lower) || lower.includes(vn)
-    })
-    return match || list[0]
+    if (matchKeyword) {
+      const lower = matchKeyword.toLowerCase()
+      const match = list.find((v: any) => {
+        const vn = (v.display_value_name || v.value_name || '').toLowerCase()
+        return vn === lower || vn.includes(lower) || lower.includes(vn)
+      })
+      if (match) return match
+    }
+    return list[0]
   } catch (e: any) {
     console.log('[Shopee] searchAttributeValues erro:', e.message)
     return null
