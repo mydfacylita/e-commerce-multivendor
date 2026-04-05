@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
       console.log(`[SYNC] Processando: ${product.name.substring(0, 50)}...`)
 
       // Buscar na API
-      const apiResponse = await fetchAliExpressProduct(productId, auth.appKey, auth.appSecret, auth.accessToken)
+      const apiResponse = await fetchAliExpressProduct(productId, auth.appKey, auth.appSecret, auth.accessToken as string)
 
       if (!apiResponse || apiResponse.skus.length === 0) {
         errors++
