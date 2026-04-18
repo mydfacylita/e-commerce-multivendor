@@ -617,6 +617,13 @@ export async function middleware(request: NextRequest) {
     // 🔒 Verificar rotas de ADMIN
     const isAdminRoute = ADMIN_REQUIRED_ROUTES.some(route => pathname.startsWith(route))
     if (isAdminRoute) {
+      // Permitir acesso via CRON_SECRET para rotas admin também
+      const cronSecret = request.headers.get('x-cron-secret')
+      if (CRON_SECRET && cronSecret === CRON_SECRET) {
+        const response = NextResponse.next()
+        return setCorsHeaders(response, origin)
+      }
+
       const token = await getToken({ 
         req: request,
         secret: process.env.NEXTAUTH_SECRET 
