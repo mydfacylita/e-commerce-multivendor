@@ -785,6 +785,11 @@ export function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): str
   const cepDest  = (invoice.destinatarioCEP || '').replace(/\D/g, '')
   const ieEmit   = (invoice.emitenteIE || '').replace(/[^0-9A-Za-z]/g, '')
 
+  // Schema NF-e exige CPF, CNPJ ou idEstrangeiro no destinatário
+  if (!cpfDest && !cnpjDest) {
+    throw new Error('CPF ou CNPJ do destinatário é obrigatório para emissão de NF-e. Preencha o endereço manual com o CPF do cliente.')
+  }
+
   // Monta XML manualmente (bibliotecas xml viriam aqui)
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
