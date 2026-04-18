@@ -576,9 +576,9 @@ async function shopeeRefreshIfNeeded(auth: any): Promise<any> {
     const endpoint = '/api/v2/auth/access_token/get'
     const sign = crypto.createHmac('sha256', auth.partnerKey)
       .update(`${auth.partnerId}${endpoint}${timestamp}`).digest('hex')
-    const baseUrl = shopeeBaseUrl(auth)
+    const base = auth.isSandbox ? 'https://partner.test-stable.shopeemobile.com' : 'https://partner.shopeemobile.com'
     const res = await fetch(
-      `${baseUrl}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`,
+      `${base}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: auth.refreshToken, partner_id: auth.partnerId, shop_id: auth.shopId }) }
     )
