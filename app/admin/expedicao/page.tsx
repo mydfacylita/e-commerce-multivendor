@@ -8,6 +8,7 @@ import { Package, Truck, CheckCircle, Clock, Search,
 import Image from 'next/image'
 import Link from 'next/link'
 import { formatOrderNumber } from '@/lib/order'
+import ShopeeOrderActionsButton from '@/components/admin/ShopeeOrderActionsButton'
 interface OrderItem {
   id: string
   productId: string
@@ -66,6 +67,8 @@ interface Order {
     outerHeight: number
     maxWeight: number
   }
+  marketplaceName?: string
+  marketplaceOrderId?: string
 }
 
 interface Embalagem {
@@ -650,6 +653,7 @@ export default function ExpedicaoPage() {
           ) : (
             <div className="space-y-4">
               {orders.map((order) => {
+                const isShopee = order.marketplaceName?.toLowerCase() === 'shopee'
                 const address = parseAddress(order.shippingAddress)
                 const dims = calculateOrderDimensions(order.items)
                 const suggestedPackaging = suggestPackaging(order.items)
@@ -665,10 +669,15 @@ export default function ExpedicaoPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-lg">{formatOrderNumber(order.id)}</span>
                               {getStatusBadge(order)}
                               {getShippingBadge(order)}
+                              {isShopee && (
+                                <span className="px-2 py-1 text-xs rounded-full bg-orange-500 text-white flex items-center gap-1">
+                                  🛍️ Shopee
+                                </span>
+                              )}
                             </div>
                             <div className="text-sm text-gray-500 mt-1">
                               {new Date(order.createdAt).toLocaleDateString('pt-BR')} às{' '}
@@ -819,8 +828,8 @@ export default function ExpedicaoPage() {
                                 </button>
                               )}
 
-                              {/* NF-e - Entre Separado e Embalado */}
-                              {order.separatedAt && !order.packedAt && (
+                              {/* NF-e - Entre Separado e Embalado (apenas pedidos não-marketplace) */}
+                              {!isShopee && order.separatedAt && !order.packedAt && (
                                 <>
                                   {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? (
                                     <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -893,7 +902,7 @@ export default function ExpedicaoPage() {
                               )}
 
                               {/* Embalar - Só habilitar se tiver NF-e EMITIDA com sucesso */}
-                              {order.separatedAt && !order.packedAt && order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && (
+                              {!isShopee && order.separatedAt && !order.packedAt && order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' && (
                                 <div className="space-y-2">
                                   <label className="block text-sm font-medium">1. Selecionar Embalagem:</label>
                                   <select
@@ -1015,7 +1024,7 @@ export default function ExpedicaoPage() {
                               )}
 
                               {/* Despachar */}
-                              {order.packedAt && !order.shippedAt && (
+                              {!isShopee && order.packedAt && !order.shippedAt && (
                                 <div className="space-y-2">
                                   <input
                                     type="text"
@@ -1039,7 +1048,7 @@ export default function ExpedicaoPage() {
                               )}
 
                               {/* Imprimir Etiqueta - Só para pedidos já embalados */}
-                              {order.packedAt && (
+                              {!isShopee && order.packedAt && (
                                 <>
                                   {/* Se já tem código ou não é Correios, mostrar botão de imprimir */}
                                   {(order.trackingCode || (order.shippingMethod !== 'correios' && order.shippingCarrier !== 'correios')) && (
@@ -1078,6 +1087,17 @@ export default function ExpedicaoPage() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Ações Shopee - largura total, abaixo do grid */}
+                        {isShopee && order.separatedAt && !order.shippedAt && (
+                          <div className="mt-4">
+                            <ShopeeOrderActionsButton
+                              orderId={order.id}
+                              shopeeOrderId={order.marketplaceOrderId ?? ''}
+                              currentTrackingCode={order.trackingCode}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
