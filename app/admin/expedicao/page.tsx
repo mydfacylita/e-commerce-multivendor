@@ -211,6 +211,11 @@ export default function ExpedicaoPage() {
     }
   }
 
+  const isMaskedAddress = (address: any) => {
+    if (!address || typeof address !== 'object') return false
+    return Object.values(address).some((value) => value === '****')
+  }
+
   const calculateOrderDimensions = (items: OrderItem[]) => {
     let totalWeight = 0
     let maxLength = 0
@@ -423,6 +428,30 @@ export default function ExpedicaoPage() {
       loadOrders()
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Erro ao gerar etiqueta própria' })
+    } finally {
+      setProcessingOrder(null)
+    }
+  }
+
+  const handleBuscarEnderecoShopee = async (orderId: string) => {
+    setProcessingOrder(orderId)
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/shopee-actions?action=escrow`)
+      const data = await res.json()
+
+      if (res.ok && data?.ok) {
+        setMessage({
+          type: 'success',
+          text: data.saved
+            ? 'Endereco Shopee atualizado com sucesso!'
+            : 'Endereco real ja estava disponivel para este pedido.',
+        })
+        loadOrders()
+      } else {
+        setMessage({ type: 'error', text: data?.message || 'Nao foi possivel buscar endereco Shopee' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Erro ao consultar endereco Shopee' })
     } finally {
       setProcessingOrder(null)
     }
@@ -655,6 +684,7 @@ export default function ExpedicaoPage() {
               {orders.map((order) => {
                 const isShopee = order.marketplaceName?.toLowerCase() === 'shopee'
                 const address = parseAddress(order.shippingAddress)
+                const maskedAddress = isMaskedAddress(address)
                 const dims = calculateOrderDimensions(order.items)
                 const suggestedPackaging = suggestPackaging(order.items)
                 const isExpanded = expandedOrder === order.id
@@ -812,6 +842,25 @@ export default function ExpedicaoPage() {
                                   <div className="font-semibold">CEP: {address.zipCode}</div>
                                 </div>
                               </div>
+
+                              {isShopee && maskedAddress && (
+                                <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                  <div className="text-xs text-orange-800 mb-2">
+                                    Endereco mascarado pela Shopee. Clique para buscar endereco real via escrow.
+                                  </div>
+                                  <button
+                                    onClick={() => handleBuscarEnderecoShopee(order.id)}
+                                    disabled={processingOrder === order.id}
+                                    className="w-full py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                                  >
+                                    {processingOrder === order.id ? (
+                                      <><RefreshCw className="w-4 h-4 animate-spin" /> Buscando endereco...</>
+                                    ) : (
+                                      <>Buscar Endereco Real Shopee</>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
                             </div>
 
                             {/* Ações de Expedição */}
