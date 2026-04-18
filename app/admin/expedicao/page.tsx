@@ -52,6 +52,7 @@ interface Order {
   invoices?: {
     id: string
     invoiceNumber?: string
+    accessKey?: string
     status: string
     pdfUrl?: string
     errorMessage?: string
@@ -399,6 +400,32 @@ export default function ExpedicaoPage() {
       }
     } catch {
       setMessage({ type: 'error', text: 'Erro ao processar emissão de NF-e' })
+    } finally {
+      setProcessingOrder(null)
+    }
+  }
+
+  const handleConsultarNFe = async (orderId: string) => {
+    setProcessingOrder(orderId)
+    try {
+      const res = await fetch(`/api/admin/expedicao/${orderId}/consultar-nfe`, {
+        method: 'POST'
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMessage({
+          type: 'success',
+          text: `NF-e autorizada! Protocolo: ${data.protocolo}`
+        })
+        loadOrders()
+      } else {
+        setMessage({
+          type: 'error',
+          text: data.error || 'NF-e não autorizada'
+        })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Erro ao consultar situação na SEFAZ' })
     } finally {
       setProcessingOrder(null)
     }
@@ -1031,6 +1058,17 @@ export default function ExpedicaoPage() {
                                           <FileText className="w-4 h-4" />
                                           Tentar Novamente
                                         </button>
+                                        {order.invoices[0].accessKey && (
+                                          <button
+                                            onClick={() => handleConsultarNFe(order.id)}
+                                            disabled={processingOrder === order.id}
+                                            className="py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm flex items-center gap-1 disabled:opacity-50"
+                                            title="Consultar situação na SEFAZ pela chave de acesso"
+                                          >
+                                            <Search className="w-4 h-4" />
+                                            SEFAZ
+                                          </button>
+                                        )}
                                         <a
                                           href={`/api/admin/expedicao/${order.id}/preview-xml`}
                                           target="_blank"

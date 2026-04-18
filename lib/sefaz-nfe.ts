@@ -1020,16 +1020,26 @@ async function consultarRecibo(
           if (!retNode?.cStat) retNode = body?.retConsReciNFe || {}
           const cStat = retNode?.cStat || ''
           const xMotivo = retNode?.xMotivo || ''
-          const infProt = retNode?.retNFe?.protNFe?.infProt || {}
+          
+          // protNFe pode estar em retNode.protNFe (cStat 104) ou retNode.retNFe.protNFe
+          // xml2js pode retornar array se houver múltiplas NF-e no lote
+          let protNFe = retNode?.protNFe || retNode?.retNFe?.protNFe
+          if (Array.isArray(protNFe)) protNFe = protNFe[0]
+          const infProt = protNFe?.infProt || {}
           const cStatProt = infProt?.cStat || ''
           const nProt = infProt?.nProt || ''
           console.log(`   📋 Recibo consulta: cStat=${cStat} ${xMotivo} | NF-e cStat=${cStatProt} nProt=${nProt}`)
+          console.log(`   📋 retNode keys: ${Object.keys(retNode || {}).join(', ')}`)
+          console.log(`   📋 infProt: ${JSON.stringify(infProt).substring(0, 300)}`)
           if (cStatProt === '100' || cStatProt === '150') {
             resolve({ success: true, protocolo: nProt, cStat: cStatProt, xMotivo: infProt?.xMotivo || 'Autorizado' })
           } else if (cStatProt) {
             resolve({ success: false, error: `NF-e rejeitada - cStat: ${cStatProt} - ${infProt?.xMotivo || xMotivo}` })
           } else if (cStat === '105') {
             resolve({ success: false, error: `Lote ainda em processamento (cStat 105). Consulte mais tarde.` })
+          } else if (cStat === '104') {
+            // Lote processado mas sem protNFe — pode ser que a NF-e tenha sido rejeitada sem infProt
+            resolve({ success: false, error: `Lote processado (cStat 104) mas sem protocolo individual. retNode: ${JSON.stringify(retNode).substring(0, 300)}` })
           } else {
             resolve({ success: false, error: `Consulta recibo - cStat: ${cStat} - ${xMotivo}` })
           }
@@ -1040,6 +1050,132 @@ async function consultarRecibo(
     })
     req.on('error', (e: Error) => resolve({ success: false, error: `Erro TCP recibo: ${e.message}` }))
     req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout consulta recibo' }) })
+    req.write(soapXml, 'utf8')
+    req.end()
+  })
+}
+
+/**
+ * Retorna URL do webservice ConSitNFe (Consulta Situação NF-e) conforme UF e ambiente
+ */
+function getConsultaUrl(uf: string, ambiente: string): string {
+  const prod: Record<string, string> = {
+    AM: 'https://nfe.sefaz.am.gov.br/services2/services/NfeConsulta4',
+    BA: 'https://nfe.sefaz.ba.gov.br/webservices/NFeConsultaProtocolo4/NFeConsultaProtocolo4.asmx',
+    GO: 'https://nfe.sefaz.go.gov.br/nfe/services/NFeConsultaProtocolo4',
+    MG: 'https://nfe.fazenda.mg.gov.br/nfe2/services/NFeConsultaProtocolo4',
+    MS: 'https://nfe.sefaz.ms.gov.br/ws/NFeConsultaProtocolo4',
+    MT: 'https://nfe.sefaz.mt.gov.br/nfews/v2/services/NfeConsulta4',
+    PE: 'https://nfe.sefaz.pe.gov.br/nfe-service/services/NFeConsultaProtocolo4',
+    PR: 'https://nfe.fazenda.pr.gov.br/nfe/NFeConsultaProtocolo4',
+    RS: 'https://nfe.sefazrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx',
+    SP: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    MA: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    PA: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    AL: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    PI: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+  }
+  const hom: Record<string, string> = {
+    SP: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    MA: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    PA: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    AL: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    PI: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+  }
+  const svrs = {
+    prod: 'https://nfe.svrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx',
+    hom:  'https://nfe-homologacao.svrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx',
+  }
+  const isProducao = ambiente === 'producao'
+  return isProducao ? (prod[uf] || svrs.prod) : (hom[uf] || svrs.hom)
+}
+
+/**
+ * Consulta a situação de uma NF-e diretamente pela chave de acesso (ConSitNFe)
+ * Conforme schema consSitNFe_v4.00.xsd / retConsSitNFe_v4.00.xsd
+ */
+export async function consultarSituacaoNFe(
+  chaveAcesso: string,
+  certPem: string,
+  keyPem: string,
+  uf: string,
+  ambiente: string
+): Promise<{ success: boolean; protocolo?: string; cStat?: string; xMotivo?: string; error?: string }> {
+  const consultaUrl = getConsultaUrl(uf, ambiente)
+  const tpAmb = ambiente === 'producao' ? '1' : '2'
+  const cUF = getCodigoUF(uf)
+  const wsdlNs = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeConsultaProtocolo4'
+
+  const consSitXml = `<consSitNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><tpAmb>${tpAmb}</tpAmb><xServ>CONSULTAR</xServ><chNFe>${chaveAcesso}</chNFe></consSitNFe>`
+
+  const soapXml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope">',
+    `<soap:Header><nfeCabecMsg xmlns="${wsdlNs}"><cUF>${cUF}</cUF><versaoDados>4.00</versaoDados></nfeCabecMsg></soap:Header>`,
+    `<soap:Body><nfeDadosMsg xmlns="${wsdlNs}">${consSitXml}</nfeDadosMsg></soap:Body>`,
+    '</soap:Envelope>',
+  ].join('')
+
+  console.log(`   🔎 Consultando situação NF-e ${chaveAcesso} em: ${consultaUrl}`)
+
+  return new Promise(async (resolve) => {
+    const https = await import('https')
+    const urlObj = new URL(consultaUrl)
+    const opts: any = {
+      hostname: urlObj.hostname, port: 443, path: urlObj.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': `application/soap+xml;charset=utf-8;action="${wsdlNs}/nfeConsultaNF"`,
+        'Content-Length': Buffer.byteLength(soapXml, 'utf8'),
+      },
+      key: keyPem, cert: certPem, rejectUnauthorized: false, timeout: 20000,
+    }
+    const req = https.request(opts, (res: any) => {
+      let data = ''
+      res.on('data', (c: Buffer) => { data += c.toString('utf8') })
+      res.on('end', async () => {
+        try {
+          console.log('   📬 ConSitNFe HTTP:', res.statusCode)
+          console.log('   Preview:', data.substring(0, 400))
+
+          const parsed = await parseStringPromise(data, {
+            explicitArray: false,
+            tagNameProcessors: [(n: string) => n.replace(/^[^:]+:/, '')],
+          })
+          const body = parsed?.Envelope?.Body || {}
+          let retNode: any = {}
+          for (const k of Object.keys(body)) {
+            if (body[k]?.retConsSitNFe) { retNode = body[k].retConsSitNFe; break }
+          }
+          if (!retNode?.cStat) retNode = body?.retConsSitNFe || {}
+
+          const cStat = retNode?.cStat || ''
+          const xMotivo = retNode?.xMotivo || ''
+          // protNFe direto em retConsSitNFe (conforme XSD)
+          const infProt = retNode?.protNFe?.infProt || {}
+          const cStatProt = infProt?.cStat || ''
+          const nProt = infProt?.nProt || ''
+
+          console.log(`   📋 ConSitNFe: cStat=${cStat} ${xMotivo} | protNFe cStat=${cStatProt} nProt=${nProt}`)
+
+          if (cStat === '100' || cStat === '150') {
+            // Consulta retornou NF-e autorizada
+            resolve({ success: true, protocolo: nProt, cStat: cStatProt || cStat, xMotivo: infProt?.xMotivo || xMotivo })
+          } else if (cStatProt === '100' || cStatProt === '150') {
+            resolve({ success: true, protocolo: nProt, cStat: cStatProt, xMotivo: infProt?.xMotivo || 'Autorizado' })
+          } else if (cStat === '217') {
+            // NF-e não consta na base (ainda não processada ou inexistente)
+            resolve({ success: false, error: `NF-e não consta na base da SEFAZ (cStat ${cStat})` })
+          } else {
+            resolve({ success: false, error: `ConSitNFe - cStat: ${cStat} - ${xMotivo}${cStatProt ? ` | NF-e: ${cStatProt} - ${infProt?.xMotivo || ''}` : ''}` })
+          }
+        } catch (e: any) {
+          resolve({ success: false, error: `Erro parse ConSitNFe: ${e.message}` })
+        }
+      })
+    })
+    req.on('error', (e: Error) => resolve({ success: false, error: `Erro TCP ConSitNFe: ${e.message}` }))
+    req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout ConSitNFe' }) })
     req.write(soapXml, 'utf8')
     req.end()
   })
@@ -1088,6 +1224,22 @@ async function enviarParaSEFAZ(
       // Remover declaração XML (<?xml...?>) do xmlAssinado —
       // ela não pode aparecer dentro de um elemento XML (causa HTTP 400 na SVRS/ASP.NET)
       const xmlAssinadoSemDecl = xmlAssinado.replace(/^<\?xml[^?]*\?>\s*/i, '')
+      
+      // DEBUG: Verificar se Signature está presente no XML final
+      const hasSig = xmlAssinadoSemDecl.includes('<Signature')
+      const hasCloseSig = xmlAssinadoSemDecl.includes('</Signature>')
+      const sigBeforeCloseNFe = xmlAssinadoSemDecl.indexOf('<Signature') < xmlAssinadoSemDecl.lastIndexOf('</NFe>')
+      console.log(`   📝 XML final: hasSig=${hasSig}, hasCloseSig=${hasCloseSig}, sigBeforeCloseNFe=${sigBeforeCloseNFe}`)
+      console.log(`   📝 Últimos 100 chars do XML: ...${xmlAssinadoSemDecl.slice(-100)}`)
+      
+      // Salvar XML para debug
+      try {
+        const { writeFileSync } = require('fs')
+        writeFileSync('/tmp/nfe-debug-xml.xml', xmlAssinadoSemDecl)
+        writeFileSync('/tmp/nfe-debug-enviNFe.xml', `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>0</indSinc>${xmlAssinadoSemDecl}</enviNFe>`)
+        console.log('   📝 XML salvo em /tmp/nfe-debug-xml.xml')
+      } catch(e) { console.log('   ⚠️ Não salvou XML debug:', (e as any).message) }
+      
       const enviNFeXml = `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>0</indSinc>${xmlAssinadoSemDecl}</enviNFe>`
 
       const cUF = getCodigoUF(uf)
@@ -1175,30 +1327,44 @@ async function enviarParaSEFAZ(
               resolve({ success: false, error: `NF-e rejeitada - cStat: ${cStatProt} - ${infProt?.xMotivo || xMotivo}` })
             } else if (cStat === '103' || cStat === '104' || cStat === '105') {
               // Lote recebido/em processamento (modo assíncrono — SVC-SP)
-              // Consultar recibo após breve aguardo
               const nRec = retEnviNFe?.infRec?.nRec || retEnviNFe?.nRec || ''
-              console.log(`   📋 Lote assíncrono recebido — nRec: ${nRec}, aguardando processamento...`)
-              if (!nRec) {
-                resolve({ success: false, error: `Lote aceito (cStat ${cStat}) mas sem número de recibo para consulta` })
-                return
-              }
-              // Aguardar e consultar recibo com polling (SEFAZ pode demorar a processar)
-              const delays = [3000, 5000, 7000, 10000, 10000] // até 5 tentativas
+              console.log(`   📋 Lote assíncrono — cStat: ${cStat}, nRec: ${nRec}`)
+
+              // Polling: consultar recibo + ConSitNFe na mesma iteração
+              const delays = [3000, 5000, 7000, 10000, 10000]
               for (let i = 0; i < delays.length; i++) {
                 await new Promise(r => setTimeout(r, delays[i]))
-                console.log(`   🔄 Consulta recibo tentativa ${i + 1}/${delays.length}...`)
-                const recResult = await consultarRecibo(nRec, urlStr, certPem, keyPem, uf)
-                
-                // Se processou (sucesso ou rejeição), retornar
-                if (recResult.success || (recResult.error && !recResult.error.includes('cStat 105'))) {
-                  resolve(recResult)
+                console.log(`   🔄 Tentativa ${i + 1}/${delays.length}...`)
+
+                // 1) Consultar recibo (se tiver nRec)
+                if (nRec) {
+                  const recResult = await consultarRecibo(nRec, urlStr, certPem, keyPem, uf)
+                  if (recResult.success) {
+                    resolve(recResult)
+                    return
+                  }
+                  // Se rejeitou de verdade (não é 105 nem 104 sem protocolo), retornar erro
+                  if (recResult.error && !recResult.error.includes('cStat 105') && !recResult.error.includes('cStat 104')) {
+                    resolve(recResult)
+                    return
+                  }
+                }
+
+                // 2) Consultar diretamente pela chave de acesso (ConSitNFe)
+                const sitResult = await consultarSituacaoNFe(chaveAcesso, certPem, keyPem, uf, ambiente)
+                if (sitResult.success) {
+                  console.log(`   ✅ ConSitNFe retornou autorizada! Protocolo: ${sitResult.protocolo}`)
+                  resolve(sitResult)
                   return
                 }
-                // Se ainda processando (105), continuar polling
-                console.log(`   ⏳ Lote ainda em processamento, aguardando...`)
+                // Se ConSitNFe retornou rejeição definitiva (não é "não consta"), retornar
+                if (sitResult.error && !sitResult.error.includes('não consta')) {
+                  resolve(sitResult)
+                  return
+                }
+                console.log(`   ⏳ NF-e ainda não consta/processando, aguardando...`)
               }
-              // Se esgotou tentativas, retornar último resultado
-              resolve({ success: false, error: `Lote em processamento (cStat 105) após ${delays.length} tentativas. Consulte o recibo ${nRec} manualmente.` })
+              resolve({ success: false, error: `NF-e não processada após ${delays.length} tentativas de recibo + ConSitNFe. Recibo: ${nRec}` })
             } else {
               resolve({ success: false, error: `Erro SEFAZ - cStat: ${cStat} - ${xMotivo || 'Sem resposta válida'}` })
             }
@@ -1433,6 +1599,8 @@ export async function emitirNFeSefaz(invoiceId: string): Promise<SefazResult> {
       where: { id: invoiceId },
       data: {
         status: 'ERROR',
+        accessKey: chaveAcesso,
+        xmlAssinado: xmlAssinado,
         errorMessage: `Falha após ${tentativas} tentativas: ${ultimoErro}`
       }
     })

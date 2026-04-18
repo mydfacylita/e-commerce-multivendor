@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             invoiceNumber: true,
+            accessKey: true,
             status: true,
             pdfUrl: true,
             errorMessage: true
