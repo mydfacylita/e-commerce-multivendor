@@ -1182,10 +1182,23 @@ async function enviarParaSEFAZ(
                 resolve({ success: false, error: `Lote aceito (cStat ${cStat}) mas sem número de recibo para consulta` })
                 return
               }
-              // Aguardar 3s e consultar recibo
-              await new Promise(r => setTimeout(r, 3000))
-              const recResult = await consultarRecibo(nRec, urlStr, certPem, keyPem, uf)
-              resolve(recResult)
+              // Aguardar e consultar recibo com polling (SEFAZ pode demorar a processar)
+              const delays = [3000, 5000, 7000, 10000, 10000] // até 5 tentativas
+              for (let i = 0; i < delays.length; i++) {
+                await new Promise(r => setTimeout(r, delays[i]))
+                console.log(`   🔄 Consulta recibo tentativa ${i + 1}/${delays.length}...`)
+                const recResult = await consultarRecibo(nRec, urlStr, certPem, keyPem, uf)
+                
+                // Se processou (sucesso ou rejeição), retornar
+                if (recResult.success || (recResult.error && !recResult.error.includes('cStat 105'))) {
+                  resolve(recResult)
+                  return
+                }
+                // Se ainda processando (105), continuar polling
+                console.log(`   ⏳ Lote ainda em processamento, aguardando...`)
+              }
+              // Se esgotou tentativas, retornar último resultado
+              resolve({ success: false, error: `Lote em processamento (cStat 105) após ${delays.length} tentativas. Consulte o recibo ${nRec} manualmente.` })
             } else {
               resolve({ success: false, error: `Erro SEFAZ - cStat: ${cStat} - ${xMotivo || 'Sem resposta válida'}` })
             }
