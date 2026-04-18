@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { withAuth } from '@/lib/api-middleware'
 import {
   getShopeeAuth,
+  getOrderDetail,
   getOrderEscrowDetail,
   extractEscrowAddress,
   uploadInvoice,
@@ -38,14 +39,46 @@ export const GET = withAuth(async (req: NextRequest) => {
     }
     const auth = await getShopeeAuth()
 
-    // ── Endereço real via escrow ──────────────────────────────────────────────
+    // ── Endereço real via escrow (fallback: order detail) ────────────────────
     if (action === 'escrow') {
-      const data = await getOrderEscrowDetail(auth, order.marketplaceOrderId)
-      assertShopeeSuccess(data, 'get_order_escrow_detail')
+      let address = null
 
-      const address = extractEscrowAddress(data)
+      // Tenta escrow primeiro (funciona para pedidos COMPLETED/pagos)
+      try {
+        const data = await getOrderEscrowDetail(auth, order.marketplaceOrderId)
+        if (!data?.error || data.error === '') {
+          address = extractEscrowAddress(data)
+        }
+      } catch { /* ignora erro do escrow, tenta fallback */ }
+
+      // Fallback: busca via get_order_detail (funciona para READY_TO_SHIP)
       if (!address) {
-        return NextResponse.json({ message: 'Endereço não disponível no escrow (pedido pode estar muito recente)' }, { status: 422 })
+        const detailData = await getOrderDetail(auth, [order.marketplaceOrderId], 'recipient_address,buyer_username')
+        assertShopeeSuccess(detailData, 'get_order_detail')
+        const orderDetail = detailData?.response?.order_list?.[0]
+        const addr = orderDetail?.recipient_address
+        if (addr) {
+          address = {
+            name: addr.name ?? orderDetail?.buyer_username ?? '',
+            phone: addr.phone ?? '',
+            street: [addr.full_address, addr.address, addr.district, addr.town].filter(Boolean).join(', ') || '',
+            city: addr.city ?? '',
+            state: addr.state ?? '',
+            zipCode: addr.zipcode ?? '',
+            country: addr.region ?? 'BR',
+          }
+        }
+      }
+
+      if (!address) {
+        return NextResponse.json({ message: 'Endereço não disponível (pedido pode estar muito recente)' }, { status: 422 })
+      }
+
+      // Verifica se algum campo do endereço obtido está mascarado
+      const addrValues = Object.values(address)
+      const stillMasked = addrValues.some((v) => v === '****' || v === '***')
+      if (stillMasked) {
+        return NextResponse.json({ message: 'Endereço ainda mascarado pela Shopee. O pedido pode não ter sido pago ainda.' }, { status: 422 })
       }
 
       // Salva endereço real no DB se ainda estiver mascarado

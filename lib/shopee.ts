@@ -143,9 +143,9 @@ export async function getShipmentList(auth: ShopeeAuth, params: {
 
 // ─── Payment / Escrow (endereço real sem máscara) ─────────────────────────────
 
-/** v2.payment.get_order_escrow_detail — Dados financeiros + endereço real do comprador */
+/** v2.payment.get_escrow_detail — Dados financeiros + endereço real do comprador */
 export async function getOrderEscrowDetail(auth: ShopeeAuth, orderSn: string) {
-  return shopeeGet(auth, '/api/v2/payment/get_order_escrow_detail', {
+  return shopeeGet(auth, '/api/v2/payment/get_escrow_detail', {
     order_sn: orderSn,
   })
 }
