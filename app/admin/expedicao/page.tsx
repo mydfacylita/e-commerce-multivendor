@@ -98,6 +98,8 @@ export default function ExpedicaoPage() {
   const [processingOrder, setProcessingOrder] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [selectedCarrier, setSelectedCarrier] = useState<string>('')
+  const [editingAddress, setEditingAddress] = useState<string | null>(null)
+  const [addressForm, setAddressForm] = useState({ name: '', phone: '', street: '', city: '', state: '', zipCode: '' })
   const [showCarrierDropdown, setShowCarrierDropdown] = useState(false)
 
   const loadOrders = useCallback(async () => {
@@ -250,6 +252,33 @@ export default function ExpedicaoPage() {
     })
 
     return suitable[0] || null
+  }
+
+  const handleSalvarEnderecoManual = async (orderId: string) => {
+    if (!addressForm.street.trim() || !addressForm.city.trim()) {
+      setMessage({ type: 'error', text: 'Rua e Cidade são obrigatórios' })
+      return
+    }
+    setProcessingOrder(orderId)
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/update-address`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: addressForm })
+      })
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Endereço atualizado!' })
+        setEditingAddress(null)
+        loadOrders()
+      } else {
+        const err = await res.json()
+        setMessage({ type: 'error', text: err.message || 'Erro ao salvar endereço' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Erro ao salvar endereço' })
+    } finally {
+      setProcessingOrder(null)
+    }
   }
 
   const handleSeparar = async (orderId: string) => {
@@ -845,20 +874,57 @@ export default function ExpedicaoPage() {
 
                               {isShopee && maskedAddress && (
                                 <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                                  <div className="text-xs text-orange-800 mb-2">
-                                    Endereco mascarado pela Shopee. Clique para buscar endereco real via escrow.
-                                  </div>
-                                  <button
-                                    onClick={() => handleBuscarEnderecoShopee(order.id)}
-                                    disabled={processingOrder === order.id}
-                                    className="w-full py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
-                                  >
-                                    {processingOrder === order.id ? (
-                                      <><RefreshCw className="w-4 h-4 animate-spin" /> Buscando endereco...</>
-                                    ) : (
-                                      <>Buscar Endereco Real Shopee</>
-                                    )}
-                                  </button>
+                                  {editingAddress === order.id ? (
+                                    <div className="space-y-2">
+                                      <div className="text-xs font-semibold text-orange-800 mb-1">Preencha com os dados do painel Shopee:</div>
+                                      <input type="text" placeholder="Nome completo" value={addressForm.name}
+                                        onChange={(e) => setAddressForm(f => ({ ...f, name: e.target.value }))}
+                                        className="w-full p-2 text-sm border rounded" />
+                                      <input type="text" placeholder="Telefone" value={addressForm.phone}
+                                        onChange={(e) => setAddressForm(f => ({ ...f, phone: e.target.value }))}
+                                        className="w-full p-2 text-sm border rounded" />
+                                      <input type="text" placeholder="Rua, número, bairro" value={addressForm.street}
+                                        onChange={(e) => setAddressForm(f => ({ ...f, street: e.target.value }))}
+                                        className="w-full p-2 text-sm border rounded" />
+                                      <div className="flex gap-2">
+                                        <input type="text" placeholder="Cidade" value={addressForm.city}
+                                          onChange={(e) => setAddressForm(f => ({ ...f, city: e.target.value }))}
+                                          className="flex-1 p-2 text-sm border rounded" />
+                                        <input type="text" placeholder="UF" value={addressForm.state} maxLength={2}
+                                          onChange={(e) => setAddressForm(f => ({ ...f, state: e.target.value.toUpperCase() }))}
+                                          className="w-16 p-2 text-sm border rounded" />
+                                      </div>
+                                      <input type="text" placeholder="CEP" value={addressForm.zipCode}
+                                        onChange={(e) => setAddressForm(f => ({ ...f, zipCode: e.target.value }))}
+                                        className="w-full p-2 text-sm border rounded" />
+                                      <div className="flex gap-2">
+                                        <button onClick={() => handleSalvarEnderecoManual(order.id)}
+                                          disabled={processingOrder === order.id}
+                                          className="flex-1 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-semibold disabled:opacity-50">
+                                          Salvar Endereço
+                                        </button>
+                                        <button onClick={() => setEditingAddress(null)}
+                                          className="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm">
+                                          Cancelar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="text-xs text-orange-800 mb-2">
+                                        Endereço mascarado pela Shopee. Copie do painel Shopee e preencha manualmente.
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          setEditingAddress(order.id)
+                                          setAddressForm({ name: order.buyerName || '', phone: '', street: '', city: '', state: '', zipCode: '' })
+                                        }}
+                                        className="w-full py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
+                                      >
+                                        <MapPin className="w-4 h-4" /> Preencher Endereço Manual
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               )}
                             </div>
