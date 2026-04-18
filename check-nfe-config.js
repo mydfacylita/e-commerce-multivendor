@@ -9,11 +9,15 @@ const { PrismaClient } = require('@prisma/client');
   
   if (config) {
     const v = JSON.parse(config.value);
-    console.log('=== Config NF-e do Banco ===');
-    console.log('naturezaOperacao:', v.naturezaOperacao);
-    console.log('cfopPadrao:', v.cfopPadrao);
-    console.log('\n=== taxRules salvos ===');
-    console.log(JSON.stringify(v.taxRules, null, 2));
+    v.sefazAmbiente = 'homologacao';
+    v.ambiente = 'homologacao';
+    await prisma.systemConfig.update({
+      where: { id: config.id },
+      data: { value: JSON.stringify(v) }
+    });
+    console.log('Ambiente alterado para HOMOLOGACAO');
+    console.log('sefazAmbiente:', v.sefazAmbiente);
+    console.log('ambiente:', v.ambiente);
   } else {
     console.log('Nenhuma config encontrada');
   }

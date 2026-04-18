@@ -885,7 +885,7 @@ export function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): str
     </emit>
     <dest>
       ${cpfDest ? `<CPF>${cpfDest}</CPF>` : cnpjDest ? `<CNPJ>${cnpjDest}</CNPJ>` : ''}
-      <xNome>${invoice.destinatarioNome}</xNome>
+      <xNome>${ambiente === '2' ? 'NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL' : invoice.destinatarioNome}</xNome>
       <enderDest>
         <xLgr>${invoice.destinatarioLogradouro}</xLgr>
         <nro>${invoice.destinatarioNumero}</nro>
