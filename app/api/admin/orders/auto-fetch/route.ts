@@ -661,11 +661,14 @@ async function fetchShopeeOrders() {
     if (!auth) { result.errors.push('Shopee não conectada'); return result }
 
     auth = await shopeeRefreshIfNeeded(auth)
+    console.log(`[Auto Fetch Shopee] 🔑 Auth OK — shopId=${auth.shopId} isSandbox=${auth.isSandbox}`)
 
     // Buscar pedidos dos últimos 2 dias em múltiplos status
     const timeFrom = Math.floor((Date.now() - 2 * 24 * 60 * 60 * 1000) / 1000)
     const timeTo = Math.floor(Date.now() / 1000)
     const statuses = ['UNPAID', 'READY_TO_SHIP', 'PROCESSED', 'SHIPPED', 'COMPLETED', 'IN_CANCEL', 'CANCELLED']
+
+    console.log(`[Auto Fetch Shopee] 🔍 Buscando pedidos de ${new Date(timeFrom*1000).toLocaleString('pt-BR')} até ${new Date(timeTo*1000).toLocaleString('pt-BR')}`)
 
     let allOrderSns: string[] = []
     for (const status of statuses) {
@@ -674,6 +677,14 @@ async function fetchShopeeOrders() {
         page_size: 50, order_status: status,
       })
       const sns = listData.response?.order_list?.map((o: any) => o.order_sn) || []
+      if (sns.length > 0) {
+        console.log(`[Auto Fetch Shopee] 📦 Status ${status}: ${sns.length} pedido(s) — ${sns.join(', ')}`)
+      } else {
+        console.log(`[Auto Fetch Shopee] ➖ Status ${status}: 0 pedidos`)
+      }
+      if (listData.error && listData.error !== 'error_not_found') {
+        console.warn(`[Auto Fetch Shopee] ⚠️ API retornou erro para ${status}: ${listData.error} — ${listData.message}`)
+      }
       allOrderSns = allOrderSns.concat(sns)
     }
 
@@ -690,11 +701,15 @@ async function fetchShopeeOrders() {
 
     const allOrders: any[] = []
     for (const chunk of chunks) {
+      console.log(`[Auto Fetch Shopee] 📋 Buscando detalhes de ${chunk.length} pedido(s): ${chunk.join(', ')}`)
       const detail = await shopeePost('/api/v2/order/get_order_detail', auth, {
         order_sn_list: chunk,
         response_optional_fields: ['buyer_user_id', 'buyer_username', 'recipient_address', 'actual_shipping_fee', 'item_list'],
       })
-      allOrders.push(...(detail.response?.order_list || []))
+      const orders = detail.response?.order_list || []
+      console.log(`[Auto Fetch Shopee] ✅ Detalhes recebidos: ${orders.length} pedido(s)`)
+      if (detail.error) console.warn(`[Auto Fetch Shopee] ⚠️ Erro no get_order_detail: ${detail.error} — ${detail.message}`)
+      allOrders.push(...orders)
     }
 
     for (const shopeeOrder of allOrders) {
@@ -702,12 +717,16 @@ async function fetchShopeeOrders() {
         const orderSn = shopeeOrder.order_sn
         const status = mapShopeeStatus(shopeeOrder.order_status)
 
+        console.log(`[Auto Fetch Shopee] ⏳ Processando pedido ${orderSn} | Status: ${shopeeOrder.order_status} → ${status} | Comprador: ${shopeeOrder.buyer_username || 'N/A'}`)
+
         // Pedido já existe? Só atualiza status
         const existing = await prisma.order.findFirst({ where: { marketplaceOrderId: orderSn } })
         if (existing) {
           if (existing.status !== status) {
             await prisma.order.update({ where: { id: existing.id }, data: { status } })
-            console.log(`[Auto Fetch Shopee] ✅ ${orderSn} atualizado: ${existing.status} → ${status}`)
+            console.log(`[Auto Fetch Shopee] 🔄 ${orderSn} atualizado: ${existing.status} → ${status}`)
+          } else {
+            console.log(`[Auto Fetch Shopee] ⏭️ ${orderSn} já existe com status ${status}, pulando`)
           }
           continue
         }
@@ -728,18 +747,25 @@ async function fetchShopeeOrders() {
           (sum: number, item: any) => sum + (item.model_discounted_price || item.model_original_price || 0) * (item.model_quantity || 1), 0
         ) + (shopeeOrder.actual_shipping_fee || 0)
 
+        console.log(`[Auto Fetch Shopee] 📍 Endereço: ${address?.full_address || 'N/A'} — ${address?.city || 'N/A'}/${address?.state || 'N/A'} — CEP: ${address?.zipcode || 'N/A'}`)
+        console.log(`[Auto Fetch Shopee] 💰 Total calculado: R$ ${total.toFixed(2)} (frete: R$ ${(shopeeOrder.actual_shipping_fee || 0).toFixed(2)})`)
+        console.log(`[Auto Fetch Shopee] 🛒 Itens: ${(shopeeOrder.item_list || []).length} produto(s) no pedido`)
+
         // Associar itens a produtos locais
         const orderItems: any[] = []
         for (const item of (shopeeOrder.item_list || [])) {
+          console.log(`[Auto Fetch Shopee]   📦 Item: ${item.item_name} | itemId=${item.item_id} | qty=${item.model_quantity} | preço=${item.model_discounted_price || item.model_original_price}`)
           const listing = await prisma.marketplaceListing.findFirst({
             where: { marketplace: { in: ['shopee', 'SHOPEE'] }, listingId: String(item.item_id) }
           })
           if (listing) {
+            console.log(`[Auto Fetch Shopee]   ✅ Produto mapeado: listingId=${listing.listingId} → productId=${listing.productId}`)
             orderItems.push({ productId: listing.productId, quantity: item.model_quantity || 1, price: item.model_discounted_price || item.model_original_price || 0 })
           } else {
-            console.log(`[Auto Fetch Shopee] ⚠️ Produto sem listing local: ${item.item_name}`)
+            console.log(`[Auto Fetch Shopee]   ⚠️ Produto SEM listing local: ${item.item_name} (itemId=${item.item_id})`)
           }
         }
+        console.log(`[Auto Fetch Shopee] 💾 Criando pedido no banco... (${orderItems.length}/${(shopeeOrder.item_list||[]).length} itens mapeados)`)
 
         // Criar pedido (mesmo sem itens mapeados, para não perder o pedido)
         await prisma.order.create({
@@ -758,7 +784,7 @@ async function fetchShopeeOrders() {
         })
 
         result.imported++
-        console.log(`[Auto Fetch Shopee] ✅ ${orderSn} importado (${shopeeOrder.order_status})`)
+        console.log(`[Auto Fetch Shopee] ✅ PEDIDO IMPORTADO: ${orderSn} | Status: ${shopeeOrder.order_status} | Comprador: ${shopeeOrder.buyer_username} | Total: R$ ${total.toFixed(2)}`)
 
       } catch (err: any) {
         if (err.code === 'P2002') {
