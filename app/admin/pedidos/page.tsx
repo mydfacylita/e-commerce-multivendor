@@ -59,6 +59,8 @@ function filterAdmItems(items: any[]) {
   })
 }
 
+const MARKETPLACE_NAMES = ['shopee', 'SHOPEE', 'Shopee', 'Mercado Livre', 'mercado livre', 'MERCADO LIVRE', 'aliexpress', 'AliExpress', 'shopify', 'Shopify']
+
 // Calcular dias úteis
 function addBusinessDays(startDate: Date, days: number): Date {
   const result = new Date(startDate)
@@ -135,14 +137,17 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
 
   const today = new Date()
 
-  // Filtrar pedidos que tenham pelo menos 1 item ADM ou DROP
-  // e aplicar filtro de itens via JavaScript
+  // Filtrar pedidos que tenham pelo menos 1 item ADM ou DROP,
+  // OU pedidos vindos de marketplace externo (Shopee, ML, etc.)
   const rawOrders = allOrders
     .map(order => ({
       ...order,
       items: filterAdmItems(order.items)
     }))
-    .filter(order => order.items.length > 0)
+    .filter(order => 
+      order.items.length > 0 || 
+      (order.marketplaceName && MARKETPLACE_NAMES.some(n => n.toLowerCase() === order.marketplaceName!.toLowerCase()))
+    )
 
   // Agrupar pedidos híbridos pelo parentOrderId
   const groupedOrdersMap = new Map<string, GroupedOrder>()
