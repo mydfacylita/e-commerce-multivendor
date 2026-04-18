@@ -344,11 +344,13 @@ async function checkOrdersWithoutValidBuyer(): Promise<ConsistencyIssue[]> {
 
   try {
     // Buscar pedidos onde o usuário não existe mais
+    // Excluir pedidos de marketplace (Shopee, ML, etc.) que legitimamente não têm userId local
     const ordersWithInvalidBuyer = await prisma.order.findMany({
       where: {
         status: {
           notIn: ['CANCELLED']
-        }
+        },
+        marketplaceOrderId: null  // apenas pedidos diretos (não marketplace)
       },
       include: {
         user: true

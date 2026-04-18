@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
+import { shopeeGet as _shopeeGet, shopeePost as _shopeePost, getShopeeAuth } from '@/lib/shopee'
 
 
 // Force dynamic - disable all caching
@@ -557,57 +558,14 @@ async function fetchMercadoLivreOrders() {
   return result
 }
 
-// ─── Shopee helpers ─────────────────────────────────────────────────────────
+// ─── Shopee helpers (delegam para lib/shopee.ts) ────────────────────────────
 
-const SHOPEE_PROD_BASE = 'https://partner.shopeemobile.com'
-const SHOPEE_UAT_BASE = 'https://partner.uat.shopeemobile.com'
-
-function shopeeBaseUrl(auth: any): string {
-  return auth.isSandbox ? SHOPEE_UAT_BASE : SHOPEE_PROD_BASE
+// Adaptador: auto-fetch usa (endpoint, auth, params) — lib/shopee usa (auth, endpoint, params)
+function shopeeGet(endpoint: string, auth: any, params: Record<string, any>) {
+  return _shopeeGet(auth, endpoint, params)
 }
-
-function shopeeSign(partnerId: number, endpoint: string, timestamp: number, accessToken: string, shopId: number, partnerKey: string): string {
-  const base = `${partnerId}${endpoint}${timestamp}${accessToken}${shopId}`
-  return crypto.createHmac('sha256', partnerKey).update(base).digest('hex')
-}
-
-async function shopeePost(endpoint: string, auth: any, body: any) {
-  const timestamp = Math.floor(Date.now() / 1000)
-  const sign = shopeeSign(auth.partnerId, endpoint, timestamp, auth.accessToken, auth.shopId, auth.partnerKey)
-  const baseUrl = shopeeBaseUrl(auth)
-  const url = `${baseUrl}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${auth.accessToken}&shop_id=${auth.shopId}`
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const text = await res.text()
-  try {
-    return JSON.parse(text)
-  } catch (e) {
-    throw new Error(`Shopee API HTTP ${res.status}: ${text.substring(0, 200)}`)
-  }
-}
-
-// GET para endpoints de listagem (get_order_list, etc.)
-async function shopeeGet(endpoint: string, auth: any, params: Record<string, any>) {
-  const timestamp = Math.floor(Date.now() / 1000)
-  const sign = shopeeSign(auth.partnerId, endpoint, timestamp, auth.accessToken, auth.shopId, auth.partnerKey)
-  const baseUrl = shopeeBaseUrl(auth)
-  const qs = new URLSearchParams({
-    partner_id: String(auth.partnerId),
-    timestamp: String(timestamp),
-    sign,
-    access_token: auth.accessToken,
-    shop_id: String(auth.shopId),
-  })
-  for (const [k, v] of Object.entries(params)) {
-    qs.append(k, String(v))
-  }
-  const url = `${baseUrl}${endpoint}?${qs.toString()}`
-  const res = await fetch(url, { method: 'GET' })
-  const text = await res.text()
-  try {
-    return JSON.parse(text)
-  } catch (e) {
-    throw new Error(`Shopee API HTTP ${res.status}: ${text.substring(0, 200)}`)
-  }
+function shopeePost(endpoint: string, auth: any, body: any) {
+  return _shopeePost(auth, endpoint, body)
 }
 
 async function shopeeRefreshIfNeeded(auth: any): Promise<any> {

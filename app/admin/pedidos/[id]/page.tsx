@@ -7,6 +7,7 @@ import UpdateOrderStatusButton from '@/components/admin/UpdateOrderStatusButton'
 import ResetSupplierStatusButton from '@/components/admin/ResetSupplierStatusButton'
 import AliExpressOrderStatus from '@/components/admin/AliExpressOrderStatus'
 import MLOrderActionsButton from '@/components/admin/MLOrderActionsButton'
+import ShopeeOrderActionsButton from '@/components/admin/ShopeeOrderActionsButton'
 import { formatOrderNumber } from '@/lib/order'
 import ClientDate from '@/components/admin/ClientDate'
 import CorreiosLabelButton from '@/components/admin/CorreiosLabelButton'
@@ -783,6 +784,15 @@ export default async function AdminOrderDetailPage({
             <MLOrderActionsButton
               orderId={order.id}
               mlOrderId={order.marketplaceOrderId}
+              currentTrackingCode={order.trackingCode}
+            />
+          )}
+
+        {order.marketplaceOrderId &&
+          order.marketplaceName?.toLowerCase() === 'shopee' && (
+            <ShopeeOrderActionsButton
+              orderId={order.id}
+              shopeeOrderId={order.marketplaceOrderId}
               currentTrackingCode={order.trackingCode}
             />
           )}
