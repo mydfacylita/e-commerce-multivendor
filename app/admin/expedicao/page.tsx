@@ -672,7 +672,7 @@ export default function ExpedicaoPage() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-lg">{formatOrderNumber(order.id)}</span>
                               {getStatusBadge(order)}
-                              {getShippingBadge(order)}
+                              {!isShopee && getShippingBadge(order)}
                               {isShopee && (
                                 <span className="px-2 py-1 text-xs rounded-full bg-orange-500 text-white flex items-center gap-1">
                                   🛍️ Shopee
