@@ -619,9 +619,31 @@ function gerarXMLProdutos(invoice: any, config: any): string {
     const origem = produto.origem || (regra ? regra.origem : '0')
     
     // ICMS - prioridade: produto > regra > padrão
-    const cstIcms = produto.cstIcms || (regra ? regra.cstIcms : '00')
+    let cstIcms = produto.cstIcms || (regra ? regra.cstIcms : '00')
     const aliquotaIcms = produto.aliquotaIcms ?? (regra ? parseFloat(regra.aliquotaIcms) : 18)
     const reducaoBcIcms = produto.reducaoBcIcms ?? (regra ? parseFloat(regra.reducaoBaseIcms || '0') : 0)
+    
+    // Simples Nacional (CRT=1) exige CSOSN (3 dígitos), não CST (2 dígitos)
+    // Se CRT=1 e o código tem 2 dígitos (CST), converter para CSOSN equivalente
+    const crt = invoice.emitenteCRT || config.crt || '1'
+    if (crt === '1' && cstIcms.length <= 2) {
+      const cstTocsosn: Record<string, string> = {
+        '00': '102', // Tributada integralmente → Tributada SN sem crédito
+        '10': '201', // Com ST → Com ST e crédito
+        '20': '102', // Com redução BC → Tributada SN sem crédito
+        '30': '202', // Isenta/não trib com ST → Com ST sem crédito
+        '40': '400', // Isenta → Não tributada SN
+        '41': '400', // Não tributada → Não tributada SN
+        '50': '400', // Suspensão → Não tributada SN
+        '51': '102', // Diferimento → Tributada SN sem crédito
+        '60': '500', // Cobrado anteriormente por ST → ICMS cobrado por ST
+        '70': '900', // Com redução BC e ST → Outros
+        '90': '900', // Outros → Outros
+      }
+      const csosnConvertido = cstTocsosn[cstIcms] || '102'
+      console.log(`   ⚠️ CRT=1 (Simples Nacional): convertendo CST ${cstIcms} → CSOSN ${csosnConvertido}`)
+      cstIcms = csosnConvertido
+    }
     
     // PIS - prioridade: produto > regra > padrão
     const cstPis = produto.cstPis || (regra ? regra.cstPis : '01')
