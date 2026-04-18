@@ -19,9 +19,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   await prisma.order.update({
     where: { id: params.id },
     data: {
-      shippingAddress: JSON.stringify(address),
+      shippingAddress: JSON.stringify({
+        name: address.name || '',
+        phone: address.phone || '',
+        street: address.street || '',
+        number: address.number || 'S/N',
+        neighborhood: address.neighborhood || '',
+        complement: address.complement || '',
+        city: address.city || '',
+        state: address.state || '',
+        zipCode: address.zipCode || '',
+        cpfCnpj: address.cpfCnpj || '',
+      }),
       buyerName: address.name || undefined,
       buyerPhone: address.phone || undefined,
+      buyerCpf: address.cpfCnpj || undefined,
     },
   })
 

@@ -99,7 +99,7 @@ export default function ExpedicaoPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [selectedCarrier, setSelectedCarrier] = useState<string>('')
   const [editingAddress, setEditingAddress] = useState<string | null>(null)
-  const [addressForm, setAddressForm] = useState({ name: '', phone: '', street: '', city: '', state: '', zipCode: '' })
+  const [addressForm, setAddressForm] = useState({ name: '', phone: '', street: '', number: '', neighborhood: '', complement: '', city: '', state: '', zipCode: '', cpfCnpj: '' })
   const [showCarrierDropdown, setShowCarrierDropdown] = useState(false)
 
   const loadOrders = useCallback(async () => {
@@ -880,11 +880,25 @@ export default function ExpedicaoPage() {
                                       <input type="text" placeholder="Nome completo" value={addressForm.name}
                                         onChange={(e) => setAddressForm(f => ({ ...f, name: e.target.value }))}
                                         className="w-full p-2 text-sm border rounded" />
+                                      <input type="text" placeholder="CPF ou CNPJ" value={addressForm.cpfCnpj}
+                                        onChange={(e) => setAddressForm(f => ({ ...f, cpfCnpj: e.target.value.replace(/\D/g, '') }))}
+                                        className="w-full p-2 text-sm border rounded" />
                                       <input type="text" placeholder="Telefone" value={addressForm.phone}
                                         onChange={(e) => setAddressForm(f => ({ ...f, phone: e.target.value }))}
                                         className="w-full p-2 text-sm border rounded" />
-                                      <input type="text" placeholder="Rua, número, bairro" value={addressForm.street}
+                                      <input type="text" placeholder="Rua / Logradouro" value={addressForm.street}
                                         onChange={(e) => setAddressForm(f => ({ ...f, street: e.target.value }))}
+                                        className="w-full p-2 text-sm border rounded" />
+                                      <div className="flex gap-2">
+                                        <input type="text" placeholder="Número" value={addressForm.number}
+                                          onChange={(e) => setAddressForm(f => ({ ...f, number: e.target.value }))}
+                                          className="w-24 p-2 text-sm border rounded" />
+                                        <input type="text" placeholder="Bairro" value={addressForm.neighborhood}
+                                          onChange={(e) => setAddressForm(f => ({ ...f, neighborhood: e.target.value }))}
+                                          className="flex-1 p-2 text-sm border rounded" />
+                                      </div>
+                                      <input type="text" placeholder="Complemento (opcional)" value={addressForm.complement}
+                                        onChange={(e) => setAddressForm(f => ({ ...f, complement: e.target.value }))}
                                         className="w-full p-2 text-sm border rounded" />
                                       <div className="flex gap-2">
                                         <input type="text" placeholder="Cidade" value={addressForm.city}
@@ -917,7 +931,7 @@ export default function ExpedicaoPage() {
                                       <button
                                         onClick={() => {
                                           setEditingAddress(order.id)
-                                          setAddressForm({ name: order.buyerName || '', phone: '', street: '', city: '', state: '', zipCode: '' })
+                                          setAddressForm({ name: order.buyerName || '', phone: '', street: '', number: '', neighborhood: '', complement: '', city: '', state: '', zipCode: '', cpfCnpj: '' })
                                         }}
                                         className="w-full py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
                                       >
