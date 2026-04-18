@@ -873,7 +873,7 @@ export default function ExpedicaoPage() {
                                 </div>
                               </div>
 
-                              {isShopee && maskedAddress && (
+                              {isShopee && (maskedAddress || !address.cpfCnpj) && (
                                 <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                                   {editingAddress === order.id ? (
                                     <div className="space-y-2">
@@ -927,16 +927,29 @@ export default function ExpedicaoPage() {
                                   ) : (
                                     <>
                                       <div className="text-xs text-orange-800 mb-2">
-                                        Endereço mascarado pela Shopee. Copie do painel Shopee e preencha manualmente.
+                                        {maskedAddress 
+                                          ? 'Endereço mascarado pela Shopee. Copie do painel Shopee e preencha manualmente.'
+                                          : 'CPF do cliente não informado. Preencha para emitir NF-e.'}
                                       </div>
                                       <button
                                         onClick={() => {
                                           setEditingAddress(order.id)
-                                          setAddressForm({ name: order.buyerName || '', phone: order.buyerPhone || '', street: '', number: '', neighborhood: '', complement: '', city: '', state: '', zipCode: '', cpfCnpj: order.buyerCpf || '' })
+                                          setAddressForm({ 
+                                            name: order.buyerName || address.name || '', 
+                                            phone: order.buyerPhone || address.phone || '', 
+                                            street: address.street || '', 
+                                            number: address.number || '', 
+                                            neighborhood: address.neighborhood || '', 
+                                            complement: address.complement || '', 
+                                            city: address.city || '', 
+                                            state: address.state || '', 
+                                            zipCode: address.zipCode || '', 
+                                            cpfCnpj: order.buyerCpf || address.cpfCnpj || '' 
+                                          })
                                         }}
                                         className="w-full py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
                                       >
-                                        <MapPin className="w-4 h-4" /> Preencher Endereço Manual
+                                        <MapPin className="w-4 h-4" /> {maskedAddress ? 'Preencher Endereço Manual' : 'Editar Endereço / CPF'}
                                       </button>
                                     </>
                                   )}
