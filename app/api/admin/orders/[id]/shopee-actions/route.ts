@@ -39,59 +39,53 @@ export const GET = withAuth(async (req: NextRequest) => {
     }
     const auth = await getShopeeAuth()
 
-    // ── Endereço real via escrow (fallback: order detail) ────────────────────
+    // ── Endereço real via escrow / order detail ─────────────────────────────
     if (action === 'escrow') {
-      let address = null
+      let address: any = null
 
-      // Tenta escrow primeiro (funciona para pedidos COMPLETED/pagos)
+      // Tenta escrow (funciona para pedidos pagos)
       try {
         const data = await getOrderEscrowDetail(auth, order.marketplaceOrderId)
         if (!data?.error || data.error === '') {
           address = extractEscrowAddress(data)
         }
-      } catch { /* ignora erro do escrow, tenta fallback */ }
+      } catch { /* ignora, tenta fallback */ }
 
-      // Fallback: busca via get_order_detail (funciona para READY_TO_SHIP)
+      // Fallback: get_order_detail (READY_TO_SHIP)
       if (!address) {
-        const detailData = await getOrderDetail(auth, [order.marketplaceOrderId], 'recipient_address,buyer_username')
-        assertShopeeSuccess(detailData, 'get_order_detail')
-        const orderDetail = detailData?.response?.order_list?.[0]
-        const addr = orderDetail?.recipient_address
-        if (addr) {
-          address = {
-            name: addr.name ?? orderDetail?.buyer_username ?? '',
-            phone: addr.phone ?? '',
-            street: [addr.full_address, addr.address, addr.district, addr.town].filter(Boolean).join(', ') || '',
-            city: addr.city ?? '',
-            state: addr.state ?? '',
-            zipCode: addr.zipcode ?? '',
-            country: addr.region ?? 'BR',
+        try {
+          const detailData = await getOrderDetail(auth, [order.marketplaceOrderId], 'recipient_address,buyer_username')
+          const orderDetail = detailData?.response?.order_list?.[0]
+          const addr = orderDetail?.recipient_address
+          if (addr) {
+            address = {
+              name: addr.name ?? orderDetail?.buyer_username ?? '',
+              phone: addr.phone ?? '',
+              street: [addr.full_address, addr.address, addr.district, addr.town].filter(Boolean).join(', ') || '',
+              city: addr.city ?? '',
+              state: addr.state ?? '',
+              zipCode: addr.zipcode ?? '',
+              country: addr.region ?? 'BR',
+            }
           }
-        }
+        } catch { /* ignora */ }
       }
 
       if (!address) {
-        return NextResponse.json({ message: 'Endereço não disponível (pedido pode estar muito recente)' }, { status: 422 })
+        return NextResponse.json({ message: 'Endereço não disponível na API Shopee' }, { status: 422 })
       }
 
-      // Verifica se algum campo do endereço obtido está mascarado
-      const addrValues = Object.values(address)
-      const stillMasked = addrValues.some((v) => v === '****' || v === '***')
-      if (stillMasked) {
-        return NextResponse.json({ message: 'Endereço ainda mascarado pela Shopee. O pedido pode não ter sido pago ainda.' }, { status: 422 })
-      }
-
-      // Salva endereço real no DB se ainda estiver mascarado
+      // Salva no DB (substitui dados mascarados por qualquer coisa melhor)
       const current = JSON.parse(order.shippingAddress || '{}')
-      const isMasked = Object.values(current).some((v) => v === '****')
-      if (isMasked) {
+      const currentMasked = Object.values(current).some((v) => v === '****')
+      if (currentMasked) {
         await prisma.order.update({
           where: { id },
           data: { shippingAddress: JSON.stringify(address) },
         })
       }
 
-      return NextResponse.json({ ok: true, address, saved: isMasked })
+      return NextResponse.json({ ok: true, address, saved: currentMasked })
     }
 
     // ── Tracking number ───────────────────────────────────────────────────────
