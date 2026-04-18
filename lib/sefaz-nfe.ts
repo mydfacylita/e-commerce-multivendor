@@ -106,9 +106,28 @@ export function assinarXML(xml: string, certificadoPath: string, senha: string):
       location: { reference: `//*[local-name(.)='infNFe']`, action: 'after' }
     })
     
-    const xmlAssinado = sig.getSignedXml()
+    // Extrair apenas o bloco <Signature> gerado
+    const signatureXml = sig.getSignatureXml()
+    
+    // Inserir a Signature manualmente antes de </NFe> para garantir
+    // que fica como filho direto de <NFe> (xpath do xml-crypto pode falhar com XML minificado)
+    let xmlAssinado = sig.getSignedXml()
+    
+    // Verificar se a Signature ficou dentro de <NFe>
+    const nfeCloseIdx = xmlAssinado.lastIndexOf('</NFe>')
+    const sigIdx = xmlAssinado.indexOf('<Signature')
+    
+    if (sigIdx === -1 || (nfeCloseIdx !== -1 && sigIdx > nfeCloseIdx)) {
+      // Signature não está dentro de <NFe> — inserir manualmente
+      console.log('⚠️ Signature fora de <NFe>, reinserindo manualmente...')
+      // Remover Signature de onde estiver
+      xmlAssinado = xmlAssinado.replace(/<Signature[^>]*xmlns="http:\/\/www\.w3\.org\/2000\/09\/xmldsig#"[^>]*>[\s\S]*?<\/Signature>/g, '')
+      // Inserir antes de </NFe>
+      xmlAssinado = xmlAssinado.replace('</NFe>', `${signatureXml}</NFe>`)
+    }
     
     console.log('XML assinado com sucesso')
+    console.log('   Signature dentro de NFe:', xmlAssinado.indexOf('<Signature') < xmlAssinado.lastIndexOf('</NFe>'))
     return xmlAssinado
     
   } catch (error: any) {
@@ -416,7 +435,7 @@ function gerarXMLIcms(cst: string, origem: string, valorTotal: number, aliquota:
  * Gera XML do PIS baseado no CST
  */
 function gerarXMLPis(cst: string, valorTotal: number, aliquota: number): string {
-  const pPIS = aliquota.toFixed(2)
+  const pPIS = aliquota.toFixed(4)
   
   switch (cst) {
     case '01': // Tributável - base de cálculo = valor da operação alíquota normal
@@ -458,7 +477,7 @@ function gerarXMLPis(cst: string, valorTotal: number, aliquota: number): string 
  * Gera XML do COFINS baseado no CST
  */
 function gerarXMLCofins(cst: string, valorTotal: number, aliquota: number): string {
-  const pCOFINS = aliquota.toFixed(2)
+  const pCOFINS = aliquota.toFixed(4)
   
   switch (cst) {
     case '01': // Tributável - base de cálculo = valor da operação alíquota normal
