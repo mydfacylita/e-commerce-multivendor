@@ -826,7 +826,7 @@ export function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): str
       <CRT>${invoice.emitenteCRT}</CRT>
     </emit>
     <dest>
-      ${cpfDest ? `<CPF>${cpfDest}</CPF>` : `<CNPJ>${cnpjDest}</CNPJ>`}
+      ${cpfDest ? `<CPF>${cpfDest}</CPF>` : cnpjDest ? `<CNPJ>${cnpjDest}</CNPJ>` : ''}
       <xNome>${invoice.destinatarioNome}</xNome>
       <enderDest>
         <xLgr>${invoice.destinatarioLogradouro}</xLgr>
