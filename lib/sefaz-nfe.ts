@@ -798,11 +798,22 @@ export function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): str
       const reducaoBcIcms = (produto.reducaoBcIcms ?? (regra ? parseFloat(regra.reducaoBaseIcms || '0') : 0)) / 100
       
       // Verificar se o CST isenta de ICMS
-      const cstIcms = produto.cstIcms || (regra ? regra.cstIcms : '00')
+      let cstIcms = produto.cstIcms || (regra ? regra.cstIcms : '00')
       const cstPis = produto.cstPis || (regra ? regra.cstPis : '01')
       const cstCofins = produto.cstCofins || (regra ? regra.cstCofins : '01')
       
-      // CSTs isentos de ICMS
+      // Simples Nacional (CRT=1): converter CST → CSOSN (mesma lógica de gerarXMLProdutos)
+      const crt = invoice.emitenteCRT || config.crt || '1'
+      if (crt === '1' && cstIcms.length <= 2) {
+        const cstTocsosn: Record<string, string> = {
+          '00': '102', '10': '201', '20': '102', '30': '202',
+          '40': '400', '41': '400', '50': '400', '51': '102',
+          '60': '500', '70': '900', '90': '900',
+        }
+        cstIcms = cstTocsosn[cstIcms] || '102'
+      }
+      
+      // CSTs isentos de ICMS (inclui CSOSNs do Simples Nacional sem BC)
       const cstsIsentosIcms = ['40', '41', '50', '60', '102', '103', '400', '500']
       const cstsIsentosPis = ['04', '05', '06', '07', '08', '09']
       const cstsIsentosCofins = ['04', '05', '06', '07', '08', '09']
