@@ -559,6 +559,13 @@ async function fetchMercadoLivreOrders() {
 
 // ─── Shopee helpers ─────────────────────────────────────────────────────────
 
+const SHOPEE_PROD_BASE = 'https://partner.shopeemobile.com'
+const SHOPEE_UAT_BASE = 'https://partner.uat.shopeemobile.com'
+
+function shopeeBaseUrl(auth: any): string {
+  return auth.isSandbox ? SHOPEE_UAT_BASE : SHOPEE_PROD_BASE
+}
+
 function shopeeSign(partnerId: number, endpoint: string, timestamp: number, accessToken: string, shopId: number, partnerKey: string): string {
   const base = `${partnerId}${endpoint}${timestamp}${accessToken}${shopId}`
   return crypto.createHmac('sha256', partnerKey).update(base).digest('hex')
@@ -567,9 +574,15 @@ function shopeeSign(partnerId: number, endpoint: string, timestamp: number, acce
 async function shopeePost(endpoint: string, auth: any, body: any) {
   const timestamp = Math.floor(Date.now() / 1000)
   const sign = shopeeSign(auth.partnerId, endpoint, timestamp, auth.accessToken, auth.shopId, auth.partnerKey)
-  const url = `https://partner.shopeemobile.com${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${auth.accessToken}&shop_id=${auth.shopId}`
+  const baseUrl = shopeeBaseUrl(auth)
+  const url = `${baseUrl}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}&access_token=${auth.accessToken}&shop_id=${auth.shopId}`
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  return res.json()
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch (e) {
+    throw new Error(`Shopee API HTTP ${res.status}: ${text.substring(0, 200)}`)
+  }
 }
 
 async function shopeeRefreshIfNeeded(auth: any): Promise<any> {
@@ -580,12 +593,14 @@ async function shopeeRefreshIfNeeded(auth: any): Promise<any> {
     const endpoint = '/api/v2/auth/access_token/get'
     const sign = crypto.createHmac('sha256', auth.partnerKey)
       .update(`${auth.partnerId}${endpoint}${timestamp}`).digest('hex')
+    const baseUrl = shopeeBaseUrl(auth)
     const res = await fetch(
-      `https://partner.shopeemobile.com${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`,
+      `${baseUrl}${endpoint}?partner_id=${auth.partnerId}&timestamp=${timestamp}&sign=${sign}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: auth.refreshToken, partner_id: auth.partnerId, shop_id: auth.shopId }) }
     )
-    const data = await res.json()
+    const refreshText = await res.text()
+    const data = JSON.parse(refreshText)
     if (data.access_token) {
       const updated = await prisma.shopeeAuth.update({
         where: { id: auth.id },
