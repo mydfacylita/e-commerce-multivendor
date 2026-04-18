@@ -688,8 +688,9 @@ export function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): str
   }
 
   const now = new Date()
-  // Formato correto para NFe 4.0: AAAA-MM-DDThh:mm:ssTZD (sem milissegundos)
-  const dhEmi = now.toISOString().split('.')[0] + '-03:00'
+  // Converter UTC para horário de Brasília (UTC-3) antes de formatar
+  const brDate = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+  const dhEmi = brDate.toISOString().split('.')[0] + '-03:00'
   const ambiente = config.sefazAmbiente === 'producao' ? '1' : '2'
   
   // Buscar regras de tributação da configuração (usa mesma lógica de gerarXMLProdutos)
@@ -1479,12 +1480,13 @@ export async function emitirNFeSefaz(invoiceId: string): Promise<SefazResult> {
       return { success: false, error: 'Erro ao recarregar nota fiscal' }
     }
 
-    // Gerar chave de acesso
+    // Gerar chave de acesso (usar horário de Brasília para mês/ano correto)
     const now = new Date()
+    const brNow = new Date(now.getTime() - 3 * 60 * 60 * 1000)
     const chaveAcesso = gerarChaveAcesso(
       invoiceAtualizada.emitenteUF!,
-      now.getFullYear(),
-      now.getMonth() + 1,
+      brNow.getUTCFullYear(),
+      brNow.getUTCMonth() + 1,
       invoiceAtualizada.emitenteCnpj!,
       invoiceAtualizada.series!,
       numeroNota
