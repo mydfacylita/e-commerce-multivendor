@@ -56,8 +56,15 @@ const STATUS_CONFIG: Record<string, { label: string; icon: JSX.Element; bg: stri
 }
 
 function OriginBadge({ order }: { order: OrderCard }) {
-  if (order.marketplaceOrderId)
-    return <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">ML</span>
+  if (order.marketplaceOrderId) {
+    const name = (order.marketplaceName || '').toLowerCase()
+    if (name === 'shopee')
+      return <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">Shopee</span>
+    if (name.includes('mercado') || name === 'ml')
+      return <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">ML</span>
+    // fallback genérico com o nome do marketplace
+    return <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">{order.marketplaceName || 'MP'}</span>
+  }
   if (order.marketplaceName === 'APP')
     return <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-bold">📱 APP</span>
   return <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">Site</span>
