@@ -883,7 +883,12 @@ export function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): str
   </infNFe>
 </NFe>`
 
-  return xml
+  // Minificar XML — remover indentação e quebras de linha entre tags
+  // SEFAZ rejeita "caracteres de edição" (cStat 588) e whitespace pode
+  // causar falha na assinatura/posicionamento da Signature (cStat 225)
+  const xmlMinificado = xml.replace(/>\s+</g, '><').trim()
+
+  return xmlMinificado
 }
 
 /**
