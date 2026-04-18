@@ -661,7 +661,7 @@ async function fetchShopeeOrders() {
     if (!auth) { result.errors.push('Shopee não conectada'); return result }
 
     auth = await shopeeRefreshIfNeeded(auth)
-    console.log(`[Auto Fetch Shopee] 🔑 Auth OK — shopId=${auth.shopId} isSandbox=${auth.isSandbox}`)
+    console.log(`[Auto Fetch Shopee] 🔑 Auth OK — shopId=${auth?.shopId} isSandbox=${auth?.isSandbox}`)
 
     // Buscar pedidos dos últimos 2 dias em múltiplos status
     const timeFrom = Math.floor((Date.now() - 2 * 24 * 60 * 60 * 1000) / 1000)
