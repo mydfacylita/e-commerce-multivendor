@@ -139,10 +139,19 @@ export const POST = withAuth(async (req: NextRequest) => {
     // ── Enviar NF-e ───────────────────────────────────────────────────────────
     if (action === 'upload_invoice') {
       const { invoiceKey } = body
-      if (!invoiceKey || String(invoiceKey).replace(/\D/g, '').length !== 44) {
+      const cleanKey = String(invoiceKey || '').replace(/\D/g, '')
+      if (cleanKey.length !== 44) {
         return NextResponse.json({ message: 'Chave de acesso NF-e deve ter 44 dígitos numéricos' }, { status: 400 })
       }
-      const data = await uploadInvoice(auth, orderSn, String(invoiceKey).replace(/\D/g, ''))
+      // Extrair número da NF-e e série da chave de acesso (posições 25-34 = número, 22-24 = série)
+      const serieFromKey = String(parseInt(cleanKey.substring(22, 25), 10))
+      const numberFromKey = String(parseInt(cleanKey.substring(25, 34), 10))
+      // Também tentar pegar do invoice no banco
+      const invoice = await prisma.invoice.findFirst({ where: { orderId: id } })
+      const invoiceNumber = invoice?.invoiceNumber || numberFromKey
+      const seriesNumber = invoice?.series || serieFromKey
+      console.log(`[Shopee upload_invoice] orderSn=${orderSn} number=${invoiceNumber} series=${seriesNumber} accessKey=${cleanKey}`)
+      const data = await uploadInvoice(auth, orderSn, { number: invoiceNumber, seriesNumber, accessKey: cleanKey })
       assertShopeeSuccess(data, 'upload_invoice')
       return NextResponse.json({ ok: true, message: 'NF-e enviada à Shopee com sucesso!' })
     }

@@ -174,11 +174,15 @@ export async function getShippingDocumentParameter(auth: ShopeeAuth, orderList: 
   })
 }
 
-/** v2.logistics.upload_invoice — Envia chave de acesso da NF-e para um pedido */
-export async function uploadInvoice(auth: ShopeeAuth, orderSn: string, invoiceKey: string) {
+/** v2.logistics.upload_invoice — Envia chave de acesso da NF-e para um pedido (Brasil) */
+export async function uploadInvoice(auth: ShopeeAuth, orderSn: string, invoiceData: { number: string; seriesNumber: string; accessKey: string }) {
   return shopeePost(auth, '/api/v2/logistics/upload_invoice', {
     order_sn: orderSn,
-    invoice_number: invoiceKey,
+    invoice_data: {
+      number: invoiceData.number,
+      series_number: invoiceData.seriesNumber,
+      access_key: invoiceData.accessKey,
+    },
   })
 }
 
