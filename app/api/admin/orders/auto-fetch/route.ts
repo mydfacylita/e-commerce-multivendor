@@ -702,9 +702,9 @@ async function fetchShopeeOrders() {
     const allOrders: any[] = []
     for (const chunk of chunks) {
       console.log(`[Auto Fetch Shopee] 📋 Buscando detalhes de ${chunk.length} pedido(s): ${chunk.join(', ')}`)
-      const detail = await shopeePost('/api/v2/order/get_order_detail', auth, {
-        order_sn_list: chunk,
-        response_optional_fields: ['buyer_user_id', 'buyer_username', 'recipient_address', 'actual_shipping_fee', 'item_list'],
+      const detail = await shopeeGet('/api/v2/order/get_order_detail', auth, {
+        order_sn_list: chunk.join(','),
+        response_optional_fields: 'buyer_user_id,buyer_username,recipient_address,actual_shipping_fee,item_list',
       })
       const orders = detail.response?.order_list || []
       console.log(`[Auto Fetch Shopee] ✅ Detalhes recebidos: ${orders.length} pedido(s)`)
