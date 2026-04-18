@@ -39,6 +39,7 @@ interface Order {
   buyerName: string
   buyerEmail: string
   buyerPhone: string
+  buyerCpf?: string
   trackingCode?: string
   createdAt: string
   paymentApprovedAt?: string
@@ -931,7 +932,7 @@ export default function ExpedicaoPage() {
                                       <button
                                         onClick={() => {
                                           setEditingAddress(order.id)
-                                          setAddressForm({ name: order.buyerName || '', phone: '', street: '', number: '', neighborhood: '', complement: '', city: '', state: '', zipCode: '', cpfCnpj: '' })
+                                          setAddressForm({ name: order.buyerName || '', phone: order.buyerPhone || '', street: '', number: '', neighborhood: '', complement: '', city: '', state: '', zipCode: '', cpfCnpj: order.buyerCpf || '' })
                                         }}
                                         className="w-full py-2 px-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
                                       >

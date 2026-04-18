@@ -292,8 +292,8 @@ export async function POST(
         
         // Dados COMPLETOS do destinatário
         destinatarioNome: shippingData.name || order.buyerName || 'Cliente',
-        destinatarioCpf: (shippingData.cpfCnpj || order.buyerCpf || '').length <= 11 ? (shippingData.cpfCnpj || order.buyerCpf) : null,
-        destinatarioCnpj: (shippingData.cpfCnpj || order.buyerCpf || '').length > 11 ? (shippingData.cpfCnpj || order.buyerCpf) : null,
+        destinatarioCpf: (shippingData.cpfCnpj || order.buyerCpf || '').replace(/\D/g, '').length <= 11 ? (shippingData.cpfCnpj || order.buyerCpf) : null,
+        destinatarioCnpj: (shippingData.cpfCnpj || order.buyerCpf || '').replace(/\D/g, '').length > 11 ? (shippingData.cpfCnpj || order.buyerCpf) : null,
         destinatarioLogradouro: shippingData.street || shippingData.address || 'Não informado',
         destinatarioNumero: shippingData.number || 'S/N',
         destinatarioComplemento: shippingData.complement || shippingData.complemento,
