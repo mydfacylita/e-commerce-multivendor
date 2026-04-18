@@ -943,8 +943,8 @@ export default function ExpedicaoPage() {
                                 </button>
                               )}
 
-                              {/* NF-e - Entre Separado e Embalado (apenas pedidos não-marketplace) */}
-                              {!isShopee && order.separatedAt && !order.packedAt && (
+                              {/* NF-e - Entre Separado e Embalado */}
+                              {order.separatedAt && !order.packedAt && (
                                 <>
                                   {order.invoices && order.invoices.length > 0 && order.invoices[0].status !== 'ERROR' ? (
                                     <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
