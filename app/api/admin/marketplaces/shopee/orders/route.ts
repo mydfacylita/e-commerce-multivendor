@@ -18,7 +18,33 @@ function generateShopeeSignature(endpoint: string, partnerId: number, partnerKey
   return crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex');
 }
 
-// Requisição autenticada Shopee v2
+// Requisição GET autenticada Shopee v2 (get_order_list, get_shop_info, etc.)
+async function shopeeGetRequest(
+  endpoint: string,
+  partnerId: number,
+  partnerKey: string,
+  accessToken: string,
+  shopId: number,
+  params: Record<string, any> = {}
+) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const sign = generateShopeeSignature(endpoint, partnerId, partnerKey, timestamp, accessToken, shopId);
+  const qs = new URLSearchParams({
+    partner_id: String(partnerId),
+    timestamp: String(timestamp),
+    sign,
+    access_token: accessToken,
+    shop_id: String(shopId),
+  });
+  for (const [k, v] of Object.entries(params)) {
+    qs.append(k, String(v));
+  }
+  const url = `${SHOPEE_API_BASE_URL}${endpoint}?${qs.toString()}`;
+  const response = await fetch(url, { method: 'GET' });
+  return response.json();
+}
+
+// Requisição POST autenticada Shopee v2 (get_order_detail, etc.)
 async function shopeeRequest(
   endpoint: string,
   partnerId: number,
@@ -63,7 +89,7 @@ export async function GET(request: NextRequest) {
     const timeFrom = Math.floor((Date.now() - 15 * 24 * 60 * 60 * 1000) / 1000);
     const timeTo = Math.floor(Date.now() / 1000);
 
-    const data = await shopeeRequest(
+    const data = await shopeeGetRequest(
       '/api/v2/order/get_order_list',
       partnerId,
       partnerKey,
@@ -74,7 +100,7 @@ export async function GET(request: NextRequest) {
         time_from: timeFrom,
         time_to: timeTo,
         page_size: 50,
-        order_status: 'READY_TO_SHIP', // Pedidos prontos para envio
+        order_status: 'READY_TO_SHIP',
       }
     );
 

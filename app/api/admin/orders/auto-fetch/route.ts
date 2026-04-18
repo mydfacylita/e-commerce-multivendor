@@ -585,6 +585,31 @@ async function shopeePost(endpoint: string, auth: any, body: any) {
   }
 }
 
+// GET para endpoints de listagem (get_order_list, etc.)
+async function shopeeGet(endpoint: string, auth: any, params: Record<string, any>) {
+  const timestamp = Math.floor(Date.now() / 1000)
+  const sign = shopeeSign(auth.partnerId, endpoint, timestamp, auth.accessToken, auth.shopId, auth.partnerKey)
+  const baseUrl = shopeeBaseUrl(auth)
+  const qs = new URLSearchParams({
+    partner_id: String(auth.partnerId),
+    timestamp: String(timestamp),
+    sign,
+    access_token: auth.accessToken,
+    shop_id: String(auth.shopId),
+  })
+  for (const [k, v] of Object.entries(params)) {
+    qs.append(k, String(v))
+  }
+  const url = `${baseUrl}${endpoint}?${qs.toString()}`
+  const res = await fetch(url, { method: 'GET' })
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch (e) {
+    throw new Error(`Shopee API HTTP ${res.status}: ${text.substring(0, 200)}`)
+  }
+}
+
 async function shopeeRefreshIfNeeded(auth: any): Promise<any> {
   if (!auth.expiresAt || auth.expiresAt > new Date(Date.now() + 60 * 60 * 1000)) return auth
   if (!auth.refreshToken) return auth
@@ -644,7 +669,7 @@ async function fetchShopeeOrders() {
 
     let allOrderSns: string[] = []
     for (const status of statuses) {
-      const listData = await shopeePost('/api/v2/order/get_order_list', auth, {
+      const listData = await shopeeGet('/api/v2/order/get_order_list', auth, {
         time_range_field: 'create_time', time_from: timeFrom, time_to: timeTo,
         page_size: 50, order_status: status,
       })
