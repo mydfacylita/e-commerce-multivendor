@@ -926,11 +926,9 @@ function getWebserviceUrl(uf: string, ambiente: string): string {
     PR: 'https://nfe.fazenda.pr.gov.br/nfe/NFeAutorizacao4',
     RS: 'https://nfe.sefazrs.rs.gov.br/webservices/NfeAutorizacao4/NfeAutorizacao4.asmx',
     SP: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
-    // UFs que usam SVC-SP (não usam SVRS-RS — retornam cStat 114 da SVRS)
-    MA: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
-    PA: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
-    AL: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
-    PI: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    // SVAN — Sefaz Virtual do Ambiente Nacional (MA, PA)
+    MA: 'https://www.sefazvirtual.fazenda.gov.br/NFeAutorizacao4/NFeAutorizacao4.asmx',
+    PA: 'https://www.sefazvirtual.fazenda.gov.br/NFeAutorizacao4/NFeAutorizacao4.asmx',
   }
   const hom: Record<string, string> = {
     AM: 'https://nfe-homologacao.sefaz.am.gov.br/services2/services/NfeAutorizacao4',
@@ -943,11 +941,9 @@ function getWebserviceUrl(uf: string, ambiente: string): string {
     PR: 'https://homologacao.nfe.fazenda.pr.gov.br/nfe/NFeAutorizacao4',
     RS: 'https://nfe-homologacao.sefazrs.rs.gov.br/webservices/NfeAutorizacao4/NfeAutorizacao4.asmx',
     SP: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
-    // UFs que usam SVC-SP em homologação
-    MA: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
-    PA: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
-    AL: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
-    PI: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+    // SVAN homologação (MA, PA)
+    MA: 'https://hom.sefazvirtual.fazenda.gov.br/NFeAutorizacao4/NFeAutorizacao4.asmx',
+    PA: 'https://hom.sefazvirtual.fazenda.gov.br/NFeAutorizacao4/NFeAutorizacao4.asmx',
   }
   // SVRS – usado por AC, AP, CE, DF, ES, PB, RJ, RN, RO, RR, SC, SE, TO e demais não mapeados
   const svrs = {
@@ -975,7 +971,7 @@ async function consultarRecibo(
     .replace(/nfeautorizacao4\.asmx/i, 'nfeRetAutorizacao4.asmx')
     .replace(/NfeAutorizacao4/i, 'NFeRetAutorizacao4')
 
-  const ambiente = autorizacaoUrl.includes('homolog') ? 'homologacao' : 'producao'
+  const ambiente = (autorizacaoUrl.includes('homolog') || autorizacaoUrl.includes('hom.')) ? 'homologacao' : 'producao'
   const tpAmb = ambiente === 'producao' ? '1' : '2'
   const cUF = getCodigoUF(uf)
   const wsdlNs = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeRetAutorizacao4'
@@ -1070,17 +1066,15 @@ function getConsultaUrl(uf: string, ambiente: string): string {
     PR: 'https://nfe.fazenda.pr.gov.br/nfe/NFeConsultaProtocolo4',
     RS: 'https://nfe.sefazrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx',
     SP: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
-    MA: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
-    PA: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
-    AL: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
-    PI: 'https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    // SVAN consulta (MA, PA)
+    MA: 'https://www.sefazvirtual.fazenda.gov.br/NFeConsultaProtocolo4/NFeConsultaProtocolo4.asmx',
+    PA: 'https://www.sefazvirtual.fazenda.gov.br/NFeConsultaProtocolo4/NFeConsultaProtocolo4.asmx',
   }
   const hom: Record<string, string> = {
     SP: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
-    MA: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
-    PA: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
-    AL: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
-    PI: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx',
+    // SVAN consulta homologação (MA, PA)
+    MA: 'https://hom.sefazvirtual.fazenda.gov.br/NFeConsultaProtocolo4/NFeConsultaProtocolo4.asmx',
+    PA: 'https://hom.sefazvirtual.fazenda.gov.br/NFeConsultaProtocolo4/NFeConsultaProtocolo4.asmx',
   }
   const svrs = {
     prod: 'https://nfe.svrs.rs.gov.br/ws/NfeConsulta/NfeConsulta4.asmx',
