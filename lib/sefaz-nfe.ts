@@ -1230,11 +1230,11 @@ async function enviarParaSEFAZ(
       try {
         const { writeFileSync } = require('fs')
         writeFileSync('/tmp/nfe-debug-xml.xml', xmlAssinadoSemDecl)
-        writeFileSync('/tmp/nfe-debug-enviNFe.xml', `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>0</indSinc>${xmlAssinadoSemDecl}</enviNFe>`)
+        writeFileSync('/tmp/nfe-debug-enviNFe.xml', `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>1</indSinc>${xmlAssinadoSemDecl}</enviNFe>`)
         console.log('   📝 XML salvo em /tmp/nfe-debug-xml.xml')
       } catch(e) { console.log('   ⚠️ Não salvou XML debug:', (e as any).message) }
       
-      const enviNFeXml = `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>0</indSinc>${xmlAssinadoSemDecl}</enviNFe>`
+      const enviNFeXml = `<enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>1</indSinc>${xmlAssinadoSemDecl}</enviNFe>`
 
       const cUF = getCodigoUF(uf)
       const wsdlNs = 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4'
