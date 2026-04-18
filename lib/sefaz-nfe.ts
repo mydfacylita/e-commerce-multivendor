@@ -653,6 +653,13 @@ function gerarXMLProdutos(invoice: any, config: any): string {
  * Gera XML da NF-e (sem assinatura ainda)
  */
 export function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
+  // Sanitizar todos os campos string (remover espaços extras que violam schema SEFAZ)
+  for (const key of Object.keys(invoice)) {
+    if (typeof invoice[key] === 'string') {
+      invoice[key] = invoice[key].trim().replace(/\s+/g, ' ')
+    }
+  }
+
   // Validar campos obrigatórios
   if (!invoice.emitenteMunicipioCod || invoice.emitenteMunicipioCod === 'null') {
     throw new Error('Código do município do emitente não configurado. Configure em Configurações > Nota Fiscal')
