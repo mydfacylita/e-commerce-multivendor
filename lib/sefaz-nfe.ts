@@ -33,7 +33,7 @@ interface SefazResult {
 /**
  * Assina XML da NFe com certificado digital A1
  */
-function assinarXML(xml: string, certificadoPath: string, senha: string): string {
+export function assinarXML(xml: string, certificadoPath: string, senha: string): string {
   try {
     console.log('Lendo certificado:', certificadoPath)
     
@@ -120,7 +120,7 @@ function assinarXML(xml: string, certificadoPath: string, senha: string): string
 /**
  * Gera chave de acesso da NF-e (44 dígitos)
  */
-function gerarChaveAcesso(
+export function gerarChaveAcesso(
   uf: string,
   ano: number,
   mes: number,
@@ -652,7 +652,7 @@ function gerarXMLProdutos(invoice: any, config: any): string {
 /**
  * Gera XML da NF-e (sem assinatura ainda)
  */
-function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
+export function gerarXMLNFe(invoice: any, chaveAcesso: string, config: any): string {
   // Validar campos obrigatórios
   if (!invoice.emitenteMunicipioCod || invoice.emitenteMunicipioCod === 'null') {
     throw new Error('Código do município do emitente não configurado. Configure em Configurações > Nota Fiscal')

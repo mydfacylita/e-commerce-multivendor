@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Package, Truck, CheckCircle, Clock, Search, 
   Printer, Box, AlertCircle, ChevronDown, ChevronUp,
-  User, MapPin, Phone, Mail, RefreshCw, Filter, FileText, XCircle, Tag
+  User, MapPin, Phone, Mail, RefreshCw, Filter, FileText, XCircle, Tag, Download
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -1008,24 +1008,46 @@ export default function ExpedicaoPage() {
                                           </div>
                                         </div>
                                       </div>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => handleEmitirNFe(order.id)}
+                                          disabled={processingOrder === order.id}
+                                          className="flex-1 py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                          <FileText className="w-4 h-4" />
+                                          Tentar Novamente
+                                        </button>
+                                        <a
+                                          href={`/api/admin/expedicao/${order.id}/preview-xml`}
+                                          target="_blank"
+                                          className="py-2 px-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm flex items-center gap-1"
+                                          title="Baixar XML para validação"
+                                        >
+                                          <Download className="w-4 h-4" />
+                                          XML
+                                        </a>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-2">
                                       <button
                                         onClick={() => handleEmitirNFe(order.id)}
                                         disabled={processingOrder === order.id}
-                                        className="w-full py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                                        className="flex-1 py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
                                       >
-                                        <FileText className="w-4 h-4" />
-                                        Tentar Novamente
+                                        <FileText className="w-5 h-5" />
+                                        Emitir NF-e
                                       </button>
+                                      <a
+                                        href={`/api/admin/expedicao/${order.id}/preview-xml`}
+                                        target="_blank"
+                                        className="py-3 px-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm flex items-center gap-1"
+                                        title="Baixar XML para validação"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                        XML
+                                      </a>
                                     </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleEmitirNFe(order.id)}
-                                      disabled={processingOrder === order.id}
-                                      className="w-full py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
-                                    >
-                                      <FileText className="w-5 h-5" />
-                                      Emitir NF-e
-                                    </button>
                                   )}
                                 </>
                               )}
