@@ -136,7 +136,9 @@ export default function AdminInvoicesPage() {
     setSefazModal({ open: true, invoice, result: null, loading: true })
     try {
       const res = await fetch(`/api/admin/invoices/${invoice.id}/verificar-sefaz`, { method: 'POST' })
-      const data = await res.json()
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch { throw new Error(`Resposta inesperada do servidor (HTTP ${res.status})`) }
       if (!res.ok) throw new Error(data.error || 'Erro ao consultar')
       setSefazModal(prev => ({ ...prev, result: data, loading: false }))
     } catch (error: any) {
@@ -149,7 +151,9 @@ export default function AdminInvoicesPage() {
     setReemitindo(invoice.id)
     try {
       const res = await fetch(`/api/admin/invoices/${invoice.id}/reemitir`, { method: 'POST' })
-      const data = await res.json()
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch { throw new Error(`Resposta inesperada do servidor (HTTP ${res.status})`) }
       if (!res.ok) throw new Error(data.error || 'Erro ao reemitir')
       toast.success(`âœ… Nota reemitida! Chave: ${data.chaveAcesso?.slice(-8)}...`)
       loadInvoices()
