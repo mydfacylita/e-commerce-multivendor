@@ -98,7 +98,9 @@ export function assinarXML(xml: string, certificadoPath: string, senha: string):
     })
     
     // Remover tag <Signature> placeholder se existir
-    const xmlSemAssinatura = xml.replace(/<Signature[^>]*>[\s\S]*?<\/Signature>/g, '')
+    let xmlSemAssinatura = xml.replace(/<Signature[^>]*>[\s\S]*?<\/Signature>/g, '')
+    // Remover XML declaration — SEFAZ NF-e não usa e pode interferir na canonicalização
+    xmlSemAssinatura = xmlSemAssinatura.replace(/<\?xml[^?]*\?>\s*/g, '')
     
     // Assinar
     sig.computeSignature(xmlSemAssinatura, {
