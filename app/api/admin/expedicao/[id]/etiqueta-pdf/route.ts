@@ -4,11 +4,13 @@
  * GET /api/admin/expedicao/[id]/etiqueta-pdf
  * 
  * Gera e retorna o PDF da etiqueta usando o fluxo assíncrono da API CWS
+ * Redimensiona para 100x150mm (tamanho padrão de etiquetadoras)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { correiosCWS } from '@/lib/correios-cws'
 import { prisma } from '@/lib/prisma'
+import { PDFDocument } from 'pdf-lib'
 
 
 // Force dynamic - disable all caching
@@ -59,13 +61,38 @@ export async function GET(
 
     console.log(`[EtiquetaPDF] PDF gerado: ${resultado.pdfBuffer.length} bytes`)
 
-    // Retornar PDF diretamente (convertendo Buffer para Uint8Array)
-    return new NextResponse(new Uint8Array(resultado.pdfBuffer), {
+    // Redimensionar PDF para 100x150mm (283x425 pontos) — tamanho de etiquetadora
+    const srcDoc = await PDFDocument.load(resultado.pdfBuffer)
+    const srcPage = srcDoc.getPages()[0]
+    const { width: srcW, height: srcH } = srcPage.getSize()
+
+    // Tamanho alvo: 100mm x 150mm em pontos (1mm = 2.835pt)
+    const targetW = 283.46  // 100mm
+    const targetH = 425.20  // 150mm
+
+    const newDoc = await PDFDocument.create()
+    const [embedded] = await newDoc.embedPages([srcPage])
+
+    const page = newDoc.addPage([targetW, targetH])
+    // Escalar para caber na etiqueta mantendo proporção
+    const scale = Math.min(targetW / srcW, targetH / srcH)
+    const xOffset = (targetW - srcW * scale) / 2
+    const yOffset = (targetH - srcH * scale) / 2
+    page.drawPage(embedded, {
+      x: xOffset,
+      y: yOffset,
+      width: srcW * scale,
+      height: srcH * scale,
+    })
+
+    const pdfBytes = await newDoc.save()
+
+    return new NextResponse(new Uint8Array(pdfBytes), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="etiqueta-${order.trackingCode || id}.pdf"`,
-        'Content-Length': resultado.pdfBuffer.length.toString()
+        'Content-Length': pdfBytes.length.toString()
       }
     })
 
