@@ -254,7 +254,7 @@ export async function POST(
     }
     
     // TUDO vem da regra de tributação
-    const naturezaOperacaoNota = regraAplicavel.nome // Ex: "Venda Interna (dentro do estado)"
+    const naturezaOperacaoNota = regraAplicavel.naturezaOperacao || regraAplicavel.nome || config.naturezaOperacao || 'VENDA DE MERCADORIA'
     const cfopNota = regraAplicavel.cfop
     
     console.log(`📋 Tipo de operação: ${tipoOperacao} (${ufEmitente} -> ${ufDestinatario})`)

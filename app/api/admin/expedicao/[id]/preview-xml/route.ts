@@ -149,7 +149,7 @@ export async function GET(
       destinatarioMunicipioCod: codigoMunicipioDestinatario,
       destinatarioUF: ufDestinatario,
       destinatarioCEP: (shippingData.zipCode || shippingData.postalCode || '')?.replace(/\D/g, ''),
-      naturezaOperacao: regraAplicavel.nome,
+      naturezaOperacao: regraAplicavel.naturezaOperacao || regraAplicavel.nome || config.naturezaOperacao || 'VENDA DE MERCADORIA',
       cfop: regraAplicavel.cfop,
       order: {
         items: order.items,

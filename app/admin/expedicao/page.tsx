@@ -1070,10 +1070,10 @@ export default function ExpedicaoPage() {
                                           </button>
                                         )}
                                         <a
-                                          href={`/api/admin/expedicao/${order.id}/preview-xml`}
+                                          href={`/api/admin/expedicao/${order.id}/preview-xml?assinado=1`}
                                           target="_blank"
                                           className="py-2 px-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm flex items-center gap-1"
-                                          title="Baixar XML para validação"
+                                          title="Baixar XML assinado"
                                         >
                                           <Download className="w-4 h-4" />
                                           XML
@@ -1091,10 +1091,10 @@ export default function ExpedicaoPage() {
                                         Emitir NF-e
                                       </button>
                                       <a
-                                        href={`/api/admin/expedicao/${order.id}/preview-xml`}
+                                        href={`/api/admin/expedicao/${order.id}/preview-xml?assinado=1`}
                                         target="_blank"
                                         className="py-3 px-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm flex items-center gap-1"
-                                        title="Baixar XML para validação"
+                                        title="Baixar XML assinado"
                                       >
                                         <Download className="w-4 h-4" />
                                         XML

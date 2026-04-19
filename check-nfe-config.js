@@ -9,15 +9,16 @@ const { PrismaClient } = require('@prisma/client');
   
   if (config) {
     const v = JSON.parse(config.value);
-    v.sefazAmbiente = 'homologacao';
-    v.ambiente = 'homologacao';
+    // Corrigir regime para NORMAL (CRT=3) conforme SINTEGRA/SEFAZ MA
+    v.emitenteCrt = '3';
+    v.emitenteRegimeTributario = '3';
     await prisma.systemConfig.update({
       where: { id: config.id },
       data: { value: JSON.stringify(v) }
     });
-    console.log('Ambiente alterado para HOMOLOGACAO');
-    console.log('sefazAmbiente:', v.sefazAmbiente);
-    console.log('ambiente:', v.ambiente);
+    console.log('CRT alterado para:', v.emitenteCrt);
+    console.log('Regime Tributário alterado para:', v.emitenteRegimeTributario);
+    console.log('OK - Regime Normal configurado');
   } else {
     console.log('Nenhuma config encontrada');
   }

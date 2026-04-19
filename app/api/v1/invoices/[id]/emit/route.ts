@@ -217,7 +217,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }, { status: 400 })
     }
 
-    const naturezaOperacaoNota = regraAplicavel.nome
+    const naturezaOperacaoNota = regraAplicavel.naturezaOperacao || regraAplicavel.nome || 'VENDA DE MERCADORIA'
     const cfopNota = regraAplicavel.cfop
 
     // Determinar tipo de NF-e
